@@ -241,3 +241,67 @@ test("a literal split across adjacent strings is joined as TypeScript would", ()
 test("a missing symbol reads as null rather than an empty value", () => {
   assert.equal(readLiteral('export const OTHER = "x";\n', "A_CLASS"), null);
 });
+
+// The two values copied out of bb by hand are guarded only by this branch, so
+// it is the one that most needs a test of its own.
+const withLiteral = {
+  ...config,
+  literals: [
+    {
+      file: "plugins/bb-plugin-x/src/lib/tokens.ts",
+      symbol: "A_CLASS",
+      upstream: "packages/shared-ui/src/components/ui/tokens.ts",
+    },
+  ],
+};
+const tokens = 'export const A_CLASS =\n  "text-xs font-normal";\n';
+const lockWithLiteral = (files, literalValue) => ({
+  ...lockFor(files),
+  literals: {
+    "plugins/bb-plugin-x/src/lib/tokens.ts#A_CLASS": digest(literalValue),
+  },
+});
+
+test("a copied literal still matching what was recorded is not reported", () => {
+  const root = writeTree({ ...vendored, "plugins/bb-plugin-x/src/lib/tokens.ts": tokens });
+  assert.deepEqual(
+    inspect(root, withLiteral, lockWithLiteral(vendored, "text-xs font-normal"))
+      .changedLiterals,
+    [],
+  );
+});
+
+test("editing a copied literal is reported", () => {
+  const root = writeTree({
+    ...vendored,
+    "plugins/bb-plugin-x/src/lib/tokens.ts":
+      'export const A_CLASS =\n  "text-xs font-bold";\n',
+  });
+  assert.deepEqual(
+    inspect(root, withLiteral, lockWithLiteral(vendored, "text-xs font-normal"))
+      .changedLiterals,
+    ["plugins/bb-plugin-x/src/lib/tokens.ts#A_CLASS"],
+  );
+});
+
+test("deleting the symbol a literal names is reported, not skipped", () => {
+  const root = writeTree({
+    ...vendored,
+    "plugins/bb-plugin-x/src/lib/tokens.ts": "export const OTHER = 1;\n",
+  });
+  assert.deepEqual(
+    inspect(root, withLiteral, lockWithLiteral(vendored, "text-xs font-normal"))
+      .changedLiterals,
+    ["plugins/bb-plugin-x/src/lib/tokens.ts#A_CLASS"],
+  );
+});
+
+test("a target that walks out of the plugin mid-path is refused", async () => {
+  // A prefix check on ".." passes this; only normalising catches it.
+  await assert.rejects(
+    pluginFiles("plugins/bb-plugin-x", ["sneaky"], async () =>
+      item("sneaky", "a/../../../etc/passwd", "x"),
+    ),
+    /escapes the plugin/u,
+  );
+});

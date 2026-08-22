@@ -29,7 +29,7 @@ import {
   writeFileSync,
   realpathSync,
 } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { dirname, join, normalize, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -159,10 +159,12 @@ export async function pluginFiles(pluginDirectory, names, fetchOne) {
   for (const item of closure.values()) {
     for (const file of item.files ?? []) {
       const target = file.target ?? file.path;
-      if (target.startsWith("..") || target.startsWith("/")) {
+      // normalize first: a prefix check passes "a/../../../etc/passwd".
+      const within = normalize(target).split(sep).join("/");
+      if (within.startsWith("../") || within === ".." || target.startsWith("/")) {
         throw new Error(`${item.name}: target escapes the plugin: ${target}`);
       }
-      files.set(`${pluginDirectory}/src/${VENDOR_ROOT}/${target}`, file.content);
+      files.set(`${pluginDirectory}/src/${VENDOR_ROOT}/${within}`, file.content);
     }
   }
   return files;
@@ -314,11 +316,18 @@ async function build(repositoryRoot, config) {
     }
   }
 
-  // Remove anything a previous pin left behind before writing, so an item that
-  // fell out of the closure does not linger as an orphan.
-  const previous = new Set(
-    Object.keys(readLock(repositoryRoot)?.files ?? {}),
-  );
+  // Clear the owned root of anything this build does not write. Removing only
+  // what a previous lock listed would leave a stray that was never locked in
+  // place, and --check would then demand a rebuild that could not remove it.
+  const previous = new Set();
+  for (const pluginDirectory of Object.keys(config.plugins)) {
+    for (const relativePath of vendoredOnDisk(repositoryRoot, pluginDirectory)) {
+      previous.add(`${pluginDirectory}/${relativePath}`);
+    }
+  }
+  for (const path of Object.keys(readLock(repositoryRoot)?.files ?? {})) {
+    previous.add(path);
+  }
   for (const path of previous) {
     if (files.has(path)) continue;
     rmSync(join(repositoryRoot, path), { force: true });

@@ -16,7 +16,7 @@
     "check:ui": "node scripts/vendor-ui.mjs --check",
     "dev:stack": "node scripts/require-node.mjs && node scripts/dev-stack.mjs",
     "install:plugins": "node scripts/install-plugins.mjs",
-    "prepare": "git config core.hooksPath .githooks || true",
+    "prepare": "git config --local core.hooksPath .githooks || true",
     "screenshots": "node scripts/require-node.mjs && node scripts/screenshots/run.mjs",
     "test": "node --test scripts/*.test.mjs scripts/screenshots/*.test.mjs",
     "version:plugins": "changeset version && node scripts/sync-plugin-lockfiles.mjs"
