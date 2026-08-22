@@ -870,13 +870,16 @@ function WorkflowStageList({
   }, [personalProjectId, projectIds, rpc]);
   useEffect(() => {
     if (personalProjectId === null) return;
-    openPersonalCompose = () =>
+    const lend = () =>
       actions.openNewThread({
         projectId: personalProjectId,
         focusPrompt: true,
       });
+    openPersonalCompose = lend;
     return () => {
-      openPersonalCompose = null;
+      // Only take back what is still ours: bb mounts one list today, but a
+      // stale instance clearing a live one would strand the chord silently.
+      if (openPersonalCompose === lend) openPersonalCompose = null;
     };
   }, [actions, personalProjectId]);
 
