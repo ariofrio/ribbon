@@ -41,8 +41,6 @@ export interface IconOwner {
   id: string;
 }
 
-/** bb keeps project-less threads in the personal project. */
-export const PERSONAL_PROJECT_ID = "proj_personal";
 export const DEFAULT_PROJECT_ICON = "folder-01";
 export const PERSONAL_PROJECT_ICON = "bubble-chat";
 /**
@@ -138,15 +136,25 @@ export function createIconStore(db: Database): IconStore {
   };
 }
 
-/** The icon an owner shows when the user has not chosen one. */
-export function defaultIcon({ kind, id }: IconOwner): string {
+/**
+ * The icon an owner shows when the user has not chosen one. Which project is
+ * the personal one is bb's to say, so it is passed in rather than recognized
+ * by its id; null means bb has not said yet.
+ */
+export function defaultIcon(
+  { kind, id }: IconOwner,
+  personalProjectId: string | null,
+): string {
   if (kind === "section") return DEFAULT_SECTION_ICON;
-  return id === PERSONAL_PROJECT_ID
+  return id === personalProjectId
     ? PERSONAL_PROJECT_ICON
     : DEFAULT_PROJECT_ICON;
 }
 
 /** Whether the user may choose this owner's icon. */
-export function isEditable({ kind, id }: IconOwner): boolean {
-  return kind === "section" || id !== PERSONAL_PROJECT_ID;
+export function isEditable(
+  { kind, id }: IconOwner,
+  personalProjectId: string | null,
+): boolean {
+  return kind === "section" || id !== personalProjectId;
 }

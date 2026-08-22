@@ -43,6 +43,11 @@ const iconsSchema = z
         section: glyphSchema,
       })
       .strict(),
+    /**
+     * Which project bb calls personal, so a consumer draws its bubble and
+     * hides its picker without recognizing an id. Null when bb reports none.
+     */
+    personalProjectId: z.string().nullable(),
   })
   .strict();
 
@@ -121,18 +126,30 @@ export default function plugin(bb: BbPluginApi) {
       ? SECTION_GLYPH
       : (CATALOG_ICONS[icon] ?? CATALOG_ICONS[DEFAULT_PROJECT_ICON] ?? []);
 
-  const view = () => ({
+  // bb names its own personal project, and that never changes for a server.
+  let personalProjectId: string | null | undefined;
+  async function personalProject(): Promise<string | null> {
+    if (personalProjectId === undefined) {
+      const projects = await bb.sdk.projects.list({ includePersonal: true });
+      personalProjectId =
+        projects.find(({ kind }) => kind === "personal")?.id ?? null;
+    }
+    return personalProjectId;
+  }
+
+  const view = async () => ({
     icons: store.list().map((icon) => ({ ...icon, glyph: glyphOf(icon.icon) })),
     defaults: {
       project: glyphOf(DEFAULT_PROJECT_ICON),
       personal: glyphOf(PERSONAL_PROJECT_ICON),
       section: SECTION_GLYPH,
     },
+    personalProjectId: await personalProject(),
   });
 
   // Only the owner: a listener refetches anyway, and the chosen icon is nobody
   // else's business on a broadcast channel.
-  const publish = ({ kind, id }: IconOwner) => {
+  const publish = async ({ kind, id }: IconOwner) => {
     bb.realtime.publish("icons-changed", { kind, id });
     return view();
   };
@@ -183,12 +200,12 @@ export default function plugin(bb: BbPluginApi) {
       const { showInThreadHeader, showInSidebar } = await settings.get();
       return { showInThreadHeader, showInSidebar };
     },
-    setIcon(input) {
-      if (!isEditable(input)) {
+    async setIcon(input) {
+      if (!isEditable(input, await personalProject())) {
         throw new Error("The personal project's icon is fixed.");
       }
       store.set(input);
-      const next = publish(input);
+      const next = await publish(input);
       if (input.kind === "section") void pruneSections();
       return next;
     },

@@ -1,5 +1,5 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import plugin from "./server";
 
 const disposeHosts: Array<() => Promise<void>> = [];
@@ -8,8 +8,18 @@ afterEach(async () => {
   await Promise.all(disposeHosts.splice(0).map((dispose) => dispose()));
 });
 
-function createPluginHarness() {
-  const host = createFakePluginHost({ pluginId: "icons" });
+function createPluginHarness(personalProjectId = "proj_mine") {
+  const host = createFakePluginHost({
+    pluginId: "icons",
+    sdk: {
+      projects: {
+        list: vi.fn(async () => [
+          { id: personalProjectId, kind: "personal" },
+          { id: "proj_other", kind: "standard" },
+        ]),
+      },
+    },
+  });
   plugin(host.bb);
   disposeHosts.push(() => host.harness.lifecycle.dispose());
   return host.harness;
@@ -101,7 +111,7 @@ describe("icon plugin API", () => {
     await expect(
       harness.behavior.callRpc("setIcon", {
         kind: "project",
-        id: "proj_personal",
+        id: "proj_mine",
         icon: "folder-01",
         color: null,
       }),
@@ -115,12 +125,12 @@ describe("icon plugin API", () => {
     await expect(
       harness.behavior.callRpc("setIcon", {
         kind: "section",
-        id: "proj_personal",
+        id: "proj_mine",
         icon: "rocket",
         color: null,
       }),
     ).resolves.toMatchObject({
-      icons: [{ kind: "section", id: "proj_personal", icon: "rocket" }],
+      icons: [{ kind: "section", id: "proj_mine", icon: "rocket" }],
     });
   });
 
@@ -158,5 +168,28 @@ describe("icon placements", () => {
     await expect(
       host.harness.behavior.callRpc("listPlacements", null),
     ).resolves.toEqual({ showInThreadHeader: true, showInSidebar: false });
+  });
+});
+
+describe("the personal project's icon", () => {
+  it("names the personal project the way bb does", async () => {
+    const harness = createPluginHarness();
+
+    await expect(harness.behavior.callRpc("listIcons", null)).resolves.toMatchObject(
+      { personalProjectId: "proj_mine" },
+    );
+  });
+
+  it("lets an ordinary project keep an id that only looks personal", async () => {
+    const harness = createPluginHarness();
+
+    await expect(
+      harness.behavior.callRpc("setIcon", {
+        kind: "project",
+        id: "proj_personal",
+        icon: "rocket",
+        color: null,
+      }),
+    ).resolves.toMatchObject({ icons: [{ id: "proj_personal" }] });
   });
 });

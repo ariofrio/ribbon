@@ -12,7 +12,6 @@ import {
 import { IconPicker } from "./IconPicker";
 import type { SidebarAnchor } from "./sidebar-dom";
 import {
-  PERSONAL_PROJECT_ID,
   defaultIcon,
   isEditable,
   type IconColor,
@@ -40,8 +39,8 @@ function SidebarIcon({
 }: SidebarIconProps) {
   const [picking, setPicking] = useState(false);
   const { owner, name } = anchor;
-  const { name: iconName, glyph, color } = iconFor(state, owner, PERSONAL_PROJECT_ID);
-  const editable = isEditable(owner);
+  const { name: iconName, glyph, color } = iconFor(state, owner);
+  const editable = isEditable(owner, state?.personalProjectId ?? null);
 
   const glyphNode =
     glyph === undefined ? null : (
@@ -100,7 +99,7 @@ function SidebarIcon({
       }}
       ownerName={name}
       icon={iconName}
-      defaultIcon={defaultIcon(owner)}
+      defaultIcon={defaultIcon(owner, state?.personalProjectId ?? null)}
       color={color}
       onPick={(next) => onApply(owner, { icon: next })}
       onPickColor={(next) => onApply(owner, { color: next })}
@@ -167,7 +166,7 @@ export function SidebarIcons({
 
   const apply = useCallback(
     (owner: IconOwner, next: { icon?: string; color?: IconColor | null }) => {
-      const current = iconFor(state, owner, PERSONAL_PROJECT_ID);
+      const current = iconFor(state, owner);
       const icon = next.icon ?? current.name;
       const color = next.color === undefined ? current.color : next.color;
       const glyph =

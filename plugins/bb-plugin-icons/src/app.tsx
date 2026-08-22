@@ -40,10 +40,11 @@ interface IconDefaults {
 function defaultGlyph(
   owner: IconOwner,
   defaults: IconDefaults | null,
+  personalProjectId: string | null,
 ): IconSvgElement | undefined {
   if (defaults === null) return undefined;
   if (owner.kind === "section") return defaults.section;
-  return defaultIcon(owner) === "bubble-chat"
+  return defaultIcon(owner, personalProjectId) === "bubble-chat"
     ? defaults.personal
     : defaults.project;
 }
@@ -133,13 +134,17 @@ function IconHeaderAction({ projectId }: PluginThreadHeaderActionProps) {
     };
   }, [projectId, showInHeader]);
 
+  // bb marks its own personal project; the plugin does not recognize its id.
+  const personalProjectId =
+    sidebar.projects.find((project) => project.isPersonal)?.id ?? null;
   const chosen = icons.find(
     (item) => item.kind === owner.kind && item.id === owner.id,
   );
-  const icon = chosen?.icon ?? defaultIcon(owner);
+  const icon = chosen?.icon ?? defaultIcon(owner, personalProjectId);
   const color = chosen?.color ?? null;
-  const glyph = chosen?.glyph ?? defaultGlyph(owner, defaults);
-  const editable = isEditable(owner);
+  const glyph =
+    chosen?.glyph ?? defaultGlyph(owner, defaults, personalProjectId);
+  const editable = isEditable(owner, personalProjectId);
   const ownerName =
     sidebar.projects.find((project) => project.id === projectId)?.name ??
     "this project";
@@ -171,7 +176,10 @@ function IconHeaderAction({ projectId }: PluginThreadHeaderActionProps) {
   };
 
   const reset = () => {
-    pendingRef.current = { icon: defaultIcon(owner), color: null };
+    pendingRef.current = {
+      icon: defaultIcon(owner, personalProjectId),
+      color: null,
+    };
     setIcons((current) =>
       current.filter(
         (item) => !(item.kind === owner.kind && item.id === owner.id),
@@ -219,7 +227,7 @@ function IconHeaderAction({ projectId }: PluginThreadHeaderActionProps) {
                 onOpenChange={setPicking}
                 ownerName={ownerName}
                 icon={icon}
-                defaultIcon={defaultIcon(owner)}
+                defaultIcon={defaultIcon(owner, personalProjectId)}
                 color={color}
                 onPick={(next) => apply({ icon: next })}
                 onPickColor={(next) => apply({ color: next })}

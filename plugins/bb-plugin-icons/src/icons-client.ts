@@ -15,6 +15,8 @@ export interface IconsState {
     personal: IconSvgElement;
     section: IconSvgElement;
   };
+  /** Which project bb calls personal; null when bb reports none. */
+  personalProjectId: string | null;
 }
 
 export interface CatalogEntryView {
@@ -80,7 +82,6 @@ export type IconsRpc = ReturnType<typeof iconsRpc>;
 export function iconFor(
   state: IconsState | null,
   owner: IconOwner,
-  personalProjectId: string,
 ): { name: string; glyph: IconSvgElement | undefined; color: IconColor | null } {
   const chosen = state?.icons.find(
     (item) => item.kind === owner.kind && item.id === owner.id,
@@ -91,7 +92,7 @@ export function iconFor(
   if (owner.kind === "section") {
     return { name: "section", glyph: state?.defaults.section, color: null };
   }
-  const personal = owner.id === personalProjectId;
+  const personal = owner.id === state?.personalProjectId;
   return {
     name: personal ? "bubble-chat" : "folder-01",
     glyph: personal ? state?.defaults.personal : state?.defaults.project,
