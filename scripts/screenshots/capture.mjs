@@ -433,8 +433,28 @@ function mkdirFor(output) {
   return output;
 }
 
+/**
+ * What Chromium does to text differs by platform unless it is told not to, and
+ * both defaults change the picture rather than only its shading.
+ *
+ * Hinting rounds every glyph advance to a whole pixel, and the error
+ * accumulates along a line: the composer's placeholder measures 808 device
+ * pixels of ink on macOS and 838 on hinted Linux, which is enough to move
+ * where a line wraps and which character an ellipsis eats. Turning it off asks
+ * for the fractional advances macOS already uses, and the two then agree on
+ * layout to three decimal places rather than approximately.
+ *
+ * LCD antialiasing writes colour into the edge of every glyph, against an RGB
+ * stripe this image will never be shown on. macOS has drawn text in greyscale
+ * since Mojave; a README is read at whatever scale the page gives it.
+ *
+ * Both are no-ops on macOS — the same page renders to one byte-identical file
+ * with them, without them, and with either alone.
+ */
+const TEXT_RENDERING = ["--font-render-hinting=none", "--disable-lcd-text"];
+
 export async function capture({ stack, fixture, shots, shotFiles }) {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: TEXT_RENDERING });
   const captured = [];
   try {
     for (const shot of shots) {
