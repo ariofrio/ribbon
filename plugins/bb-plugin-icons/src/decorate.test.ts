@@ -98,6 +98,29 @@ describe("observeDecorations", () => {
     expect(glyph().style.display).toBe("none");
   });
 
+  it("passes on whether a spot asked for the picker", async () => {
+    document.body.innerHTML = `
+      <div data-bb-picker><svg data-icon="Folder"></svg></div>
+      <div><svg data-icon="Folder" data-project="proj_b"></svg></div>
+    `;
+    const asking: Placement = {
+      id: "asking",
+      setting: "showInComposer",
+      find: (root) =>
+        Array.from(
+          root.querySelectorAll<HTMLElement>('svg[data-icon="Folder"]'),
+        ).map((node) => ({
+          owner: { kind: "project", id: node.dataset.project ?? "proj_a" },
+          replaces: node,
+          picker: node.parentElement?.hasAttribute("data-bb-picker") === true,
+        })),
+    };
+
+    const [decorations] = await start([asking]);
+
+    expect(decorations?.map((d) => d.picker)).toEqual([true, false]);
+  });
+
   it("carries the markers a node outside the plugin's own mount needs", async () => {
     document.body.innerHTML = `<div><svg data-icon="Folder"></svg></div>`;
 

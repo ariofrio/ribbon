@@ -20,7 +20,16 @@ export interface PlacementContext {
  * in its place; `prepends` is a row bb drew no glyph on, where the icon goes
  * at the head instead.
  */
-export type Spot = { owner: IconOwner; className?: string } & (
+export type Spot = {
+  owner: IconOwner;
+  className?: string;
+  /**
+   * Whether the icon here opens the picker. Only where a click means nothing
+   * yet: bb has already given some of these rows a job, and one click cannot
+   * carry two meanings.
+   */
+  picker?: boolean;
+} & (
   | { replaces: HTMLElement; prepends?: never }
   | { prepends: HTMLElement; replaces?: never }
 );
@@ -67,6 +76,8 @@ export interface Decoration {
    * wins: it lands as an inline style.
    */
   glyphClassName: string | undefined;
+  /** Whether this one opens the picker rather than only showing the icon. */
+  picker: boolean;
 }
 
 const TARGET_CLASS = "inline-flex shrink-0 items-center";
@@ -145,6 +156,7 @@ function same(left: readonly Decoration[], right: readonly Decoration[]) {
       return (
         decoration.key === other.key &&
         decoration.target === other.target &&
+        decoration.picker === other.picker &&
         decoration.owner.kind === other.owner.kind &&
         decoration.owner.id === other.owner.id
       );
@@ -223,6 +235,7 @@ export function observeDecorations({
           owner: spot.owner,
           target: entry.target,
           glyphClassName: entry.glyphClassName,
+          picker: spot.picker === true,
         });
       }
     }

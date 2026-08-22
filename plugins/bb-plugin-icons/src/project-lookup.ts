@@ -11,6 +11,8 @@ export interface ProjectLookup {
    * nothing.
    */
   byName(name: string): IconOwner | null;
+  /** What bb calls a project, for a control that has to say which it edits. */
+  nameOf(id: string): string | null;
 }
 
 /**
@@ -26,8 +28,10 @@ export function projectLookup(
   projects: readonly ProjectSummary[],
 ): ProjectLookup {
   const owners = new Map<string, IconOwner | null>();
+  const names = new Map<string, string>();
   for (const project of projects) {
     const name = project.name.trim();
+    names.set(project.id, name);
     if (name === "") continue;
     owners.set(
       name,
@@ -36,5 +40,6 @@ export function projectLookup(
   }
   return {
     byName: (name) => owners.get(name.trim()) ?? null,
+    nameOf: (id) => names.get(id) ?? null,
   };
 }

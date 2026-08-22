@@ -30,7 +30,8 @@ function spotOn(
  * in more than one place — the environment strip under an open thread's
  * composer, and each project in the mention list the composer opens on `@`.
  * Following bb's own convention covers both, and covers wherever else it
- * applies the same label.
+ * applies the same label. What separates them is whether bb has already given
+ * the row a job; see the picker below.
  */
 const projectLabelled: Placement = {
   id: "project-labelled",
@@ -42,7 +43,15 @@ const projectLabelled: Placement = {
     )) {
       const name = node.getAttribute("title")?.slice(PROJECT_TITLE.length) ?? "";
       const spot = spotOn(node.querySelector(FOLDER), projects.byName(name));
-      if (spot !== null) spots.push(spot);
+      if (spot === null) continue;
+      // The strip under a thread is one of bb's display chips and does nothing
+      // when clicked, so the icon in it can open the picker. A mention row is
+      // a button that inserts the mention, and one click cannot mean two
+      // things — so the offer is made only where bb has claimed nothing.
+      spots.push({
+        ...spot,
+        picker: node.closest("button,a,[role=menuitem],[role=option]") === null,
+      });
     }
     return spots;
   },

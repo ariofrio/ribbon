@@ -60,7 +60,7 @@ export function Icons({
   return (
     <>
       <SidebarIcons anchors={anchors} controller={controller} />
-      <Decorations decorations={decorations} state={controller.state} />
+      <Decorations decorations={decorations} controller={controller} />
     </>
   );
 }

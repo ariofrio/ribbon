@@ -36,6 +36,23 @@ describe("projectLookup", () => {
     expect(projectLookup([]).byName("Storefront")).toBeNull();
   });
 
+  it("names a project back, for a control that has to say which it edits", () => {
+    const lookup = projectLookup([{ id: "proj_a", name: "Storefront" }]);
+
+    expect(lookup.nameOf("proj_a")).toBe("Storefront");
+    expect(lookup.nameOf("proj_gone")).toBeNull();
+  });
+
+  it("names one of two projects that share a name, though neither resolves", () => {
+    const lookup = projectLookup([
+      { id: "proj_a", name: "Storefront" },
+      { id: "proj_b", name: "Storefront" },
+    ]);
+
+    expect(lookup.byName("Storefront")).toBeNull();
+    expect(lookup.nameOf("proj_b")).toBe("Storefront");
+  });
+
   it("gives up on the empty name a row renders before its data arrives", () => {
     const lookup = projectLookup([{ id: "proj_a", name: "" }]);
 

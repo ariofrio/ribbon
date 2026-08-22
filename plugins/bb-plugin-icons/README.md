@@ -6,9 +6,10 @@ above a thread and above a project's own screens, the prompt box and the menus
 it opens, and each row of the
 [Thread stages](../bb-plugin-thread-stages#readme) sidebar.
 
-Click one on a sidebar header or in the thread header to change it: search
-2,532 icons by name or synonym, filter by category, and pick a color. Changes
-save as you click and appear everywhere at once.
+Click one on a sidebar header, in the thread header, or on the strip under an
+open thread to change it: search 2,532 icons by name or synonym, filter by
+category, and pick a color. Changes save as you click and appear everywhere at
+once.
 
 Projects default to a folder and bb's personal project to a chat bubble,
 because that is what bb draws itself. Sections default to bb's own section
@@ -92,6 +93,13 @@ screen where bb's header names a project and no thread.
 control opens, each project in the list `@` brings up, a project mentioned in
 the prompt, and the strip under an open thread that names the project the
 thread runs in.
+
+Only the strip's icon opens the picker there. The others sit inside a control
+bb already gave a job — a menu row that picks a project, a pill that opens one
+— and one click cannot mean two things; the strip is one of bb's display chips
+and does nothing when clicked, so the icon in it is free to. It lights on hover
+the way bb's own controls beside it do, and draws its background outside its
+own footprint so nothing shifts.
 
 Each of the three can be turned off on its own in the plugin's settings, and
 all three are on by default. Sidebars other plugins draw are their own; Thread

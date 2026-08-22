@@ -68,6 +68,23 @@ describe("the strip under an open thread's composer, and the mention list", () =
     );
   });
 
+  // The strip is bb's own display chip and does nothing when clicked, so the
+  // icon in it can carry the picker. A mention row already inserts a mention,
+  // and a second meaning for one click is one too many.
+  it("offers the picker on the strip, and not on a row bb already gave a job", () => {
+    document.body.innerHTML = `
+      <div data-option-display="" title="Project: Storefront">${folder("size-4")}</div>
+      <button type="button" title="Project: Payments API">${folder("size-3.5")}</button>
+    `;
+
+    expect(
+      find("project-labelled").map((spot) => [spot.owner.id, spot.picker === true]),
+    ).toEqual([
+      ["proj_a", true],
+      ["proj_b", false],
+    ]);
+  });
+
   it("leaves a project it cannot place alone", () => {
     document.body.innerHTML = `
       <div data-option-display="" title="Project: Deleted">${folder("size-4")}</div>
