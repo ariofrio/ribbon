@@ -1,63 +1,29 @@
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { announceIconsChanged, ICONS_CHANNEL } from "./broadcast";
-import { iconColorStyle } from "./icon-colors";
-import {
-  iconFor,
-  type CatalogEntryView,
-  type IconsRpc,
-  type IconsState,
-} from "./icons-client";
+import { useState } from "react";
+import { IconGlyph } from "./IconGlyph";
+import { iconFor } from "./icons-client";
 import { IconPicker } from "./IconPicker";
 import type { SidebarAnchor } from "./sidebar-dom";
-import {
-  PERSONAL_PROJECT_ID,
-  defaultIcon,
-  isEditable,
-  type IconColor,
-  type IconOwner,
-} from "./store";
-
-interface SidebarIconProps {
-  anchor: SidebarAnchor;
-  state: IconsState | null;
-  catalog: readonly CatalogEntryView[];
-  loadingCatalog: boolean;
-  onOpenPicker(): void;
-  onApply(owner: IconOwner, next: { icon?: string; color?: IconColor | null }): void;
-  onReset(owner: IconOwner): void;
-}
+import { PERSONAL_PROJECT_ID, defaultIcon, isEditable } from "./store";
+import type { IconsController } from "./use-icons";
 
 function SidebarIcon({
   anchor,
-  state,
-  catalog,
-  loadingCatalog,
-  onOpenPicker,
-  onApply,
-  onReset,
-}: SidebarIconProps) {
+  controller,
+}: {
+  anchor: SidebarAnchor;
+  controller: IconsController;
+}) {
   const [picking, setPicking] = useState(false);
   const { owner, name } = anchor;
-  const { name: iconName, glyph, color } = iconFor(state, owner, PERSONAL_PROJECT_ID);
-  const editable = isEditable(owner);
+  const { state, catalog, loadingCatalog, loadCatalog, apply, reset } = controller;
+  const drawn = iconFor(state, owner, PERSONAL_PROJECT_ID);
+  const glyph = <IconGlyph icon={drawn} />;
 
-  const glyphNode =
-    glyph === undefined ? null : (
-      <HugeiconsIcon
-        icon={glyph}
-        className="size-4 shrink-0"
-        style={iconColorStyle(color)}
-        data-icon={iconName}
-        aria-hidden
-      />
-    );
-
-  if (!editable) {
+  if (!isEditable(owner)) {
     return (
       <span className="inline-flex size-4 items-center justify-center">
-        {glyphNode}
+        {glyph}
       </span>
     );
   }
@@ -69,8 +35,8 @@ function SidebarIcon({
       title="Change icon"
       // Fetched on approach, so the picker is whole when it opens rather than
       // arriving and then filling in. loadCatalog only ever runs once.
-      onPointerEnter={onOpenPicker}
-      onFocus={onOpenPicker}
+      onPointerEnter={loadCatalog}
+      onFocus={loadCatalog}
       // bb's group header is a drag handle and a collapse target, so the
       // control keeps the event from reaching either. It stops propagation
       // only: the picker's own trigger listens on this same button, and Radix
@@ -85,7 +51,7 @@ function SidebarIcon({
       // darker in another, since the token stayed put while the label did not.
       className="relative z-20 inline-flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-sm transition-colors duration-150 hover:duration-0 hover:text-foreground"
     >
-      {glyphNode}
+      {glyph}
     </button>
   );
 
@@ -96,15 +62,15 @@ function SidebarIcon({
       open={picking}
       onOpenChange={(next) => {
         setPicking(next);
-        if (next) onOpenPicker();
+        if (next) loadCatalog();
       }}
       ownerName={name}
-      icon={iconName}
+      icon={drawn.name}
       defaultIcon={defaultIcon(owner)}
-      color={color}
-      onPick={(next) => onApply(owner, { icon: next })}
-      onPickColor={(next) => onApply(owner, { color: next })}
-      onReset={() => onReset(owner)}
+      color={drawn.color}
+      onPick={(next) => apply(owner, { icon: next })}
+      onPickColor={(next) => apply(owner, { color: next })}
+      onReset={() => reset(owner)}
       trigger={trigger}
     />
   );
@@ -119,113 +85,16 @@ function SidebarIcon({
  */
 export function SidebarIcons({
   anchors,
-  rpc,
+  controller,
 }: {
   anchors: readonly SidebarAnchor[];
-  rpc: IconsRpc;
+  controller: IconsController;
 }) {
-  const [state, setState] = useState<IconsState | null>(null);
-  const [catalog, setCatalog] = useState<readonly CatalogEntryView[]>([]);
-  const [loadingCatalog, setLoadingCatalog] = useState(false);
-  const refresh = useCallback(async () => {
-    const next = await rpc.list();
-    if (next !== null) setState(next);
-  }, [rpc]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  // The thread header and other windows announce their edits here, and bb
-  // publishes nothing about sections, so a focus check covers the rest.
-  useEffect(() => {
-    let channel: BroadcastChannel | null = null;
-    try {
-      channel = new BroadcastChannel(ICONS_CHANNEL);
-      channel.onmessage = () => void refresh();
-    } catch {
-      // Clients without BroadcastChannel still refresh on focus.
-    }
-    const onFocus = () => void refresh();
-    window.addEventListener("focus", onFocus);
-    return () => {
-      channel?.close();
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [refresh]);
-
-  const loadCatalog = useCallback(() => {
-    if (catalog.length > 0 || loadingCatalog) return;
-    setLoadingCatalog(true);
-    void rpc
-      .listCatalog()
-      .then((next) => {
-        if (next !== null) setCatalog(next.icons);
-      })
-      .finally(() => setLoadingCatalog(false));
-  }, [catalog.length, loadingCatalog, rpc]);
-
-  const apply = useCallback(
-    (owner: IconOwner, next: { icon?: string; color?: IconColor | null }) => {
-      const current = iconFor(state, owner, PERSONAL_PROJECT_ID);
-      const icon = next.icon ?? current.name;
-      const color = next.color === undefined ? current.color : next.color;
-      const glyph =
-        catalog.find((entry) => entry.name === icon)?.glyph ?? current.glyph ?? [];
-      setState((previous) =>
-        previous === null
-          ? previous
-          : {
-              ...previous,
-              icons: [
-                ...previous.icons.filter(
-                  (item) => !(item.kind === owner.kind && item.id === owner.id),
-                ),
-                { ...owner, icon, color, glyph },
-              ],
-            },
-      );
-      announceIconsChanged();
-      void rpc.set({ ...owner, icon, color }).then((result) => {
-        if (result === null) void refresh();
-      });
-    },
-    [catalog, refresh, rpc, state],
-  );
-
-  const reset = useCallback(
-    (owner: IconOwner) => {
-      setState((previous) =>
-        previous === null
-          ? previous
-          : {
-              ...previous,
-              icons: previous.icons.filter(
-                (item) => !(item.kind === owner.kind && item.id === owner.id),
-              ),
-            },
-      );
-      announceIconsChanged();
-      void rpc.clear(owner).then((result) => {
-        if (result === null) void refresh();
-      });
-    },
-    [refresh, rpc],
-  );
-
   return (
     <>
       {anchors.map((anchor) =>
         createPortal(
-          <SidebarIcon
-            anchor={anchor}
-            state={state}
-            catalog={catalog}
-            loadingCatalog={loadingCatalog}
-            onOpenPicker={loadCatalog}
-            onApply={apply}
-            onReset={reset}
-          />,
+          <SidebarIcon anchor={anchor} controller={controller} />,
           anchor.target,
           `${anchor.owner.kind}:${anchor.owner.id}`,
         ),

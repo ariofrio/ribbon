@@ -1,4 +1,5 @@
 import type { IconSvgElement } from "@hugeicons/react";
+import type { ProjectSummary } from "./project-lookup";
 import type { IconColor, IconOwner, StoredIcon } from "./store";
 
 /** Stamped by `bb plugin build`; undefined in tests and registry copies. */
@@ -15,6 +16,12 @@ export interface IconsState {
     personal: IconSvgElement;
     section: IconSvgElement;
   };
+  /**
+   * bb's projects, by id and name. Optional because an older backend than the
+   * app — a client left open across a plugin update — sends the state without
+   * it, and a row that resolves to nothing keeps bb's own folder.
+   */
+  projects?: ProjectSummary[];
 }
 
 export interface CatalogEntryView {

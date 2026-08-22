@@ -138,6 +138,54 @@ describe("icon plugin API", () => {
   });
 });
 
+describe("the project list the drawing needs", () => {
+  function hostWithProjects(list: () => Promise<unknown>) {
+    const host = createFakePluginHost({
+      pluginId: "icons",
+      sdk: { projects: { list } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+    return host.harness;
+  }
+
+  it("carries bb's projects, which some rows name and never identify", async () => {
+    const harness = hostWithProjects(async () => [
+      { id: "proj_personal", name: "Personal" },
+      { id: "proj_a", name: "Storefront" },
+    ]);
+
+    await expect(
+      harness.behavior.callRpc("listIcons", null),
+    ).resolves.toMatchObject({
+      projects: [
+        { id: "proj_personal", name: "Personal" },
+        { id: "proj_a", name: "Storefront" },
+      ],
+    });
+  });
+
+  it("asks for the personal project, which bb leaves out by default", async () => {
+    const harness = hostWithProjects(async () => []);
+
+    await harness.behavior.callRpc("listIcons", null);
+
+    expect(
+      harness.sdk.calls.find((call) => call.path === "projects.list")?.args,
+    ).toEqual([{ includePersonal: true }]);
+  });
+
+  it("reports no projects rather than failing when bb cannot list them", async () => {
+    const harness = hostWithProjects(async () => {
+      throw new Error("offline");
+    });
+
+    await expect(
+      harness.behavior.callRpc("listIcons", null),
+    ).resolves.toMatchObject({ projects: [] });
+  });
+});
+
 describe("icon placements", () => {
   it("defaults both placements on, so an update never hides an icon", async () => {
     const harness = createPluginHarness();

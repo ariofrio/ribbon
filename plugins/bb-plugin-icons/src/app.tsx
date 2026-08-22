@@ -1,4 +1,4 @@
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import type { IconSvgElement } from "@hugeicons/react";
 import {
   definePluginApp,
   experimental_useSidebarThreads,
@@ -13,11 +13,11 @@ import { createRoot } from "react-dom/client";
 import { afterPluginFrame } from "./after-plugin-frame";
 import { announceIconsChanged } from "./broadcast";
 import { installIconPortal } from "./header-dom";
+import { IconGlyph } from "./IconGlyph";
 import { IconPicker, type CatalogIcon } from "./IconPicker";
-import { iconColorStyle } from "./icon-colors";
+import { Icons } from "./Icons";
 import { iconsRpc } from "./icons-client";
 import type { rpcContract } from "./server";
-import { SidebarIcons } from "./SidebarIcons";
 import { observeSidebarIconAnchors, type SidebarAnchor } from "./sidebar-dom";
 import {
   defaultIcon,
@@ -46,27 +46,6 @@ function defaultGlyph(
   return defaultIcon(owner) === "bubble-chat"
     ? defaults.personal
     : defaults.project;
-}
-
-function IconGlyph({
-  name,
-  glyph,
-  color,
-}: {
-  name: string;
-  glyph: IconSvgElement | undefined;
-  color: IconColor | null;
-}) {
-  if (glyph === undefined) return null;
-  return (
-    <HugeiconsIcon
-      icon={glyph}
-      className="size-4 shrink-0"
-      style={iconColorStyle(color)}
-      data-icon={name}
-      aria-hidden
-    />
-  );
 }
 
 function IconHeaderAction({ projectId }: PluginThreadHeaderActionProps) {
@@ -197,11 +176,11 @@ function IconHeaderAction({ projectId }: PluginThreadHeaderActionProps) {
       // icon still lifts if it ever inherits something dimmer.
       className="relative z-50 -ml-0.5 flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors duration-150 hover:duration-0 hover:bg-state-hover hover:text-foreground data-[state=open]:bg-state-active data-[state=open]:text-foreground [app-region:no-drag] [-webkit-app-region:no-drag]"
     >
-      <IconGlyph name={icon} glyph={glyph} color={color} />
+      <IconGlyph icon={{ name: icon, glyph, color }} />
     </button>
   ) : (
     <span className="-ml-0.5 flex size-6 items-center justify-center">
-      <IconGlyph name={icon} glyph={glyph} color={color} />
+      <IconGlyph icon={{ name: icon, glyph, color }} />
     </span>
   );
 
@@ -302,7 +281,7 @@ export default definePluginApp((app) => {
           if (cancel !== undefined) return;
           cancel = afterPluginFrame(() => {
             cancel = undefined;
-            root.render(<SidebarIcons anchors={pending} rpc={rpc} />);
+            root.render(<Icons anchors={pending} rpc={rpc} />);
           });
         };
         draw([]);
