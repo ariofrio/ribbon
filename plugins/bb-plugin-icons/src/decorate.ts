@@ -44,9 +44,10 @@ export interface Placement {
 /** A running decoration pass, and the two things a caller does with one. */
 export interface Decorating {
   /**
-   * Reads the document again now. The observer covers everything bb changes,
-   * but not what the plugin itself learns later — the project list arrives
-   * after the first pass, and the rows that resolve a name need it.
+   * Asks for another pass. The observer covers everything bb changes, but not
+   * what the plugin itself learns later — the project list arrives after the
+   * first pass, and the rows that resolve a name need it. Like every other
+   * pass, it lands on the next frame rather than at once.
    */
   refresh(): void;
   stop(): void;
@@ -69,6 +70,14 @@ export interface Decoration {
 }
 
 const TARGET_CLASS = "inline-flex shrink-0 items-center";
+
+/** The attributes the placements read, and that a pass never writes. */
+const WATCHED_ATTRIBUTES = [
+  "data-icon",
+  "title",
+  "href",
+  "data-prompt-mention-resource",
+];
 
 interface Mounted {
   target: HTMLElement;
@@ -96,6 +105,23 @@ function createTarget(document: Document, className: string | undefined): HTMLEl
   }
   target.className = className ?? TARGET_CLASS;
   return target;
+}
+
+/**
+ * Carries over how bb's own glyph sat in the row it is being taken out of.
+ *
+ * bb writes that on the glyph, because the glyph is the flex item. Standing in
+ * front of it makes this target the flex item instead, and an alignment left
+ * behind is an icon in the wrong place: bb centres the folder in a mention
+ * pill that baseline-aligns everything else, and without this the icon rode
+ * four pixels above the word beside it.
+ */
+function alignLike(target: HTMLElement, replaced: HTMLElement): void {
+  const view = replaced.ownerDocument.defaultView;
+  const alignSelf = view?.getComputedStyle(replaced).alignSelf;
+  if (alignSelf !== undefined && alignSelf !== "" && alignSelf !== "auto") {
+    target.style.alignSelf = alignSelf;
+  }
 }
 
 function hide(node: HTMLElement): { node: HTMLElement; display: string } {
@@ -174,6 +200,7 @@ export function observeDecorations({
         if (entry === undefined || !entry.target.isConnected) {
           entry?.target.remove();
           const target = createTarget(document_, spot.className);
+          if (spot.replaces !== undefined) alignLike(target, spot.replaces);
           entry = {
             target,
             key: `${placement.id}:${(nextKey += 1)}`,
@@ -221,11 +248,23 @@ export function observeDecorations({
   observer.observe(document_.documentElement, {
     childList: true,
     subtree: true,
+    // React reconciles bb's icon in place rather than replacing it, so the
+    // composer's control turning its folder into a FolderPlus when the project
+    // is cleared is an attribute edit and nothing else. Without this, an icon
+    // would go on standing in for a glyph that is no longer a folder. The
+    // filter keeps that from costing a pass on every class bb toggles on
+    // hover, and holds only attributes the placements read and a pass never
+    // writes, so it cannot wake itself.
+    attributes: true,
+    attributeFilter: WATCHED_ATTRIBUTES,
   });
-  sync();
+  // Even the first pass waits for a frame: this call and refresh() both come
+  // from a React effect, and writing into bb's chrome straight from one is
+  // writing from inside the call bb is watching.
+  schedule();
 
   return {
-    refresh: sync,
+    refresh: schedule,
     stop() {
       if (disposed) return;
       disposed = true;

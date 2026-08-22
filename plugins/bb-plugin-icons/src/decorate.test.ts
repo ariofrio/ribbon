@@ -13,17 +13,31 @@ const context: PlacementContext = {
   projects: projectLookup([{ id: "proj_a", name: "Storefront" }]),
 };
 
-/** Stands in for a real placement: bb's own glyph, to be replaced. */
+/** Stands in for a real placement: bb's own folder, to be replaced. */
 const replacing: Placement = {
   id: "replacing",
   setting: "showInComposer",
   find: (root) =>
-    Array.from(root.querySelectorAll<HTMLElement>("[data-bb-glyph]")).map(
-      (node) => ({
-        owner: { kind: "project", id: node.dataset.project ?? "proj_a" },
-        className: "size-4",
-        replaces: node,
-      }),
+    Array.from(
+      root.querySelectorAll<HTMLElement>('svg[data-icon="Folder"]'),
+    ).map((node) => ({
+      owner: { kind: "project", id: node.dataset.project ?? "proj_a" },
+      className: "size-4",
+      replaces: node,
+    })),
+};
+
+/** Stands in for the rows that carry a project's name and nothing else. */
+const resolving: Placement = {
+  id: "resolving",
+  setting: "showInComposer",
+  find: (root, { projects }) =>
+    Array.from(root.querySelectorAll<HTMLElement>("[data-bb-named]")).flatMap(
+      (node) => {
+        const owner = projects.byName(node.getAttribute("data-bb-named") ?? "");
+        const folder = node.querySelector<HTMLElement>('svg[data-icon="Folder"]');
+        return owner === null || folder === null ? [] : [{ owner, replaces: folder }];
+      },
     ),
 };
 
@@ -49,18 +63,23 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-function start(placements: readonly Placement[]) {
+/**
+ * Starts a pass and waits for the first frame, since nothing is written into
+ * bb's chrome until one arrives.
+ */
+async function start(placements: readonly Placement[]) {
   const seen: Array<readonly Decoration[]> = [];
   running = observeDecorations({
     placements,
     context: () => context,
     onChange: (decorations) => seen.push(decorations),
   });
+  await vi.waitFor(() => expect(seen.length).toBeGreaterThan(0));
   return seen;
 }
 
 function glyph() {
-  return document.querySelector<HTMLElement>("[data-bb-glyph]")!;
+  return document.querySelector<HTMLElement>("svg")!;
 }
 
 function target() {
@@ -68,10 +87,10 @@ function target() {
 }
 
 describe("observeDecorations", () => {
-  it("stands in for bb's own glyph rather than crowding in beside it", () => {
-    document.body.innerHTML = `<div><svg data-bb-glyph></svg><span>Storefront</span></div>`;
+  it("stands in for bb's own glyph rather than crowding in beside it", async () => {
+    document.body.innerHTML = `<div><svg data-icon="Folder"></svg><span>Storefront</span></div>`;
 
-    const [decorations] = start([replacing]);
+    const [decorations] = await start([replacing]);
 
     expect(decorations).toHaveLength(1);
     expect(target()).toBe(decorations![0]!.target);
@@ -79,31 +98,31 @@ describe("observeDecorations", () => {
     expect(glyph().style.display).toBe("none");
   });
 
-  it("carries the markers a node outside the plugin's own mount needs", () => {
-    document.body.innerHTML = `<div><svg data-bb-glyph></svg></div>`;
+  it("carries the markers a node outside the plugin's own mount needs", async () => {
+    document.body.innerHTML = `<div><svg data-icon="Folder"></svg></div>`;
 
-    start([replacing]);
+    await start([replacing]);
 
     expect(target()?.hasAttribute("data-bb-plugin-root")).toBe(true);
     expect(target()?.className).toBe("size-4");
   });
 
-  it("goes at the head of the row when bb drew nothing to replace", () => {
+  it("goes at the head of the row when bb drew nothing to replace", async () => {
     document.body.innerHTML = `<div data-bb-row><span>Storefront</span></div>`;
 
-    start([prepending]);
+    await start([prepending]);
 
     const row = document.querySelector("[data-bb-row]")!;
     expect(row.firstElementChild).toBe(target());
   });
 
-  it("reports the owner each placement worked out", () => {
+  it("reports the owner each placement worked out", async () => {
     document.body.innerHTML = `
-      <svg data-bb-glyph data-project="proj_b"></svg>
+      <svg data-icon="Folder" data-project="proj_b"></svg>
       <div data-bb-row></div>
     `;
 
-    const [decorations] = start([replacing, prepending]);
+    const [decorations] = await start([replacing, prepending]);
 
     expect(decorations?.map(({ owner }) => owner.id)).toEqual([
       "proj_b",
@@ -112,8 +131,8 @@ describe("observeDecorations", () => {
   });
 
   it("mounts once when a re-render leaves the node in place", async () => {
-    document.body.innerHTML = `<div><svg data-bb-glyph></svg></div>`;
-    start([replacing]);
+    document.body.innerHTML = `<div><svg data-icon="Folder"></svg></div>`;
+    await start([replacing]);
 
     document.body.append(document.createElement("p"));
     await vi.waitFor(() => expect(document.querySelector("p")).not.toBeNull());
@@ -122,8 +141,8 @@ describe("observeDecorations", () => {
   });
 
   it("says nothing when a mutation changes none of its spots", async () => {
-    document.body.innerHTML = `<div><svg data-bb-glyph></svg></div>`;
-    const seen = start([replacing]);
+    document.body.innerHTML = `<div><svg data-icon="Folder"></svg></div>`;
+    const seen = await start([replacing]);
     const reported = seen.length;
 
     document.body.append(document.createElement("p"));
@@ -134,13 +153,13 @@ describe("observeDecorations", () => {
   });
 
   it("keeps a spot's key across passes, so its icon is never remounted", async () => {
-    document.body.innerHTML = `<div><svg data-bb-glyph></svg></div>`;
-    const seen = start([replacing]);
+    document.body.innerHTML = `<div><svg data-icon="Folder"></svg></div>`;
+    const seen = await start([replacing]);
     const first = seen.at(-1)![0]!.key;
 
     document.body.insertAdjacentHTML(
       "afterbegin",
-      `<svg data-bb-glyph data-project="proj_b"></svg>`,
+      `<svg data-icon="Folder" data-project="proj_b"></svg>`,
     );
     await vi.waitFor(() => expect(seen.at(-1)).toHaveLength(2));
 
@@ -148,21 +167,81 @@ describe("observeDecorations", () => {
     expect(new Set(seen.at(-1)!.map(({ key }) => key)).size).toBe(2);
   });
 
-  it("gives bb its glyph back when the spot stops being one", async () => {
-    document.body.innerHTML = `<div><svg data-bb-glyph style="display: inline"></svg></div>`;
-    const seen = start([replacing]);
+  // bb turns the composer's folder into a FolderPlus when the project is
+  // cleared, and React edits the icon in place rather than replacing it.
+  it("gives bb its glyph back when it stops being a folder", async () => {
+    document.body.innerHTML = `<div><svg data-icon="Folder" style="display: inline"></svg></div>`;
+    const seen = await start([replacing]);
     const hidden = glyph();
 
-    hidden.removeAttribute("data-bb-glyph");
+    hidden.setAttribute("data-icon", "FolderPlus");
     await vi.waitFor(() => expect(seen.at(-1)).toHaveLength(0));
 
     expect(hidden.style.display).toBe("inline");
     expect(target()).toBeNull();
   });
 
-  it("takes its own nodes back out and unhides bb's on the way", () => {
-    document.body.innerHTML = `<div><svg data-bb-glyph></svg></div>`;
-    start([replacing]);
+  // Writing into bb's chrome from the call bb is watching is what costs the
+  // neighbouring plugin its portal, so not even the first pass may do it.
+  it("writes nothing into bb's chrome before a frame arrives", async () => {
+    document.body.innerHTML = `<div><svg data-icon="Folder"></svg></div>`;
+
+    running = observeDecorations({
+      placements: [replacing],
+      context: () => context,
+      onChange: () => {},
+    });
+
+    expect(target()).toBeNull();
+    await vi.waitFor(() => expect(target()).not.toBeNull());
+  });
+
+  // The project list lands after the first pass, and the rows that carry only
+  // a name find nothing until it does.
+  it("passes again when asked, for a change only the plugin knows about", async () => {
+    document.body.innerHTML = `<span data-bb-named="Storefront"><svg data-icon="Folder"></svg></span>`;
+    let known = projectLookup([]);
+    running = observeDecorations({
+      placements: [resolving],
+      context: () => ({ projects: known }),
+      onChange: () => {},
+    });
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(target()).toBeNull();
+
+    known = projectLookup([{ id: "proj_a", name: "Storefront" }]);
+    running.refresh();
+
+    await vi.waitFor(() => expect(target()).not.toBeNull());
+  });
+
+  // bb centres its glyph inside a pill that baseline-aligns everything else,
+  // and it does that on the glyph, which is the flex item. Standing in front
+  // of it makes the target the flex item instead, so the target has to carry
+  // the same alignment or the icon rides above the word beside it.
+  it("stands where bb's glyph stood in a row that aligns them differently", async () => {
+    document.body.innerHTML = `
+      <span style="display: inline-flex; align-items: baseline">
+        <svg data-icon="Folder" style="align-self: center"></svg><span>Storefront</span>
+      </span>
+    `;
+
+    await start([replacing]);
+
+    expect(target()?.style.alignSelf).toBe("center");
+  });
+
+  it("leaves the row's own alignment alone when bb overrode nothing", async () => {
+    document.body.innerHTML = `<div><svg data-icon="Folder"></svg></div>`;
+
+    await start([replacing]);
+
+    expect(target()?.style.alignSelf).toBe("");
+  });
+
+  it("takes its own nodes back out and unhides bb's on the way", async () => {
+    document.body.innerHTML = `<div><svg data-icon="Folder"></svg></div>`;
+    await start([replacing]);
     const hidden = glyph();
 
     running?.stop();
