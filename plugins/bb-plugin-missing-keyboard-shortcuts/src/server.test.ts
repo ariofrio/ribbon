@@ -88,3 +88,43 @@ describe("validateSideChat RPC", () => {
     expect(getTabs).not.toHaveBeenCalled();
   });
 });
+
+describe("createSideChat RPC", () => {
+  it("forwards to the Side chat plugin through the bb SDK", async () => {
+    const callRpc = vi.fn(async () => ({ threadId: "thr_child" }));
+    const host = createFakePluginHost({
+      pluginId: "missing-keyboard-shortcuts",
+      sdk: { plugins: { callRpc } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await expect(
+      host.harness.behavior.callRpc("createSideChat", {
+        sourceThreadId: "thr_parent",
+      }),
+    ).resolves.toEqual({ threadId: "thr_child" });
+    expect(callRpc).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pluginId: "side-chat",
+        method: "createSideChat",
+        input: { sourceThreadId: "thr_parent", anchorText: "" },
+      }),
+    );
+  });
+
+  it("rejects an empty source thread before asking bb", async () => {
+    const callRpc = vi.fn(async () => ({ threadId: "thr_child" }));
+    const host = createFakePluginHost({
+      pluginId: "missing-keyboard-shortcuts",
+      sdk: { plugins: { callRpc } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await expect(
+      host.harness.behavior.callRpc("createSideChat", { sourceThreadId: "" }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    expect(callRpc).not.toHaveBeenCalled();
+  });
+});

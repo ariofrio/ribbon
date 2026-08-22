@@ -55,6 +55,13 @@ async function removeThreadTab(
   }
 }
 
+const SIDE_CHAT_PLUGIN_ID = "side-chat";
+/**
+ * What the Side chat plugin answers `createSideChat` with. Mirrored rather
+ * than imported, and not strict: that plugin owns the shape and may grow it.
+ */
+const sideChatThreadSchema = z.object({ threadId: z.string().min(1) });
+
 export const rpcContract = defineRpcContract({
   openTerminal: {
     input: z
@@ -85,6 +92,10 @@ export const rpcContract = defineRpcContract({
       })
       .strict(),
     output: z.object({ reusable: z.boolean() }).strict(),
+  },
+  createSideChat: {
+    input: z.object({ sourceThreadId: z.string().min(1) }).strict(),
+    output: sideChatThreadSchema,
   },
 });
 
@@ -129,6 +140,16 @@ export default function plugin(bb: BbPluginApi) {
         child.visibility === "hidden";
       if (!reusable) await removeThreadTab(bb, parentThreadId, tabId);
       return { reusable };
+    },
+    // Starting a side chat is the Side chat plugin's job. bb makes the call
+    // between plugins, so the shortcut does not have to know its route.
+    createSideChat({ sourceThreadId }) {
+      return bb.sdk.plugins.callRpc({
+        pluginId: SIDE_CHAT_PLUGIN_ID,
+        method: "createSideChat",
+        input: { sourceThreadId, anchorText: "" },
+        outputSchema: sideChatThreadSchema,
+      });
     },
   });
 
