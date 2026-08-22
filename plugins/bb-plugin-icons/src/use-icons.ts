@@ -13,6 +13,8 @@ export interface IconsController {
   state: IconsState | null;
   /** Resolves a drawn project name, for the rows that carry only a name. */
   projects: ProjectLookup;
+  /** Fetches the state again now, for a caller that knows it is behind. */
+  reload(): void;
   catalog: readonly CatalogEntryView[];
   loadingCatalog: boolean;
   /** Fetches the catalog once, the first time a picker is approached. */
@@ -64,20 +66,14 @@ export function useIcons(rpc: IconsRpc): IconsController {
   }, [refresh]);
 
   /**
-   * The backend fills its project list at plugin start rather than on the read
-   * path, so a client that loads in that same moment can read the state before
-   * the list is in it, and the rows that go by name keep bb's own folder. One
-   * later look closes that window, which is cheaper than having the backend
-   * announce the list while bb is still mounting the page.
+   * The backend fills its project list off the read path, so a client can read
+   * the state before the list is in it. It says so, and this waits for that to
+   * change rather than for a length of time — a guess would be wrong on the
+   * machine that is busy, and wrong permanently rather than briefly.
    */
-  const lookedAgain = useRef(false);
   useEffect(() => {
-    if (state === null || lookedAgain.current) return;
-    if ((state.projects?.length ?? 0) > 0) return;
-    const timer = setTimeout(() => {
-      lookedAgain.current = true;
-      void refresh();
-    }, 2000);
+    if (state === null || state.projectsRead !== false) return;
+    const timer = setTimeout(() => void refresh(), 1000);
     return () => clearTimeout(timer);
   }, [refresh, state]);
 
@@ -140,11 +136,30 @@ export function useIcons(rpc: IconsRpc): IconsController {
     [refresh, rpc],
   );
 
+  // Keyed on what the list says, not on the array it arrived in: every fetch
+  // brings a fresh array, and a lookup that changed identity on each one would
+  // have every reader treat an unchanged list as news.
   const listed = state?.projects;
+  const signature =
+    listed === undefined
+      ? null
+      : listed.map((project) => `${project.id}\u0000${project.name}`).join("\u0001");
   const projects = useMemo(
-    () => (listed === undefined ? NO_PROJECTS : projectLookup(listed)),
-    [listed],
+    () => (signature === null ? NO_PROJECTS : projectLookup(listed ?? [])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- signature is the list
+    [signature],
   );
 
-  return { state, projects, catalog, loadingCatalog, loadCatalog, apply, reset };
+  const reload = useCallback(() => void refresh(), [refresh]);
+
+  return {
+    state,
+    projects,
+    reload,
+    catalog,
+    loadingCatalog,
+    loadCatalog,
+    apply,
+    reset,
+  };
 }

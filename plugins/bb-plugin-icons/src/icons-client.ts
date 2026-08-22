@@ -27,6 +27,11 @@ export interface IconsState {
    * it, and a row that resolves to nothing keeps bb's own folder.
    */
   projects?: ProjectSummary[];
+  /**
+   * Whether the backend has read that list yet. Absent from a backend older
+   * than the app, where an empty list is taken at its word.
+   */
+  projectsRead?: boolean;
 }
 
 /** Which of the plugin's drawings the user has left on. */

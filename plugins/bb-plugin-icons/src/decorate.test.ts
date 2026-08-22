@@ -11,6 +11,7 @@ import { projectLookup } from "./project-lookup";
 
 const context: PlacementContext = {
   projects: projectLookup([{ id: "proj_a", name: "Storefront" }]),
+  unresolved: () => {},
 };
 
 /** Stands in for a real placement: bb's own folder, to be replaced. */
@@ -226,7 +227,7 @@ describe("observeDecorations", () => {
     let known = projectLookup([]);
     running = observeDecorations({
       placements: [resolving],
-      context: () => ({ projects: known }),
+      context: () => ({ projects: known, unresolved: () => {} }),
       onChange: () => {},
     });
     await new Promise((resolve) => requestAnimationFrame(resolve));

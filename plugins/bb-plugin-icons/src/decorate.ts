@@ -11,6 +11,13 @@ const DECORATION_ATTRIBUTE = "data-icons-decoration";
 export interface PlacementContext {
   /** For the rows that print a project's name and nothing else. */
   projects: ProjectLookup;
+  /**
+   * Says that bb drew its project folder on a row whose name resolves to no
+   * project this client knows. That is what a stale list looks like from here
+   * — a project renamed or created since the list was read — and it is the
+   * condition to fetch again on, rather than a guess at how long to wait.
+   */
+  unresolved(name: string): void;
 }
 
 /**

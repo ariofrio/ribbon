@@ -8,11 +8,14 @@ import { projectLookup } from "./project-lookup";
  * Every fixture here is bb's own markup, as captured from a running bb, so a
  * bb that moves one of these fails here rather than quietly dropping an icon.
  */
+const unresolvedNames: string[] = [];
+
 const context: PlacementContext = {
   projects: projectLookup([
     { id: "proj_a", name: "Storefront" },
     { id: "proj_b", name: "Payments API" },
   ]),
+  unresolved: (name) => unresolvedNames.push(name),
 };
 
 /** bb's own folder, which the plugin's icon stands in for. */
@@ -22,6 +25,7 @@ function folder(className: string) {
 
 afterEach(() => {
   document.body.innerHTML = "";
+  unresolvedNames.length = 0;
 });
 
 function find(id: string): readonly Spot[] {
@@ -83,6 +87,29 @@ describe("the strip under an open thread's composer, and the mention list", () =
       ["proj_a", true],
       ["proj_b", false],
     ]);
+  });
+
+  // A name the client cannot place is the only sign it has that bb has moved
+  // on — a project renamed or created since the list was read.
+  it("reports a name it cannot place, so the client knows it is behind", () => {
+    document.body.innerHTML = `
+      <div data-option-display="" title="Project: Storefront Two">${folder("size-4")}</div>
+    `;
+
+    expect(find("project-labelled")).toEqual([]);
+    expect(unresolvedNames).toEqual(["Storefront Two"]);
+  });
+
+  it("reports nothing where bb drew no folder, since that names no project", () => {
+    document.body.innerHTML = `
+      <button type="button" aria-label="Project" data-promptbox-project-control="">
+        <svg data-icon="FolderPlus" class="size-3.5"></svg>
+        <span data-promptbox-full-label="">Work in a project</span>
+      </button>
+    `;
+
+    expect(find("promptbox-project-control")).toEqual([]);
+    expect(unresolvedNames).toEqual([]);
   });
 
   it("leaves a project it cannot place alone", () => {

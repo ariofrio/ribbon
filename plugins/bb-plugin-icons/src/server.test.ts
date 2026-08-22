@@ -186,6 +186,25 @@ describe("the project list the drawing needs", () => {
     );
   });
 
+  it("says whether it has read the list, so a client can wait on that", async () => {
+    const harness = hostWithProjects(async () => [
+      { id: "proj_a", name: "Storefront" },
+    ]);
+
+    await expect(
+      harness.behavior.callRpc("listIcons", null),
+    ).resolves.toMatchObject({ projectsRead: false, projects: [] });
+
+    harness.behavior.runService("icon-cleanup");
+
+    await vi.waitFor(async () =>
+      expect(await harness.behavior.callRpc("listIcons", null)).toMatchObject({
+        projectsRead: true,
+        projects: [{ id: "proj_a", name: "Storefront" }],
+      }),
+    );
+  });
+
   it("answers before that list lands rather than waiting for it", async () => {
     const harness = hostWithProjects(
       () => new Promise(() => {}) as Promise<unknown>,

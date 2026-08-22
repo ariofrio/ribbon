@@ -56,6 +56,13 @@ const iconsSchema = z
      * rename and an icon edit can never be read half-applied.
      */
     projects: z.array(projectSchema),
+    /**
+     * Whether that list has been read yet. It is filled off the read path, so
+     * a client can arrive before it exists, and an empty list is otherwise
+     * indistinguishable from a bb with no projects. Saying which lets a client
+     * wait on the answer rather than on a guess at how long it takes.
+     */
+    projectsRead: z.boolean(),
   })
   .strict();
 
@@ -180,6 +187,7 @@ export default function plugin(bb: BbPluginApi) {
       section: SECTION_GLYPH,
     },
     projects: [...projects],
+    projectsRead: read,
   });
 
   // Only the owner: a listener refetches anyway, and the chosen icon is nobody

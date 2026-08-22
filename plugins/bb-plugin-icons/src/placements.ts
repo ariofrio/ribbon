@@ -1,4 +1,4 @@
-import type { Placement, Spot } from "./decorate";
+import type { Placement, PlacementContext, Spot } from "./decorate";
 import { projectFromPath } from "./route";
 import type { IconOwner } from "./store";
 
@@ -15,11 +15,24 @@ import type { IconOwner } from "./store";
 const FOLDER = 'svg[data-icon="Folder"]';
 const PROJECT_TITLE = "Project: ";
 
+/**
+ * The spot a row wants, or null.
+ *
+ * A row bb drew its folder on but whose name names no project this client
+ * knows is reported rather than passed over: it is the sign that the list is
+ * behind bb, and the only sign there is.
+ */
 function spotOn(
   folder: HTMLElement | null,
-  owner: IconOwner | null,
+  name: string,
+  { projects, unresolved }: PlacementContext,
 ): Spot | null {
-  if (owner === null || folder === null) return null;
+  if (folder === null) return null;
+  const owner = projects.byName(name);
+  if (owner === null) {
+    if (name.trim() !== "") unresolved(name);
+    return null;
+  }
   return { owner, replaces: folder };
 }
 
@@ -36,13 +49,13 @@ function spotOn(
 const projectLabelled: Placement = {
   id: "project-labelled",
   setting: "showInComposer",
-  find(root, { projects }) {
+  find(root, context) {
     const spots: Spot[] = [];
     for (const node of Array.from(
       root.querySelectorAll<HTMLElement>(`[title^="${PROJECT_TITLE}"]`),
     )) {
       const name = node.getAttribute("title")?.slice(PROJECT_TITLE.length) ?? "";
-      const spot = spotOn(node.querySelector(FOLDER), projects.byName(name));
+      const spot = spotOn(node.querySelector(FOLDER), name, context);
       if (spot === null) continue;
       // The strip under a thread is one of bb's display chips and does nothing
       // when clicked, so the icon in it can open the picker. A mention row is
@@ -70,14 +83,14 @@ const projectLabelled: Placement = {
 const promptboxControl: Placement = {
   id: "promptbox-project-control",
   setting: "showInComposer",
-  find(root, { projects }) {
+  find(root, context) {
     const spots: Spot[] = [];
     for (const node of Array.from(
       root.querySelectorAll<HTMLElement>("[data-promptbox-project-control]"),
     )) {
       const name =
         node.querySelector("[data-promptbox-full-label]")?.textContent ?? "";
-      const spot = spotOn(node.querySelector(FOLDER), projects.byName(name));
+      const spot = spotOn(node.querySelector(FOLDER), name, context);
       if (spot !== null) spots.push(spot);
     }
     return spots;
@@ -95,16 +108,17 @@ const promptboxControl: Placement = {
 const projectMenuRow: Placement = {
   id: "project-menu-row",
   setting: "showInComposer",
-  find(root, { projects }) {
+  find(root, context) {
     const spots: Spot[] = [];
     for (const node of Array.from(
       root.querySelectorAll<HTMLElement>('[role="menuitem"]'),
     )) {
-      // Only bb's own leading glyph: a descendant search would find the check
-      // mark on the row that is already chosen.
+      // Only bb's own leading glyph: a folder nested deeper belongs to a row
+      // of some other menu, not to this one.
       const spot = spotOn(
         node.querySelector(`:scope > ${FOLDER}`),
-        projects.byName(node.textContent ?? ""),
+        node.textContent ?? "",
+        context,
       );
       if (spot !== null) spots.push(spot);
     }
@@ -125,11 +139,15 @@ const mentionPill: Placement = {
     for (const node of Array.from(
       root.querySelectorAll<HTMLElement>("[data-prompt-mention-resource]"),
     )) {
-      const spot = spotOn(
-        node.querySelector(FOLDER),
-        projectFromMention(node.getAttribute("data-prompt-mention-resource")),
+      // Resolved by the id bb wrote, so a stale project list cannot affect it
+      // and there is nothing here to report as unresolved.
+      const owner = projectFromMention(
+        node.getAttribute("data-prompt-mention-resource"),
       );
-      if (spot !== null) spots.push(spot);
+      const folder = node.querySelector<HTMLElement>(FOLDER);
+      if (owner !== null && folder !== null) {
+        spots.push({ owner, replaces: folder });
+      }
     }
     return spots;
   },
