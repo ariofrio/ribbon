@@ -94,7 +94,15 @@ describe("createSideChat RPC", () => {
     const callRpc = vi.fn(async () => ({ threadId: "thr_child" }));
     const host = createFakePluginHost({
       pluginId: "missing-keyboard-shortcuts",
-      sdk: { plugins: { callRpc } },
+      sdk: {
+        plugins: { callRpc },
+        threads: {
+          tabs: {
+            get: async () => ({ revision: 0, tabs: [] }),
+            update: async () => ({ revision: 1, tabs: [] }),
+          },
+        },
+      },
     });
     plugin(host.bb);
     disposeHosts.push(() => host.harness.lifecycle.dispose());
@@ -111,6 +119,43 @@ describe("createSideChat RPC", () => {
         input: { sourceThreadId: "thr_parent", anchorText: "" },
       }),
     );
+  });
+
+  it("persists the side chat's panel tab where bb keeps it", async () => {
+    const callRpc = vi.fn(async () => ({ threadId: "thr_child" }));
+    const getTabs = vi.fn(async () => ({
+      revision: 3,
+      tabs: [{ id: "info", kind: "thread-info" }],
+    }));
+    const updateTabs = vi.fn(async () => ({ revision: 4, tabs: [] }));
+    const host = createFakePluginHost({
+      pluginId: "missing-keyboard-shortcuts",
+      sdk: {
+        plugins: { callRpc },
+        threads: { tabs: { get: getTabs, update: updateTabs } },
+      },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await host.harness.behavior.callRpc("createSideChat", {
+      sourceThreadId: "thr_parent",
+    });
+
+    // bb rebuilds a thread's panel from its server-side tab list, so a side
+    // chat that only exists in this client's storage disappears on reload.
+    expect(updateTabs).toHaveBeenCalledWith({
+      expectedRevision: 3,
+      threadId: "thr_parent",
+      tabs: [
+        { id: "info", kind: "thread-info" },
+        expect.objectContaining({
+          actionId: "side-chat",
+          kind: "plugin-panel",
+          pluginId: "side-chat",
+        }),
+      ],
+    });
   });
 
   it("rejects an empty source thread before asking bb", async () => {

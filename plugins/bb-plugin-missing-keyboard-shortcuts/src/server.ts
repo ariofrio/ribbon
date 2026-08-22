@@ -95,15 +95,6 @@ export const rpcContract = defineRpcContract({
       .object({ terminalId: z.string().min(1), created: z.boolean() })
       .strict(),
   },
-  ensureSideChatTab: {
-    input: z
-      .object({
-        childThreadId: z.string().min(1),
-        parentThreadId: z.string().min(1),
-      })
-      .strict(),
-    output: z.object({ tabId: z.string().min(1) }).strict(),
-  },
   validateSideChat: {
     input: z
       .object({
@@ -147,14 +138,6 @@ export default function plugin(bb: BbPluginApi) {
 
       return { terminalId, created };
     },
-    async ensureSideChatTab({ childThreadId, parentThreadId }) {
-      const tabId = await ensureThreadSideChatTab(
-        bb,
-        parentThreadId,
-        childThreadId,
-      );
-      return { tabId };
-    },
     async validateSideChat({ childThreadId, parentThreadId, tabId }) {
       const child = await bb.sdk.threads.get({ threadId: childThreadId });
       const reusable =
@@ -175,13 +158,17 @@ export default function plugin(bb: BbPluginApi) {
       const { keybindings } = await bb.sdk.system.config();
       return { keybindings };
     },
-    createSideChat({ sourceThreadId }) {
-      return bb.sdk.plugins.callRpc({
+    async createSideChat({ sourceThreadId }) {
+      const { threadId } = await bb.sdk.plugins.callRpc({
         pluginId: SIDE_CHAT_PLUGIN_ID,
         method: "createSideChat",
         input: { sourceThreadId, anchorText: "" },
         outputSchema: sideChatThreadSchema,
       });
+      // bb rebuilds a thread's panel from its own tab list, so a side chat
+      // that lives only in this client's storage is gone by the next reload.
+      await ensureThreadSideChatTab(bb, sourceThreadId, threadId);
+      return { threadId };
     },
   });
 
