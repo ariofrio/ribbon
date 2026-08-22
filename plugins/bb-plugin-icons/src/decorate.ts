@@ -131,10 +131,9 @@ function same(left: readonly Decoration[], right: readonly Decoration[]) {
  *
  * The list is re-reported whenever it changes, and only then: bb's composer
  * mutates on every keystroke, and a placement that found the same spots must
- * not cost a render. Each pass leaves the window bb watches first, the way the
- * sidebar half does — a render committed straight from the observer lands
- * while a plugin is attributed on the stack, and bb takes every plugin's
- * portal down with it.
+ * not cost a render. Each pass runs on a frame rather than straight from the
+ * observer, which at least keeps it off whatever call bb is watching; see
+ * `after-plugin-frame.ts` for what that does and does not escape.
  */
 export function observeDecorations({
   placements,

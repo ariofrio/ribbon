@@ -1,5 +1,5 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import plugin from "./server";
 
 const disposeHosts: Array<() => Promise<void>> = [];
@@ -139,10 +139,17 @@ describe("icon plugin API", () => {
 });
 
 describe("the project list the drawing needs", () => {
+  /**
+   * The list is filled by the cleanup service at plugin start rather than on
+   * the read path, so a test that wants it has to start that service — which
+   * is also the order a client sees.
+   */
   function hostWithProjects(list: () => Promise<unknown>) {
     const host = createFakePluginHost({
       pluginId: "icons",
-      sdk: { projects: { list } },
+      // The service reads the list and then waits on project changes, so both
+      // halves need standing in for.
+      sdk: { projects: { list }, subscribe: () => () => {} },
     });
     plugin(host.bb);
     disposeHosts.push(() => host.harness.lifecycle.dispose());
@@ -155,24 +162,41 @@ describe("the project list the drawing needs", () => {
       { id: "proj_a", name: "Storefront" },
     ]);
 
-    await expect(
-      harness.behavior.callRpc("listIcons", null),
-    ).resolves.toMatchObject({
-      projects: [
-        { id: "proj_personal", name: "Personal" },
-        { id: "proj_a", name: "Storefront" },
-      ],
-    });
+    harness.behavior.runService("icon-cleanup");
+
+    await vi.waitFor(async () =>
+      expect(await harness.behavior.callRpc("listIcons", null)).toMatchObject({
+        projects: [
+          { id: "proj_personal", name: "Personal" },
+          { id: "proj_a", name: "Storefront" },
+        ],
+      }),
+    );
   });
 
   it("asks for the personal project, which bb leaves out by default", async () => {
     const harness = hostWithProjects(async () => []);
 
-    await harness.behavior.callRpc("listIcons", null);
+    harness.behavior.runService("icon-cleanup");
 
-    expect(
-      harness.sdk.calls.find((call) => call.path === "projects.list")?.args,
-    ).toEqual([{ includePersonal: true }]);
+    await vi.waitFor(() =>
+      expect(
+        harness.sdk.calls.find((call) => call.path === "projects.list")?.args,
+      ).toEqual([{ includePersonal: true }]),
+    );
+  });
+
+  it("answers before that list lands rather than waiting for it", async () => {
+    const harness = hostWithProjects(
+      () => new Promise(() => {}) as Promise<unknown>,
+    );
+
+    harness.behavior.runService("icon-cleanup");
+
+    // The read never resolves; the answer still arrives, without the projects.
+    await expect(
+      harness.behavior.callRpc("listIcons", null),
+    ).resolves.toMatchObject({ projects: [] });
   });
 
   it("reports no projects rather than failing when bb cannot list them", async () => {
@@ -180,9 +204,26 @@ describe("the project list the drawing needs", () => {
       throw new Error("offline");
     });
 
+    harness.behavior.runService("icon-cleanup");
+
     await expect(
       harness.behavior.callRpc("listIcons", null),
     ).resolves.toMatchObject({ projects: [] });
+  });
+
+  it("says nothing about the list it reads at start, which changed nothing", async () => {
+    const harness = hostWithProjects(async () => [
+      { id: "proj_a", name: "Storefront" },
+    ]);
+
+    harness.behavior.runService("icon-cleanup");
+    await vi.waitFor(() =>
+      expect(
+        harness.sdk.calls.some((call) => call.path === "projects.list"),
+      ).toBe(true),
+    );
+
+    expect(harness.inspection.realtimeSignals).toEqual([]);
   });
 });
 

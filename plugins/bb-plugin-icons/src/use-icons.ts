@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { announceIconsChanged, ICONS_CHANNEL } from "./broadcast";
 import {
   iconFor,
@@ -62,6 +62,24 @@ export function useIcons(rpc: IconsRpc): IconsController {
       window.removeEventListener("focus", onFocus);
     };
   }, [refresh]);
+
+  /**
+   * The backend fills its project list at plugin start rather than on the read
+   * path, so a client that loads in that same moment can read the state before
+   * the list is in it, and the rows that go by name keep bb's own folder. One
+   * later look closes that window, which is cheaper than having the backend
+   * announce the list while bb is still mounting the page.
+   */
+  const lookedAgain = useRef(false);
+  useEffect(() => {
+    if (state === null || lookedAgain.current) return;
+    if ((state.projects?.length ?? 0) > 0) return;
+    const timer = setTimeout(() => {
+      lookedAgain.current = true;
+      void refresh();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [refresh, state]);
 
   const loadCatalog = useCallback(() => {
     if (catalog.length > 0 || loadingCatalog) return;

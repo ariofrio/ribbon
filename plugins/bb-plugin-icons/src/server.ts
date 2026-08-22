@@ -146,14 +146,23 @@ export default function plugin(bb: BbPluginApi) {
       : (CATALOG_ICONS[icon] ?? CATALOG_ICONS[DEFAULT_PROJECT_ICON] ?? []);
 
   let projects: ProjectSummary[] = [];
-  let firstRead: Promise<void> | null = null;
+  let read = false;
 
-  /** Rereads bb's projects, and reports whether the names moved. */
+  /**
+   * Rereads bb's projects, and reports whether the names moved.
+   *
+   * The first read moves nothing, however different it looks from the empty
+   * list it starts at. Announcing it would have every client throw away the
+   * state it just fetched and ask again while bb is still mounting the page,
+   * which is the window bb refuses a plugin's renders in — and it refuses them
+   * for every plugin at once, not only the one that opened it.
+   */
   const readProjects = async () => {
     try {
       const listed = await bb.sdk.projects.list({ includePersonal: true });
       const next = listed.map(({ id, name }) => ({ id, name }));
-      const moved = JSON.stringify(next) !== JSON.stringify(projects);
+      const moved = read && JSON.stringify(next) !== JSON.stringify(projects);
+      read = true;
       projects = next;
       return moved;
     } catch {
@@ -162,8 +171,6 @@ export default function plugin(bb: BbPluginApi) {
       return false;
     }
   };
-
-  const ensureProjects = () => (firstRead ??= readProjects().then(() => undefined));
 
   const view = () => ({
     icons: store.list().map((icon) => ({ ...icon, glyph: glyphOf(icon.icon) })),
@@ -223,10 +230,13 @@ export default function plugin(bb: BbPluginApi) {
 
   bb.rpc.register(rpcContract, {
     listIconCatalog: () => catalog,
-    async listIcons() {
-      await ensureProjects();
-      return view();
-    },
+    // Deliberately not waiting on the read above. bb holds a plugin attributed
+    // across `await`, and this plugin's content script already awaits its own
+    // backend before it places anything — so every round-trip on this path
+    // lengthens the window in which bb refuses *any* plugin's renders, which
+    // is how the icons cost Breadcrumbs its crumb. The service below fills the
+    // list at plugin start, and a client that beats it looks again.
+    listIcons: () => view(),
     async listPlacements() {
       const { showInThreadHeader, showInSidebar, showInComposer } =
         await settings.get();
@@ -254,7 +264,7 @@ export default function plugin(bb: BbPluginApi) {
   bb.background.service("icon-cleanup", {
     async start(signal) {
       void pruneSections();
-      void ensureProjects();
+      void readProjects();
       const unsubscribe = bb.sdk.subscribe({
         event: "project:changed",
         callback(event) {
