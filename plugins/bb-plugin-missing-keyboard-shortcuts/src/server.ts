@@ -66,21 +66,20 @@ const sideChatThreadSchema = z.object({ threadId: z.string().min(1) });
  * command. Not strict: bb owns the rest of the row, and `when` in particular
  * is bb's own availability rule, not this plugin's to interpret.
  */
+const appKeybindingSchema = z.object({
+  command: z.string(),
+  desktopOnly: z.boolean(),
+  shortcut: z.object({
+    alt: z.boolean(),
+    control: z.boolean(),
+    key: z.string().min(1),
+    meta: z.boolean(),
+    mod: z.boolean(),
+    shift: z.boolean(),
+  }),
+});
 const appKeybindingsSchema = z.object({
-  keybindings: z.array(
-    z.object({
-      command: z.string(),
-      desktopOnly: z.boolean(),
-      shortcut: z.object({
-        alt: z.boolean(),
-        control: z.boolean(),
-        key: z.string().min(1),
-        meta: z.boolean(),
-        mod: z.boolean(),
-        shift: z.boolean(),
-      }),
-    }),
-  ),
+  keybindings: z.array(appKeybindingSchema),
 });
 
 export const rpcContract = defineRpcContract({
@@ -156,7 +155,14 @@ export default function plugin(bb: BbPluginApi) {
     // have to reach for bb's own route.
     async listAppKeybindings() {
       const { keybindings } = await bb.sdk.system.config();
-      return { keybindings };
+      // A row bb has changed should cost that row and not the whole table:
+      // the delegate reading this already drops what it cannot understand.
+      return {
+        keybindings: keybindings.flatMap((binding) => {
+          const parsed = appKeybindingSchema.safeParse(binding);
+          return parsed.success ? [parsed.data] : [];
+        }),
+      };
     },
     async createSideChat({ sourceThreadId }) {
       const { threadId } = await bb.sdk.plugins.callRpc({

@@ -136,6 +136,22 @@ export default function plugin(bb: BbPluginApi) {
     }
     return personalProjectId;
   }
+  /**
+   * Drawing icons used to be a local read that could not fail. Asking bb
+   * which project is personal can, so a failed ask costs the bubble on one
+   * row rather than every icon in the sidebar. The answer is not cached
+   * until it arrives, so the next call asks again.
+   */
+  async function personalProjectForDrawing(): Promise<string | null> {
+    try {
+      return await personalProject();
+    } catch (error) {
+      bb.log.warn(
+        `could not read which project is personal: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    }
+  }
 
   const view = async () => ({
     icons: store.list().map((icon) => ({ ...icon, glyph: glyphOf(icon.icon) })),
@@ -144,7 +160,7 @@ export default function plugin(bb: BbPluginApi) {
       personal: glyphOf(PERSONAL_PROJECT_ICON),
       section: SECTION_GLYPH,
     },
-    personalProjectId: await personalProject(),
+    personalProjectId: await personalProjectForDrawing(),
   });
 
   // Only the owner: a listener refetches anyway, and the chosen icon is nobody

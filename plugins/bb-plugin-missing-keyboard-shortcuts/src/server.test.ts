@@ -221,3 +221,34 @@ describe("listAppKeybindings RPC", () => {
     expect(config).toHaveBeenCalled();
   });
 });
+
+describe("keybinding tolerance", () => {
+  it("drops a row it cannot read, not the whole table", async () => {
+    const shortcut = {
+      alt: false,
+      control: false,
+      key: "o",
+      meta: false,
+      mod: true,
+      shift: true,
+    };
+    const config = vi.fn(async () => ({
+      keybindings: [
+        { command: "thread.new", desktopOnly: false, shortcut },
+        { command: "thread.next", shortcut: { key: 42 } },
+      ],
+    }));
+    const host = createFakePluginHost({
+      pluginId: "missing-keyboard-shortcuts",
+      sdk: { system: { config } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await expect(
+      host.harness.behavior.callRpc("listAppKeybindings", null),
+    ).resolves.toEqual({
+      keybindings: [{ command: "thread.new", desktopOnly: false, shortcut }],
+    });
+  });
+});

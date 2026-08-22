@@ -94,10 +94,12 @@ the top instead. Pinned threads are skipped, and when Idle empties you land on
 a composer with no project selected.
 
 That last step asks bb to open the composer, which this plugin can only do
-while it is the list bb draws. The chords themselves run wherever you are, so
-with **Settings → Sidebar** set to **bb (built-in)** or to another plugin,
-emptying Idle still files the thread and still opens a composer — on the
-project you last composed in, rather than on no project at all.
+while its list is mounted — which is whenever bb draws it, collapsed or not.
+The chords themselves run wherever you are, so in the moment before the
+sidebar has loaded, or with **Settings → Sidebar** set to **bb (built-in)** or
+to another plugin, emptying Idle still files the thread and still opens a
+composer — on the project you last composed in, rather than on no project at
+all.
 
 **⇧⌘.** brings the open thread back to Idle and leaves you there. When it is
 *already* Idle, the shortcut undoes instead: the thread you filed most recently

@@ -126,21 +126,20 @@ const projectIconsSchema = z.object({
  * command. Not strict: bb owns the rest of the row, and `when` in particular
  * is bb's own availability rule, not this plugin's to interpret.
  */
+const appKeybindingSchema = z.object({
+  command: z.string(),
+  desktopOnly: z.boolean(),
+  shortcut: z.object({
+    alt: z.boolean(),
+    control: z.boolean(),
+    key: z.string().min(1),
+    meta: z.boolean(),
+    mod: z.boolean(),
+    shift: z.boolean(),
+  }),
+});
 const appKeybindingsSchema = z.object({
-  keybindings: z.array(
-    z.object({
-      command: z.string(),
-      desktopOnly: z.boolean(),
-      shortcut: z.object({
-        alt: z.boolean(),
-        control: z.boolean(),
-        key: z.string().min(1),
-        meta: z.boolean(),
-        mod: z.boolean(),
-        shift: z.boolean(),
-      }),
-    }),
-  ),
+  keybindings: z.array(appKeybindingSchema),
 });
 
 export const rpcContract = defineRpcContract({
@@ -289,10 +288,16 @@ export const rpcContract = defineRpcContract({
     output: z.object({ ok: z.literal(true) }).strict(),
   },
   updateSettings: {
+    // Every setting this plugin defines, so a control added later saves
+    // instead of failing validation. A test holds these two lists together.
     input: z
       .object({
         showSidebarFilter: z.boolean().optional(),
         showCollapsedStageIndicators: z.boolean().optional(),
+        showThreadPreviews: z.boolean().optional(),
+        showDeferredStage: z.boolean().optional(),
+        showBlockedStage: z.boolean().optional(),
+        autoArchiveCompletedAfter: z.enum(AUTO_ARCHIVE_OPTIONS).optional(),
       })
       .strict(),
     output: z.object({ ok: z.literal(true) }).strict(),
@@ -547,13 +552,9 @@ export default function plugin(bb: BbPluginApi) {
       const stay: ChordDestination = { kind: "stay" };
       if (chord.kind === "none") return { destination: stay };
 
-      if (chord.kind === "restore") {
-        store.restoreToIdle(chord.threadId, chord.sortKey);
-      } else {
-        store.setStage(threadId, chord.workflowStage, "app");
-      }
-      bb.realtime.publish("state-changed", { threadId });
-
+      // Work out where the caller goes before moving anything. Asking bb
+      // which project is personal can fail, and a failure after the move
+      // would leave the thread filed and the caller told it was not.
       const next = chord.next;
       const destination: ChordDestination =
         next.kind === "thread"
@@ -566,6 +567,14 @@ export default function plugin(bb: BbPluginApi) {
               ),
             }
           : next;
+
+      if (chord.kind === "restore") {
+        store.restoreToIdle(chord.threadId, chord.sortKey);
+      } else {
+        store.setStage(threadId, chord.workflowStage, "app");
+      }
+      bb.realtime.publish("state-changed", { threadId });
+
       return { destination };
     },
     async reorderThread({ threadId, scope, direction }) {
@@ -624,7 +633,14 @@ export default function plugin(bb: BbPluginApi) {
     // server, so the frontend does not reach for bb's own route.
     async listAppKeybindings() {
       const { keybindings } = await bb.sdk.system.config();
-      return { keybindings };
+      // A row bb has changed should cost that row and not the whole table:
+      // the delegate reading this already drops what it cannot understand.
+      return {
+        keybindings: keybindings.flatMap((binding) => {
+          const parsed = appKeybindingSchema.safeParse(binding);
+          return parsed.success ? [parsed.data] : [];
+        }),
+      };
     },
     listProjectIcons() {
       return bb.sdk.plugins.callRpc({

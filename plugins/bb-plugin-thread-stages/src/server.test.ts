@@ -1,6 +1,6 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import plugin from "./server";
+import plugin, { rpcContract } from "./server";
 
 const disposeHosts: Array<() => Promise<void>> = [];
 
@@ -494,6 +494,58 @@ describe("thread stages plugin API", () => {
     expect(projects).toHaveBeenCalledWith({ includePersonal: true });
   });
 
+  it("leaves the thread where it was when it cannot resolve the route", async () => {
+    const thread = (id: string, createdAt: number) => ({
+      id,
+      parentThreadId: null,
+      projectId: "proj_personal",
+      visibility: "visible",
+      archivedAt: null,
+      pinnedAt: null,
+      pinSortKey: null,
+      createdAt,
+    });
+    const list = vi.fn(async (args?: { offset?: number }) =>
+      (args?.offset ?? 0) === 0
+        ? [thread("thr_open", 1), thread("thr_next", 2)]
+        : [],
+    );
+    const projects = vi.fn(async () => {
+      throw new Error("projects unavailable");
+    });
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { threads: { list }, projects: { list: projects } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await host.harness.behavior.callRpc("syncThreads", {
+      rootThreadIds: ["thr_open", "thr_next"],
+      childThreadIds: [],
+    });
+
+    const signalsBefore = host.harness.inspection.realtimeSignals.length;
+
+    await expect(
+      host.harness.behavior.callRpc("setWorkflowStage", {
+        threadId: "thr_open",
+        workflowStage: "Active",
+      }),
+    ).rejects.toThrow();
+
+    // Telling the caller it failed while the move stands would leave the
+    // sidebar and the toast saying different things.
+    const state = (await host.harness.behavior.callRpc("listState", null)) as {
+      assignments: Array<{ threadId: string; workflowStage: string }>;
+    };
+    expect(
+      state.assignments.find(({ threadId }) => threadId === "thr_open")
+        ?.workflowStage,
+    ).toBe("Idle");
+    expect(host.harness.inspection.realtimeSignals).toHaveLength(signalsBefore);
+  });
+
   it("reads bb's own keybindings through the SDK", async () => {
     const config = vi.fn(async () => ({
       keybindings: [
@@ -538,6 +590,43 @@ describe("thread stages plugin API", () => {
       ],
     });
     expect(config).toHaveBeenCalled();
+  });
+
+  it("drops a keybinding row it cannot read, not the whole table", async () => {
+    const shortcut = {
+      alt: false,
+      control: false,
+      key: "o",
+      meta: false,
+      mod: true,
+      shift: true,
+    };
+    const config = vi.fn(async () => ({
+      keybindings: [
+        { command: "thread.new", desktopOnly: false, shortcut },
+        { command: "thread.next", shortcut: { key: 42 } },
+      ],
+    }));
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { system: { config } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await expect(
+      host.harness.behavior.callRpc("listAppKeybindings", null),
+    ).resolves.toEqual({
+      keybindings: [{ command: "thread.new", desktopOnly: false, shortcut }],
+    });
+  });
+
+  it("takes every setting it defines, so a new control does not fail to save", () => {
+    const harness = createPluginHarness();
+
+    expect(Object.keys(rpcContract.updateSettings.input.shape).sort()).toEqual(
+      Object.keys(harness.inspection.registrations.settingsDescriptors).sort(),
+    );
   });
 
   it("saves its own settings through the bb SDK", async () => {

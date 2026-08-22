@@ -193,3 +193,42 @@ describe("the personal project's icon", () => {
     ).resolves.toMatchObject({ icons: [{ id: "proj_personal" }] });
   });
 });
+
+describe("when bb cannot say which project is personal", () => {
+  function unavailableHarness() {
+    const host = createFakePluginHost({
+      pluginId: "icons",
+      sdk: {
+        projects: {
+          list: vi.fn(async () => {
+            throw new Error("projects unavailable");
+          }),
+        },
+      },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+    return host.harness;
+  }
+
+  it("still draws the icons it has", async () => {
+    const harness = unavailableHarness();
+
+    await expect(
+      harness.behavior.callRpc("listIcons", null),
+    ).resolves.toMatchObject({ personalProjectId: null });
+  });
+
+  it("still refuses to write one, rather than guessing", async () => {
+    const harness = unavailableHarness();
+
+    await expect(
+      harness.behavior.callRpc("setIcon", {
+        kind: "project",
+        id: "proj_mine",
+        icon: "rocket",
+        color: null,
+      }),
+    ).rejects.toMatchObject({ code: "handler_error" });
+  });
+});
