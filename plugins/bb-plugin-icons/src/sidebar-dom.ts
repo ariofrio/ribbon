@@ -77,23 +77,35 @@ function anchorIn(group: HTMLElement, owner: IconOwner): SidebarAnchor | null {
  * labels "Threads" and wraps in nothing — every project group beside it
  * carries a `data-sidebar-project-id`, and this one carries no id at all.
  *
- * It is the same leftover group bb reuses for "no machine" under By machine
- * and for "Unorganized" under Manually, where it holds whatever is left rather
- * than the personal project, and must not be drawn on. What tells them apart
- * is the company it keeps: only under By project does the list also hold
- * project groups, so an unwrapped group among them is bb's personal one.
+ * Being unwrapped is not enough to know it by. bb draws Pinned the same way,
+ * in the same list, and puts it first, so "the unwrapped one" is Pinned the
+ * moment a thread is pinned — and then the personal project's bubble lands on
+ * a heading that is not a project at all. What separates them is what bb lets
+ * you do from each header: New project and New thread are offered from this
+ * group and from no other.
  *
- * A bb with no projects at all therefore gets nothing, since there is no
- * project group to recognize the list by. That errs towards drawing no icon
- * rather than the wrong one, and a sidebar with a single group has nothing for
- * an icon to tell apart anyway.
+ * It is also the same leftover group bb reuses for "no machine" under By
+ * machine and for "Unorganized" under Manually, where it holds whatever is
+ * left rather than the personal project. Only under By project does the list
+ * also hold project groups, which is why the search starts from one.
+ *
+ * A bb with no projects at all therefore gets nothing, and so does a bb whose
+ * header offers no creation. Both err towards drawing no icon rather than the
+ * wrong one.
  */
 function personalGroup(root: ParentNode): HTMLElement | null {
   const list = root.querySelector<HTMLElement>(`[${PROJECT_ATTRIBUTE}]`)
     ?.parentElement;
+  if (list === null || list === undefined) return null;
+  const groups = Array.from(
+    list.querySelectorAll<HTMLElement>(":scope > [data-sidebar-sticky-group]"),
+  );
   return (
-    list?.querySelector<HTMLElement>(
-      ":scope > [data-sidebar-sticky-group]",
+    groups.find(
+      (group) =>
+        group.querySelector(
+          '[data-sidebar="group-label"] button[aria-label="New project"]',
+        ) !== null,
     ) ?? null
   );
 }
@@ -155,6 +167,13 @@ export function observeSidebarIconAnchors(
     if (disposed) return;
     const next = collect(target);
     if (sameAnchors(current, next)) return;
+    // A group that stops being an anchor while staying on screen — bb's
+    // leftover group when a thread is pinned — would otherwise keep an empty
+    // mount forever, spacing its label out with nothing drawn in it.
+    const live = new Set(next.map((anchor) => anchor.target));
+    for (const anchor of current) {
+      if (!live.has(anchor.target)) anchor.target.remove();
+    }
     current = next;
     onChange(next);
   };

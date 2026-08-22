@@ -6,7 +6,13 @@ import { observeSidebarIconAnchors, type SidebarAnchor } from "./sidebar-dom";
  * bb's own sidebar group, as captured from a running bb. Every group is one of
  * these; what differs is the wrapper bb puts around it, if any.
  */
-function stickyGroup(label: string) {
+function stickyGroup(label: string, { creates = false } = {}) {
+  // bb offers New project and New thread from the leftover group's header and
+  // from no other, which is what tells that group from Pinned beside it.
+  const creation = creates
+    ? `<button type="button" aria-label="New project"></button>
+       <button type="button" aria-label="New thread"></button>`
+    : "";
   return `
     <div data-sidebar-sticky-group="">
       <div role="button" data-sidebar="group-label" data-sidebar-sticky-tier="label">
@@ -14,7 +20,10 @@ function stickyGroup(label: string) {
           <span class="min-w-0 truncate" title="${label}">${label}</span>
           <button type="button" aria-label="Collapse ${label} section"></button>
         </span>
-        <span class="relative z-20 inline-flex h-6 shrink-0 items-center"></span>
+        <span class="relative z-20 inline-flex h-6 shrink-0 items-center">
+          <button type="button" aria-label="Sidebar display options"></button>
+          ${creation}
+        </span>
       </div>
       <div class="mt-1"></div>
     </div>
@@ -177,7 +186,7 @@ describe("observeSidebarIconAnchors", () => {
   it("draws on the personal project, which bb wraps in no id of its own", () => {
     document.body.innerHTML = projectList(
       groupHeader("data-sidebar-project-id", "proj_a", "Storefront"),
-      stickyGroup("Threads"),
+      stickyGroup("Threads", { creates: true }),
     );
 
     expect(start().at(-1)?.map(({ owner }) => owner)).toEqual([
@@ -188,7 +197,7 @@ describe("observeSidebarIconAnchors", () => {
 
   it("finds the personal group wherever the user has dragged it", () => {
     document.body.innerHTML = projectList(
-      stickyGroup("Threads"),
+      stickyGroup("Threads", { creates: true }),
       groupHeader("data-sidebar-project-id", "proj_a", "Storefront"),
     );
 
@@ -202,15 +211,52 @@ describe("observeSidebarIconAnchors", () => {
   // under Manually. Only the first is a project, and only the first sits in a
   // list that also holds project groups.
   it("leaves the same leftover group alone when no project sits beside it", () => {
-    document.body.innerHTML = projectList(stickyGroup("Unorganized"));
+    document.body.innerHTML = projectList(stickyGroup("Unorganized", { creates: true }));
 
     expect(start().at(-1) ?? []).toEqual([]);
+  });
+
+  // bb renders Pinned as a second unwrapped group in the same list, and puts
+  // it first. Picking "the unwrapped one" therefore drew the personal
+  // project's bubble on Pinned and left the personal group bare.
+  it("tells the personal group from the Pinned group beside it", () => {
+    document.body.innerHTML = projectList(
+      stickyGroup("Pinned"),
+      groupHeader("data-sidebar-project-id", "proj_a", "Storefront"),
+      stickyGroup("Threads", { creates: true }),
+    );
+
+    const anchors = start().at(-1) ?? [];
+
+    expect(anchors.map(({ owner, name }) => `${owner.id}:${name}`)).toEqual([
+      "proj_a:Storefront",
+      "proj_personal:Threads",
+    ]);
+  });
+
+  it("leaves no empty mount on a group it stops drawing on", async () => {
+    document.body.innerHTML = projectList(
+      groupHeader("data-sidebar-project-id", "proj_a", "Storefront"),
+      stickyGroup("Threads", { creates: true }),
+    );
+    const seen = start();
+    await vi.waitFor(() => expect(seen.at(-1)).toHaveLength(2));
+
+    // bb takes the creation actions away; the group is no longer the personal
+    // one, and the mount that was in it must go with the anchor.
+    document
+      .querySelector('[aria-label="New project"]')
+      ?.remove();
+    document.body.append(document.createElement("div"));
+    await vi.waitFor(() => expect(seen.at(-1)).toHaveLength(1));
+
+    expect(document.querySelectorAll("[data-icons-sidebar-root]")).toHaveLength(1);
   });
 
   it("takes the personal group's node back out too", () => {
     document.body.innerHTML = projectList(
       groupHeader("data-sidebar-project-id", "proj_a", "Storefront"),
-      stickyGroup("Threads"),
+      stickyGroup("Threads", { creates: true }),
     );
     start();
 
