@@ -7,9 +7,10 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { derivePluginId } from "./plugin-id.mjs";
+import { resolveBbCli } from "./bb-cli.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const bb = process.env.BB_CLI ?? "bb";
+const bb = resolveBbCli();
 
 function run(command, args, cwd) {
   execFileSync(command, args, { cwd, stdio: "inherit" });
