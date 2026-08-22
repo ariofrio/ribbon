@@ -16,8 +16,8 @@ import {
   ContextMenuSubContent,
   ContextMenuSubTrigger,
   ContextMenuTrigger,
-} from "./ui/context-menu";
-import { CompactViewportOverrideProvider } from "./ui/hooks/use-compact-viewport";
+} from "@/vendor/components/ui/context-menu";
+import { CompactViewportOverrideProvider } from "@/vendor/components/ui/hooks/use-compact-viewport";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +28,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
+} from "@/vendor/components/ui/dropdown-menu";
 
 const DROPDOWN_LAYER_CLASS = "z-[70]";
 

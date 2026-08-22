@@ -27,14 +27,14 @@ import {
   visibleRows,
   type RowRange,
 } from "./virtual-rows";
-import { Icon } from "@/components/ui/icon";
-import { Input } from "@/components/ui/input";
-import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
+import { Icon } from "@/vendor/components/ui/icon";
+import { Input } from "@/vendor/components/ui/input";
+import { useIsCompactViewport } from "@/vendor/components/ui/hooks/use-compact-viewport";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from "@/vendor/components/ui/popover";
 
 export interface CatalogIcon extends Omit<CatalogEntry, "export"> {
   glyph: IconSvgElement;

@@ -1,7 +1,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useDialogCenterX } from "../lib/dialog-position";
-import { usePortalScopeProps } from "../lib/portal-scope";
+import { usePortalScopeProps } from "@/vendor/lib/portal-scope";
 import { Icon } from "./Icon";
 
 export function ThreadSectionDialog({

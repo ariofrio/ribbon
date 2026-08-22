@@ -6,7 +6,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "./tooltip";
+} from "@/vendor/components/ui/tooltip";
 
 afterEach(cleanup);
 

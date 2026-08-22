@@ -6,7 +6,7 @@ import {
   type PluginThreadHeaderActionProps,
   useBbNavigate,
 } from "@get-bb/plugin-sdk/app";
-import { Icon } from "@/components/ui/icon";
+import { Icon } from "@/vendor/components/ui/icon";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ProjectBreadcrumb } from "./ProjectBreadcrumb";
 import { SectionBreadcrumb } from "./SectionBreadcrumb";

@@ -31,8 +31,18 @@ import {
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** Directories a plugin's vendored files may land in, relative to its src/. */
-export const VENDORED_DIRECTORIES = ["components/ui", "hooks", "lib"];
+/**
+ * The one directory the generator owns, relative to a plugin's src/. bb's own
+ * layout is preserved underneath it, so a registry item's target still decides
+ * where it lands — but every vendored file is under a single root, visible in
+ * every import, and anything else inside it is an orphan by definition.
+ *
+ * Registry targets do not agree on a home otherwise: use-media-query and
+ * use-browser-dimming-modal are both registry:hook, and land in
+ * components/ui/hooks and hooks respectively. Scanning a hardcoded list of
+ * such directories would miss whichever one a future item invents.
+ */
+export const VENDOR_ROOT = "vendor";
 
 export function readConfig(repositoryRoot) {
   return JSON.parse(
@@ -151,7 +161,7 @@ export async function pluginFiles(pluginDirectory, names, fetchOne) {
       if (target.startsWith("..") || target.startsWith("/")) {
         throw new Error(`${item.name}: target escapes the plugin: ${target}`);
       }
-      files.set(`${pluginDirectory}/src/${target}`, file.content);
+      files.set(`${pluginDirectory}/src/${VENDOR_ROOT}/${target}`, file.content);
     }
   }
   return files;
@@ -159,25 +169,25 @@ export async function pluginFiles(pluginDirectory, names, fetchOne) {
 
 /** Every file currently sitting in a plugin's vendored directories. */
 export function vendoredOnDisk(repositoryRoot, pluginDirectory) {
-  const found = [];
-  for (const directory of VENDORED_DIRECTORIES) {
-    const absolute = join(repositoryRoot, pluginDirectory, "src", directory);
-    let entries;
-    try {
-      entries = readdirSync(absolute, { recursive: true, withFileTypes: true });
-    } catch (error) {
-      if (error.code === "ENOENT") continue;
-      throw error;
-    }
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      const path = join(entry.parentPath, entry.name);
-      found.push(relative(join(repositoryRoot, pluginDirectory), path)
-        .split(sep)
-        .join("/"));
-    }
+  const absolute = join(repositoryRoot, pluginDirectory, "src", VENDOR_ROOT);
+  let entries;
+  try {
+    entries = readdirSync(absolute, { recursive: true, withFileTypes: true });
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
   }
-  return found.sort();
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) =>
+      relative(
+        join(repositoryRoot, pluginDirectory),
+        join(entry.parentPath, entry.name),
+      )
+        .split(sep)
+        .join("/"),
+    )
+    .sort();
 }
 
 /**
@@ -204,11 +214,8 @@ export function inspect(repositoryRoot, config, lock) {
   }
 
   for (const pluginDirectory of Object.keys(config.plugins)) {
-    const owned = new Set(config.pluginOwned?.[pluginDirectory] ?? []);
     for (const relativePath of vendoredOnDisk(repositoryRoot, pluginDirectory)) {
       const path = `${pluginDirectory}/${relativePath}`;
-      const srcRelative = relativePath.replace(/^src\//u, "");
-      if (owned.has(srcRelative)) continue;
       if (lock.files[path] === undefined) untracked.push(path);
     }
   }
@@ -265,7 +272,7 @@ export function formatProblems(problems, config, lock) {
   }
   if (problems.untracked.length > 0) {
     lines.push(
-      `No registry item explains these files; they are orphans from an older pin, or a plugin's own code that vendor-ui.json should list under pluginOwned:\n${problems.untracked
+      `No registry item explains these files under src/${VENDOR_ROOT}/, which the generator owns outright — they are orphans from an older pin, or a plugin's own code that belongs outside it:\n${problems.untracked
         .map((path) => `  ${path}`)
         .join("\n")}`,
     );

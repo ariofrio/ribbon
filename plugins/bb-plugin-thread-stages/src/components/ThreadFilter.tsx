@@ -12,10 +12,10 @@ import {
   serializeThreadFilter,
   type ThreadFilter as ThreadFilterValue,
 } from "../thread-filter";
-import { cn } from "../lib/utils";
+import { cn } from "@/vendor/lib/utils";
 import { Icon } from "./Icon";
 import { ThreadFilterOptionsMenu } from "./SidebarOptionsMenu";
-import { CompactViewportOverrideProvider } from "./ui/hooks/use-compact-viewport";
+import { CompactViewportOverrideProvider } from "@/vendor/components/ui/hooks/use-compact-viewport";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,14 +30,14 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
-import { CHROME_SECTION_LABEL_CLASS } from "./ui/chrome-style-tokens";
+} from "@/vendor/components/ui/dropdown-menu";
+import { CHROME_SECTION_LABEL_CLASS } from "../lib/chrome-style-tokens";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "./ui/tooltip";
+} from "@/vendor/components/ui/tooltip";
 
 interface ThreadFilterProject {
   id: string;

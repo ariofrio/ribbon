@@ -70,11 +70,11 @@ test("closure resolution visits each item once", async () => {
   assert.deepEqual(seen.sort(), ["dropdown-menu", "icon", "utils"]);
 });
 
-test("files land under the plugin's src/, matching the @/* alias", async () => {
+test("files land under src/vendor/, keeping bb's own layout beneath it", async () => {
   const files = await pluginFiles("plugins/bb-plugin-x", ["icon"], fetchOne);
   assert.deepEqual([...files.keys()].sort(), [
-    "plugins/bb-plugin-x/src/components/ui/icon.tsx",
-    "plugins/bb-plugin-x/src/lib/utils.ts",
+    "plugins/bb-plugin-x/src/vendor/components/ui/icon.tsx",
+    "plugins/bb-plugin-x/src/vendor/lib/utils.ts",
   ]);
 });
 
@@ -101,8 +101,8 @@ const lockFor = (files) => ({
 });
 
 const vendored = {
-  "plugins/bb-plugin-x/src/components/ui/icon.tsx": "export const Icon = 0;\n",
-  "plugins/bb-plugin-x/src/lib/utils.ts": "export const cn = 0;\n",
+  "plugins/bb-plugin-x/src/vendor/components/ui/icon.tsx": "export const Icon = 0;\n",
+  "plugins/bb-plugin-x/src/vendor/lib/utils.ts": "export const cn = 0;\n",
 };
 
 test("a pristine tree reports no problems", () => {
@@ -120,54 +120,45 @@ test("a pristine tree reports no problems", () => {
 test("a hand-edited bb component is reported", () => {
   const root = writeTree({
     ...vendored,
-    "plugins/bb-plugin-x/src/components/ui/icon.tsx":
+    "plugins/bb-plugin-x/src/vendor/components/ui/icon.tsx":
       "export const Icon = 0; // tweaked\n",
   });
   assert.deepEqual(inspect(root, config, lockFor(vendored)).edited, [
-    "plugins/bb-plugin-x/src/components/ui/icon.tsx",
+    "plugins/bb-plugin-x/src/vendor/components/ui/icon.tsx",
   ]);
 });
 
 test("a deleted vendored file is reported", () => {
   const root = writeTree({
-    "plugins/bb-plugin-x/src/lib/utils.ts": vendored[
-      "plugins/bb-plugin-x/src/lib/utils.ts"
+    "plugins/bb-plugin-x/src/vendor/lib/utils.ts": vendored[
+      "plugins/bb-plugin-x/src/vendor/lib/utils.ts"
     ],
   });
   assert.deepEqual(inspect(root, config, lockFor(vendored)).missing, [
-    "plugins/bb-plugin-x/src/components/ui/icon.tsx",
+    "plugins/bb-plugin-x/src/vendor/components/ui/icon.tsx",
   ]);
 });
 
 test("a file no closure explains is reported as untracked", () => {
   const root = writeTree({
     ...vendored,
-    "plugins/bb-plugin-x/src/components/ui/hooks/use-pointer-coarse.ts":
+    "plugins/bb-plugin-x/src/vendor/components/ui/hooks/use-pointer-coarse.ts":
       "export const usePointerCoarse = 0;\n",
   });
   assert.deepEqual(inspect(root, config, lockFor(vendored)).untracked, [
-    "plugins/bb-plugin-x/src/components/ui/hooks/use-pointer-coarse.ts",
+    "plugins/bb-plugin-x/src/vendor/components/ui/hooks/use-pointer-coarse.ts",
   ]);
 });
 
-test("a plugin's own file in a vendored directory is allowed once declared", () => {
+test("a plugin's own file outside the root is not the generator's business", () => {
+  // No allowlist to maintain: the root is owned outright, so plugin code is
+  // simply not in it.
   const root = writeTree({
     ...vendored,
-    "plugins/bb-plugin-x/src/components/ui/tooltip.test.tsx": "// mine\n",
+    "plugins/bb-plugin-x/src/components/ThreadFilter.tsx": "// mine\n",
+    "plugins/bb-plugin-x/src/lib/dialog-position.ts": "// also mine\n",
   });
-  assert.deepEqual(
-    inspect(
-      root,
-      {
-        ...config,
-        pluginOwned: {
-          "plugins/bb-plugin-x": ["components/ui/tooltip.test.tsx"],
-        },
-      },
-      lockFor(vendored),
-    ).untracked,
-    [],
-  );
+  assert.deepEqual(inspect(root, config, lockFor(vendored)).untracked, []);
 });
 
 test("bumping the pin without rebuilding is reported", () => {
@@ -180,14 +171,17 @@ test("bumping the pin without rebuilding is reported", () => {
   assert.equal(problems.stalePin, true);
 });
 
-test("vendoredOnDisk lists only the vendored directories", () => {
+test("vendoredOnDisk scans one root, whatever depth a target invents", () => {
   const root = writeTree({
     ...vendored,
     "plugins/bb-plugin-x/src/app.tsx": "// not vendored\n",
+    "plugins/bb-plugin-x/src/components/ui/mine.tsx": "// not vendored either\n",
+    "plugins/bb-plugin-x/src/vendor/a/b/c/deep.ts": "// a target four levels down\n",
   });
   assert.deepEqual(vendoredOnDisk(root, "plugins/bb-plugin-x"), [
-    "src/components/ui/icon.tsx",
-    "src/lib/utils.ts",
+    "src/vendor/a/b/c/deep.ts",
+    "src/vendor/components/ui/icon.tsx",
+    "src/vendor/lib/utils.ts",
   ]);
 });
 
