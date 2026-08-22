@@ -20,13 +20,13 @@ import {
   inputDigest,
   readLock,
 } from "./lock.mjs";
-import { startStack } from "./stack.mjs";
+import { BB_CLI_PATH, startStack } from "./stack.mjs";
 
 const harnessDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(harnessDirectory, "../..");
 const lockPath = join(harnessDirectory, LOCK_FILENAME);
 const scratch = join(repositoryRoot, ".scratch/screenshots");
-const bb = process.env.BB_CLI ?? "bb";
+const bb = process.env.BB_CLI ?? BB_CLI_PATH;
 
 const options = parseArguments(process.argv.slice(2));
 const shots = SHOTS.filter(
@@ -97,7 +97,7 @@ if (options.check) {
   });
   if (problems.length > 0) {
     process.stderr.write(
-      `Screenshots are out of date:\n${problems.map((problem) => `  ${problem}`).join("\n")}\n\nRun npm run screenshots on macOS to recapture them.\n`,
+      `Screenshots are out of date:\n${problems.map((problem) => `  ${problem}`).join("\n")}\n\nPush, and the Screenshots workflow recaptures them in its container. Run npm run screenshots to look sooner.\n`,
     );
     process.exit(1);
   }
