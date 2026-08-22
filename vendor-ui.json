@@ -27,5 +27,19 @@
       "components/ui/tooltip.test.tsx",
       "lib/dialog-position.ts"
     ]
-  }
+  },
+  "literals": [
+    {
+      "file": "plugins/bb-plugin-thread-stages/src/components/ui/chrome-style-tokens.ts",
+      "symbol": "CHROME_SECTION_LABEL_CLASS",
+      "upstream": "packages/shared-ui/src/components/ui/chrome-style-tokens.ts",
+      "why": "one constant out of a shared-ui file the registry does not publish"
+    },
+    {
+      "file": "plugins/bb-plugin-thread-stages/src/components/ThreadActionsMenu.tsx",
+      "symbol": "DESTRUCTIVE_CONTEXT_ITEM_CLASS",
+      "upstream": "apps/app/src/components/thread/ThreadActionsMenu.tsx",
+      "why": "bb gives ContextMenuItem no destructive variant and styles its own by className"
+    }
+  ]
 }

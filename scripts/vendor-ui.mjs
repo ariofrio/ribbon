@@ -40,6 +40,67 @@ export function readConfig(repositoryRoot) {
   );
 }
 
+/** The release the registry URL is pinned to, e.g. "0.39.0". */
+export function pinnedVersion(config) {
+  const match = /desktop-v([^/]+)\//u.exec(config.registry);
+  if (match === null) {
+    throw new Error(
+      `vendor-ui.json registry is not pinned to a desktop-v<version> tag: ${config.registry}`,
+    );
+  }
+  return match[1];
+}
+
+/**
+ * Every plugin's `bb-app` devDependency, which is what decides the build
+ * toolchain and shim configuration a bundle is compiled against. Components
+ * vendored from a different release are components the app around them is not
+ * running, so the pin has to track this and not drift behind it.
+ */
+export function bbAppVersions(repositoryRoot, config) {
+  const found = new Map();
+  for (const pluginDirectory of Object.keys(config.plugins)) {
+    let manifest;
+    try {
+      manifest = JSON.parse(
+        readFileSync(join(repositoryRoot, pluginDirectory, "package.json"), "utf8"),
+      );
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+      continue;
+    }
+    const version = manifest.devDependencies?.["bb-app"];
+    if (version === undefined) continue;
+    found.set(pluginDirectory, version);
+  }
+  return found;
+}
+
+/** Plugins whose bb-app release is not the one the registry is pinned to. */
+export function pinMismatches(repositoryRoot, config) {
+  const pinned = pinnedVersion(config);
+  return [...bbAppVersions(repositoryRoot, config)]
+    .filter(([, version]) => version !== pinned)
+    .map(([pluginDirectory, version]) => ({ pluginDirectory, version }));
+}
+
+/**
+ * The value of `const <symbol> = "…"` in a file, joining the adjacent string
+ * literals TypeScript would. Used for values copied out of bb by hand, which
+ * no registry item can supply.
+ */
+export function readLiteral(source, symbol) {
+  const declaration = new RegExp(
+    `(?:export\\s+)?const\\s+${symbol}\\s*(?::[^=]+)?=\\s*([\\s\\S]*?);`,
+    "u",
+  ).exec(source);
+  if (declaration === null) return null;
+  const parts = [...declaration[1].matchAll(/"((?:[^"\\]|\\.)*)"/gu)].map(
+    (match) => match[1],
+  );
+  return parts.length === 0 ? null : parts.join("");
+}
+
 export function lockPath(repositoryRoot) {
   return join(repositoryRoot, "vendor-ui.lock.json");
 }
@@ -152,10 +213,31 @@ export function inspect(repositoryRoot, config, lock) {
     }
   }
 
+  // Values copied out of bb: the lock holds what upstream said when they were
+  // last fetched, so an edit here is caught without a network round trip.
+  const changedLiterals = [];
+  for (const literal of config.literals ?? []) {
+    const recorded = lock.literals?.[`${literal.file}#${literal.symbol}`];
+    let value = null;
+    try {
+      value = readLiteral(
+        readFileSync(join(repositoryRoot, literal.file), "utf8"),
+        literal.symbol,
+      );
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    if (value === null || recorded === undefined || digest(value) !== recorded) {
+      changedLiterals.push(`${literal.file}#${literal.symbol}`);
+    }
+  }
+
   return {
     edited: edited.sort(),
     missing: missing.sort(),
     untracked: untracked.sort(),
+    changedLiterals: changedLiterals.sort(),
+    pinMismatches: pinMismatches(repositoryRoot, config),
     stalePin: lock.registry !== config.registry,
   };
 }
@@ -186,6 +268,20 @@ export function formatProblems(problems, config, lock) {
       `No registry item explains these files; they are orphans from an older pin, or a plugin's own code that vendor-ui.json should list under pluginOwned:\n${problems.untracked
         .map((path) => `  ${path}`)
         .join("\n")}`,
+    );
+  }
+  if (problems.changedLiterals.length > 0) {
+    lines.push(
+      `These values were copied out of bb and no longer match what was recorded:\n${problems.changedLiterals
+        .map((entry) => `  ${entry}`)
+        .join("\n")}`,
+    );
+  }
+  if (problems.pinMismatches.length > 0) {
+    lines.push(
+      `The vendored components are pinned to bb ${pinnedVersion(config)}, but these plugins build against another release, so they would run components their own app is not:\n${problems.pinMismatches
+        .map(({ pluginDirectory, version }) => `  ${pluginDirectory}  bb-app ${version}`)
+        .join("\n")}\nMove the vendor-ui.json pin to match, then rebuild.`,
     );
   }
   return lines.join("\n\n");
@@ -220,6 +316,32 @@ async function build(repositoryRoot, config) {
     rmSync(join(repositoryRoot, path), { force: true });
   }
 
+  // A copied value has to still exist upstream, or the copy is stale in a way
+  // no local check could see.
+  const lockLiterals = {};
+  for (const literal of config.literals ?? []) {
+    const local = readLiteral(
+      readFileSync(join(repositoryRoot, literal.file), "utf8"),
+      literal.symbol,
+    );
+    if (local === null) {
+      throw new Error(`${literal.file} declares no ${literal.symbol}`);
+    }
+    const url = registry
+      .replace(/\/packages\/plugin-registry\/r\/\{name\}\.json$/u, "")
+      .concat(`/${literal.upstream}`);
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`${literal.symbol}: ${response.status} fetching ${url}`);
+    }
+    if (!(await response.text()).includes(local)) {
+      throw new Error(
+        `${literal.file} copies ${literal.symbol} from ${literal.upstream}, but bb no longer contains that value — reconcile them by hand.`,
+      );
+    }
+    lockLiterals[`${literal.file}#${literal.symbol}`] = digest(local);
+  }
+
   const lockFiles = {};
   for (const path of [...files.keys()].sort()) {
     const absolute = join(repositoryRoot, path);
@@ -229,7 +351,7 @@ async function build(repositoryRoot, config) {
   }
   writeFileSync(
     lockPath(repositoryRoot),
-    `${JSON.stringify({ registry, files: lockFiles }, null, 2)}\n`,
+    `${JSON.stringify({ registry, literals: lockLiterals, files: lockFiles }, null, 2)}\n`,
   );
   return { count: files.size, removed: [...previous].filter((p) => !files.has(p)) };
 }
@@ -260,7 +382,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       problems.stalePin ||
       problems.edited.length > 0 ||
       problems.missing.length > 0 ||
-      problems.untracked.length > 0;
+      problems.untracked.length > 0 ||
+      problems.changedLiterals.length > 0 ||
+      problems.pinMismatches.length > 0;
     if (failed) {
       process.stderr.write(
         `${formatProblems(problems, config, lock)}\n\nRun npm run build:ui.\n`,

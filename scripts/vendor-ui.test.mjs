@@ -7,7 +7,10 @@ import test from "node:test";
 import {
   digest,
   inspect,
+  pinMismatches,
+  pinnedVersion,
   pluginFiles,
+  readLiteral,
   resolveClosure,
   vendoredOnDisk,
 } from "./vendor-ui.mjs";
@@ -85,7 +88,8 @@ test("a registry item may not write outside the plugin", async () => {
 });
 
 const config = {
-  registry: "https://example.test/{name}.json",
+  registry:
+    "https://raw.githubusercontent.com/get-bb/bb/desktop-v0.39.0/packages/plugin-registry/r/{name}.json",
   plugins: { "plugins/bb-plugin-x": ["icon"] },
 };
 
@@ -107,6 +111,8 @@ test("a pristine tree reports no problems", () => {
     edited: [],
     missing: [],
     untracked: [],
+    changedLiterals: [],
+    pinMismatches: [],
     stalePin: false,
   });
 });
@@ -168,7 +174,7 @@ test("bumping the pin without rebuilding is reported", () => {
   const root = writeTree(vendored);
   const problems = inspect(
     root,
-    { ...config, registry: "https://example.test/v2/{name}.json" },
+    { ...config, registry: "https://raw.githubusercontent.com/get-bb/bb/desktop-v0.40.0/packages/plugin-registry/r/{name}.json" },
     lockFor(vendored),
   );
   assert.equal(problems.stalePin, true);
@@ -183,4 +189,61 @@ test("vendoredOnDisk lists only the vendored directories", () => {
     "src/components/ui/icon.tsx",
     "src/lib/utils.ts",
   ]);
+});
+
+test("the pinned version is read off the registry URL", () => {
+  assert.equal(
+    pinnedVersion({
+      registry:
+        "https://raw.githubusercontent.com/get-bb/bb/desktop-v0.39.0/packages/plugin-registry/r/{name}.json",
+    }),
+    "0.39.0",
+  );
+});
+
+test("a registry URL with no desktop tag is refused", () => {
+  assert.throws(
+    () => pinnedVersion({ registry: "https://example.test/{name}.json" }),
+    /pinned to a desktop-v/u,
+  );
+});
+
+test("a plugin building against another bb release is reported", () => {
+  const root = writeTree({
+    ...vendored,
+    "plugins/bb-plugin-x/package.json": JSON.stringify({
+      devDependencies: { "bb-app": "0.40.0" },
+    }),
+  });
+  assert.deepEqual(pinMismatches(root, config), [
+    { pluginDirectory: "plugins/bb-plugin-x", version: "0.40.0" },
+  ]);
+});
+
+test("a plugin on the pinned release is not reported", () => {
+  const root = writeTree({
+    ...vendored,
+    "plugins/bb-plugin-x/package.json": JSON.stringify({
+      devDependencies: { "bb-app": "0.39.0" },
+    }),
+  });
+  assert.deepEqual(pinMismatches(root, config), []);
+});
+
+test("a copied literal is read out of its declaration", () => {
+  assert.equal(
+    readLiteral('export const A_CLASS =\n  "text-xs font-normal";\n', "A_CLASS"),
+    "text-xs font-normal",
+  );
+});
+
+test("a literal split across adjacent strings is joined as TypeScript would", () => {
+  assert.equal(
+    readLiteral('const A_CLASS =\n  "text-xs " +\n  "font-normal";\n', "A_CLASS"),
+    "text-xs font-normal",
+  );
+});
+
+test("a missing symbol reads as null rather than an empty value", () => {
+  assert.equal(readLiteral('export const OTHER = "x";\n', "A_CLASS"), null);
 });

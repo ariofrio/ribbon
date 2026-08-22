@@ -1,5 +1,9 @@
 {
   "registry": "https://raw.githubusercontent.com/get-bb/bb/desktop-v0.39.0/packages/plugin-registry/r/{name}.json",
+  "literals": {
+    "plugins/bb-plugin-thread-stages/src/components/ui/chrome-style-tokens.ts#CHROME_SECTION_LABEL_CLASS": "sha256-39SE/jqTYNYk+X44fLw6bTO2ci3pMT4jnNyUfd5Wnt8=",
+    "plugins/bb-plugin-thread-stages/src/components/ThreadActionsMenu.tsx#DESTRUCTIVE_CONTEXT_ITEM_CLASS": "sha256-Z/drpoJ7dVK0m9XYAFx+gOXpm1H1bh9Z2qPQOR1SafI="
+  },
   "files": {
     "plugins/bb-plugin-breadcrumbs/src/components/ui/button.tsx": "sha256-w+cW2Q5P1eWoxzFBGCAk0pejETufo27T9UNSo2OPHnA=",
     "plugins/bb-plugin-breadcrumbs/src/components/ui/coarse-pointer-sizing.ts": "sha256-eTAXqj9o2VvwuxnvWBqwyzqThF7DXw4jxz5rfTQd7vU=",
