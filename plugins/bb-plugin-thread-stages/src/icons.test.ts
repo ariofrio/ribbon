@@ -23,14 +23,14 @@ const response: IconsResponse = {
 
 describe("buildProjectIconMap", () => {
   it("falls back to the folder, and to the bubble for the personal project", () => {
-    const map = buildProjectIconMap(response, ["proj_c", "proj_personal"]);
+    const map = buildProjectIconMap(response, ["proj_c", "proj_mine"], "proj_mine");
 
     expect(map.get("proj_c")).toEqual({
       name: "folder-01",
       glyph: folder,
       color: null,
     });
-    expect(map.get("proj_personal")).toEqual({
+    expect(map.get("proj_mine")).toEqual({
       name: "bubble-chat",
       glyph: bubble,
       color: null,
@@ -38,7 +38,7 @@ describe("buildProjectIconMap", () => {
   });
 
   it("gives a chosen color its own lightness per mode", () => {
-    const map = buildProjectIconMap(response, ["proj_a", "proj_b"]);
+    const map = buildProjectIconMap(response, ["proj_a", "proj_b"], null);
 
     expect(map.get("proj_a")).toEqual({
       name: "rocket",
@@ -57,6 +57,7 @@ describe("buildProjectIconMap", () => {
         ],
       },
       ["proj_a"],
+      null,
     );
 
     expect(map.get("proj_a")?.color).toBeNull();
@@ -100,6 +101,7 @@ describe("section icons", () => {
         ],
       },
       ["proj_a"],
+      null,
     );
 
     // These rows are projects; the Icons plugin stores both kinds in one list.

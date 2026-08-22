@@ -6,7 +6,6 @@ import type { IconSvgElement } from "@hugeicons/react";
  * throws — a missing neighbour is a normal state, not an error.
  */
 const ICONS_PLUGIN_ID = "icons";
-const PERSONAL_PROJECT_ID = "proj_personal";
 /**
  * The Icons plugin announces edits here. A plugin cannot join another
  * plugin's realtime channel, and both run in the same document, so a broadcast
@@ -67,10 +66,11 @@ function iconColor(color: string | null): string | null {
 export function buildProjectIconMap(
   response: IconsResponse,
   projectIds: readonly string[],
+  personalProjectId: string | null,
 ): Map<string, ProjectIconView> {
   const byProject = new Map<string, ProjectIconView>();
   for (const projectId of projectIds) {
-    const personal = projectId === PERSONAL_PROJECT_ID;
+    const personal = projectId === personalProjectId;
     byProject.set(projectId, {
       name: personal ? "bubble-chat" : "folder-01",
       glyph: personal ? response.defaults.personal : response.defaults.project,
@@ -91,6 +91,7 @@ export function buildProjectIconMap(
 
 export async function fetchProjectIcons(
   projectIds: readonly string[],
+  personalProjectId: string | null,
 ): Promise<Map<string, ProjectIconView>> {
   try {
     const response = await fetch(
@@ -107,7 +108,7 @@ export async function fetchProjectIcons(
       | { ok: true; result: IconsResponse }
       | { ok: false };
     if (!envelope.ok) return new Map();
-    return buildProjectIconMap(envelope.result, projectIds);
+    return buildProjectIconMap(envelope.result, projectIds, personalProjectId);
   } catch {
     return new Map();
   }

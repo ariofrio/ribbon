@@ -805,6 +805,11 @@ function WorkflowStageList({
     () => sidebar.projects.map((project) => project.id).sort().join(","),
     [sidebar.projects],
   );
+  // bb names the personal project itself; the sidebar never spells its id.
+  const personalProjectId = useMemo(
+    () => sidebar.projects.find((project) => project.isPersonal)?.id ?? null,
+    [sidebar.projects],
+  );
   const threadFilter = useMemo(
     () =>
       normalizeThreadFilter(
@@ -847,11 +852,12 @@ function WorkflowStageList({
   useEffect(() => {
     let canceled = false;
     const load = () => {
-      void fetchProjectIcons(projectIds.split(",").filter(Boolean)).then(
-        (icons) => {
-          if (!canceled) setProjectIcons(icons);
-        },
-      );
+      void fetchProjectIcons(
+        projectIds.split(",").filter(Boolean),
+        personalProjectId,
+      ).then((icons) => {
+        if (!canceled) setProjectIcons(icons);
+      });
     };
     load();
     const unsubscribe = subscribeToProjectIconChanges(load);
@@ -859,7 +865,7 @@ function WorkflowStageList({
       canceled = true;
       unsubscribe();
     };
-  }, [projectIds]);
+  }, [personalProjectId, projectIds]);
   const refreshProjectActionStates = useCallback(async () => {
     try {
       const result = await rpc.call("listProjectActionStates", null);
