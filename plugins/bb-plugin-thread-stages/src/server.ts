@@ -356,6 +356,22 @@ export default function plugin(bb: BbPluginApi) {
   bb.storage.migrate(db, THREAD_WORKFLOW_MIGRATIONS);
   const store = createThreadWorkflowStore(db);
 
+  // bb routes a personal-project thread without a project segment, and the
+  // project-scoped path would redirect to the composer instead. Which project
+  // is the personal one is bb's to say, and it never changes for a server.
+  let personalProjectId: string | null | undefined;
+  async function routableProjectId(
+    projectId: string | null,
+  ): Promise<string | null> {
+    if (projectId === null) return null;
+    if (personalProjectId === undefined) {
+      const projects = await bb.sdk.projects.list({ includePersonal: true });
+      personalProjectId =
+        projects.find(({ kind }) => kind === "personal")?.id ?? null;
+    }
+    return projectId === personalProjectId ? null : projectId;
+  }
+
   function requireRootThread(
     threadId: string,
     threads: readonly WorkflowHierarchyThread[],
@@ -544,9 +560,10 @@ export default function plugin(bb: BbPluginApi) {
           ? {
               kind: "thread",
               threadId: next.threadId,
-              projectId:
+              projectId: await routableProjectId(
                 threads.find(({ id }) => id === next.threadId)?.projectId ??
-                null,
+                  null,
+              ),
             }
           : next;
       return { destination };

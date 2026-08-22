@@ -447,6 +447,53 @@ describe("thread stages plugin API", () => {
     );
   });
 
+  it("routes a personal-project thread without a project segment", async () => {
+    const thread = (id: string, createdAt: number) => ({
+      id,
+      parentThreadId: null,
+      projectId: "proj_personal",
+      visibility: "visible",
+      archivedAt: null,
+      pinnedAt: null,
+      pinSortKey: null,
+      createdAt,
+    });
+    const list = vi.fn(async (args?: { offset?: number }) =>
+      (args?.offset ?? 0) === 0
+        ? [thread("thr_open", 1), thread("thr_next", 2)]
+        : [],
+    );
+    const projects = vi.fn(async () => [
+      { id: "proj_personal", kind: "personal" },
+      { id: "proj_a", kind: "standard" },
+    ]);
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { threads: { list }, projects: { list: projects } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await host.harness.behavior.callRpc("syncThreads", {
+      rootThreadIds: ["thr_open", "thr_next"],
+      childThreadIds: [],
+    });
+
+    await expect(
+      host.harness.behavior.callRpc("setWorkflowStage", {
+        threadId: "thr_open",
+        workflowStage: "Active",
+      }),
+    ).resolves.toEqual({
+      destination: {
+        kind: "thread",
+        threadId: "thr_next",
+        projectId: null,
+      },
+    });
+    expect(projects).toHaveBeenCalledWith({ includePersonal: true });
+  });
+
   it("reads bb's own keybindings through the SDK", async () => {
     const config = vi.fn(async () => ({
       keybindings: [
