@@ -8,13 +8,17 @@
 // the launcher passes its environment down, every child repeats it. A plugin
 // whose `build` script is `bb plugin build` then forks without bound.
 //
-// An absolute path breaks the cycle, so this returns nothing else. A
-// node_modules/.bin entry is followed rather than refused: it is a symlink to
-// the CLI, and its target is both absolute and outside .bin, so it is the
-// honest answer. In CI that shim is the only bb there is, since bb-app is a
-// devDependency and nothing installs the desktop app.
+// An absolute path alone is not enough, because a node_modules/.bin entry links
+// to bb-app/dist/bb.js — which IS the launcher, not the CLI it stands in for.
+// Handing that back as BB_CLI makes the launcher spawn itself, which is the very
+// loop this module exists to prevent. So a shim is followed to its target and
+// then, if that target is the launcher, on to the CLI the launcher would have
+// run: bb-app/host-daemon/dist/bb, which ships in the same package.
+//
+// In CI that chain is the only bb there is, since bb-app is a devDependency and
+// nothing installs the desktop app.
 import { accessSync, constants, realpathSync } from "node:fs";
-import { delimiter, isAbsolute, join, sep } from "node:path";
+import { delimiter, dirname, isAbsolute, join, sep } from "node:path";
 
 const SHIM_DIRECTORY = `${sep}node_modules${sep}.bin${sep}`;
 
@@ -22,15 +26,38 @@ function isShim(path) {
   return path.includes(SHIM_DIRECTORY);
 }
 
-/** A .bin entry resolved to the file it links to, or the path unchanged. */
-function throughShim(path) {
-  if (!isShim(path)) return path;
+/** bb-app's launcher, which re-reads BB_CLI and would spawn itself. */
+function isLauncher(path) {
+  return path.endsWith(`${sep}bb-app${sep}dist${sep}bb.js`);
+}
+
+/**
+ * The CLI the launcher would have run, shipped beside it in the same package.
+ * Returns null when this is not a launcher or the CLI is not there.
+ */
+function pastLauncher(path) {
+  if (!isLauncher(path)) return path;
+  const cli = join(dirname(dirname(path)), "host-daemon", "dist", "bb");
   try {
-    const target = realpathSync(path);
-    return isShim(target) ? null : target;
+    accessSync(cli, constants.X_OK);
+    return cli;
   } catch {
     return null;
   }
+}
+
+/** A .bin entry resolved past the shim and past the launcher to the CLI. */
+function throughShim(path) {
+  let resolved = path;
+  if (isShim(resolved)) {
+    try {
+      resolved = realpathSync(resolved);
+    } catch {
+      return null;
+    }
+    if (isShim(resolved)) return null;
+  }
+  return pastLauncher(resolved);
 }
 
 // Walked here rather than shelled out to `which`, which would itself have to be

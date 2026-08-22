@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test, { afterEach } from "node:test";
 
 import { resolveBbCli } from "./bb-cli.mjs";
@@ -94,4 +94,36 @@ test("no bb anywhere is an explicit failure, not a bare name", () => {
   delete process.env.BB_CLI;
   process.env.PATH = "/nonexistent-for-this-test";
   assert.throws(() => resolveBbCli(), /not found on PATH/u);
+});
+
+test("a shim linking to bb-app's launcher resolves past it to the CLI", () => {
+  // node_modules/.bin/bb links to bb-app/dist/bb.js, which re-reads BB_CLI and
+  // spawns it — handing that back would make the launcher spawn itself.
+  const root = mkdtempSync(join(tmpdir(), "bb-cli-"));
+  const launcher = join(root, "node_modules", "bb-app", "dist", "bb.js");
+  const cli = join(root, "node_modules", "bb-app", "host-daemon", "dist", "bb");
+  for (const p of [launcher, cli]) {
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, "#!/bin/sh\nexit 0\n");
+    chmodSync(p, 0o755);
+  }
+  const shimDir = join(root, "node_modules", ".bin");
+  mkdirSync(shimDir, { recursive: true });
+  const shim = join(shimDir, "bb");
+  symlinkSync(launcher, shim);
+
+  process.env.BB_CLI = shim;
+  process.env.PATH = "/nonexistent-for-this-test";
+  assert.equal(resolveBbCli(), realpathSync(cli));
+});
+
+test("a launcher with no CLI beside it is refused, not returned", () => {
+  const root = mkdtempSync(join(tmpdir(), "bb-cli-"));
+  const launcher = join(root, "node_modules", "bb-app", "dist", "bb.js");
+  mkdirSync(dirname(launcher), { recursive: true });
+  writeFileSync(launcher, "#!/bin/sh\nexit 0\n");
+  chmodSync(launcher, 0o755);
+  process.env.BB_CLI = launcher;
+  process.env.PATH = "/nonexistent-for-this-test";
+  assert.throws(() => resolveBbCli(), /absolute path/u);
 });
