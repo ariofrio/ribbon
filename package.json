@@ -14,7 +14,7 @@
     "check:heading-icons": "node scripts/heading-icons.mjs --check",
     "check:screenshots": "node scripts/screenshots/run.mjs --check",
     "check:ui": "node scripts/vendor-ui.mjs --check",
-    "dev:stack": "node scripts/dev-stack.mjs",
+    "dev:stack": "node scripts/require-node.mjs && node scripts/dev-stack.mjs",
     "install:plugins": "node scripts/install-plugins.mjs",
     "prepare": "git config core.hooksPath .githooks || true",
     "screenshots": "node scripts/require-node.mjs && node scripts/screenshots/run.mjs",

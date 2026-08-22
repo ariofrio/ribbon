@@ -10,6 +10,9 @@
 // Usage: npm run dev:stack            seed the fixture, print the URL, stay up
 //        npm run dev:stack -- --bare  skip the fixture and start empty
 //
+// Capturing and seeding both run on the Node in .nvmrc; require-node.mjs turns
+// the undici EPIPE a wrong major produces back into a sentence.
+//
 // Ctrl+C stops the server and daemon. The next run replaces whatever the last
 // one left behind, so a stale stack never accumulates.
 import { execFileSync } from "node:child_process";
