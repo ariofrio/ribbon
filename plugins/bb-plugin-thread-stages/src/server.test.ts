@@ -84,6 +84,7 @@ describe("thread stages plugin API", () => {
       "reorderThread",
       "renameProject",
       "renameSection",
+      "updateSettings",
     ]);
     expect(
       harness.inspection.registrations.services.map(({ name }) => name),
@@ -407,6 +408,41 @@ describe("thread stages plugin API", () => {
         nextThreadId: null,
       }),
     ).rejects.toThrow("Stage Blocked is disabled");
+  });
+
+  it("saves its own settings through the bb SDK", async () => {
+    const updateSettings = vi.fn(async () => ({ values: {} }));
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { plugins: { updateSettings } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await expect(
+      host.harness.behavior.callRpc("updateSettings", {
+        showSidebarFilter: false,
+      }),
+    ).resolves.toEqual({ ok: true });
+    expect(updateSettings).toHaveBeenCalledWith({
+      pluginId: "thread-stages",
+      values: { showSidebarFilter: false },
+    });
+  });
+
+  it("rejects an unknown setting at the RPC boundary", async () => {
+    const updateSettings = vi.fn(async () => ({ values: {} }));
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { plugins: { updateSettings } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await expect(
+      host.harness.behavior.callRpc("updateSettings", { showTheMoon: true }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    expect(updateSettings).not.toHaveBeenCalled();
   });
 
   it("runs its CLI through host result normalization", async () => {

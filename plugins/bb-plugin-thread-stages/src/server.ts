@@ -240,6 +240,15 @@ export const rpcContract = defineRpcContract({
       .strict(),
     output: z.object({ ok: z.literal(true) }).strict(),
   },
+  updateSettings: {
+    input: z
+      .object({
+        showSidebarFilter: z.boolean().optional(),
+        showCollapsedStageIndicators: z.boolean().optional(),
+      })
+      .strict(),
+    output: z.object({ ok: z.literal(true) }).strict(),
+  },
 });
 
 export default function plugin(bb: BbPluginApi) {
@@ -528,6 +537,10 @@ export default function plugin(bb: BbPluginApi) {
     },
     async renameSection({ sectionId, name }) {
       await bb.sdk.threadSections.update({ id: sectionId, name });
+      return { ok: true as const };
+    },
+    async updateSettings(values) {
+      await bb.sdk.plugins.updateSettings({ pluginId: bb.pluginId, values });
       return { ok: true as const };
     },
   });

@@ -23,6 +23,7 @@ import {
 } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { toast } from "sonner";
+import type { z } from "zod";
 import type { rpcContract } from "./server";
 import {
   DEFAULT_WORKFLOW_STAGE,
@@ -85,10 +86,10 @@ import {
   type ThreadFilter as ThreadFilterValue,
 } from "./thread-filter";
 import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
-import {
-  updateThreadStagesSettings,
-  type ThreadStagesSettingsUpdate,
-} from "./sidebar-settings";
+
+type ThreadStagesSettingsUpdate = z.infer<
+  typeof rpcContract.updateSettings.input
+>;
 
 const COLLAPSED_STATUSES_STORAGE_KEY =
   "bb.plugin.workflow-stage.collapsedStatuses";
@@ -707,7 +708,7 @@ function WorkflowStageList({
   const saveSettings = useCallback(
     async (values: ThreadStagesSettingsUpdate) => {
       try {
-        await updateThreadStagesSettings(values);
+        await rpc.call("updateSettings", values);
       } catch (cause) {
         toast.error(
           cause instanceof Error
@@ -716,7 +717,7 @@ function WorkflowStageList({
         );
       }
     },
-    [],
+    [rpc],
   );
 
   const clearDrag = useCallback(() => {
