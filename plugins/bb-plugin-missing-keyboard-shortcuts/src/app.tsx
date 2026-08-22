@@ -191,6 +191,27 @@ async function openTerminal(
   return envelope.result;
 }
 
+async function listAppKeybindings(pluginId: string): Promise<unknown> {
+  const response = await fetch(
+    `/api/v1/plugins/${encodeURIComponent(pluginId)}/rpc/listAppKeybindings`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "null",
+      credentials: "same-origin",
+    },
+  );
+  const envelope = (await response.json()) as RpcEnvelope<unknown>;
+  if (!response.ok || !envelope.ok) {
+    throw new Error(
+      !envelope.ok
+        ? rpcErrorMessage(envelope.error, "Failed to read bb's keybindings")
+        : `Keybinding request failed (${response.status})`,
+    );
+  }
+  return envelope.result;
+}
+
 async function createSideChat(
   pluginId: string,
   threadId: string,
@@ -405,15 +426,7 @@ export default definePluginApp((app) => {
       const nativeThreadNewCommand = createNativeCommandDelegate({
         command: "thread.new",
         createEvent: createKeyboardEvent,
-        async fetchConfig() {
-          const response = await fetch("/api/v1/system/config", {
-            credentials: "same-origin",
-          });
-          if (!response.ok) {
-            throw new Error(`System config request failed (${response.status})`);
-          }
-          return response.json() as Promise<unknown>;
-        },
+        fetchConfig: () => listAppKeybindings(pluginId),
         isMac: /Mac|iPhone|iPad|iPod/u.test(navigator.platform),
         target: window,
       });

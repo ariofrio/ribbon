@@ -128,3 +128,51 @@ describe("createSideChat RPC", () => {
     expect(callRpc).not.toHaveBeenCalled();
   });
 });
+
+describe("listAppKeybindings RPC", () => {
+  it("reads bb's own keybindings through the SDK", async () => {
+    const config = vi.fn(async () => ({
+      keybindings: [
+        {
+          command: "thread.new",
+          desktopOnly: false,
+          shortcut: {
+            alt: false,
+            control: false,
+            key: "o",
+            meta: false,
+            mod: true,
+            shift: true,
+          },
+          when: { all: [], none: [] },
+        },
+      ],
+    }));
+    const host = createFakePluginHost({
+      pluginId: "missing-keyboard-shortcuts",
+      sdk: { system: { config } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await expect(
+      host.harness.behavior.callRpc("listAppKeybindings", null),
+    ).resolves.toEqual({
+      keybindings: [
+        {
+          command: "thread.new",
+          desktopOnly: false,
+          shortcut: {
+            alt: false,
+            control: false,
+            key: "o",
+            meta: false,
+            mod: true,
+            shift: true,
+          },
+        },
+      ],
+    });
+    expect(config).toHaveBeenCalled();
+  });
+});

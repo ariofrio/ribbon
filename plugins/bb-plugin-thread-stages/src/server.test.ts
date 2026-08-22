@@ -86,6 +86,7 @@ describe("thread stages plugin API", () => {
       "renameSection",
       "updateSettings",
       "listProjectIcons",
+      "listAppKeybindings",
     ]);
     expect(
       harness.inspection.registrations.services.map(({ name }) => name),
@@ -444,6 +445,52 @@ describe("thread stages plugin API", () => {
         input: null,
       }),
     );
+  });
+
+  it("reads bb's own keybindings through the SDK", async () => {
+    const config = vi.fn(async () => ({
+      keybindings: [
+        {
+          command: "thread.new",
+          desktopOnly: false,
+          shortcut: {
+            alt: false,
+            control: false,
+            key: "o",
+            meta: false,
+            mod: true,
+            shift: true,
+          },
+          when: { all: [], none: [] },
+        },
+      ],
+    }));
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { system: { config } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await expect(
+      host.harness.behavior.callRpc("listAppKeybindings", null),
+    ).resolves.toEqual({
+      keybindings: [
+        {
+          command: "thread.new",
+          desktopOnly: false,
+          shortcut: {
+            alt: false,
+            control: false,
+            key: "o",
+            meta: false,
+            mod: true,
+            shift: true,
+          },
+        },
+      ],
+    });
+    expect(config).toHaveBeenCalled();
   });
 
   it("saves its own settings through the bb SDK", async () => {

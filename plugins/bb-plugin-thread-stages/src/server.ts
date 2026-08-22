@@ -121,6 +121,28 @@ const projectIconsSchema = z.object({
   }),
 });
 
+/**
+ * The part of bb's keybinding table a delegate needs to replay a native
+ * command. Not strict: bb owns the rest of the row, and `when` in particular
+ * is bb's own availability rule, not this plugin's to interpret.
+ */
+const appKeybindingsSchema = z.object({
+  keybindings: z.array(
+    z.object({
+      command: z.string(),
+      desktopOnly: z.boolean(),
+      shortcut: z.object({
+        alt: z.boolean(),
+        control: z.boolean(),
+        key: z.string().min(1),
+        meta: z.boolean(),
+        mod: z.boolean(),
+        shift: z.boolean(),
+      }),
+    }),
+  ),
+});
+
 export const rpcContract = defineRpcContract({
   createProjectFromFolder: {
     input: z.null(),
@@ -278,6 +300,10 @@ export const rpcContract = defineRpcContract({
   listProjectIcons: {
     input: z.null(),
     output: projectIconsSchema,
+  },
+  listAppKeybindings: {
+    input: z.null(),
+    output: appKeybindingsSchema,
   },
 });
 
@@ -576,6 +602,13 @@ export default function plugin(bb: BbPluginApi) {
     // The sidebar draws icons the Icons plugin owns. Asking bb to make the
     // call keeps the neighbour's route out of the frontend, and a missing
     // neighbour stays what it has always been: a sidebar without icons.
+    // The stage chords replay bb's own New thread command, which means
+    // knowing which keys bb listens for. The SDK reads the app config on the
+    // server, so the frontend does not reach for bb's own route.
+    async listAppKeybindings() {
+      const { keybindings } = await bb.sdk.system.config();
+      return { keybindings };
+    },
     listProjectIcons() {
       return bb.sdk.plugins.callRpc({
         pluginId: ICONS_PLUGIN_ID,
