@@ -58,15 +58,25 @@ try {
     [join(repositoryRoot, "scripts/install-plugins.mjs")],
     { cwd: repositoryRoot, env: { ...stack.env, BB_CLI: bb }, stdio: "inherit" },
   );
+} catch (error) {
+  // Without the plugins there is nothing here to try, so this one is fatal.
+  console.error(error);
+  await stop(1);
+}
 
-  if (!bare) {
+if (!bare) {
+  // The fixture only furnishes the window. A stack with an empty sidebar is
+  // still worth having, so a seeding failure is reported and stepped over
+  // rather than taking the server down with it.
+  try {
     console.log("Seeding the fixture…");
     const fixture = seed({ stack, workspaceRoot, bb });
     await applyPluginState({ stack, projects: fixture.projects });
+  } catch (error) {
+    console.warn(
+      `\n  Seeding failed, continuing with whatever it managed to create:\n  ${error?.message ?? error}\n`,
+    );
   }
-} catch (error) {
-  console.error(error);
-  await stop(1);
 }
 
 console.log(
@@ -76,7 +86,16 @@ console.log(
     "",
     `  data  ${dataDir}`,
     `  log   ${logPath}`,
-    `  cli   BB_DATA_DIR=${dataDir} ${bb} plugin list`,
+    "",
+    // BB_SERVER_URL is what points the CLI at this stack; BB_DATA_DIR alone
+    // leaves it talking to the developer's own bb, which is the one thing this
+    // script exists to avoid. The thread/project/environment ids are cleared
+    // because an agent shell inherits its own, and they are not this stack's.
+    "  cli   env \\",
+    `          BB_SERVER_URL=${stack.serverUrl} \\`,
+    `          BB_DATA_DIR=${dataDir} \\`,
+    "          -u BB_PROJECT_ID -u BB_THREAD_ID -u BB_ENVIRONMENT_ID \\",
+    `          ${bb} plugin list`,
     "",
     "  Ctrl+C to stop. Your own bb is untouched.",
     "",
