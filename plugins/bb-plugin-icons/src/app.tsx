@@ -11,12 +11,14 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { afterPluginFrame } from "./after-plugin-frame";
+import type { Placement } from "./decorate";
 import { announceIconsChanged } from "./broadcast";
 import { installIconPortal } from "./header-dom";
 import { IconGlyph } from "./IconGlyph";
 import { IconPicker, type CatalogIcon } from "./IconPicker";
 import { Icons } from "./Icons";
 import { iconsRpc } from "./icons-client";
+import { PLACEMENTS } from "./placements";
 import type { rpcContract } from "./server";
 import { observeSidebarIconAnchors, type SidebarAnchor } from "./sidebar-dom";
 import {
@@ -254,7 +256,7 @@ export default definePluginApp((app) => {
       // mid-read is seen by the read rather than lost.
       signal.addEventListener("abort", dispose, { once: true });
 
-      const place = () => {
+      const place = (placements: readonly Placement[], drawSidebar: boolean) => {
         const host = document.createElement("div");
         host.style.display = "none";
         document.body.append(host);
@@ -281,18 +283,20 @@ export default definePluginApp((app) => {
           if (cancel !== undefined) return;
           cancel = afterPluginFrame(() => {
             cancel = undefined;
-            root.render(<Icons anchors={pending} rpc={rpc} />);
+            root.render(
+              <Icons anchors={pending} placements={placements} rpc={rpc} />,
+            );
           });
         };
         draw([]);
-        const stop = observeSidebarIconAnchors(draw);
+        const stop = drawSidebar ? observeSidebarIconAnchors(draw) : undefined;
 
         teardown = () => {
           cancel?.();
           // React owns nodes inside bb's sidebar, so it unmounts before the
           // anchors holding them are taken back out.
           root.unmount();
-          stop();
+          stop?.();
           host.remove();
         };
       };
@@ -304,8 +308,14 @@ export default definePluginApp((app) => {
       // reject.
       void rpc.listPlacements().then((placements) => {
         if (disposed || signal.aborted) return;
-        if (placements?.showInSidebar === false) return;
-        place();
+        const drawSidebar = placements?.showInSidebar !== false;
+        // Everything drawn over bb's own icons, minus whatever the reader
+        // turned off. Nothing left on means nothing to mount at all.
+        const enabled = PLACEMENTS.filter(
+          (placement) => placements?.[placement.setting] !== false,
+        );
+        if (!drawSidebar && enabled.length === 0) return;
+        place(enabled, drawSidebar);
       });
 
       return dispose;

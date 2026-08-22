@@ -23,6 +23,23 @@ describe("projectFromPath", () => {
     expect(projectFromPath(path)).toBeNull();
   });
 
+  it.each([
+    ["/projects/proj_a", "the project's own screen"],
+    ["/projects/proj_a/", "the same screen with a trailing slash"],
+  ])("reads %s exactly — %s", (path) => {
+    expect(projectFromPath(path, { exact: true })).toEqual({
+      kind: "project",
+      id: "proj_a",
+    });
+  });
+
+  it.each([
+    ["/projects/proj_a/settings", "a screen inside the project"],
+    ["/projects/proj_a/threads/thr_b", "a thread inside it"],
+  ])("declines %s when asked exactly — %s", (path) => {
+    expect(projectFromPath(path, { exact: true })).toBeNull();
+  });
+
   it("decodes an id the router escaped", () => {
     expect(projectFromPath("/projects/proj%5Fa")).toEqual({
       kind: "project",

@@ -1,6 +1,11 @@
 import type { IconSvgElement } from "@hugeicons/react";
 import type { ProjectSummary } from "./project-lookup";
-import type { IconColor, IconOwner, StoredIcon } from "./store";
+import type {
+  IconColor,
+  IconOwner,
+  PlacementSetting,
+  StoredIcon,
+} from "./store";
 
 /** Stamped by `bb plugin build`; undefined in tests and registry copies. */
 declare const __BB_PLUGIN_ID__: string | undefined;
@@ -23,6 +28,9 @@ export interface IconsState {
    */
   projects?: ProjectSummary[];
 }
+
+/** Which of the plugin's drawings the user has left on. */
+export type PlacementFlags = Record<PlacementSetting, boolean>;
 
 export interface CatalogEntryView {
   name: string;
@@ -69,11 +77,7 @@ export function iconsRpc(pluginId?: string) {
 
   return {
     list: () => call<IconsState>("listIcons", null),
-    listPlacements: () =>
-      call<{ showInThreadHeader: boolean; showInSidebar: boolean }>(
-        "listPlacements",
-        null,
-      ),
+    listPlacements: () => call<PlacementFlags>("listPlacements", null),
     listCatalog: () => call<{ icons: CatalogEntryView[] }>("listIconCatalog", null),
     set: (icon: IconOwner & { icon: string; color: IconColor | null }) =>
       call<IconsState>("setIcon", icon),

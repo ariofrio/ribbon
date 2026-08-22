@@ -187,12 +187,16 @@ describe("the project list the drawing needs", () => {
 });
 
 describe("icon placements", () => {
-  it("defaults both placements on, so an update never hides an icon", async () => {
+  it("defaults every placement on, so an update never hides an icon", async () => {
     const harness = createPluginHarness();
 
     await expect(
       harness.behavior.callRpc("listPlacements", null),
-    ).resolves.toEqual({ showInThreadHeader: true, showInSidebar: true });
+    ).resolves.toEqual({
+      showInThreadHeader: true,
+      showInSidebar: true,
+      showInComposer: true,
+    });
   });
 
   it("reports a placement the user turned off", async () => {
@@ -205,6 +209,10 @@ describe("icon placements", () => {
 
     await expect(
       host.harness.behavior.callRpc("listPlacements", null),
-    ).resolves.toEqual({ showInThreadHeader: true, showInSidebar: false });
+    ).resolves.toEqual({
+      showInThreadHeader: true,
+      showInSidebar: false,
+      showInComposer: true,
+    });
   });
 });

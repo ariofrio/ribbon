@@ -94,7 +94,11 @@ export const rpcContract = defineRpcContract({
   listPlacements: {
     input: z.null(),
     output: z
-      .object({ showInThreadHeader: z.boolean(), showInSidebar: z.boolean() })
+      .object({
+        showInThreadHeader: z.boolean(),
+        showInSidebar: z.boolean(),
+        showInComposer: z.boolean(),
+      })
       .strict(),
   },
   setIcon: {
@@ -119,6 +123,13 @@ export const ICON_PLACEMENTS = {
     label: "Show in the sidebar",
     description:
       "Draw the icon on bb's own project and section headers. Sidebars other plugins draw are their own.",
+    default: true,
+  },
+  showInComposer: {
+    type: "boolean",
+    label: "Show around the prompt box",
+    description:
+      "Draw the icon wherever the prompt box names a project: its project control and that control's menu, the mention list, a mentioned project, and the strip under an open thread.",
     default: true,
   },
 } as const;
@@ -217,8 +228,9 @@ export default function plugin(bb: BbPluginApi) {
       return view();
     },
     async listPlacements() {
-      const { showInThreadHeader, showInSidebar } = await settings.get();
-      return { showInThreadHeader, showInSidebar };
+      const { showInThreadHeader, showInSidebar, showInComposer } =
+        await settings.get();
+      return { showInThreadHeader, showInSidebar, showInComposer };
     },
     setIcon(input) {
       if (!isEditable(input)) {
