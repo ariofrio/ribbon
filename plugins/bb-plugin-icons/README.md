@@ -78,12 +78,14 @@ groups under *Organize → By project* and section groups only under *Manually*,
 so which headers exist depends on that setting.
 
 Under *By project* that includes the personal project, which bb labels
-*Threads* and wraps in no id of its own. It is the same group bb relabels
-*Unorganized* under *Manually* and reuses for machineless threads under *By
-machine*, where it holds whatever is left rather than the personal project and
-gets no icon. What tells them apart is the company the group keeps: only under
-*By project* do project groups sit beside it. A bb with no projects at all
-therefore gets nothing, which errs towards no icon rather than the wrong one.
+*Threads* and wraps in no id of its own. Being unwrapped is not enough to know
+it by — bb draws *Pinned* the same way, in the same list, and puts it first —
+so it is known instead by what bb lets you do from its header: *New project*
+and *New thread* are offered from that group and from no other. That also
+tells it from the same group relabelled *Unorganized* under *Manually*, and
+from the machineless bucket under *By machine*, where it holds whatever is
+left rather than the personal project. A header that offers no creation gets
+nothing, which errs towards no icon rather than the wrong one.
 
 **The header.** Before the project name above an open thread, as it always has
 been, and now before the project's own crumb above its settings — the one

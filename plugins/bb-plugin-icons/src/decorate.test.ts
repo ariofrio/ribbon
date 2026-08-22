@@ -131,6 +131,32 @@ describe("observeDecorations", () => {
     expect(target()?.className).toBe("size-4");
   });
 
+  // bb sizes its folder differently from one surface to the next and mutes it
+  // on some; the icon standing in wears what bb chose, or it matches none of
+  // them.
+  it("hands on the classes bb had on the glyph it replaces", async () => {
+    document.body.innerHTML = `
+      <svg data-icon="Folder" class="size-3.5 shrink-0 text-muted-foreground"></svg>
+    `;
+
+    const [decorations] = await start([replacing]);
+
+    expect(decorations?.[0]?.glyphClassName).toBe(
+      "size-3.5 shrink-0 text-muted-foreground",
+    );
+  });
+
+  it("re-hides bb's glyph when a re-render brings it back", async () => {
+    document.body.innerHTML = `<div><svg data-icon="Folder"></svg></div>`;
+    await start([replacing]);
+    const hidden = glyph();
+
+    // What React does when it re-renders the icon it still believes it owns.
+    hidden.style.removeProperty("display");
+    document.body.append(document.createElement("div"));
+    await vi.waitFor(() => expect(hidden.style.display).toBe("none"));
+  });
+
   it("goes at the head of the row when bb drew nothing to replace", async () => {
     document.body.innerHTML = `<div data-bb-row><span>Storefront</span></div>`;
 

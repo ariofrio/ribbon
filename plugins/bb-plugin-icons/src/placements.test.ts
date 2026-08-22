@@ -172,14 +172,21 @@ describe("the menu that control opens", () => {
     expect(owners("project-menu-row")).toEqual(["proj_a", "proj_b"]);
   });
 
-  it("replaces the folder that leads the row, never the check that ends it", () => {
+  it("replaces the folder that leads the row, not one nested inside it", () => {
     document.body.innerHTML = `
-      <div role="menuitem">${folder("size-4")}Storefront<svg data-icon="Check"></svg></div>
+      <div role="menuitem">${folder("size-4")}Storefront</div>
+      <div role="menuitem"><span data-nested>${folder("size-4")}</span>Payments API</div>
     `;
-
-    expect(find("project-menu-row")[0]?.replaces).toBe(
-      document.querySelector('[data-icon="Folder"]'),
+    const leading = document.querySelector(
+      '[role="menuitem"] > svg[data-icon="Folder"]',
     );
+
+    // The second row's folder belongs to something the row contains rather
+    // than to the row, so it is left alone even though the row names a
+    // project this client knows.
+    expect(find("project-menu-row").map((spot) => spot.replaces)).toEqual([
+      leading,
+    ]);
   });
 
   it("passes over a row of some other menu that happens to draw a folder", () => {
@@ -216,9 +223,13 @@ describe("a project mentioned in the prompt", () => {
     expect(owners("mention-pill")).toEqual(["proj_a", "proj_a"]);
   });
 
+  // bb writes a projectId into a thread mention too, captured from a running
+  // bb: {"kind":"thread","threadId":"thr_…","projectId":"proj_…","label":…}.
+  // With the id present, the kind is the only thing between a thread's pill
+  // and a project's icon.
   it("leaves a mention of something that is not a project alone", () => {
     document.body.innerHTML = pill(
-      '{"kind":"thread","threadId":"thr_a","label":"Polish analytics"}',
+      '{"kind":"thread","threadId":"thr_a","projectId":"proj_a","label":"Harden events API"}',
     );
 
     expect(owners("mention-pill")).toEqual([]);

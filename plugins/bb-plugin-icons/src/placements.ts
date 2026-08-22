@@ -113,8 +113,9 @@ const projectMenuRow: Placement = {
     for (const node of Array.from(
       root.querySelectorAll<HTMLElement>('[role="menuitem"]'),
     )) {
-      // Only bb's own leading glyph: a folder nested deeper belongs to a row
-      // of some other menu, not to this one.
+      // Only the row's own leading glyph. A folder deeper inside belongs to
+      // something the row contains rather than to the row, and replacing it
+      // would put a project's icon on whatever that is.
       const spot = spotOn(
         node.querySelector(`:scope > ${FOLDER}`),
         node.textContent ?? "",

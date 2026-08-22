@@ -144,8 +144,9 @@ function alignLike(target: HTMLElement, replaced: HTMLElement): void {
 
 function hide(node: HTMLElement): { node: HTMLElement; display: string } {
   const display = node.style.display;
-  // Guarded, because an unchanged write still records a mutation, and this
-  // observer would then wake itself forever.
+  // `style` is not among the attributes this pass watches, so writing it
+  // cannot wake the observer either way; the guard is here so the value put
+  // back on teardown is the one bb had, not one this pass wrote.
   if (display !== "none") node.style.display = "none";
   return { node, display };
 }
