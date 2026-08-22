@@ -98,22 +98,30 @@ const projectSummarySchema = z
 
 /**
  * What the Icons plugin answers `listIcons` with. Mirrored rather than
- * imported, and deliberately not strict: that plugin may grow fields, and a
- * neighbour's extra key is not this sidebar's business.
+ * imported: that plugin owns the shape, so rows are read one at a time and a
+ * row this sidebar cannot draw is dropped rather than costing every icon.
  */
 const iconGlyphSchema = z.array(
   z.tuple([z.string(), z.record(z.string(), z.any())]),
 );
+const projectIconSchema = z.object({
+  kind: z.enum(["project", "section"]),
+  id: z.string(),
+  icon: z.string(),
+  color: z.string().nullable(),
+  glyph: iconGlyphSchema,
+});
+/** The envelope, loose enough that a grown row reaches the filter below. */
+const iconsAnswerSchema = z.object({
+  icons: z.array(z.unknown()),
+  defaults: z.object({
+    project: iconGlyphSchema,
+    personal: iconGlyphSchema,
+    section: iconGlyphSchema,
+  }),
+});
 const projectIconsSchema = z.object({
-  icons: z.array(
-    z.object({
-      kind: z.enum(["project", "section"]),
-      id: z.string(),
-      icon: z.string(),
-      color: z.string().nullable(),
-      glyph: iconGlyphSchema,
-    }),
-  ),
+  icons: z.array(projectIconSchema),
   defaults: z.object({
     project: iconGlyphSchema,
     personal: iconGlyphSchema,
@@ -642,13 +650,20 @@ export default function plugin(bb: BbPluginApi) {
         }),
       };
     },
-    listProjectIcons() {
-      return bb.sdk.plugins.callRpc({
+    async listProjectIcons() {
+      const answer = await bb.sdk.plugins.callRpc({
         pluginId: ICONS_PLUGIN_ID,
         method: "listIcons",
         input: null,
-        outputSchema: projectIconsSchema,
+        outputSchema: iconsAnswerSchema,
       });
+      return {
+        ...answer,
+        icons: answer.icons.flatMap((icon) => {
+          const parsed = projectIconSchema.safeParse(icon);
+          return parsed.success ? [parsed.data] : [];
+        }),
+      };
     },
   });
 

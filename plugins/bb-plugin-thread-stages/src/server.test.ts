@@ -447,6 +447,28 @@ describe("thread stages plugin API", () => {
     );
   });
 
+  it("drops an icon row it cannot draw, not the whole set", async () => {
+    const glyph = [["path", { d: "M1" }]] as const;
+    const callRpc = vi.fn(async () => ({
+      icons: [
+        { kind: "project", id: "proj_a", icon: "rocket", color: null, glyph },
+        // The Icons plugin owns this shape and may grow it.
+        { kind: "machine", id: "host_a", icon: "server", color: null, glyph },
+      ],
+      defaults: { project: glyph, personal: glyph, section: glyph },
+    }));
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { plugins: { callRpc } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await expect(
+      host.harness.behavior.callRpc("listProjectIcons", null),
+    ).resolves.toMatchObject({ icons: [{ id: "proj_a" }] });
+  });
+
   it("routes a personal-project thread without a project segment", async () => {
     const thread = (id: string, createdAt: number) => ({
       id,
