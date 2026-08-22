@@ -85,6 +85,7 @@ describe("thread stages plugin API", () => {
       "renameProject",
       "renameSection",
       "updateSettings",
+      "listProjectIcons",
     ]);
     expect(
       harness.inspection.registrations.services.map(({ name }) => name),
@@ -408,6 +409,41 @@ describe("thread stages plugin API", () => {
         nextThreadId: null,
       }),
     ).rejects.toThrow("Stage Blocked is disabled");
+  });
+
+  it("reads project icons from the Icons plugin through the bb SDK", async () => {
+    const glyph = [["path", { d: "M1" }]] as const;
+    const callRpc = vi.fn(async () => ({
+      icons: [
+        {
+          kind: "project",
+          id: "proj_a",
+          icon: "rocket",
+          color: "teal",
+          glyph,
+        },
+      ],
+      defaults: { project: glyph, personal: glyph, section: glyph },
+    }));
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { plugins: { callRpc } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await expect(
+      host.harness.behavior.callRpc("listProjectIcons", null),
+    ).resolves.toMatchObject({
+      icons: [{ id: "proj_a", icon: "rocket" }],
+    });
+    expect(callRpc).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pluginId: "icons",
+        method: "listIcons",
+        input: null,
+      }),
+    );
   });
 
   it("saves its own settings through the bb SDK", async () => {

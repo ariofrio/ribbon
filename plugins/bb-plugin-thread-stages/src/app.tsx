@@ -854,6 +854,7 @@ function WorkflowStageList({
     let canceled = false;
     const load = () => {
       void fetchProjectIcons(
+        () => rpc.call("listProjectIcons", null),
         projectIds.split(",").filter(Boolean),
         personalProjectId,
       ).then((icons) => {
@@ -866,7 +867,7 @@ function WorkflowStageList({
       canceled = true;
       unsubscribe();
     };
-  }, [personalProjectId, projectIds]);
+  }, [personalProjectId, projectIds, rpc]);
   const refreshProjectActionStates = useCallback(async () => {
     try {
       const result = await rpc.call("listProjectActionStates", null);

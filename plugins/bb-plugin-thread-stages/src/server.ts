@@ -27,6 +27,7 @@ import {
   type WorkflowHierarchyThread,
 } from "./root-thread-ownership";
 
+const ICONS_PLUGIN_ID = "icons";
 const workflowStageSchema = z.enum(WORKFLOW_STAGES);
 const sectionSchema = z
   .object({
@@ -94,6 +95,31 @@ const projectSummarySchema = z
     name: z.string(),
   })
   .strict();
+
+/**
+ * What the Icons plugin answers `listIcons` with. Mirrored rather than
+ * imported, and deliberately not strict: that plugin may grow fields, and a
+ * neighbour's extra key is not this sidebar's business.
+ */
+const iconGlyphSchema = z.array(
+  z.tuple([z.string(), z.record(z.string(), z.any())]),
+);
+const projectIconsSchema = z.object({
+  icons: z.array(
+    z.object({
+      kind: z.enum(["project", "section"]),
+      id: z.string(),
+      icon: z.string(),
+      color: z.string().nullable(),
+      glyph: iconGlyphSchema,
+    }),
+  ),
+  defaults: z.object({
+    project: iconGlyphSchema,
+    personal: iconGlyphSchema,
+    section: iconGlyphSchema,
+  }),
+});
 
 export const rpcContract = defineRpcContract({
   createProjectFromFolder: {
@@ -248,6 +274,10 @@ export const rpcContract = defineRpcContract({
       })
       .strict(),
     output: z.object({ ok: z.literal(true) }).strict(),
+  },
+  listProjectIcons: {
+    input: z.null(),
+    output: projectIconsSchema,
   },
 });
 
@@ -542,6 +572,17 @@ export default function plugin(bb: BbPluginApi) {
     async updateSettings(values) {
       await bb.sdk.plugins.updateSettings({ pluginId: bb.pluginId, values });
       return { ok: true as const };
+    },
+    // The sidebar draws icons the Icons plugin owns. Asking bb to make the
+    // call keeps the neighbour's route out of the frontend, and a missing
+    // neighbour stays what it has always been: a sidebar without icons.
+    listProjectIcons() {
+      return bb.sdk.plugins.callRpc({
+        pluginId: ICONS_PLUGIN_ID,
+        method: "listIcons",
+        input: null,
+        outputSchema: projectIconsSchema,
+      });
     },
   });
 
