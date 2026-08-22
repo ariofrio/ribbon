@@ -23,6 +23,7 @@
   },
   "pluginOwned": {
     "plugins/bb-plugin-thread-stages": [
+      "components/ui/chrome-style-tokens.ts",
       "components/ui/tooltip.test.tsx",
       "lib/dialog-position.ts"
     ]
