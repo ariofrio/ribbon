@@ -1,0 +1,30 @@
+{
+  "$comment": "Single source of truth for the bb UI components each plugin vendors. scripts/vendor-ui.mjs is the only writer of the files it lists; hand-edits fail npm run check:ui. Compose around a component instead of editing it — bb exports the seams (CompactViewportOverrideProvider, ResponsiveDrawerShell, MobileTrigger, stripRadixContentProps, MENU_ITEM_LAST_HOVERED_CLASS, LIST_HOVER_TRANSITION).",
+  "registry": "https://raw.githubusercontent.com/get-bb/bb/desktop-v0.39.0/packages/plugin-registry/r/{name}.json",
+  "plugins": {
+    "plugins/bb-plugin-breadcrumbs": [
+      "button",
+      "dialog",
+      "drawer",
+      "dropdown-menu",
+      "input"
+    ],
+    "plugins/bb-plugin-icons": [
+      "drawer",
+      "icon",
+      "input",
+      "popover"
+    ],
+    "plugins/bb-plugin-thread-stages": [
+      "context-menu",
+      "dropdown-menu",
+      "tooltip"
+    ]
+  },
+  "pluginOwned": {
+    "plugins/bb-plugin-thread-stages": [
+      "components/ui/tooltip.test.tsx",
+      "lib/dialog-position.ts"
+    ]
+  }
+}

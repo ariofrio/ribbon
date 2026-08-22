@@ -1,3 +1,4 @@
+/* shadcn/ui-derived */
 import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 
@@ -59,21 +60,17 @@ function DropdownMenu({
   open: controlledOpen,
   onOpenChange: controlledOnChange,
   defaultOpen,
-  responsive = true,
   ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Root> & {
-  responsive?: boolean;
-}) {
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
   const ctx = useResponsiveRoot(
     controlledOpen,
     controlledOnChange,
     defaultOpen,
   );
-  const effectiveCtx = responsive ? ctx : { ...ctx, isCompactViewport: false };
 
-  if (effectiveCtx.isCompactViewport) {
+  if (ctx.isCompactViewport) {
     return (
-      <ResponsiveMenuContext.Provider value={effectiveCtx}>
+      <ResponsiveMenuContext.Provider value={ctx}>
         {children}
       </ResponsiveMenuContext.Provider>
     );
@@ -81,11 +78,11 @@ function DropdownMenu({
 
   return (
     <DropdownMenuPrimitive.Root
-      open={effectiveCtx.open}
-      onOpenChange={effectiveCtx.onOpenChange}
+      open={ctx.open}
+      onOpenChange={ctx.onOpenChange}
       {...props}
     >
-      <ResponsiveMenuContext.Provider value={effectiveCtx}>
+      <ResponsiveMenuContext.Provider value={ctx}>
         {children}
       </ResponsiveMenuContext.Provider>
     </DropdownMenuPrimitive.Root>
@@ -452,15 +449,12 @@ function DropdownMenuRadioGroup({
 
 const DropdownMenuRadioItem = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.RadioItem>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem> & {
-    indicator?: "check" | "radio";
-  }
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>
 >(
   (
     {
       className,
       children,
-      indicator = "radio",
       onPointerEnter: callerPointerEnter,
       onKeyDown: callerKeyDown,
       ...props
@@ -491,12 +485,7 @@ const DropdownMenuRadioItem = React.forwardRef<
       >
         <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
           <DropdownMenuPrimitive.ItemIndicator>
-            <Icon
-              name={indicator === "check" ? "Check" : "Circle"}
-              className={
-                indicator === "check" ? "size-3.5" : "h-2 w-2 fill-current"
-              }
-            />
+            <Icon name="Circle" className="h-2 w-2 fill-current" />
           </DropdownMenuPrimitive.ItemIndicator>
         </span>
         {children}
@@ -616,7 +605,6 @@ const DropdownMenuSubTrigger = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.SubTrigger>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubTrigger> & {
     inset?: boolean;
-    showChevron?: boolean;
   }
 >(
   (
@@ -624,7 +612,6 @@ const DropdownMenuSubTrigger = React.forwardRef<
       className,
       inset,
       children,
-      showChevron = true,
       onPointerEnter: callerPointerEnter,
       onKeyDown: callerKeyDown,
       ...props
@@ -650,7 +637,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
         {...hoverProps}
       >
         {children}
-        {showChevron ? <Icon name="ChevronRight" className="ml-auto" /> : null}
+        <Icon name="ChevronRight" className="ml-auto" />
       </DropdownMenuPrimitive.SubTrigger>
     );
   },

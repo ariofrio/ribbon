@@ -12,8 +12,10 @@ import {
   serializeThreadFilter,
   type ThreadFilter as ThreadFilterValue,
 } from "../thread-filter";
+import { cn } from "../lib/utils";
 import { Icon } from "./Icon";
 import { ThreadFilterOptionsMenu } from "./SidebarOptionsMenu";
+import { CompactViewportOverrideProvider } from "./ui/hooks/use-compact-viewport";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,6 +71,22 @@ interface ThreadFilterProps {
 
 const CONTENT_CLASS = "min-w-[var(--radix-dropdown-menu-trigger-width)]";
 const FILTER_ITEM_CLASS = "gap-2 pl-7";
+// Hides the circle bb hardcodes in DropdownMenuRadioItem's indicator slot; the
+// row draws FilterRowCheck there instead. Direct-child only, so it never
+// reaches an icon the row renders inside its own spans.
+const HIDE_BUILTIN_INDICATOR_CLASS = "[&>span:first-child]:hidden";
+// Same, for the chevron DropdownMenuSubTrigger appends after its children: the
+// actionable row renders its own, as a separately hoverable target.
+const HIDE_BUILTIN_SUBMENU_CHEVRON_CLASS = "[&>svg]:hidden";
+
+function FilterRowCheck() {
+  return (
+    <span className="absolute left-2 inline-flex size-3.5 items-center justify-center">
+      <Icon name="Check" className="size-3.5" aria-hidden />
+    </span>
+  );
+}
+
 const ACTIONABLE_ITEM_CLASS =
   "relative flex cursor-default select-none items-center gap-0 rounded-none p-0 pr-1 text-xs outline-none transition-none focus:bg-transparent focus:text-inherit data-[state=open]:bg-transparent data-[state=open]:text-inherit data-[last-hovered]:bg-transparent data-[last-hovered]:text-inherit";
 const ACTIONABLE_SELECT_TARGET_CLASS =
@@ -119,6 +137,7 @@ export function ThreadFilter({
   const regularProjects = projects.filter((project) => !project.isPersonal);
   const scopeLabel = "Projects and sections";
   const allLabel = "All projects and sections";
+  const selectedValue = serializeThreadFilter(value) ?? "";
 
   function handleFilterChange(nextValue: string): void {
     if (!nextValue) {
@@ -137,7 +156,8 @@ export function ThreadFilter({
 
   return (
     <div className="bb-sidebar-hover-actions-row group/thread-filter sticky top-[var(--bb-sidebar-sticky-stack-padding-top)] z-[70] mb-4 flex min-w-0 items-center gap-1 rounded-md bg-sidebar outline-none ring-sidebar-ring has-[.thread-filter-trigger:focus-visible]:ring-2 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-2 before:bg-sidebar before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-sidebar after:content-['']">
-      <DropdownMenu responsive={false} open={open} onOpenChange={setOpen}>
+      <CompactViewportOverrideProvider isCompactViewport={false}>
+      <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
@@ -195,10 +215,14 @@ export function ThreadFilter({
         <DropdownMenuContent align="start" className={CONTENT_CLASS}>
           <DropdownMenuRadioGroup
             aria-label="All threads"
-            value={serializeThreadFilter(value) ?? ""}
+            value={selectedValue}
             onValueChange={handleFilterChange}
           >
-            <ThreadFilterItem label={allLabel} value="">
+            <ThreadFilterItem
+              label={allLabel}
+              selectedValue={selectedValue}
+              value=""
+            >
               <Icon
                 name="FolderLibrary"
                 className="size-4 shrink-0"
@@ -215,7 +239,7 @@ export function ThreadFilter({
               Projects
             </DropdownMenuLabel>
             <DropdownMenuRadioGroup
-              value={serializeThreadFilter(value) ?? ""}
+              value={selectedValue}
               onValueChange={handleFilterChange}
             >
               {regularProjects.map((project) => (
@@ -246,6 +270,7 @@ export function ThreadFilter({
               {personalProject ? (
                 <ThreadFilterItem
                   label="Threads"
+                  selectedValue={selectedValue}
                   value={`project:${personalProject.id}`}
                 >
                   <ProjectFilterIcon
@@ -274,7 +299,7 @@ export function ThreadFilter({
               Sections
             </DropdownMenuLabel>
             <DropdownMenuRadioGroup
-              value={serializeThreadFilter(value) ?? ""}
+              value={selectedValue}
               onValueChange={handleFilterChange}
             >
               {sections.map((section) => (
@@ -301,7 +326,11 @@ export function ThreadFilter({
                 </ActionableThreadFilterItem>
               ))}
               {sections.length > 0 ? (
-                <ThreadFilterItem label="Unorganized" value="uncategorized">
+                <ThreadFilterItem
+                  label="Unorganized"
+                  selectedValue={selectedValue}
+                  value="uncategorized"
+                >
                   <Icon
                     name="ListViewOff"
                     className="size-4 shrink-0"
@@ -317,6 +346,7 @@ export function ThreadFilter({
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
+      </CompactViewportOverrideProvider>
       <TooltipProvider>
         <span
           data-thread-filter-actions=""
@@ -420,10 +450,9 @@ function ActionableThreadFilterItem({
   return (
     <DropdownMenuSub open={submenuOpen} onOpenChange={setSubmenuOpen}>
       <DropdownMenuSubTrigger
-        showChevron={false}
         role="menuitemradio"
         aria-checked={selected}
-        className={ACTIONABLE_ITEM_CLASS}
+        className={cn(ACTIONABLE_ITEM_CLASS, HIDE_BUILTIN_SUBMENU_CHEVRON_CLASS)}
         onClick={handleClick}
         onContextMenu={(event) => {
           event.preventDefault();
@@ -457,9 +486,7 @@ function ActionableThreadFilterItem({
           className={ACTIONABLE_SELECT_TARGET_CLASS}
         >
           {selected ? (
-            <span className="absolute left-2 inline-flex size-3.5 items-center justify-center">
-              <Icon name="Check" className="size-3.5" aria-hidden />
-            </span>
+            <FilterRowCheck />
           ) : null}
           <SubmenuPointerEnterContext.Provider
             value={() => setPointerTarget(null)}
@@ -646,18 +673,20 @@ function ThreadFilterAction({
 function ThreadFilterItem({
   children,
   label,
+  selectedValue,
   value,
 }: {
   children?: React.ReactNode;
   label: string;
+  selectedValue: string;
   value: string;
 }) {
   return (
     <DropdownMenuRadioItem
       value={value}
-      indicator="check"
-      className={FILTER_ITEM_CLASS}
+      className={cn(FILTER_ITEM_CLASS, HIDE_BUILTIN_INDICATOR_CLASS)}
     >
+      {selectedValue === value ? <FilterRowCheck /> : null}
       {children}
       <span className="truncate">{label}</span>
     </DropdownMenuRadioItem>

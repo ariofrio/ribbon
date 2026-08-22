@@ -17,6 +17,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "./ui/context-menu";
+import { CompactViewportOverrideProvider } from "./ui/hooks/use-compact-viewport";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,27 +71,32 @@ export function ThreadActionsContextMenu({
   );
 }
 
+const DESTRUCTIVE_CONTEXT_ITEM_CLASS =
+  "text-destructive focus:bg-destructive/15 focus:text-destructive data-[last-hovered]:bg-destructive/15 data-[last-hovered]:text-destructive";
+
 export function ThreadActionsDropdown({
   onOpenChange,
   ...props
 }: CommonMenuProps & { onOpenChange: (open: boolean) => void }) {
   return (
-    <DropdownMenu responsive={false} onOpenChange={onOpenChange}>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label="Thread actions"
-          className="relative m-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-md p-0 text-subtle-foreground outline-none ring-sidebar-ring after:absolute after:left-1/2 after:top-1/2 after:h-7 after:w-7 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] hover:text-foreground focus-visible:ring-2 data-[state=open]:bg-state-active data-[state=open]:text-foreground"
-          onClick={(event) => event.stopPropagation()}
-          onDragStart={(event) => event.preventDefault()}
-        >
-          <Icon name="MoreHorizontal" className="size-4" aria-hidden />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className={DROPDOWN_LAYER_CLASS}>
-        <DropdownMenuItems {...props} />
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <CompactViewportOverrideProvider isCompactViewport={false}>
+      <DropdownMenu onOpenChange={onOpenChange}>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label="Thread actions"
+            className="relative m-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-md p-0 text-subtle-foreground outline-none ring-sidebar-ring after:absolute after:left-1/2 after:top-1/2 after:h-7 after:w-7 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] hover:text-foreground focus-visible:ring-2 data-[state=open]:bg-state-active data-[state=open]:text-foreground"
+            onClick={(event) => event.stopPropagation()}
+            onDragStart={(event) => event.preventDefault()}
+          >
+            <Icon name="MoreHorizontal" className="size-4" aria-hidden />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className={DROPDOWN_LAYER_CLASS}>
+          <DropdownMenuItems {...props} />
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </CompactViewportOverrideProvider>
   );
 }
 
@@ -350,7 +356,7 @@ function ContextItem({
   return (
     <ContextMenuItem
       disabled={disabled}
-      variant={destructive ? "destructive" : "default"}
+      className={destructive ? DESTRUCTIVE_CONTEXT_ITEM_CLASS : undefined}
       onSelect={onSelect}
     >
       <Icon name={icon} aria-hidden />

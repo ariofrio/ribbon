@@ -7,7 +7,7 @@
 ## Layout
 
 - Keep every TypeScript source under the plugin's `src/`, including the `bb.server` and `bb.app` entries, the vendored `components/`, `lib/`, and `hooks/` directories, generated data, and co-located `*.test.ts`. bb's own scaffold puts these in the plugin root; the manifest resolves plugin-relative paths either way, so point `bb.server` at `./src/server.ts` and set the tsconfig `@/*` alias to `./src/*`.
-- Leave only packaging and tooling configuration in the plugin root, where npm and each tool require it: `package.json`, `package-lock.json`, `tsconfig.json`, `README.md`, `CHANGELOG.md`, and `LICENSE`, plus `components.json` and `vitest.config.ts` when used. `assets/`, `skills/`, `themes/`, and build-time `scripts/` stay alongside `src/`.
+- Leave only packaging and tooling configuration in the plugin root, where npm and each tool require it: `package.json`, `package-lock.json`, `tsconfig.json`, `README.md`, `CHANGELOG.md`, and `LICENSE`, plus `vitest.config.ts` when used. `assets/`, `skills/`, `themes/`, and build-time `scripts/` stay alongside `src/`.
 - Ship sources without their tests by ending `files` with `"src", "!src/**/*.test.ts", "!src/**/*.test.tsx"`.
 - README screenshots live in `assets/` beside the branding icon but are not worth shipping, so follow `"assets"` with `"!assets/screenshot*.png", "!assets/card*.png"`.
 - The repository's own `assets/` holds what the root README draws and no plugin ships: the hero, the dividers a narrow page needs, and `icons/`, whose files are derived from each plugin's own icon by `npm run build:heading-icons` and reported stale by `npm run check:heading-icons`.
@@ -15,7 +15,10 @@
 
 ## UI components
 
-- Prefer vendoring the matching component from bb's release-pinned `@bb` shadcn registry over composing the control directly from Radix or recreating bb's chrome. Layer plugin-specific behavior onto the vendored component; use primitives or a bespoke component only when the registry component cannot support the required interaction, and preserve the native motion, focus, responsive, and portal behavior in that exception.
+- Prefer the matching component from bb's release-pinned `@bb` shadcn registry over composing the control directly from Radix or recreating bb's chrome. Use primitives or a bespoke component only when the registry component cannot support the required interaction, and preserve the native motion, focus, responsive, and portal behavior in that exception.
+- Never edit a vendored component. The registry is generated verbatim from bb's own `packages/shared-ui`, so an edit forks the code running in the window around it: the next refresh reverts it, and until then the plugin drifts from every other surface. `npm run check:ui` fails on any hand-edit, both in CI and in a pre-commit hook.
+- Layer plugin behavior by composing around a component instead. bb exports the seams — `CompactViewportOverrideProvider`, `ResponsiveDrawerShell`, `MobileTrigger`, `stripRadixContentProps`, `useResponsiveRoot`, `MENU_ITEM_LAST_HOVERED_CLASS`, `LIST_HOVER_TRANSITION` — and bb's own app composes with them, so read how `apps/app/src/components/` solves the same problem first. A `className` from an outer component wins through `cn`, which covers most styling gaps.
+- Add or drop a component by editing the item list in `vendor-ui.json` and running `npm run build:ui`, never `npx shadcn add`. That file holds the single registry pin and each plugin's directly imported items; `registryDependencies` supply the rest of the closure, and a file that falls out of every closure is reported rather than left behind as an orphan.
 
 ## Workflow
 

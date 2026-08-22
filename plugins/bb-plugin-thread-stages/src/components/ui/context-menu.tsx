@@ -1,3 +1,4 @@
+/* shadcn/ui-derived */
 import * as React from "react";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 
@@ -42,7 +43,6 @@ type ContextMenuItemProps = React.ComponentPropsWithoutRef<
   typeof ContextMenuPrimitive.Item
 > & {
   inset?: boolean;
-  variant?: "default" | "destructive";
 };
 
 type ContextMenuCheckboxItemElement = React.ComponentRef<
@@ -179,7 +179,6 @@ const ContextMenuItem = React.forwardRef<
     {
       className,
       inset,
-      variant = "default",
       onPointerEnter: callerPointerEnter,
       onKeyDown: callerKeyDown,
       ...props
@@ -198,8 +197,6 @@ const ContextMenuItem = React.forwardRef<
           "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-[0.3125rem] text-xs outline-none focus:bg-state-hover focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0",
           LIST_HOVER_TRANSITION,
           MENU_ITEM_LAST_HOVERED_CLASS,
-          variant === "destructive" &&
-            "text-destructive focus:bg-destructive/15 focus:text-destructive data-[last-hovered]:bg-destructive/15",
           inset && "pl-8",
           className,
         )}

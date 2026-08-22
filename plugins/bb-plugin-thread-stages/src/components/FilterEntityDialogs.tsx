@@ -1,7 +1,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useDialogCenterX } from "../lib/dialog-position";
-import { portalScopeProps } from "../lib/portal-scope";
+import { usePortalScopeProps } from "../lib/portal-scope";
 import { Icon } from "./Icon";
 
 export interface FilterEntityTarget {
@@ -32,6 +32,7 @@ export function FilterEntityRenameDialog({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dialogCenterX = useDialogCenterX(target !== null);
+  const portalScopeProps = usePortalScopeProps();
 
   useEffect(() => {
     if (!target) return;
@@ -73,10 +74,10 @@ export function FilterEntityRenameDialog({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay {...portalScopeProps()} className={OVERLAY_CLASS} />
+        <Dialog.Overlay {...portalScopeProps} className={OVERLAY_CLASS} />
         {target ? (
           <Dialog.Content
-            {...portalScopeProps()}
+            {...portalScopeProps}
             className={CONTENT_CLASS}
             style={{ left: dialogCenterX }}
             onOpenAutoFocus={(event) => {
@@ -137,6 +138,7 @@ export function FilterEntityRemoveDialog({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialogCenterX = useDialogCenterX(target !== null);
+  const portalScopeProps = usePortalScopeProps();
 
   useEffect(() => setError(null), [target]);
 
@@ -166,10 +168,10 @@ export function FilterEntityRemoveDialog({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay {...portalScopeProps()} className={OVERLAY_CLASS} />
+        <Dialog.Overlay {...portalScopeProps} className={OVERLAY_CLASS} />
         {target ? (
           <Dialog.Content
-            {...portalScopeProps()}
+            {...portalScopeProps}
             className={CONTENT_CLASS}
             style={{ left: dialogCenterX }}
           >
