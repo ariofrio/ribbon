@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { afterEach } from "node:test";
@@ -43,9 +51,24 @@ test("a bare BB_CLI is refused — it is what makes the launcher spawn itself", 
   assert.notEqual(resolveBbCli(), "bb");
 });
 
-test("a node_modules/.bin shim is refused, since it re-enters the launcher", () => {
-  const { path } = fakeBbDirectory("node_modules/.bin");
-  process.env.BB_CLI = path;
+test("a node_modules/.bin shim is followed to the CLI it links to", () => {
+  // The only bb in CI is this shim, since bb-app is a devDependency and nothing
+  // installs the desktop app. Its target is absolute and outside .bin, so it is
+  // safe to hand to a child as BB_CLI.
+  const real = fakeBbDirectory();
+  const shim = fakeBbDirectory("node_modules/.bin");
+  rmSync(shim.path);
+  symlinkSync(real.path, shim.path);
+  process.env.BB_CLI = shim.path;
+  process.env.PATH = "/nonexistent-for-this-test";
+  assert.equal(resolveBbCli(), realpathSync(real.path));
+});
+
+test("a shim that links nowhere is refused rather than returned", () => {
+  const shim = fakeBbDirectory("node_modules/.bin");
+  rmSync(shim.path);
+  symlinkSync(join(shim.directory, "absent"), shim.path);
+  process.env.BB_CLI = shim.path;
   process.env.PATH = "/nonexistent-for-this-test";
   assert.throws(() => resolveBbCli(), /absolute path/u);
 });
@@ -57,12 +80,14 @@ test("without BB_CLI it resolves an absolute path from PATH", () => {
   assert.equal(resolveBbCli(), path);
 });
 
-test("a shim earlier on PATH is skipped in favour of the real CLI", () => {
-  const shim = fakeBbDirectory("node_modules/.bin");
+test("a shim on PATH resolves to its target, not to the shim path", () => {
   const real = fakeBbDirectory();
+  const shim = fakeBbDirectory("node_modules/.bin");
+  rmSync(shim.path);
+  symlinkSync(real.path, shim.path);
   delete process.env.BB_CLI;
-  process.env.PATH = `${shim.directory}:${real.directory}`;
-  assert.equal(resolveBbCli(), real.path);
+  process.env.PATH = shim.directory;
+  assert.equal(resolveBbCli(), realpathSync(real.path));
 });
 
 test("no bb anywhere is an explicit failure, not a bare name", () => {
