@@ -3,25 +3,39 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { observeSidebarIconAnchors, type SidebarAnchor } from "./sidebar-dom";
 
 /**
- * bb's own sidebar group header, as captured from a running bb. A project
- * header and a section header differ only in which id attribute they carry,
- * and the icon goes at the head of the same label row in both.
+ * bb's own sidebar group, as captured from a running bb. Every group is one of
+ * these; what differs is the wrapper bb puts around it, if any.
  */
-function groupHeader(attribute: string, id: string, label: string) {
+function stickyGroup(label: string) {
   return `
-    <div ${attribute}="${id}">
-      <div data-sidebar-sticky-group="">
-        <div role="button" data-sidebar="group-label" data-sidebar-sticky-tier="label">
-          <span class="relative z-10 flex min-w-0 flex-1 items-center gap-1 text-left">
-            <span class="min-w-0 truncate" title="${label}">${label}</span>
-            <button type="button" aria-label="Collapse ${label} section"></button>
-          </span>
-          <span class="relative z-20 inline-flex h-6 shrink-0 items-center"></span>
-        </div>
-        <div class="mt-1"></div>
+    <div data-sidebar-sticky-group="">
+      <div role="button" data-sidebar="group-label" data-sidebar-sticky-tier="label">
+        <span class="relative z-10 flex min-w-0 flex-1 items-center gap-1 text-left">
+          <span class="min-w-0 truncate" title="${label}">${label}</span>
+          <button type="button" aria-label="Collapse ${label} section"></button>
+        </span>
+        <span class="relative z-20 inline-flex h-6 shrink-0 items-center"></span>
       </div>
+      <div class="mt-1"></div>
     </div>
   `;
+}
+
+/**
+ * A project header and a section header differ only in which id attribute
+ * their wrapper carries, and the icon goes at the head of the same label row
+ * in both.
+ */
+function groupHeader(attribute: string, id: string, label: string) {
+  return `<div ${attribute}="${id}">${stickyGroup(label)}</div>`;
+}
+
+/**
+ * bb's Organize → By project list: one wrapper per project, and the personal
+ * project's group left unwrapped among them, labelled "Threads".
+ */
+function projectList(...groups: string[]) {
+  return `<div class="space-y-4">${groups.join("")}</div>`;
 }
 
 let stop: (() => void) | undefined;
@@ -158,5 +172,53 @@ describe("observeSidebarIconAnchors", () => {
     document.body.innerHTML = `<div data-sidebar-project-id="proj_a"></div>`;
 
     expect(start().at(-1) ?? []).toEqual([]);
+  });
+
+  it("draws on the personal project, which bb wraps in no id of its own", () => {
+    document.body.innerHTML = projectList(
+      groupHeader("data-sidebar-project-id", "proj_a", "Storefront"),
+      stickyGroup("Threads"),
+    );
+
+    expect(start().at(-1)?.map(({ owner }) => owner)).toEqual([
+      { kind: "project", id: "proj_a" },
+      { kind: "project", id: "proj_personal" },
+    ]);
+  });
+
+  it("finds the personal group wherever the user has dragged it", () => {
+    document.body.innerHTML = projectList(
+      stickyGroup("Threads"),
+      groupHeader("data-sidebar-project-id", "proj_a", "Storefront"),
+    );
+
+    expect(start().at(-1)?.map(({ owner }) => owner.id)).toContain(
+      "proj_personal",
+    );
+  });
+
+  // bb reuses one leftover group for three different things: the personal
+  // project under By project, "no machine" under By machine, and "Unorganized"
+  // under Manually. Only the first is a project, and only the first sits in a
+  // list that also holds project groups.
+  it("leaves the same leftover group alone when no project sits beside it", () => {
+    document.body.innerHTML = projectList(stickyGroup("Unorganized"));
+
+    expect(start().at(-1) ?? []).toEqual([]);
+  });
+
+  it("takes the personal group's node back out too", () => {
+    document.body.innerHTML = projectList(
+      groupHeader("data-sidebar-project-id", "proj_a", "Storefront"),
+      stickyGroup("Threads"),
+    );
+    start();
+
+    stop?.();
+    stop = undefined;
+
+    expect(document.querySelectorAll("[data-icons-sidebar-root]")).toHaveLength(
+      0,
+    );
   });
 });

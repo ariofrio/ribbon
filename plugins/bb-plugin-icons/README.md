@@ -72,8 +72,15 @@ before it is adopted.
 Thread stages puts a stage icon, which is what lines the group name up with the
 New thread, Extensions, and Automations labels above it. bb shows project
 groups under *Organize → By project* and section groups only under *Manually*,
-so which headers exist depends on that setting; the *Unorganized* bucket is not
-a section and gets none.
+so which headers exist depends on that setting.
+
+Under *By project* that includes the personal project, which bb labels
+*Threads* and wraps in no id of its own. It is the same group bb relabels
+*Unorganized* under *Manually* and reuses for machineless threads under *By
+machine*, where it holds whatever is left rather than the personal project and
+gets no icon. What tells them apart is the company the group keeps: only under
+*By project* do project groups sit beside it. A bb with no projects at all
+therefore gets nothing, which errs towards no icon rather than the wrong one.
 
 **The thread header.** Before the project name, as it always has been.
 

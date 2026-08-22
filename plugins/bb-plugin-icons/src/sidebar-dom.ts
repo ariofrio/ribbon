@@ -1,4 +1,4 @@
-import type { IconOwner } from "./store";
+import { PERSONAL_PROJECT_ID, type IconOwner } from "./store";
 
 /** Stamped by `bb plugin build`; undefined in tests and registry copies. */
 declare const __BB_PLUGIN_ID__: string | undefined;
@@ -11,11 +11,13 @@ export interface SidebarAnchor {
   target: HTMLElement;
 }
 
+const PROJECT_ATTRIBUTE = "data-sidebar-project-id";
+
 const OWNER_ATTRIBUTES: ReadonlyArray<{
   attribute: string;
   kind: IconOwner["kind"];
 }> = [
-  { attribute: "data-sidebar-project-id", kind: "project" },
+  { attribute: PROJECT_ATTRIBUTE, kind: "project" },
   { attribute: "data-sidebar-section-id", kind: "section" },
 ];
 
@@ -52,6 +54,50 @@ function createTarget(document: Document): HTMLElement {
   return target;
 }
 
+function anchorIn(group: HTMLElement, owner: IconOwner): SidebarAnchor | null {
+  const row = labelRow(group);
+  if (row === null) return null;
+
+  const existing = row.querySelector<HTMLElement>(`:scope > [${MOUNT_ATTRIBUTE}]`);
+  const target = existing ?? createTarget(group.ownerDocument);
+  if (existing === null) row.insertBefore(target, row.firstChild);
+
+  // Only bb's own child: this plugin's control carries a title of its own, and
+  // a descendant search would read that back as the group name.
+  const title = row.querySelector<HTMLElement>(":scope > [title]");
+  return {
+    owner,
+    name: title?.getAttribute("title") ?? title?.textContent?.trim() ?? owner.id,
+    target,
+  };
+}
+
+/**
+ * bb's personal project, which the sidebar draws as a group of its own but
+ * labels "Threads" and wraps in nothing — every project group beside it
+ * carries a `data-sidebar-project-id`, and this one carries no id at all.
+ *
+ * It is the same leftover group bb reuses for "no machine" under By machine
+ * and for "Unorganized" under Manually, where it holds whatever is left rather
+ * than the personal project, and must not be drawn on. What tells them apart
+ * is the company it keeps: only under By project does the list also hold
+ * project groups, so an unwrapped group among them is bb's personal one.
+ *
+ * A bb with no projects at all therefore gets nothing, since there is no
+ * project group to recognize the list by. That errs towards drawing no icon
+ * rather than the wrong one, and a sidebar with a single group has nothing for
+ * an icon to tell apart anyway.
+ */
+function personalGroup(root: ParentNode): HTMLElement | null {
+  const list = root.querySelector<HTMLElement>(`[${PROJECT_ATTRIBUTE}]`)
+    ?.parentElement;
+  return (
+    list?.querySelector<HTMLElement>(
+      ":scope > [data-sidebar-sticky-group]",
+    ) ?? null
+  );
+}
+
 function collect(root: ParentNode): SidebarAnchor[] {
   const anchors: SidebarAnchor[] = [];
   for (const { attribute, kind } of OWNER_ATTRIBUTES) {
@@ -60,23 +106,19 @@ function collect(root: ParentNode): SidebarAnchor[] {
     );
     for (const group of groups) {
       const id = group.getAttribute(attribute);
-      const row = labelRow(group);
-      if (id === null || id === "" || row === null) continue;
-
-      const existing = row.querySelector<HTMLElement>(`:scope > [${MOUNT_ATTRIBUTE}]`);
-      const target = existing ?? createTarget(group.ownerDocument);
-      if (existing === null) row.insertBefore(target, row.firstChild);
-
-      // Only bb's own child: this plugin's control carries a title of its
-      // own, and a descendant search would read that back as the group name.
-      const title = row.querySelector<HTMLElement>(":scope > [title]");
-      anchors.push({
-        owner: { kind, id },
-        name: title?.getAttribute("title") ?? title?.textContent?.trim() ?? id,
-        target,
-      });
+      if (id === null || id === "") continue;
+      const anchor = anchorIn(group, { kind, id });
+      if (anchor !== null) anchors.push(anchor);
     }
   }
+
+  const personal = personalGroup(root);
+  const anchor =
+    personal === null
+      ? null
+      : anchorIn(personal, { kind: "project", id: PERSONAL_PROJECT_ID });
+  if (anchor !== null) anchors.push(anchor);
+
   return anchors;
 }
 
