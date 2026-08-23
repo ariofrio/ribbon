@@ -67,7 +67,7 @@ describe("the glyph slots the filter rows override", () => {
       </DropdownMenuRadioGroup>,
     );
     const row = screen.getByRole("menuitemradio");
-    const ownSpans = [...row.children].filter(
+    const ownSpans = Array.from(row.children).filter(
       (child) => child.tagName === "SPAN" && child.hasAttribute("data-row-content"),
     );
     // The row's own span exists but is never first, so the selector is precise.
@@ -84,7 +84,7 @@ describe("the glyph slots the filter rows override", () => {
       </DropdownMenuSub>,
     );
     const trigger = screen.getByRole("menuitem");
-    const directSvgs = [...trigger.children].filter(
+    const directSvgs = Array.from(trigger.children).filter(
       (child) => child.tagName.toLowerCase() === "svg",
     );
 
