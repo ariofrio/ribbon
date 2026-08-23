@@ -2,7 +2,7 @@
   "bbVersion": "0.39.0",
   "shots": {
     "thread-stages": {
-      "inputs": "c368747fc4f5ca0ef98a56e8a0c13a09c95b68ce426032add1608719dca88cc3",
+      "inputs": "159efc454f9e57bc61ec887f9e34eca55dd43fc60fa5a2ff9b2a0a754b665d18",
       "files": {
         "screenshot-light.png": "4c7ce7f6505a0ac6b3d9da89204e1beca7387f9193c9fef3362087a4772b2f2b",
         "screenshot-dark.png": "a058be9c7ac70167ca1514977497cddabd7b8878e5a40a9a9621623928d4f4b2",
@@ -13,7 +13,7 @@
       }
     },
     "missing-keyboard-shortcuts": {
-      "inputs": "8bd52324a9f4b707e93dc6ee213b866cf27d65fbfb5913a6af1c5a870dc40052",
+      "inputs": "5311da2f4ed391973b71ca671f3878e27c5b451018c78a9850fb3d9a08cccd45",
       "files": {
         "screenshot-light.png": "2ff94308b02b11848ec748d5b49f1ec809630b30504c13c4af883ba1657d263f",
         "screenshot-dark.png": "4bc4d1587dc0163ace4ec7294a85b35d74abdcfc44da9d7a1bfc05ef867bb2fa",
@@ -24,7 +24,7 @@
       }
     },
     "chatgpt-theme": {
-      "inputs": "4aa035482a0401c999d2c57af0afac12800fafd432dc075a469cd39e7acc0faf",
+      "inputs": "710d123b47c25679f528a3aa74039c8953233b52cd762e41d26829643481ba05",
       "files": {
         "screenshot-light.png": "da36118e60cf35a04847f72662832ad16a3b2fa3069418c25187a6adeffda6b1",
         "screenshot-dark.png": "9a5d1cb21afc89e1f09c63e7665f97112f08ac501868e612f5115ec823956b6a",
@@ -35,14 +35,14 @@
       }
     },
     "collection": {
-      "inputs": "cc4b27e4e7f12966c3d6a6fbe180546de1fe6197b66ac011d349fc6127dc0f48",
+      "inputs": "71632c9782390dc6c68832fae4ee5e2560f38c66e530a378eaa2b93dd04bae8a",
       "files": {
         "hero-light.png": "51cd5ef88cf0c0acb407e53068bf7e5b3ee5bd342110bdd4396aada17049ed65",
         "hero-dark.png": "800577d9db4eda1f479545e38d9775350dadcb45189ca2fd72cf65105eda138d"
       }
     },
     "breadcrumbs": {
-      "inputs": "9826e6019e3b1e5de526e2be826ea0cf36a06b22b4334f0279febc89e6c49d0c",
+      "inputs": "a6c33695725519a772083e0375fce50e3e8df24c509a597a09301965ce8b7e67",
       "files": {
         "screenshot-light.png": "bf1506c708f0163586ac81b32d7c89bb314ddc7ff7f23067cc4d93c33745369c",
         "screenshot-dark.png": "f1ae3d37942240b8304f48fdd120dfacf75a26697580120ef1e830e12e0d9c98",
@@ -53,7 +53,7 @@
       }
     },
     "icons": {
-      "inputs": "18b1588e8bed3c71ebd4d5ba71a8dfc191d4116e43e905814e8d1543077385ac",
+      "inputs": "657d80ae4c0a15515529b042f80e3e089ab695c525d6e2ef4a3daec779327c20",
       "files": {
         "screenshot-light.png": "8d3ac85f92be668a7f03adce578a2f7afd71cef030efa5ebbfe947f0fb327573",
         "screenshot-dark.png": "7a034d6bc34ca12592fe10d2c6a35dccee2be412cb179a43a520cb18fe3f56ce",

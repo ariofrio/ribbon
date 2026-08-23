@@ -1,10 +1,8 @@
 name: Screenshots
 
 # Recaptures whatever the drift check says is stale and commits it back to the
-# branch, so a screenshot is never waiting on someone's laptop being free.
-#
-# The check in Plugins stays where it is and stays authoritative: it says
-# whether *this* commit is consistent. This workflow makes the next one be.
+# branch. The check in Plugins stays authoritative for whether a given commit
+# is consistent; this only makes the next one so.
 on:
   push:
 
@@ -12,7 +10,7 @@ permissions:
   contents: write
 
 # A second push supersedes the first: the older run would recapture a tree
-# nobody is on any more, and its push would lose the race anyway.
+# nobody is on, and its push would lose the race anyway.
 concurrency:
   group: screenshots-${{ github.ref }}
   cancel-in-progress: true
@@ -20,15 +18,13 @@ concurrency:
 jobs:
   recapture:
     # A fork's token cannot push, and pull_request_target would hand a fork's
-    # plugin build a writable one. Forks get the drift check and a maintainer
-    # recapture instead.
+    # plugin build a writable one. Forks get the drift check instead.
     if: github.repository == 'ariofrio/ribbon'
     runs-on: ubuntu-latest
-    # Pinned rather than ubuntu-latest. The runner image's fonts and libraries
+    # Pinned rather than ubuntu-latest: the runner image's fonts and libraries
     # move between releases, and every glyph a capture rasterises comes from
-    # them; two runs of one commit have to write one set of bytes. The tag
-    # tracks the playwright version in package-lock.json, which is what decides
-    # which Chromium build is on disk here.
+    # them. The tag tracks the playwright version in package-lock.json, which
+    # decides the Chromium on disk.
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
     steps:
@@ -48,11 +44,9 @@ jobs:
           apt-get install -y -qq python3 make g++
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: npm ci --workspaces=false
-      # bb itself, pinned beside the harness rather than in the repository's
-      # own tree. Only a capture needs it; the drift check below does not.
+      # bb itself. Only a capture needs it; the drift check below does not.
       - run: npm ci --prefix scripts/screenshots
-      # Seconds, and no browser: the lock knows which shots a change could have
-      # moved. Only a stale one is worth a bb.
+      # Seconds, and no browser. Only a stale shot is worth booting a bb for.
       - id: drift
         continue-on-error: true
         run: npm run check:screenshots

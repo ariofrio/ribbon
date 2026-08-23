@@ -5,8 +5,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { chromium } from "playwright";
 
-// Apple's, not this project's, and only ever drawn onto a screenshot; the
-// file states the licence they come under.
+// Not this project's to ship; the file says so and why.
 import { KEY_GLYPHS, KEY_GLYPH_EM } from "./key-glyphs.mjs";
 
 export const ASPECT_RATIO = 16 / 9;
@@ -151,7 +150,7 @@ export function paintOverlay({ boxes, dim, id, keyStyle, glyphs, glyphEm }) {
     if (!box.keys) continue;
     const chip = document.createElement("div");
     // Each key is its own child so a symbol can be an outline while a letter
-    // stays text: the chip's own gap sets them apart, not the spaces between.
+    // stays text, spaced by the chip's own gap rather than by the spaces.
     for (const key of box.keys.split(/\s+/u).filter((each) => each !== "")) {
       const outline = glyphs[key];
       if (outline === undefined) {
@@ -162,8 +161,7 @@ export function paintOverlay({ boxes, dim, id, keyStyle, glyphs, glyphEm }) {
       }
       const [left, bottom, right, top] = outline.box;
       const drawing = document.createElementNS(svgNamespace, "svg");
-      // The glyph is drawn y-up, as a font measures it, and flipped once here
-      // rather than being rewritten upside down where it is stored.
+      // Stored y-up, as a font measures it, and flipped once here.
       drawing.setAttribute(
         "viewBox",
         `${left} ${-top} ${right - left} ${top - bottom}`,
@@ -472,22 +470,11 @@ function mkdirFor(output) {
 }
 
 /**
- * What Chromium does to text differs by platform unless it is told not to, and
- * both defaults change the picture rather than only its shading.
- *
- * Hinting rounds every glyph advance to a whole pixel, and the error
- * accumulates along a line: the composer's placeholder measures 808 device
- * pixels of ink on macOS and 838 on hinted Linux, which is enough to move
- * where a line wraps and which character an ellipsis eats. Turning it off asks
- * for the fractional advances macOS already uses, and the two then agree on
- * layout to three decimal places rather than approximately.
- *
- * LCD antialiasing writes colour into the edge of every glyph, against an RGB
- * stripe this image will never be shown on. macOS has drawn text in greyscale
- * since Mojave; a README is read at whatever scale the page gives it.
- *
- * Both are no-ops on macOS — the same page renders to one byte-identical file
- * with them, without them, and with either alone.
+ * Neither default is a difference in shading. Hinting rounds every glyph
+ * advance to a whole pixel and the error accumulates along a line, moving
+ * where text wraps and where an ellipsis lands; LCD antialiasing writes colour
+ * into the edge of every glyph, against a stripe no README is read on. Both
+ * are no-ops on macOS, which does neither.
  */
 const TEXT_RENDERING = ["--font-render-hinting=none", "--disable-lcd-text"];
 

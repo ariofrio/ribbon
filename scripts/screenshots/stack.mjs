@@ -7,18 +7,11 @@
 // loopback-only /internal/hosts/enroll-key route the desktop app uses on first
 // run.
 //
-// From npm rather than from /Applications, because the bb these shots are
-// taken against is an input to every one of them, and an app bundle is
-// whichever bb this machine happens to have installed and updated. It is also
-// the only reason capturing ever needed macOS — nothing here renders in the
-// desktop app.
-//
-// Pinned in this directory's own package.json rather than the repository's,
-// for two reasons. The root lockfile carries every plugin's dependency tree
-// nested, which no plain `npm install` reproduces, so adding one dependency
-// there rewrites thirteen thousand lines that have nothing to do with it. And
-// a manifest here is a file the shot digest already hashes, so bumping bb
-// reports every screenshot stale — which is what a new bb does to them.
+// From npm rather than /Applications: the bb these shots are taken against is
+// an input to every one of them, and an app bundle is whichever bb the machine
+// happens to have. Pinned in this directory rather than the repository root,
+// where one dependency rewrites the whole nested lockfile, and where the shot
+// digest would not hash it.
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
@@ -29,10 +22,9 @@ import { fileURLToPath } from "node:url";
 const APP_DIR = fileURLToPath(new URL("./node_modules/bb-app", import.meta.url));
 
 /**
- * The `bb` that seeds the fixture and stamps the lock. The package's own,
- * because a `bb` found on PATH is the machine's, and seeding a fixture with
- * one version against a server running another is the kind of difference that
- * shows up as a screenshot rather than as an error.
+ * The `bb` that seeds the fixture and stamps the lock. The package's own: one
+ * found on PATH is the machine's, and seeding against a server running a
+ * different version shows up as a screenshot rather than as an error.
  */
 export const BB_CLI_PATH = join(APP_DIR, "host-daemon/dist/bb");
 

@@ -2,26 +2,21 @@
 // Apple's: traced from /System/Library/Fonts/SFNS.ttf, which Apple licenses
 // for use on Apple platforms. The repository's licence does not cover them.
 //
-// They are here to draw a screenshot and nothing else. `scripts/` is never
-// published — the root manifest is private, and npm resolves a package's
-// `files` inside its own directory, so no plugin can reach them. Do not copy
-// them into one; redraw the shapes by hand if a product ever needs them.
+// They draw a screenshot and nothing else. `scripts/` is never published, and
+// npm resolves a package's `files` inside its own directory, so no plugin can
+// reach them. Do not copy them into one; redraw the shapes by hand instead.
 //
-// They are outlines rather than the characters ⇧ and ⌘ because no font that
-// travels with this repository draws them. bb sets its interface in Inter,
-// which the harness renders against, and Inter has neither codepoint — so
-// asking for the characters gets whatever the capturing machine substitutes,
-// which is Apple's own font on a Mac and a CJK face standing in for a shift
-// key in the capture container.
+// Outlines rather than the characters because Inter, which bb sets its
+// interface in, has neither codepoint — so asking for ⇧ and ⌘ gets whatever
+// the capturing machine substitutes, and every machine substitutes something
+// different.
 
 /** The em the coordinates below are measured on. */
 export const KEY_GLYPH_EM = 2048;
 
 /**
- * Traced at the weight and optical size the chip is set in, 600 and 17px, so
- * the keys read as the keys a reader is being told to press. `box` is the
- * glyph's own ink, which is what the chip sizes and centres, so a symbol
- * stands as tall beside a letter as the font would have set it.
+ * Traced at the weight and optical size the chip is set in, 600 and 17px.
+ * `box` is the glyph's own ink, which the chip sizes and centres on.
  */
 export const KEY_GLYPHS = {
   "⇧": {
