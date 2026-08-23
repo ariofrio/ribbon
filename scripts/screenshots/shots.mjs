@@ -142,6 +142,16 @@ export const SHOTS = [
       await openFeaturedThread(page);
       await page.locator('[aria-label="Icon for Storefront"]').click();
       await page.getByRole("dialog").waitFor();
+      // bb draws this dialog before its icons arrive: the catalog is a
+      // separate request, and until it returns the picker reads "Loading
+      // icons…". Waiting on the dialog alone caught that message about half
+      // the time. An icon cannot render until the catalog has arrived and been
+      // laid out, so wait for one.
+      await page
+        .getByRole("region", { name: "Icon catalog" })
+        .getByRole("button")
+        .first()
+        .waitFor();
       await settleAnimations(page);
     },
     highlights: (page) => [
