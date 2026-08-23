@@ -5,6 +5,10 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { chromium } from "playwright";
 
+// Apple's, not this project's, and only ever drawn onto a screenshot; the
+// file states the licence they come under.
+import { KEY_GLYPHS, KEY_GLYPH_EM } from "./key-glyphs.mjs";
+
 export const ASPECT_RATIO = 16 / 9;
 /** bb's own default window: DEFAULT_WINDOW_WIDTH x DEFAULT_WINDOW_HEIGHT. */
 export const VIEWPORT = { width: 1280, height: 900 };
@@ -74,7 +78,7 @@ const OVERLAY_ID = "bb-plugins-screenshot-overlay";
 const MINIMUM_CUTOUT_RADIUS = 8;
 
 /** A shortcut has no UI of its own, so the keys are drawn onto the shade. */
-function keyChipStyle(theme) {
+export function keyChipStyle(theme) {
   const ink = theme === "dark" ? "#f5f5f5" : "#ffffff";
   const fill = theme === "dark" ? "rgba(32,32,32,0.96)" : "rgba(24,24,24,0.92)";
   const edge = theme === "dark" ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.18)";
@@ -84,9 +88,14 @@ function keyChipStyle(theme) {
     `border:1px solid ${edge}`,
     "border-radius:8px",
     "padding:6px 12px",
-    "font: 600 17px/1 ui-sans-serif, -apple-system, system-ui, sans-serif",
+    // bb's own webfont, so a chip is drawn from a file rather than from
+    // whatever the capturing machine calls its interface font.
+    'font: 600 17px/1 "Inter Variable", Inter, sans-serif',
     "letter-spacing:0.06em",
     "white-space:nowrap",
+    "display:flex",
+    "align-items:center",
+    "gap:0.34em",
     "box-shadow:0 6px 20px rgba(0,0,0,0.45)",
   ].join(";");
 }
@@ -95,7 +104,7 @@ function keyChipStyle(theme) {
  * Runs in the page: shades everything outside the measured rectangles, and
  * writes each box's keys, when it has them, on the shaded side.
  */
-function paintOverlay({ boxes, dim, id, keyStyle }) {
+export function paintOverlay({ boxes, dim, id, keyStyle, glyphs, glyphEm }) {
   document.getElementById(id)?.remove();
   const svgNamespace = "http://www.w3.org/2000/svg";
 
@@ -141,7 +150,36 @@ function paintOverlay({ boxes, dim, id, keyStyle }) {
   for (const box of boxes) {
     if (!box.keys) continue;
     const chip = document.createElement("div");
-    chip.textContent = box.keys;
+    // Each key is its own child so a symbol can be an outline while a letter
+    // stays text: the chip's own gap sets them apart, not the spaces between.
+    for (const key of box.keys.split(/\s+/u).filter((each) => each !== "")) {
+      const outline = glyphs[key];
+      if (outline === undefined) {
+        const letter = document.createElement("span");
+        letter.textContent = key;
+        chip.append(letter);
+        continue;
+      }
+      const [left, bottom, right, top] = outline.box;
+      const drawing = document.createElementNS(svgNamespace, "svg");
+      // The glyph is drawn y-up, as a font measures it, and flipped once here
+      // rather than being rewritten upside down where it is stored.
+      drawing.setAttribute(
+        "viewBox",
+        `${left} ${-top} ${right - left} ${top - bottom}`,
+      );
+      drawing.style.cssText = [
+        `width:${(right - left) / glyphEm}em`,
+        `height:${(top - bottom) / glyphEm}em`,
+        "display:block",
+      ].join(";");
+      const outlinePath = document.createElementNS(svgNamespace, "path");
+      outlinePath.setAttribute("d", outline.path);
+      outlinePath.setAttribute("fill", "currentColor");
+      outlinePath.setAttribute("transform", "scale(1 -1)");
+      drawing.append(outlinePath);
+      chip.append(drawing);
+    }
     const gap = 14;
     const placement =
       box.keysPlacement ??
@@ -612,6 +650,8 @@ async function render({ browser, stack, fixture, shot, theme, viewport, style, t
         dim: theme === "dark" ? "rgba(0,0,0,0.66)" : "rgba(15,15,15,0.42)",
         id: OVERLAY_ID,
         keyStyle: keyChipStyle(theme),
+        glyphs: KEY_GLYPHS,
+        glyphEm: KEY_GLYPH_EM,
       });
     }
     // The card frames what the plugin adds; the keys drawn onto the shade are
