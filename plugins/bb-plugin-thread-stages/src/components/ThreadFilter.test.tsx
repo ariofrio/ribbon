@@ -10,7 +10,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ThreadFilter } from "./ThreadFilter";
-import { CompactViewportOverrideProvider } from "./ui/hooks/use-compact-viewport";
+import { CompactViewportOverrideProvider } from "@/vendor/components/ui/hooks/use-compact-viewport";
 
 afterEach(cleanup);
 

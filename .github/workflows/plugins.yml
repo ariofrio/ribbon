@@ -19,6 +19,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts --workspaces=false
       - run: npm test
+      - run: npm run check:ui
       - run: npm run check:screenshots
 
   discover:

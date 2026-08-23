@@ -9,7 +9,7 @@ import {
   ThreadActionsContextMenu,
   ThreadActionsDropdown,
 } from "./ThreadActionsMenu";
-import { CompactViewportOverrideProvider } from "./ui/hooks/use-compact-viewport";
+import { CompactViewportOverrideProvider } from "@/vendor/components/ui/hooks/use-compact-viewport";
 
 function thread(): PluginSidebarThread {
   return {

@@ -26,17 +26,18 @@
   "type": "module",
   "scripts": {
     "build": "bb plugin build",
+    "prepublishOnly": "npm run release:check",
     "qa:menu-animations": "bash scripts/qa-menu-animations.sh",
     "qa:project-filter-hover": "bash scripts/qa-project-filter-hover.sh",
     "qa:sidebar-indicator-alignment": "bash scripts/qa-sidebar-indicator-alignment.sh",
     "qa:thread-row-height": "bash scripts/qa-thread-row-height.sh",
-    "verify:lockfile": "npm ci --workspaces=false --ignore-scripts --dry-run --no-audit --no-fund --loglevel=error",
-    "verify:types": "node ../../scripts/verify-types.mjs",
-    "verify:package": "node ../../scripts/verify-package.mjs",
-    "release:check": "npm run verify:lockfile && npm test && npm run typecheck && npm run verify:types && npm run build && npm run verify:package",
-    "prepublishOnly": "npm run release:check",
+    "release:check": "npm run verify:lockfile && npm test && npm run typecheck && npm run verify:types && npm run build && npm run verify:styles && npm run verify:package",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:lockfile": "npm ci --workspaces=false --ignore-scripts --dry-run --no-audit --no-fund --loglevel=error",
+    "verify:package": "node ../../scripts/verify-package.mjs",
+    "verify:styles": "node ../../scripts/verify-styles.mjs",
+    "verify:types": "node ../../scripts/verify-types.mjs"
   },
   "engines": {
     "bb": ">=0.36",

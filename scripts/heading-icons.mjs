@@ -7,7 +7,12 @@
 // the icon reads as centred on the title's cap height.
 //
 // Usage: npm run build:heading-icons  (npm run check:heading-icons reports drift)
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { derivePluginId } from "./plugin-id.mjs";
@@ -46,7 +51,12 @@ export function headingIcons(repositoryRoot) {
     });
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// realpathSync on both sides: Node resolves import.meta.url through symlinks
+// and leaves process.argv[1] as typed, so on a symlinked path — macOS /tmp, a
+// symlinked home, a worktree — they differ, the body is skipped, and the check
+// exits 0 having verified nothing. Wrong by succeeding, which is the one way a
+// gate must never fail.
+if (realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const check = process.argv.includes("--check");
   const stale = [];
