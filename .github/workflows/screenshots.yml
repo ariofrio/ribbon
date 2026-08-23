@@ -1,0 +1,66 @@
+name: Screenshots
+
+# Recaptures whatever the drift check says is stale and commits it back to the
+# branch. The check in Plugins stays authoritative for whether a given commit
+# is consistent; this only makes the next one so.
+on:
+  push:
+
+permissions:
+  contents: write
+
+# A second push supersedes the first: the older run would recapture a tree
+# nobody is on, and its push would lose the race anyway.
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  recapture:
+    # A fork's token cannot push, and pull_request_target would hand a fork's
+    # plugin build a writable one. Forks get the drift check instead.
+    if: github.repository == 'ariofrio/ribbon'
+    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest: the runner image's fonts and libraries
+    # move between releases, and every glyph a capture rasterises comes from
+    # them. The tag tracks the playwright version in package-lock.json, which
+    # decides the Chromium on disk.
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            scripts/screenshots/package-lock.json
+      # bb-app builds node-pty from source here, which the image has no
+      # compiler for; and git refuses a checkout it did not make itself.
+      - name: Prepare the container
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq python3 make g++
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - run: npm ci --workspaces=false
+      # bb itself. Only a capture needs it; the drift check below does not.
+      - run: npm ci --prefix scripts/screenshots
+      # Seconds, and no browser. Only a stale shot is worth booting a bb for.
+      - id: drift
+        continue-on-error: true
+        run: npm run check:screenshots
+      - if: steps.drift.outcome == 'failure'
+        run: npm run screenshots
+      - if: steps.drift.outcome == 'failure'
+        name: Commit what changed
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A assets plugins/*/assets scripts/screenshots/screenshots.lock.json
+          if git diff --cached --quiet; then
+            echo "The capture reproduced what is committed; nothing to push."
+            exit 0
+          fi
+          git commit -m "Recapture the screenshots this branch moved"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
