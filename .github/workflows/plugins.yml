@@ -77,7 +77,7 @@ jobs:
     steps:
       - name: Every check passed
         run: |
-          results='${{ join(needs.*.result, " ") }}'
+          results='${{ join(needs.*.result, ' ') }}'
           echo "$results"
           case "$results" in
             *failure*|*cancelled*) echo "::error::a required job did not pass"; exit 1 ;;
