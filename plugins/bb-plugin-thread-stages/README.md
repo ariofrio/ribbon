@@ -41,10 +41,11 @@ stays visible while it still contains threads, but no longer accepts moves;
 after it is emptied, it disappears.
 
 Drag root threads to reorder or change their stage. Ordering uses
-fractional keys, so a move updates only the moved thread. Root threads enter
-**Active** when they start and return to **Idle** when they stop, unless you
-manually move them after the transition. A thread blocked on a question or an
-approval counts as **Idle** while it waits, because the next move is yours.
+fractional keys, so a move updates only the moved thread. A root hierarchy
+enters **Active** when its root or any descendant starts, and returns to
+**Idle** when every thread in the hierarchy stops, unless you manually move
+the root after the transition. A thread blocked on a question or an approval
+does not count as active while it waits, because the next move is yours.
 
 ## Install
 

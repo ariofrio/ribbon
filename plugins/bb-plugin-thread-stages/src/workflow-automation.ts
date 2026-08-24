@@ -1,5 +1,6 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { listAllThreads } from "./list-all-threads";
+import { rootThreadIdByThreadId } from "./root-thread-ownership";
 import type { ThreadWorkflowStore } from "./store";
 
 export type ThreadLifecycleStatus =
@@ -48,47 +49,72 @@ export function registerThreadWorkflow(
     }
   };
 
-  const observe = async (thread: WorkflowThread) => {
-    if (thread.parentThreadId) {
-      if (store.removeRootThread(thread.id)) {
+  const reconcile = async (signal?: AbortSignal) => {
+    const listed = await listAllThreads(({ limit, offset }) =>
+      bb.sdk.threads.list({ limit, offset, signal }),
+    );
+    const threads: WorkflowThread[] = listed.map((thread) => ({
+      id: thread.id,
+      parentThreadId: thread.parentThreadId ?? null,
+      status: thread.status,
+    }));
+    const roots = rootThreadIdByThreadId(
+      threads.map((thread) => ({
+        id: thread.id,
+        parentThreadId: thread.parentThreadId ?? null,
+      })),
+    );
+    const activeRootIds = new Set<string>();
+
+    for (const thread of threads) {
+      if (
+        isActiveThreadLifecycle(thread.status) &&
+        !(await isWaitingOnUser(thread.id))
+      ) {
+        const rootId = roots.get(thread.id);
+        if (rootId !== null && rootId !== undefined) activeRootIds.add(rootId);
+      }
+      if (
+        roots.get(thread.id) !== thread.id &&
+        store.removeRootThread(thread.id)
+      ) {
         bb.realtime.publish("state-changed", { threadId: thread.id });
       }
-      return;
     }
-    const isActive =
-      isActiveThreadLifecycle(thread.status) && !(await isWaitingOnUser(thread.id));
-    const result = store.observeActiveState(thread.id, isActive);
-    if (result.workflowStageChanged) {
-      bb.realtime.publish("state-changed", { threadId: thread.id });
+
+    for (const root of threads) {
+      if (roots.get(root.id) !== root.id) continue;
+      const result = store.observeActiveState(
+        root.id,
+        activeRootIds.has(root.id),
+      );
+      if (result.workflowStageChanged) {
+        bb.realtime.publish("state-changed", { threadId: root.id });
+      }
     }
   };
 
-  bb.events.on("thread.created", ({ thread }) => observe(thread));
-  bb.events.on("thread.active", ({ thread }) => observe(thread));
-  bb.events.on("thread.idle", ({ thread }) => observe(thread));
-  bb.events.on("thread.failed", ({ thread }) => observe(thread));
+  let reconciliationQueue = Promise.resolve();
+  const enqueue = (signal?: AbortSignal) => {
+    const pending = reconciliationQueue.then(async () => {
+      if (!signal?.aborted) await reconcile(signal);
+    });
+    reconciliationQueue = pending.catch((error: unknown) => {
+      if (!signal?.aborted) {
+        const message = error instanceof Error ? error.message : String(error);
+        bb.log.warn(`Could not reconcile thread stages: ${message}`);
+      }
+    });
+    return pending;
+  };
+
+  bb.events.on("thread.created", () => enqueue());
+  bb.events.on("thread.active", () => enqueue());
+  bb.events.on("thread.idle", () => enqueue());
+  bb.events.on("thread.failed", () => enqueue());
 
   bb.background.service("stage-automation", {
     async start(signal) {
-      let queue = Promise.resolve();
-      const enqueue = (threadId: string) => {
-        queue = queue
-          .then(async () => {
-            if (signal.aborted) return;
-            const thread = await bb.sdk.threads.get({ threadId, signal });
-            await observe(thread);
-          })
-          .catch((error: unknown) => {
-            if (!signal.aborted) {
-              const message =
-                error instanceof Error ? error.message : String(error);
-              bb.log.warn(
-                `Could not reconcile stage for ${threadId}: ${message}`,
-              );
-            }
-          });
-      };
-
       const unsubscribe = bb.sdk.subscribe({
         event: "thread:changed",
         callback(event) {
@@ -97,16 +123,13 @@ export function registerThreadWorkflow(
             (event.changes.includes("status-changed") ||
               event.changes.includes("interactions-changed"))
           ) {
-            enqueue(event.id);
+            void enqueue(signal);
           }
         },
       });
 
       try {
-        const threads = await listAllThreads(({ limit, offset }) =>
-          bb.sdk.threads.list({ limit, offset, signal }),
-        );
-        for (const thread of threads) enqueue(thread.id);
+        void enqueue(signal);
 
         if (!signal.aborted) {
           await new Promise<void>((resolve) => {
@@ -115,7 +138,7 @@ export function registerThreadWorkflow(
         }
       } finally {
         unsubscribe();
-        await queue;
+        await reconciliationQueue;
       }
     },
   });
