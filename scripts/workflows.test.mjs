@@ -1,7 +1,5 @@
-// A workflow listening for both `push` and `pull_request` runs every job twice
-// for a branch in this repository, since one push raises both events. Only a
-// fork needs both unrestricted: there `push` fires in the fork and
-// `pull_request` fires here, so neither one duplicates the other.
+// That every check runs once, and that the one required by name covers the
+// rest. Both are properties of the workflow files rather than of a run.
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -70,10 +68,8 @@ function jobs(source) {
 
 const files = readdirSync(workflows).filter((name) => name.endsWith(".yml"));
 
-// A required check is matched by name, and the per-plugin jobs are named from a
-// matrix built at run time — so requiring them by name blocks every pull
-// request the moment a plugin is renamed. `plugins` is the fixed name required
-// in its place, and it only means anything if it waits for all of them.
+// `plugins` is the name the ruleset requires, and it only means anything if it
+// waits for the jobs that do the work.
 test("the required gate waits for every other job in Plugins", () => {
   const found = jobs(readFileSync(join(workflows, "plugins.yml"), "utf8"));
   assert.ok(found.has("plugins"), "Plugins has no `plugins` gate job");

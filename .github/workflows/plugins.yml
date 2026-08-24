@@ -1,8 +1,6 @@
 name: Plugins
 
-# One push to a branch here raises both events, so an unrestricted `push`
-# would run every job twice. A pull request covers the branches; this covers
-# main, which only a merge writes to.
+# One push to a branch here raises both events, so `push` covers only main.
 on:
   push:
     branches: [main]
@@ -63,15 +61,12 @@ jobs:
       - run: npm ci --workspaces=false
       - run: npm run release:check
 
-  # The one name this workflow is required by. A required check is matched by
-  # name, and release-check names its jobs from a matrix built at run time, so
-  # requiring those directly would block every pull request as soon as a plugin
-  # is renamed — and would leave a newly added one unrequired. This waits for
-  # them instead, and `workflows.test.mjs` fails if a job escapes it.
+  # The one name this workflow is required by. release-check names its jobs
+  # from a matrix, so requiring those would break whenever a plugin is renamed.
   plugins:
     needs: [release-automation, discover, release-check]
-    # Reports whatever the others did, rather than being skipped along with
-    # them; a check that never reports blocks the pull request requiring it.
+    # A check skipped along with its dependency never reports, which blocks the
+    # pull request requiring it.
     if: always()
     runs-on: ubuntu-latest
     steps:

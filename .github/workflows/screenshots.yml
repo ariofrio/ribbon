@@ -67,8 +67,7 @@ jobs:
         run: npm run screenshots
       - if: steps.relevant.outputs.capture == 'true'
         name: Commit what changed
-        # A pull request names its own branch, so neither reaches the shell
-        # directly.
+        # A pull request names its own branch; keep it out of the shell.
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
