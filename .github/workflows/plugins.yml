@@ -1,7 +1,11 @@
 name: Plugins
 
+# One push to a branch here raises both events, so an unrestricted `push`
+# would run every job twice. A pull request covers the branches; this covers
+# main, which only a merge writes to.
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
