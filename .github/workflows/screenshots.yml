@@ -1,31 +1,19 @@
 name: Screenshots
 
-# Recaptures every shot and commits back whatever came out different. The
+# Recaptures every shot and commits the result back to the pull request. The
 # capture is its own check: a harness that renders the same bytes twice makes
 # an unchanged picture indistinguishable from no change, so git's own diff
 # answers what a recorded digest used to be asked.
+#
+# On pull requests rather than pushes, for two reasons. The Protect main
+# ruleset takes every change to the default branch through a pull request and
+# names no bypass actor, so a recapture can never land on main directly and
+# main has to arrive current instead. And a push event is not raised for a push
+# this workflow's own token made, so the commit it writes would never be
+# checked again — where a pull_request event is, which is what lets this be a
+# required check without deadlocking on the commit it just made.
 on:
-  push:
-    # The whole gate, now that nothing records what a shot was captured from.
-    # What a push touched is what decides whether a picture can have moved, so
-    # a path that belongs here and is missing is a screenshot that stays stale
-    # until some later push happens to touch one that is listed.
-    # `trigger.test.mjs` pins both halves of this list.
-    paths:
-      - "plugins/*/src/**"
-      # Neither shipped nor bundled, so no test can move a pixel — and a full
-      # capture costs five minutes to redraw an identical set of files.
-      - "!plugins/*/src/**/*.test.ts"
-      - "!plugins/*/src/**/*.test.tsx"
-      # A dependency can change what a plugin draws.
-      - "plugins/*/package.json"
-      - "scripts/screenshots/**"
-      - "!scripts/screenshots/*.test.mjs"
-      # Pins playwright, which decides the container tag below, which decides
-      # the Chromium that rasterises every glyph.
-      - "package-lock.json"
-      - ".nvmrc"
-      - ".github/workflows/screenshots.yml"
+  pull_request:
 
 permissions:
   contents: write
@@ -33,15 +21,11 @@ permissions:
 # A second push supersedes the first: the older run would recapture a tree
 # nobody is on, and its push would lose the race anyway.
 concurrency:
-  group: screenshots-${{ github.ref }}
+  group: screenshots-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
   recapture:
-    # A fork's token cannot push here, and pull_request_target would hand a
-    # fork's plugin build a writable one. A fork's screenshots are recaptured
-    # once its work reaches main, which recaptures on its own push.
-    if: github.repository == 'ariofrio/ribbon'
     runs-on: ubuntu-latest
     # Pinned rather than ubuntu-latest: the runner image's fonts and libraries
     # move between releases, and every glyph a capture rasterises comes from
@@ -51,6 +35,13 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
     steps:
       - uses: actions/checkout@v7
+        with:
+          # A pull_request run checks out the merge commit, which is no branch;
+          # the recapture has to land on the branch itself. The full history is
+          # what makes the base's merge point reachable below.
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -66,17 +57,36 @@ jobs:
           apt-get install -y -qq python3 make g++
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: npm ci --workspaces=false
-      # bb itself.
-      - run: npm ci --prefix scripts/screenshots
-      - run: npm run screenshots
-      - name: Commit what changed
+      # Seconds, and no bb. Only a change that can have moved a picture is
+      # worth five minutes of container; affects.mjs is what decides, and
+      # trigger.test.mjs is what pins it.
+      - id: relevant
+        name: Decide whether anything can have moved a picture
         run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch --no-tags origin "+refs/heads/$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF"
+          git diff --name-only "origin/$GITHUB_BASE_REF...HEAD" | tee /tmp/changed
+          node scripts/screenshots/affects.mjs < /tmp/changed >> "$GITHUB_OUTPUT"
+      # bb itself.
+      - if: steps.relevant.outputs.capture == 'true'
+        run: npm ci --prefix scripts/screenshots
+      - if: steps.relevant.outputs.capture == 'true'
+        run: npm run screenshots
+      - if: steps.relevant.outputs.capture == 'true'
+        name: Commit what changed
+        run: |
           git add -A assets plugins/*/assets
           if git diff --cached --quiet; then
             echo "The capture reproduced what is committed; nothing to push."
             exit 0
           fi
+          # A fork's token is read-only, so there is nowhere for the recapture
+          # to go. Report the shots that moved rather than push into a refusal.
+          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "$GITHUB_REPOSITORY" ]; then
+            git diff --cached --stat
+            echo "::error::These screenshots moved. A maintainer has to recapture them; a fork's token cannot push."
+            exit 1
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m "Recapture the screenshots this branch moved"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
