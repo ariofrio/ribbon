@@ -1,6 +1,6 @@
-// The whole gate, now that nothing records what a shot was captured from. A
-// path missing here merges a stale screenshot; a path that does not belong
-// costs five minutes to redraw an identical set of files.
+// affects.mjs alone decides whether a pull request runs a capture. A path it
+// misses merges a stale screenshot, and a path it lists that cannot matter
+// costs five minutes to redraw identical files.
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -11,7 +11,6 @@ import { affectsScreenshots } from "./affects.mjs";
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const plugins = readdirSync(join(repositoryRoot, "plugins"));
 
-/** The question the workflow asks, for one file at a time. */
 const captures = (path) => affectsScreenshots([path]);
 
 test("a plugin's own source recaptures", () => {

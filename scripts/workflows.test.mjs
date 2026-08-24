@@ -1,5 +1,6 @@
-// That every check runs once, and that the one required by name covers the
-// rest. Both are properties of the workflow files rather than of a run.
+// Two things the workflow files have to get right: no job may run twice for
+// one push, and the job the ruleset requires by name has to wait for the jobs
+// that do the work.
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -68,8 +69,8 @@ function jobs(source) {
 
 const files = readdirSync(workflows).filter((name) => name.endsWith(".yml"));
 
-// `plugins` is the name the ruleset requires, and it only means anything if it
-// waits for the jobs that do the work.
+// The ruleset requires `plugins` by name, so a job it does not wait for is a
+// job nothing requires.
 test("the required gate waits for every other job in Plugins", () => {
   const found = jobs(readFileSync(join(workflows, "plugins.yml"), "utf8"));
   assert.ok(found.has("plugins"), "Plugins has no `plugins` gate job");
