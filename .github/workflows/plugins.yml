@@ -22,6 +22,25 @@ jobs:
       - run: npm ci --ignore-scripts --workspaces=false
       - run: npm test
       - run: npm run check:ui
+      # A workflow GitHub refuses to parse fails as a run with no jobs, which
+      # says nothing about why. Pinned and checksummed, since it runs before
+      # anything here has looked at it.
+      - name: Lint the workflows
+        env:
+          ACTIONLINT_VERSION: "1.7.7"
+          ACTIONLINT_SHA256: "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"
+        run: |
+          # actionlint skips shellcheck without a word when it is missing, and
+          # a gate that passes without running is worse than none.
+          command -v shellcheck > /dev/null || {
+            echo "::error::shellcheck is missing, so actionlint would skip it"
+            exit 1
+          }
+          curl -sSLo actionlint.tar.gz \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  actionlint.tar.gz" | sha256sum -c -
+          tar xzf actionlint.tar.gz actionlint
+          ./actionlint
 
   discover:
     runs-on: ubuntu-latest
