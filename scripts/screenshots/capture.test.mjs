@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import { ASPECT_RATIO, cropRectangle, unionBox } from "./capture.mjs";
+import {
+  ASPECT_RATIO,
+  cropRectangle,
+  mapThemes,
+  unionBox,
+} from "./capture.mjs";
 import { KEY_GLYPHS } from "./key-glyphs.mjs";
 import { SHOTS } from "./shots.mjs";
 
@@ -76,6 +81,36 @@ test("a union covers every box", () => {
     ]),
     { x: 5, y: 20, width: 35, height: 40 },
   );
+});
+
+test("independent themes overlap while stateful themes stay serial", async () => {
+  const maximumActive = async (parallel) => {
+    let active = 0;
+    let maximum = 0;
+    let releaseFirst;
+    const firstStarted = new Promise((resolve) => (releaseFirst = resolve));
+    const results = await mapThemes(
+      ["light", "dark"],
+      { parallel },
+      async (theme) => {
+        active += 1;
+        maximum = Math.max(maximum, active);
+        if (theme === "light") {
+          releaseFirst();
+          await Promise.resolve();
+        } else {
+          await firstStarted;
+        }
+        active -= 1;
+        return theme;
+      },
+    );
+    assert.deepEqual(results, ["light", "dark"]);
+    return maximum;
+  };
+
+  assert.equal(await maximumActive(false), 1);
+  assert.equal(await maximumActive(true), 2);
 });
 
 /**

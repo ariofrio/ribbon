@@ -38,32 +38,35 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           fetch-depth: 0
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            scripts/screenshots/package-lock.json
-      # bb-app builds node-pty from source here, which the image has no
-      # compiler for; and git refuses a checkout it did not make itself.
-      - name: Prepare the container
-        run: |
-          apt-get update -qq
-          apt-get install -y -qq python3 make g++
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-      - run: npm ci --workspaces=false
       # Takes seconds and needs no bb. Only a change that can have moved a
-      # screenshot is worth the five-minute capture below.
+      # screenshot is worth setting up the renderer below. The image's Node is
+      # enough for this dependency-free script; the pinned Node follows only
+      # when the capture needs it.
       - id: relevant
         name: Decide whether anything can have moved a picture
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git fetch --no-tags origin "+refs/heads/$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF"
           git diff --name-only "origin/$GITHUB_BASE_REF...HEAD" | tee /tmp/changed
           node scripts/screenshots/affects.mjs < /tmp/changed >> "$GITHUB_OUTPUT"
-      # Installs bb, which only the capture needs.
       - if: steps.relevant.outputs.capture == 'true'
-        run: npm ci --prefix scripts/screenshots
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      # node-pty is the only package without a Linux prebuild. The image
+      # already carries Python, so only its compiler is missing.
+      - if: steps.relevant.outputs.capture == 'true'
+        name: Prepare the container
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq make g++
+      # One workspace install hoists the bb-app all five plugins share with the
+      # screenshot harness. Installing inside each plugin built node-pty six
+      # times and kept six copies of bb on disk.
+      - if: steps.relevant.outputs.capture == 'true'
+        run: npm ci
       - if: steps.relevant.outputs.capture == 'true'
         run: npm run screenshots
       - if: steps.relevant.outputs.capture == 'true'

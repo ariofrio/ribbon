@@ -5,7 +5,8 @@
   "license": "MIT",
   "type": "module",
   "workspaces": [
-    "plugins/*"
+    "plugins/*",
+    "scripts/screenshots"
   ],
   "scripts": {
     "build:heading-icons": "node scripts/heading-icons.mjs",

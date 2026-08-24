@@ -30,9 +30,10 @@ test("a plugin's manifest recaptures", () => {
 test("the harness that frames every shot recaptures", () => {
   assert.ok(captures("scripts/screenshots/shots.mjs"));
   assert.ok(captures("scripts/screenshots/capture.mjs"));
-  // bb itself is pinned here, and a new bb redraws every window.
+  // bb itself is pinned here and locked at the root; a new bb redraws every
+  // window.
   assert.ok(captures("scripts/screenshots/package.json"));
-  assert.ok(captures("scripts/screenshots/package-lock.json"));
+  assert.ok(captures("package-lock.json"));
 });
 
 // The container tag tracks the playwright version, which picks the Chromium
@@ -89,4 +90,23 @@ test("the trigger filters no paths, so the check always reports", () => {
   );
   assert.doesNotMatch(trigger, /paths(-ignore)?:/u);
   assert.match(trigger, /pull_request:/u);
+});
+
+test("the relevance gate runs before capture-only setup", () => {
+  const workflow = readFileSync(
+    join(repositoryRoot, ".github/workflows/screenshots.yml"),
+    "utf8",
+  );
+  const gate = workflow.indexOf(
+    "name: Decide whether anything can have moved a picture",
+  );
+  const setupNode = workflow.indexOf("uses: actions/setup-node@v7");
+  const prepare = workflow.indexOf("name: Prepare the container");
+  const install = workflow.indexOf("run: npm ci");
+
+  assert.ok(gate >= 0);
+  assert.ok(gate < setupNode, "setup-node belongs after the relevance gate");
+  assert.ok(gate < prepare, "apt belongs after the relevance gate");
+  assert.ok(gate < install, "dependencies belong after the relevance gate");
+  assert.doesNotMatch(workflow, /npm ci --prefix scripts\/screenshots/u);
 });
