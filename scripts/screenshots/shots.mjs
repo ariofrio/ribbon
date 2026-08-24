@@ -136,6 +136,9 @@ export const SHOTS = [
     // project the thread belongs to before its title. Nothing is shaded here,
     // because nothing is being pointed at.
     id: "collection",
+    // This shot only reads server state, so its isolated light and dark
+    // browser contexts can render together. A stateful shot leaves this off.
+    parallelThemes: true,
     plugin: null,
     fileName: "hero",
     outputs: ["hero-light.png", "hero-dark.png"],
@@ -150,6 +153,7 @@ export const SHOTS = [
   },
   {
     id: "breadcrumbs",
+    parallelThemes: true,
     plugin: "bb-plugin-breadcrumbs",
     outputs: THEME_FILES,
     async prepare({ page }) {
@@ -167,6 +171,7 @@ export const SHOTS = [
   },
   {
     id: "icons",
+    parallelThemes: true,
     plugin: "bb-plugin-icons",
     outputs: THEME_FILES,
     async prepare({ page }) {
@@ -195,6 +200,7 @@ export const SHOTS = [
   },
   {
     id: "thread-stages",
+    parallelThemes: true,
     plugin: "bb-plugin-thread-stages",
     outputs: THEME_FILES,
     async prepare({ page }) {
@@ -263,6 +269,9 @@ export const SHOTS = [
   },
   {
     id: "chatgpt-theme",
+    // setup switches the palette before either context opens; both renders
+    // only read it, and teardown waits for both to finish.
+    parallelThemes: true,
     plugin: "bb-plugin-chatgpt-theme",
     outputs: THEME_FILES,
     // The palette has no light-mode screenshot and dark-mode screenshot to

@@ -9,9 +9,8 @@
 //
 // From npm rather than /Applications: the bb these shots are taken against is
 // an input to every one of them, and an app bundle is whichever bb the machine
-// happens to have. Pinned in this directory rather than the repository root,
-// where one dependency rewrites the whole nested lockfile, and where the shot
-// digest would not hash it.
+// happens to have. Its manifest stays beside the harness while the root
+// workspace install hoists its shared copy for every plugin to build against.
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
@@ -19,7 +18,9 @@ import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const APP_DIR = fileURLToPath(new URL("./node_modules/bb-app", import.meta.url));
+const APP_DIR = fileURLToPath(
+  new URL("../../node_modules/bb-app", import.meta.url),
+);
 
 /**
  * The `bb` that seeds the fixture and stamps the lock. The package's own: one
@@ -31,7 +32,7 @@ export const BB_CLI_PATH = join(APP_DIR, "host-daemon/dist/bb");
 function resolveAppPaths() {
   if (!existsSync(APP_DIR)) {
     throw new Error(
-      `bb-app is not installed at ${APP_DIR}. Screenshots render from the package, not the desktop app — run npm ci --prefix scripts/screenshots.`,
+      `bb-app is not installed at ${APP_DIR}. Screenshots render from the package, not the desktop app — run npm ci.`,
     );
   }
   return {
