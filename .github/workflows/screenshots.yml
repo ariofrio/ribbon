@@ -67,9 +67,9 @@ jobs:
         run: npm run screenshots
       - if: steps.relevant.outputs.capture == 'true'
         name: Commit what changed
-        # Whoever opened the pull request chose these, and ${{ }} would splice
-        # them into the script before bash parsed it. The environment keeps
-        # them data.
+        # Whoever opened the pull request chose these. Interpolating them with
+        # ${{ }} would paste them into the script for bash to parse; read from
+        # the environment they are values, not code.
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
