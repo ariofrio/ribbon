@@ -1,10 +1,31 @@
 name: Screenshots
 
-# Recaptures whatever the drift check says is stale and commits it back to the
-# branch. The check in Plugins stays authoritative for whether a given commit
-# is consistent; this only makes the next one so.
+# Recaptures every shot and commits back whatever came out different. The
+# capture is its own check: a harness that renders the same bytes twice makes
+# an unchanged picture indistinguishable from no change, so git's own diff
+# answers what a recorded digest used to be asked.
 on:
   push:
+    # The whole gate, now that nothing records what a shot was captured from.
+    # What a push touched is what decides whether a picture can have moved, so
+    # a path that belongs here and is missing is a screenshot that stays stale
+    # until some later push happens to touch one that is listed.
+    # `trigger.test.mjs` pins both halves of this list.
+    paths:
+      - "plugins/*/src/**"
+      # Neither shipped nor bundled, so no test can move a pixel — and a full
+      # capture costs five minutes to redraw an identical set of files.
+      - "!plugins/*/src/**/*.test.ts"
+      - "!plugins/*/src/**/*.test.tsx"
+      # A dependency can change what a plugin draws.
+      - "plugins/*/package.json"
+      - "scripts/screenshots/**"
+      - "!scripts/screenshots/*.test.mjs"
+      # Pins playwright, which decides the container tag below, which decides
+      # the Chromium that rasterises every glyph.
+      - "package-lock.json"
+      - ".nvmrc"
+      - ".github/workflows/screenshots.yml"
 
 permissions:
   contents: write
@@ -17,8 +38,9 @@ concurrency:
 
 jobs:
   recapture:
-    # A fork's token cannot push, and pull_request_target would hand a fork's
-    # plugin build a writable one. Forks get the drift check instead.
+    # A fork's token cannot push here, and pull_request_target would hand a
+    # fork's plugin build a writable one. A fork's screenshots are recaptured
+    # once its work reaches main, which recaptures on its own push.
     if: github.repository == 'ariofrio/ribbon'
     runs-on: ubuntu-latest
     # Pinned rather than ubuntu-latest: the runner image's fonts and libraries
@@ -44,20 +66,14 @@ jobs:
           apt-get install -y -qq python3 make g++
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: npm ci --workspaces=false
-      # bb itself. Only a capture needs it; the drift check below does not.
+      # bb itself.
       - run: npm ci --prefix scripts/screenshots
-      # Seconds, and no browser. Only a stale shot is worth booting a bb for.
-      - id: drift
-        continue-on-error: true
-        run: npm run check:screenshots
-      - if: steps.drift.outcome == 'failure'
-        run: npm run screenshots
-      - if: steps.drift.outcome == 'failure'
-        name: Commit what changed
+      - run: npm run screenshots
+      - name: Commit what changed
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -A assets plugins/*/assets scripts/screenshots/screenshots.lock.json
+          git add -A assets plugins/*/assets
           if git diff --cached --quiet; then
             echo "The capture reproduced what is committed; nothing to push."
             exit 0

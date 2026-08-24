@@ -4,10 +4,6 @@
 // stops, so its own `finished` promise is the condition a capture wants. The
 // looping ones — a running thread's spinner — are left alone here and frozen
 // later, in capture.mjs, because they never finish at all.
-//
-// This module imports nothing on purpose. run.mjs loads shots.mjs even for the
-// drift check, and capture.mjs pulls in Playwright, so the two cannot share a
-// helper through capture.mjs without making `--check` need a browser.
 
 /**
  * Settles the page: every one-shot animation has ended, webfonts have loaded,
