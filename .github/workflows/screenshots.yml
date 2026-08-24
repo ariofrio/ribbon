@@ -1,17 +1,12 @@
 name: Screenshots
 
 # Recaptures every shot and commits the result back to the pull request. The
-# capture is its own check: a harness that renders the same bytes twice makes
-# an unchanged picture indistinguishable from no change, so git's own diff
-# answers what a recorded digest used to be asked.
+# capture is its own check: the harness renders the same bytes twice, so an
+# unchanged picture is an unchanged file and git's diff is the whole test.
 #
-# On pull requests rather than pushes, for two reasons. The Protect main
-# ruleset takes every change to the default branch through a pull request and
-# names no bypass actor, so a recapture can never land on main directly and
-# main has to arrive current instead. And a push event is not raised for a push
-# this workflow's own token made, so the commit it writes would never be
-# checked again — where a pull_request event is, which is what lets this be a
-# required check without deadlocking on the commit it just made.
+# On pull requests, not pushes: main takes changes only through one, and no
+# push event is raised for this workflow's own push, so a required check would
+# wait forever on the commit it just made.
 on:
   pull_request:
 
@@ -37,8 +32,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           # A pull_request run checks out the merge commit, which is no branch;
-          # the recapture has to land on the branch itself. The full history is
-          # what makes the base's merge point reachable below.
+          # the recapture has to land on the branch. Full history so the step
+          # below can reach the base's merge point.
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           fetch-depth: 0
@@ -58,8 +53,7 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: npm ci --workspaces=false
       # Seconds, and no bb. Only a change that can have moved a picture is
-      # worth five minutes of container; affects.mjs is what decides, and
-      # trigger.test.mjs is what pins it.
+      # worth five minutes of container.
       - id: relevant
         name: Decide whether anything can have moved a picture
         run: |
@@ -79,8 +73,7 @@ jobs:
             echo "The capture reproduced what is committed; nothing to push."
             exit 0
           fi
-          # A fork's token is read-only, so there is nowhere for the recapture
-          # to go. Report the shots that moved rather than push into a refusal.
+          # A fork's token is read-only, so report what moved instead.
           if [ "${{ github.event.pull_request.head.repo.full_name }}" != "$GITHUB_REPOSITORY" ]; then
             git diff --cached --stat
             echo "::error::These screenshots moved. A maintainer has to recapture them; a fork's token cannot push."

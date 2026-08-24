@@ -4,10 +4,9 @@
 //   npm run screenshots -- --only icons
 //   npm run screenshots -- --keep  leave the seeded bb running for inspection
 //
-// Capturing needs the Node in .nvmrc, Playwright's Chromium (npx playwright
-// install chromium), and the bb pinned beside this file. Nothing records what
-// a shot was captured from: the harness renders the same bytes twice, so a
-// picture that did not move is a file that did not change, and git says so.
+// Needs the Node in .nvmrc, Playwright's Chromium (npx playwright install
+// chromium), and the bb pinned beside this file. Nothing records what a shot
+// was captured from; two runs write the same bytes, so git answers that.
 import { execFileSync } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";

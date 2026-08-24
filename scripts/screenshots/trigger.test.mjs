@@ -1,9 +1,6 @@
-// What decides whether a pull request pays for a capture.
-//
-// Nothing records what a screenshot was captured from any more, so this is the
-// whole gate. A path that can move a picture and is missing here is a
-// screenshot that merges stale; a path that cannot and is present here costs
-// five minutes to redraw an identical set of files.
+// The whole gate, now that nothing records what a shot was captured from. A
+// path missing here merges a stale screenshot; a path that does not belong
+// costs five minutes to redraw an identical set of files.
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -24,8 +21,7 @@ test("a plugin's own source recaptures", () => {
   }
 });
 
-// A dependency bump can move what a plugin draws, which is why the digest this
-// replaced hashed the manifest too.
+// A dependency bump can move what a plugin draws.
 test("a plugin's manifest recaptures", () => {
   for (const plugin of plugins) {
     assert.ok(captures(`plugins/${plugin}/package.json`));
@@ -40,8 +36,8 @@ test("the harness that frames every shot recaptures", () => {
   assert.ok(captures("scripts/screenshots/package-lock.json"));
 });
 
-// The container's tag tracks the playwright version, which decides the
-// Chromium on disk, which decides how every glyph is rasterised.
+// The container tag tracks the playwright version, which picks the Chromium
+// that rasterises every glyph.
 test("the pinned Chromium recaptures", () => {
   assert.ok(captures("package-lock.json"));
   assert.ok(captures(".nvmrc"));
@@ -81,9 +77,8 @@ test("one file that matters carries a changeset full of files that do not", () =
   assert.equal(affectsScreenshots([]), false);
 });
 
-// A workflow skipped by a `paths:` filter never reports its check, and a check
-// that never reports blocks a pull request that requires it. The filter has to
-// stay out of the trigger for the check to be requirable at all.
+// A workflow skipped by a `paths:` filter never reports its check, which
+// blocks the pull request requiring it.
 test("the trigger filters no paths, so the check always reports", () => {
   const workflow = readFileSync(
     join(repositoryRoot, ".github/workflows/screenshots.yml"),
