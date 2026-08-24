@@ -67,6 +67,11 @@ jobs:
         run: npm run screenshots
       - if: steps.relevant.outputs.capture == 'true'
         name: Commit what changed
+        # A pull request names its own branch, so neither reaches the shell
+        # directly.
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           git add -A assets plugins/*/assets
           if git diff --cached --quiet; then
@@ -74,7 +79,7 @@ jobs:
             exit 0
           fi
           # A fork's token is read-only, so report what moved instead.
-          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "$GITHUB_REPOSITORY" ]; then
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
             git diff --cached --stat
             echo "::error::These screenshots moved. A maintainer has to recapture them; a fork's token cannot push."
             exit 1
@@ -82,4 +87,4 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m "Recapture the screenshots this branch moved"
-          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          git push origin "HEAD:$HEAD_REF"
