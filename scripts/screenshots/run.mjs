@@ -71,11 +71,18 @@ try {
   writeManagedConfig({ dataDir, harnessDir: harnessDirectory });
 
   console.log("Installing this repository's plugins…");
-  execFileSync(process.execPath, [join(repositoryRoot, "scripts/install-plugins.mjs")], {
-    cwd: repositoryRoot,
-    env: { ...stack.env, BB_CLI: bb },
-    stdio: "inherit",
-  });
+  execFileSync(
+    process.execPath,
+    [
+      join(repositoryRoot, "scripts/install-plugins.mjs"),
+      "--skip-dependencies",
+    ],
+    {
+      cwd: repositoryRoot,
+      env: { ...stack.env, BB_CLI: bb },
+      stdio: "inherit",
+    },
+  );
 
   console.log("Seeding the fixture…");
   const fixture = seed({ stack, workspaceRoot, bb });
@@ -104,4 +111,3 @@ try {
   // is what starves the next capture's seed, which fails, which leaks another.
   if (!options.keep) await stack.stop();
 }
-
