@@ -42,9 +42,10 @@ after it is emptied, it disappears.
 
 Drag root threads to reorder or change their stage. Ordering uses
 fractional keys, so a move updates only the moved thread. Root threads enter
-**Active** when they start and return to **Idle** when they stop, unless you
-manually move them after the transition. A thread blocked on a question or an
-approval counts as **Idle** while it waits, because the next move is yours.
+**Active** when a turn or background command starts and return to **Idle** once
+neither is working, unless you manually move them after the transition. A
+thread blocked on a question or an approval counts as **Idle** while it waits
+only when it has no background command still running.
 
 ## Install
 

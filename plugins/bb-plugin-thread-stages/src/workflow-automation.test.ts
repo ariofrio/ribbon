@@ -46,6 +46,7 @@ describe("task workflow", () => {
       sdk: {
         threads: {
           interactions: { list: async () => pendingInteractions },
+          timeline: async () => ({ activeBackgroundCommands: [] }),
         },
       },
     } as unknown as BbPluginApi;
@@ -131,6 +132,7 @@ describe("task workflow", () => {
       sdk: {
         threads: {
           interactions: { list: async () => pendingInteractions },
+          timeline: async () => ({ activeBackgroundCommands: [] }),
         },
       },
     } as unknown as BbPluginApi;
@@ -227,6 +229,7 @@ describe("task workflow", () => {
             id: threadId,
             status: lifecycleStatus,
           }),
+          timeline: async () => ({ activeBackgroundCommands: [] }),
         },
       },
     } as unknown as BbPluginApi;
@@ -251,6 +254,100 @@ describe("task workflow", () => {
       pendingInteractions = [];
       lifecycleStatus = "idle";
       changed?.({ id: "thr_a", changes: ["status-changed"] });
+      await vi.waitFor(() =>
+        expect(store.get("thr_a").workflowStage).toBe("Idle"),
+      );
+
+      abort.abort();
+      await running;
+    } finally {
+      abort.abort();
+      db.close();
+    }
+  });
+
+  it("keeps an idle thread Active while a background command is running", async () => {
+    const db = new Database(":memory:");
+    for (const migration of THREAD_WORKFLOW_MIGRATIONS) db.exec(migration);
+    const store = createThreadWorkflowStore(db);
+    let changed = null as
+      | ((event: {
+          id?: string;
+          changes: readonly string[];
+          metadata?: { backgroundActivityChanged?: boolean };
+        }) => void)
+      | null;
+    let activeBackgroundCommands: unknown[] | null = [{}];
+    let service = null as { start(signal: AbortSignal): unknown } | null;
+    const warn = vi.fn();
+    const bb = {
+      events: { on: () => undefined },
+      background: {
+        service: (
+          _name: string,
+          registered: { start(signal: AbortSignal): unknown },
+        ) => {
+          service = registered;
+        },
+      },
+      realtime: { publish: vi.fn() },
+      log: { warn },
+      sdk: {
+        subscribe: ({ callback }: { callback: typeof changed }) => {
+          changed = callback;
+          return () => undefined;
+        },
+        threads: {
+          interactions: { list: async () => [] },
+          list: async () => [],
+          get: async ({ threadId }: { threadId: string }) => ({
+            id: threadId,
+            status: "idle",
+          }),
+          timeline: async () => {
+            if (activeBackgroundCommands === null) {
+              throw new Error("timeline unavailable");
+            }
+            return { activeBackgroundCommands };
+          },
+        },
+      },
+    } as unknown as BbPluginApi;
+
+    const abort = new AbortController();
+    try {
+      registerThreadWorkflow(bb, store);
+      const running = Promise.resolve(service?.start(abort.signal));
+      await vi.waitFor(() => expect(changed).not.toBeNull());
+
+      changed?.({
+        id: "thr_a",
+        changes: ["events-appended"],
+        metadata: { backgroundActivityChanged: true },
+      });
+      await vi.waitFor(() =>
+        expect(store.get("thr_a").workflowStage).toBe("Active"),
+      );
+
+      activeBackgroundCommands = null;
+      changed?.({
+        id: "thr_a",
+        changes: ["events-appended"],
+        metadata: { backgroundActivityChanged: true },
+      });
+      await vi.waitFor(() =>
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining("timeline unavailable"),
+        ),
+      );
+      expect(store.get("thr_a").workflowStage).toBe("Active");
+
+      activeBackgroundCommands = [];
+      changed?.({
+        id: "thr_a",
+        changes: ["events-appended"],
+        metadata: { backgroundActivityChanged: true },
+      });
       await vi.waitFor(() =>
         expect(store.get("thr_a").workflowStage).toBe("Idle"),
       );
