@@ -67,7 +67,9 @@ jobs:
         run: npm run screenshots
       - if: steps.relevant.outputs.capture == 'true'
         name: Commit what changed
-        # A pull request names its own branch; keep it out of the shell.
+        # Whoever opened the pull request chose these, and ${{ }} would splice
+        # them into the script before bash parsed it. The environment keeps
+        # them data.
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
