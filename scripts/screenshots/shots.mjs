@@ -98,6 +98,18 @@ function projectCrumb(page) {
   return page.locator('[data-breadcrumbs-root] [aria-label="Storefront actions"]');
 }
 
+/**
+ * The project icon in the thread header, named by the header it sits in.
+ *
+ * The plugin gives every icon that opens its picker the same label, and more
+ * than one is on screen at once — the strip under the composer carries one
+ * too, and bb's own sidebar a third when it is grouping by project. This shot
+ * is of the header's.
+ */
+function headerIcon(page) {
+  return page.locator('header [aria-label="Icon for Storefront"]');
+}
+
 export const SHOTS = [
   {
     // The collection, not a plugin: one window with four of the five at work —
@@ -140,7 +152,7 @@ export const SHOTS = [
     outputs: THEME_FILES,
     async prepare({ page }) {
       await openFeaturedThread(page);
-      await page.locator('[aria-label="Icon for Storefront"]').click();
+      await headerIcon(page).click();
       await page.getByRole("dialog").waitFor();
       // bb draws this dialog before its icons arrive: the catalog is a
       // separate request, and until it returns the picker reads "Loading
@@ -155,15 +167,12 @@ export const SHOTS = [
       await settleAnimations(page);
     },
     highlights: (page) => [
-      { locator: page.locator('[aria-label="Icon for Storefront"]') },
+      { locator: headerIcon(page) },
       { locator: page.getByRole("dialog") },
     ],
     // The picker is taller than the card, so the card frames its top: the
     // header icon it belongs to, the colors, and the search field.
-    focus: (page) => [
-      page.locator('[aria-label="Icon for Storefront"]'),
-      page.getByPlaceholder("Search icons"),
-    ],
+    focus: (page) => [headerIcon(page), page.getByPlaceholder("Search icons")],
   },
   {
     id: "thread-stages",
