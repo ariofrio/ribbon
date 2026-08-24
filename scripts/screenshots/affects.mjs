@@ -1,14 +1,14 @@
-// Whether a changeset can have moved a screenshot, and so whether a pull
-// request pays for a capture. Not a `paths:` filter on the workflow: one
-// skipped by path filtering never reports its check, which would block any
-// pull request requiring it.
+// Whether a changeset can have moved a screenshot, which decides whether a
+// pull request runs a capture. This cannot be the workflow's `paths:` filter,
+// because a workflow skipped by path filtering never reports its check, and a
+// pull request requiring that check would never merge.
 //
 //   git diff --name-only origin/main...HEAD | node scripts/screenshots/affects.mjs
 
-/** Neither shipped nor bundled, so no test can move a pixel. */
+/** Tests are neither shipped nor bundled, so they cannot change a screenshot. */
 const TEST_FILE = /\.test\.[cm]?[jt]sx?$/u;
 
-/** Outside a plugin, but still decides what a capture draws. */
+/** Files outside any plugin that still change what a capture draws. */
 const ROOT_FILES = new Set([
   // Pins playwright, which picks the container's Chromium.
   "package-lock.json",

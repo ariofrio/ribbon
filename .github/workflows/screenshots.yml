@@ -1,12 +1,13 @@
 name: Screenshots
 
-# Recaptures every shot and commits the result back to the pull request. The
-# capture is its own check: the harness renders the same bytes twice, so an
-# unchanged picture is an unchanged file and git's diff is the whole test.
+# Recaptures every shot and commits the result back to the pull request.
+# Nothing records what each was captured from, because the harness renders the
+# same bytes twice: a screenshot that did not change is a file that did not
+# change, which git already reports.
 #
-# On pull requests, not pushes: main takes changes only through one, and no
-# push event is raised for this workflow's own push, so a required check would
-# wait forever on the commit it just made.
+# On pull requests rather than pushes: main only accepts a pull request, and
+# GitHub raises no push event for a push this workflow makes, so a required
+# check would never report on the commit it had just written.
 on:
   pull_request:
 
@@ -52,21 +53,27 @@ jobs:
           apt-get install -y -qq python3 make g++
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: npm ci --workspaces=false
-      # Seconds, and no bb. Only a change that can have moved a picture is
-      # worth five minutes of container.
+      # Takes seconds and needs no bb. Only a change that can have moved a
+      # screenshot is worth the five-minute capture below.
       - id: relevant
         name: Decide whether anything can have moved a picture
         run: |
           git fetch --no-tags origin "+refs/heads/$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF"
           git diff --name-only "origin/$GITHUB_BASE_REF...HEAD" | tee /tmp/changed
           node scripts/screenshots/affects.mjs < /tmp/changed >> "$GITHUB_OUTPUT"
-      # bb itself.
+      # Installs bb, which only the capture needs.
       - if: steps.relevant.outputs.capture == 'true'
         run: npm ci --prefix scripts/screenshots
       - if: steps.relevant.outputs.capture == 'true'
         run: npm run screenshots
       - if: steps.relevant.outputs.capture == 'true'
         name: Commit what changed
+        # Whoever opened the pull request chose these. Interpolating them with
+        # ${{ }} would paste them into the script for bash to parse; read from
+        # the environment they are values, not code.
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           git add -A assets plugins/*/assets
           if git diff --cached --quiet; then
@@ -74,7 +81,7 @@ jobs:
             exit 0
           fi
           # A fork's token is read-only, so report what moved instead.
-          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "$GITHUB_REPOSITORY" ]; then
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
             git diff --cached --stat
             echo "::error::These screenshots moved. A maintainer has to recapture them; a fork's token cannot push."
             exit 1
@@ -82,4 +89,4 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m "Recapture the screenshots this branch moved"
-          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          git push origin "HEAD:$HEAD_REF"
