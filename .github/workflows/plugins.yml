@@ -62,3 +62,23 @@ jobs:
           cache-dependency-path: plugins/${{ matrix.plugin }}/package-lock.json
       - run: npm ci --workspaces=false
       - run: npm run release:check
+
+  # The one name this workflow is required by. A required check is matched by
+  # name, and release-check names its jobs from a matrix built at run time, so
+  # requiring those directly would block every pull request as soon as a plugin
+  # is renamed — and would leave a newly added one unrequired. This waits for
+  # them instead, and `workflows.test.mjs` fails if a job escapes it.
+  plugins:
+    needs: [release-automation, discover, release-check]
+    # Reports whatever the others did, rather than being skipped along with
+    # them; a check that never reports blocks the pull request requiring it.
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every check passed
+        run: |
+          results='${{ join(needs.*.result, " ") }}'
+          echo "$results"
+          case "$results" in
+            *failure*|*cancelled*) echo "::error::a required job did not pass"; exit 1 ;;
+          esac
