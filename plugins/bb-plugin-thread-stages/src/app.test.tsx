@@ -5,6 +5,7 @@ import {
 } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { ICON_ATTRIBUTE, ICON_OPTIONAL_ATTRIBUTE } from "./icon-styles";
 
 afterEach(() => cleanup());
 
@@ -126,6 +127,37 @@ describe("thread stages app registration", () => {
 
     expect(await slot.findByText("A useful preview")).toBeTruthy();
     slot.lifecycle.unmount();
+  });
+
+  it("names each row's project for the Icons plugin to paint", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const threadList = app.threadLists[0]!;
+    const slot = renderSlot(
+      threadList,
+      threadListProps,
+      threadListOptions(true),
+    );
+
+    await slot.findByText("Polish the release");
+    const box = slot.container.querySelector(
+      '[data-ribbon-icons-project="project-1"]',
+    );
+    expect(box).not.toBeNull();
+
+    // The rules and the boxes are written apart, in CSS and in JSX, and a
+    // rename on one side would go on rendering an empty span forever.
+    const sheet = document.head.querySelector(
+      "style[data-thread-stages-icons]",
+    )?.textContent;
+    expect(sheet).toContain(`[${ICON_ATTRIBUTE}="project"]`);
+    expect(box?.getAttribute(ICON_ATTRIBUTE)).toBe("project");
+    expect(sheet).toContain(`[${ICON_OPTIONAL_ATTRIBUTE}]{display:none}`);
+    expect(box?.hasAttribute(ICON_OPTIONAL_ATTRIBUTE)).toBe(true);
+
+    slot.lifecycle.unmount();
+    expect(
+      document.head.querySelector("style[data-thread-stages-icons]"),
+    ).toBeNull();
   });
 
   it("hides an empty disabled stage", async () => {

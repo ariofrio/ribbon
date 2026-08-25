@@ -1,4 +1,3 @@
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
   createContext,
   useContext,
@@ -7,7 +6,6 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import type { ProjectIconView } from "../icons";
 import {
   serializeThreadFilter,
   type ThreadFilter as ThreadFilterValue,
@@ -63,7 +61,6 @@ interface ThreadFilterProps {
   onRenameProject?: (project: ThreadFilterProject) => void;
   onRenameSection?: (section: ThreadFilterSection) => void;
   projectActionStates?: ReadonlyMap<string, { canAddLocalPath: boolean }>;
-  projectIcons?: ReadonlyMap<string, ProjectIconView>;
   projects: readonly ThreadFilterProject[];
   sections: readonly ThreadFilterSection[];
   value: ThreadFilterValue;
@@ -111,7 +108,6 @@ export function ThreadFilter({
   onRenameProject = () => {},
   onRenameSection = () => {},
   projectActionStates = new Map(),
-  projectIcons = new Map(),
   projects,
   sections,
   value,
@@ -171,7 +167,7 @@ export function ThreadFilter({
           >
             {activeProject ? (
               <ProjectFilterIcon
-                icon={projectIcons.get(activeProject.id)}
+                projectId={activeProject.id}
                 personal={activeProject.isPersonal}
               />
             ) : activeSection ? (
@@ -308,7 +304,7 @@ export function ThreadFilter({
                     setOpen(false);
                   }}
                 >
-                  <ProjectFilterIcon icon={projectIcons.get(project.id)} />
+                  <ProjectFilterIcon projectId={project.id} />
                   <ProjectActions
                     canAddLocalPath={
                       projectActionStates.get(project.id)?.canAddLocalPath ??
@@ -327,10 +323,7 @@ export function ThreadFilter({
                   selectedValue={selectedValue}
                   value={`project:${personalProject.id}`}
                 >
-                  <ProjectFilterIcon
-                    icon={projectIcons.get(personalProject.id)}
-                    personal
-                  />
+                  <ProjectFilterIcon projectId={personalProject.id} personal />
                 </ThreadFilterItem>
               ) : null}
             </DropdownMenuRadioGroup>
@@ -602,29 +595,25 @@ function FilterActionItem({
   );
 }
 
+/**
+ * A project's icon, drawn by naming the project rather than by fetching it.
+ *
+ * The Icons plugin paints whatever was chosen through the cascade; with that
+ * plugin absent, or with nothing chosen, the box keeps the folder this filter
+ * has always shown. See icon-styles.ts.
+ */
 function ProjectFilterIcon({
-  icon,
+  projectId,
   personal = false,
 }: {
-  icon?: ProjectIconView;
+  projectId: string;
   personal?: boolean;
 }) {
-  if (!icon) {
-    return (
-      <Icon
-        name={personal ? "BubbleChat" : "Folder"}
-        className="size-4 shrink-0"
-        aria-hidden
-      />
-    );
-  }
-
   return (
-    <HugeiconsIcon
-      icon={icon.glyph}
-      className="size-4 shrink-0"
-      style={icon.color === null ? undefined : { color: icon.color }}
+    <span
       aria-hidden
+      data-ribbon-icons-project={projectId}
+      data-thread-stages-icon={personal ? "personal" : "project"}
     />
   );
 }

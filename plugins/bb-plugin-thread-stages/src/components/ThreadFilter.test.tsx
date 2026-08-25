@@ -15,7 +15,6 @@ import { CompactViewportOverrideProvider } from "@/vendor/components/ui/hooks/us
 afterEach(cleanup);
 
 describe("ThreadFilter", () => {
-  const rocket = [["path", { d: "M1" }]] as const;
   const projects = [
     { id: "proj_alpha", name: "Alpha", isPersonal: false },
     { id: "proj_personal", name: "Personal", isPersonal: true },
@@ -167,7 +166,7 @@ describe("ThreadFilter", () => {
     expect(
       within(menu)
         .getByRole("menuitemradio", { name: "Threads" })
-        .querySelector('[data-icon="BubbleChat"]'),
+        .querySelector('[data-thread-stages-icon="personal"]'),
     ).not.toBeNull();
     expect(
       within(menu)
@@ -214,17 +213,11 @@ describe("ThreadFilter", () => {
       onNewProject: () => {},
       onNewSection: () => {},
     } as const;
+    // A project's icon is named rather than drawn: the box says whose icon it
+    // wants, and the Icons plugin's stylesheet paints it. See icon-styles.ts.
     const { rerender } = render(
       <ThreadFilter
         {...sharedProps}
-        projectIcons={
-          new Map([
-            [
-              "proj_alpha",
-              { name: "rocket", glyph: rocket, color: "rgb(1, 2, 3)" },
-            ],
-          ])
-        }
         value={{ kind: "project", id: "proj_alpha" }}
       />,
     );
@@ -232,19 +225,12 @@ describe("ThreadFilter", () => {
     let trigger = screen.getByRole("button", {
       name: "Sections and projects: Alpha",
     });
-    expect(trigger.querySelector('path[d="M1"]')).not.toBeNull();
-    expect(trigger.querySelector("svg")?.style.color).toBe("rgb(1, 2, 3)");
-
-    rerender(
-      <ThreadFilter
-        {...sharedProps}
-        value={{ kind: "project", id: "proj_alpha" }}
-      />,
-    );
-    trigger = screen.getByRole("button", {
-      name: "Sections and projects: Alpha",
-    });
-    expect(trigger.querySelector('[data-icon="Folder"]')).not.toBeNull();
+    expect(
+      trigger.querySelector('[data-ribbon-icons-project="proj_alpha"]'),
+    ).not.toBeNull();
+    expect(
+      trigger.querySelector('[data-thread-stages-icon="project"]'),
+    ).not.toBeNull();
 
     rerender(
       <ThreadFilter
@@ -255,7 +241,9 @@ describe("ThreadFilter", () => {
     trigger = screen.getByRole("button", {
       name: "Sections and projects: Threads",
     });
-    expect(trigger.querySelector('[data-icon="BubbleChat"]')).not.toBeNull();
+    expect(
+      trigger.querySelector('[data-thread-stages-icon="personal"]'),
+    ).not.toBeNull();
 
     rerender(
       <ThreadFilter

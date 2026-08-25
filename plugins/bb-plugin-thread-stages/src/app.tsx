@@ -21,7 +21,6 @@ import {
   type DragEvent,
   type MouseEvent,
 } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { toast } from "sonner";
 import type { z } from "zod";
 import type { rpcContract } from "./server";
@@ -59,11 +58,7 @@ import { ThreadSectionDialog } from "./components/ThreadSectionDialog";
 import { createNativeCommandDelegate } from "./native-command-delegation";
 import { notifyNativeShortcutHandled } from "./native-command-hints";
 import { usePersistentStringSet } from "./persistent-string-set";
-import {
-  fetchIcons,
-  subscribeToProjectIconChanges,
-  type ProjectIconView,
-} from "./icons";
+import { publishIconStyles } from "./icon-styles";
 import { shouldSyncThreads } from "./workflow-sync";
 import {
   partitionWorkflowThreads,
@@ -184,7 +179,6 @@ interface ThreadRowProps {
   onSetSection: (sectionId: string | null) => void;
   onToggleChildren: () => void;
   preview: string | null;
-  projectIcon: ProjectIconView | null;
   reorderable: boolean;
   showDropAfter: boolean;
   showDropBefore: boolean;
@@ -218,7 +212,6 @@ function ThreadRow({
   onSetSection,
   onToggleChildren,
   preview,
-  projectIcon,
   reorderable,
   showDropAfter,
   showDropBefore,
@@ -326,17 +319,20 @@ function ThreadRow({
           onClick={openThread}
         />
         <span className="flex min-w-0 flex-1 items-center gap-2">
-          {projectIcon === null ? null : (
-            <HugeiconsIcon
-              icon={projectIcon.glyph}
-              // An uncolored icon takes the row's own color, so it reads as part
-              // of the title it sits beside rather than a dimmer thing near it.
-              className="size-4 shrink-0"
-              style={projectIcon.color === null ? undefined : { color: projectIcon.color }}
-              data-project-icon={projectIcon.name}
-              aria-hidden
-            />
-          )}
+          {/*
+            The project's icon, which the Icons plugin paints through the
+            cascade. Empty by design: naming the project is the whole of this
+            row's part, and without that plugin the box collapses and the row
+            lays out as it did before there were icons.
+          */}
+          <span
+            aria-hidden
+            data-ribbon-icons-project={thread.projectId}
+            data-thread-stages-icon={
+              thread.projectId === PERSONAL_PROJECT_ID ? "personal" : "project"
+            }
+            data-thread-stages-icon-optional=""
+          />
           <span className="flex min-w-0 flex-1 flex-col justify-center leading-none">
             <span className="truncate leading-5" title={accessibleTitle}>
               {title}
@@ -846,34 +842,13 @@ function WorkflowStageList({
     window.localStorage.removeItem(PROJECT_FILTER_STORAGE_KEY);
     window.localStorage.removeItem(LEGACY_PROJECT_FILTER_STORAGE_KEY);
   }, []);
-  const [projectIcons, setProjectIcons] = useState<
-    ReadonlyMap<string, ProjectIconView>
-  >(new Map());
-  const [sectionIcons, setSectionIcons] = useState<
-    ReadonlyMap<string, ProjectIconView>
-  >(new Map());
   const [projectActionStates, setProjectActionStates] = useState<
     ReadonlyMap<string, { canAddLocalPath: boolean }>
   >(new Map());
-  useEffect(() => {
-    let canceled = false;
-    const load = () => {
-      void fetchIcons(
-        () => rpc.call("listProjectIcons", null),
-        projectIds.split(",").filter(Boolean),
-      ).then((icons) => {
-        if (canceled) return;
-        setProjectIcons(icons.projects);
-        setSectionIcons(icons.sections);
-      });
-    };
-    load();
-    const unsubscribe = subscribeToProjectIconChanges(load);
-    return () => {
-      canceled = true;
-      unsubscribe();
-    };
-  }, [projectIds, rpc]);
+  // Inserted once, and never touched again: the icons themselves arrive
+  // through the cascade, so neither a list that moved nor an icon someone
+  // changed costs this plugin anything.
+  useEffect(() => publishIconStyles(), []);
   useEffect(() => {
     const lend = () =>
       actions.openNewThread({
@@ -1294,7 +1269,6 @@ function WorkflowStageList({
   const filterControl = showSidebarFilter ? (
     <ThreadFilter
       newProjectDisabled={projectCreatePending}
-      projectIcons={projectIcons}
       projectActionStates={projectActionStates}
       projects={sidebar.projects}
       sections={sections}
@@ -1572,7 +1546,6 @@ function WorkflowStageList({
                           ? (previews.get(thread.id) ?? null)
                           : null
                       }
-                      projectIcon={projectIcons.get(thread.projectId) ?? null}
                       reorderable={isRoot && !Boolean(normalizedSearch)}
                       showDropAfter={
                         dropGroup === PINNED_SECTION &&
@@ -1756,8 +1729,7 @@ function WorkflowStageList({
                             ? (previews.get(thread.id) ?? null)
                             : null
                         }
-                        projectIcon={projectIcons.get(thread.projectId) ?? null}
-                        reorderable={isRoot && !Boolean(normalizedSearch)}
+                          reorderable={isRoot && !Boolean(normalizedSearch)}
                         showDropAfter={
                           dropGroup === stage && dropAfter === thread.id
                         }

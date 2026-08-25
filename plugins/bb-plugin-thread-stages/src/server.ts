@@ -46,7 +46,6 @@ import {
   type WorkflowHierarchyThread,
 } from "./root-thread-ownership";
 
-const ICONS_PLUGIN_ID = "icons";
 const workflowStageSchema = z.enum(WORKFLOW_STAGES);
 const sectionSchema = z
   .object({
@@ -114,37 +113,6 @@ const projectSummarySchema = z
     name: z.string(),
   })
   .strict();
-
-const iconGlyphSchema = z.array(
-  z.tuple([z.string(), z.record(z.string(), z.any())]),
-);
-const iconDefaultsSchema = z.object({
-  project: iconGlyphSchema,
-  personal: iconGlyphSchema,
-  section: iconGlyphSchema,
-});
-const projectIconSchema = z.object({
-  kind: z.enum(["project", "section"]),
-  id: z.string(),
-  icon: z.string(),
-  color: z.string().nullable(),
-  glyph: iconGlyphSchema,
-});
-/**
- * What the Icons plugin answers `listIcons` with, mirrored rather than
- * imported. `icons` is left unread here on purpose: that plugin owns the row
- * shape, so a row it has grown is dropped one at a time by the handler
- * instead of failing the parse and costing every icon in the sidebar.
- */
-const iconsAnswerSchema = z.object({
-  icons: z.array(z.unknown()),
-  defaults: iconDefaultsSchema,
-});
-/** What survives that filter, and what this plugin answers with. */
-const projectIconsSchema = z.object({
-  icons: z.array(projectIconSchema),
-  defaults: iconDefaultsSchema,
-});
 
 /** The part of bb's keybinding table a delegate needs to replay a command. */
 const appKeybindingSchema = z.object({
@@ -322,10 +290,6 @@ export const rpcContract = defineRpcContract({
       })
       .strict(),
     output: z.object({ ok: z.literal(true) }).strict(),
-  },
-  listProjectIcons: {
-    input: z.null(),
-    output: projectIconsSchema,
   },
   listAppKeybindings: {
     input: z.null(),
@@ -890,9 +854,6 @@ export default function plugin(bb: BbPluginApi) {
       await bb.sdk.plugins.updateSettings({ pluginId: bb.pluginId, values });
       return { ok: true as const };
     },
-    // The sidebar draws icons the Icons plugin owns. Asking bb to make the
-    // call keeps the neighbour's route out of the frontend, and a missing
-    // neighbour stays what it has always been: a sidebar without icons.
     // The stage chords replay bb's own New thread command, which means
     // knowing which keys bb listens for. The SDK reads the app config on the
     // server, so the frontend does not reach for bb's own route.
@@ -903,21 +864,6 @@ export default function plugin(bb: BbPluginApi) {
       return {
         keybindings: keybindings.flatMap((binding) => {
           const parsed = appKeybindingSchema.safeParse(binding);
-          return parsed.success ? [parsed.data] : [];
-        }),
-      };
-    },
-    async listProjectIcons() {
-      const answer = await bb.sdk.plugins.callRpc({
-        pluginId: ICONS_PLUGIN_ID,
-        method: "listIcons",
-        input: null,
-        outputSchema: iconsAnswerSchema,
-      });
-      return {
-        ...answer,
-        icons: answer.icons.flatMap((icon) => {
-          const parsed = projectIconSchema.safeParse(icon);
           return parsed.success ? [parsed.data] : [];
         }),
       };
