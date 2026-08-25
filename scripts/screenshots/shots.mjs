@@ -231,11 +231,9 @@ export const SHOTS = [
     plugin: "bb-plugin-missing-keyboard-shortcuts",
     outputs: THEME_FILES,
     async prepare({ page }) {
-      // A full navigation can render the thread before remounting the plugin's
-      // content script, and a shortcut sent then is lost. The plugin fetches
-      // this configuration during the same synchronous mount that installs its
-      // keydown listener. Listen before navigation so a fast response cannot
-      // escape the wait.
+      // A full navigation can render the thread before remounting the plugin,
+      // losing a shortcut sent in between. Its mount-time keybinding request
+      // begins before the listener is installed, so listen before navigation.
       await Promise.all([
         page.waitForResponse(
           (response) =>
