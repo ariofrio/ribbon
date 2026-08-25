@@ -1,6 +1,6 @@
 // Regenerates the picker's icon catalog from Hugeicons' published index,
-// keeping the categories that describe a project rather than UI chrome, one
-// icon per name variant, and only icons the free package actually exports.
+// keeping the project's 32 retained Hugeicons categories and every icon the
+// free package actually exports, including numbered variants.
 // The output is committed so builds and CI never touch the network.
 // Usage: npm run build:catalog  (npm run check:catalog reports drift without writing)
 import { readFileSync, writeFileSync } from "node:fs";
@@ -10,7 +10,8 @@ import * as freeIcons from "@hugeicons/core-free-icons";
 
 const INDEX_URL = "https://hugeicons.com/api/icons";
 
-// Hugeicons' own categories, minus the ones that are interface furniture.
+// The 32 Hugeicons categories this picker retains. Changing the allowlist is a
+// separate policy decision from refreshing or expanding the icons within it.
 const PROJECT_CATEGORIES = [
   "ai",
   "buildings",
@@ -55,20 +56,6 @@ function exportName(iconName) {
     .join("")}Icon`;
 }
 
-/** Hugeicons ships folder-01, folder-02…; keep the lowest-numbered variant. */
-function collapseVariants(icons) {
-  const best = new Map();
-  for (const icon of icons) {
-    const stem = icon.name.replace(/-\d+$/, "");
-    const variant = Number((/-(\d+)$/.exec(icon.name) ?? [, "0"])[1]);
-    const current = best.get(stem);
-    if (current === undefined || variant < current.variant) {
-      best.set(stem, { icon, variant });
-    }
-  }
-  return [...best.values()].map(({ icon }) => icon);
-}
-
 const response = await fetch(INDEX_URL);
 if (!response.ok) {
   throw new Error(`Icon index request failed (${response.status})`);
@@ -76,12 +63,11 @@ if (!response.ok) {
 const { icons } = await response.json();
 
 const categories = new Set(PROJECT_CATEGORIES);
-const catalog = collapseVariants(
-  icons.filter(
+const catalog = icons
+  .filter(
     (icon) =>
       categories.has(icon.category) && exportName(icon.name) in freeIcons,
-  ),
-)
+  )
   .map((icon) => ({
     name: icon.name,
     export: exportName(icon.name),
