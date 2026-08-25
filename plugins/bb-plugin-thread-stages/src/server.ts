@@ -291,20 +291,6 @@ export default function plugin(bb: BbPluginApi) {
   bb.storage.migrate(db, THREAD_WORKFLOW_MIGRATIONS);
   const store = createThreadWorkflowStore(db);
 
-  const inheritedSectionId = async (
-    sourceThreadId: string,
-  ): Promise<string | null> => {
-    const seen = new Set<string>();
-    let threadId: string | null = sourceThreadId;
-    while (threadId !== null && !seen.has(threadId)) {
-      seen.add(threadId);
-      const thread = await bb.sdk.threads.get({ threadId });
-      if (thread.sectionId !== null) return thread.sectionId;
-      threadId = thread.parentThreadId;
-    }
-    return null;
-  };
-
   function requireRootThread(
     threadId: string,
     threads: readonly WorkflowHierarchyThread[],
@@ -615,7 +601,10 @@ export default function plugin(bb: BbPluginApi) {
 
   bb.events.on("thread.created", async ({ thread }) => {
     if (thread.sourceThreadId === null || thread.sectionId !== null) return;
-    const sectionId = await inheritedSectionId(thread.sourceThreadId);
+    const sourceThread = await bb.sdk.threads.get({
+      threadId: thread.sourceThreadId,
+    });
+    const sectionId = sourceThread.sectionId;
     if (sectionId === thread.sectionId) return;
     await bb.sdk.threads.update({
       threadId: thread.id,

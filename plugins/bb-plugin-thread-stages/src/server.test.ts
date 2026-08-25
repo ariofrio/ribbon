@@ -185,16 +185,14 @@ describe("thread stages plugin API", () => {
     });
   });
 
-  it("uses the root section when a sourced thread points to a child", async () => {
+  it("does not inherit a section from the source thread's parent", async () => {
     const update = vi.fn(async () => ({}));
-    const get = vi.fn(async ({ threadId }: { threadId: string }) =>
-      threadId === "thr_child"
-        ? makeThreadResponse({
-            id: "thr_child",
-            parentThreadId: "thr_root",
-            sectionId: null,
-          })
-        : makeThreadResponse({ id: "thr_root", sectionId: "section_now" }),
+    const get = vi.fn(async () =>
+      makeThreadResponse({
+        id: "thr_source",
+        parentThreadId: "thr_parent",
+        sectionId: null,
+      }),
     );
     const host = createFakePluginHost({
       pluginId: "thread-stages",
@@ -207,15 +205,13 @@ describe("thread stages plugin API", () => {
       thread: makeThreadResponse({
         id: "thr_created",
         sectionId: null,
-        sourceThreadId: "thr_child",
+        sourceThreadId: "thr_source",
       }),
     });
 
-    expect(get).toHaveBeenCalledTimes(2);
-    expect(update).toHaveBeenCalledWith({
-      threadId: "thr_created",
-      sectionId: "section_now",
-    });
+    expect(get).toHaveBeenCalledOnce();
+    expect(get).toHaveBeenCalledWith({ threadId: "thr_source" });
+    expect(update).not.toHaveBeenCalled();
   });
 
   it("keeps a section explicitly selected when the thread was created", async () => {
