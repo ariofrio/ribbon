@@ -1,9 +1,6 @@
 import { createPortal } from "react-dom";
 import type { Decoration } from "./decorate";
 import { IconControl } from "./IconControl";
-import { IconGlyph } from "./IconGlyph";
-import { iconFor } from "./icons-client";
-import { PERSONAL_PROJECT_ID } from "./store";
 import type { IconsController } from "./use-icons";
 
 /**
@@ -19,12 +16,14 @@ const TRIGGER =
   "-m-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors duration-150 hover:duration-0 hover:bg-state-hover hover:text-foreground";
 
 /**
- * Draws the icon in every place this plugin stands in for one of bb's own.
+ * Puts the picker behind the icon, wherever a click there is free to open it.
  *
- * Most are read-only: they sit inside a control bb already gave a job — a menu
- * row that picks a project, a pill that opens one — so the icon shows the
- * project and leaves the clicking to bb. Where bb claimed nothing, the icon
- * opens the picker instead.
+ * Only those spots reach React at all. Most of what this plugin draws over sits
+ * inside a control bb already gave a job — a menu row that picks a project, a
+ * pill that opens one — and an icon there is only to be looked at, so `paint`
+ * gives it a marked box and the stylesheet fills it in. Where bb claimed
+ * nothing, the icon has to answer a click, and answering one is what still
+ * wants a component.
  */
 export function Decorations({
   decorations,
@@ -35,26 +34,21 @@ export function Decorations({
 }) {
   return (
     <>
-      {decorations.map(({ key, owner, target, glyphClassName, picker }) =>
-        createPortal(
-          picker ? (
+      {decorations
+        .filter(({ picker }) => picker)
+        .map(({ key, owner, target, glyphClassName }) =>
+          createPortal(
             <IconControl
               owner={owner}
               name={controller.projects.nameOf(owner.id) ?? "this project"}
               controller={controller}
               glyphClassName={glyphClassName}
               triggerClassName={TRIGGER}
-            />
-          ) : (
-            <IconGlyph
-              icon={iconFor(controller.state, owner, PERSONAL_PROJECT_ID)}
-              className={glyphClassName}
-            />
+            />,
+            target,
+            key,
           ),
-          target,
-          key,
-        ),
-      )}
+        )}
     </>
   );
 }

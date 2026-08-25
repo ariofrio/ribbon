@@ -112,7 +112,7 @@ own footprint so nothing shifts.
 
 Each of the three can be turned off on its own in the plugin's settings, and
 all three are on by default. Sidebars other plugins draw are their own; Thread
-stages reads these icons over this plugin's RPC.
+stages draws these icons on its rows through the contract below.
 
 ## How the icons get there
 
@@ -124,11 +124,16 @@ bb's header is not.
 
 bb offers a plugin one slot in the thread header and none anywhere else, so
 everything but that slot is drawn from a content script that watches the
-document and portals into it. `placements.ts` is the whole list of places, one
-entry each, and `decorate.ts` is the single piece of machinery behind them:
-finding, inserting, cleaning up, and keeping React from remounting an icon that
-did not move all live there, so a new place costs an entry rather than a
+document. `placements.ts` is the whole list of places, one entry each, and
+`decorate.ts` is the single piece of machinery behind them: finding, inserting,
+and cleaning up all live there, so a new place costs an entry rather than a
 module.
+
+What goes into a place found that way is a marked, empty span, and the
+stylesheet below paints it. Only where the icon has to answer a click does
+React come into it, portaled into the same span — so the surfaces that merely
+show an icon hold plain DOM, and bb's guard against foreign nodes in its own
+containers has nothing left to refuse there.
 
 Where bb already draws a folder, the plugin hides bb's and stands in its place,
 wearing the classes bb had chosen so it matches that surface's size and
@@ -150,6 +155,49 @@ when it is not.
 `placements.test.ts`, `header-dom.test.ts`, and `sidebar-dom.test.ts` pin every
 shape against markup captured from a running bb, so a bb that moves one fails
 locally rather than dropping an icon silently.
+
+## Drawing these icons in your own plugin
+
+While this plugin is installed it publishes one stylesheet holding every icon
+anyone has chosen. Name an owner on a box you draw yourself and the glyph
+arrives through the cascade — nothing to fetch, nothing to subscribe to, and no
+work per row, so a list of any length costs what one row costs.
+
+Mark the box with the owner it stands for:
+
+```html
+<span data-ribbon-icons-project="proj_a19f"></span>
+<span data-ribbon-icons-section="sec_04b2"></span>
+```
+
+and paint it from the properties this plugin sets on that same element:
+
+```css
+.your-row-icon {
+  display: inline-block;
+  inline-size: 1rem;
+  block-size: 1rem;
+  background-color: var(--ribbon-icons-project-color, currentColor);
+  mask: var(--ribbon-icons-project-glyph, var(--your-own-fallback))
+    center / contain no-repeat;
+}
+```
+
+The box, its size, and its fallback are yours. Nothing chains one kind to
+another here: each kind carries its own pair of properties, so the `var()`
+chain you write is the whole of the precedence, and a chain you want tomorrow —
+a thread's own icon before its project's — needs nothing from this plugin.
+
+A color is set only where someone picked one, which is what leaves an unpicked
+icon inheriting the color of the label beside it.
+
+`document.documentElement` carries `data-ribbon-icons-ready` once the
+stylesheet is in. Key off it for anything that should not exist without this
+plugin — Thread stages collapses its row icons that way, so a sidebar without
+this plugin lays out as it did before there were icons.
+
+These names are additive: a kind or a property may be added, and none will
+change meaning.
 
 ## Development
 

@@ -1,6 +1,7 @@
 import { afterPluginFrame } from "./after-plugin-frame";
+import { GLYPH_ATTRIBUTE } from "./icon-css";
 import type { ProjectLookup } from "./project-lookup";
-import type { IconOwner, PlacementSetting } from "./store";
+import { ICON_OWNER_KINDS, type IconOwner, type PlacementSetting } from "./store";
 
 /** Stamped by `bb plugin build`; undefined in tests and registry copies. */
 declare const __BB_PLUGIN_ID__: string | undefined;
@@ -103,6 +104,8 @@ interface Mounted {
   glyphClassName: string | undefined;
   /** bb's own glyph, and the inline display it had before it was hidden. */
   hidden: { node: HTMLElement; display: string } | null;
+  /** The painted box, where the icon is only to be looked at. */
+  glyph: HTMLElement | null;
 }
 
 function anchorOf(spot: Spot): HTMLElement {
@@ -140,6 +143,41 @@ function alignLike(target: HTMLElement, replaced: HTMLElement): void {
   if (alignSelf !== undefined && alignSelf !== "" && alignSelf !== "auto") {
     target.style.alignSelf = alignSelf;
   }
+}
+
+/**
+ * Draws the icon, where a click there means nothing.
+ *
+ * A box naming its owner is the whole of it: the stylesheet this plugin
+ * publishes carries the glyph and the color, so nothing here fetches, renders,
+ * or re-renders, and bb's own chrome is left holding a plain span rather than
+ * a node React owns. Only the picker still needs React, because only there
+ * does the icon have to answer a click.
+ */
+function paint(entry: Mounted, spot: Spot): void {
+  if (spot.picker === true) {
+    entry.glyph?.remove();
+    entry.glyph = null;
+    return;
+  }
+  if (entry.glyph === null) {
+    const box = entry.target.ownerDocument.createElement("span");
+    box.setAttribute(GLYPH_ATTRIBUTE, "");
+    box.setAttribute("aria-hidden", "true");
+    // bb sizes its folder differently from one surface to the next and mutes
+    // it on some; wearing what bb chose is what matches each of them without
+    // a placement having to say so.
+    if (entry.glyphClassName !== undefined) box.className = entry.glyphClassName;
+    entry.target.append(box);
+    entry.glyph = box;
+  }
+  // A row bb re-rendered for another owner keeps its box and changes hands.
+  for (const kind of ICON_OWNER_KINDS) {
+    if (kind !== spot.owner.kind) {
+      entry.glyph.removeAttribute(`data-ribbon-icons-${kind}`);
+    }
+  }
+  entry.glyph.setAttribute(`data-ribbon-icons-${spot.owner.kind}`, spot.owner.id);
 }
 
 function hide(node: HTMLElement): { node: HTMLElement; display: string } {
@@ -226,6 +264,7 @@ export function observeDecorations({
             key: `${placement.id}:${(nextKey += 1)}`,
             glyphClassName: spot.replaces?.getAttribute("class") ?? undefined,
             hidden: spot.replaces === undefined ? null : hide(spot.replaces),
+            glyph: null,
           };
           mounted.set(anchor, entry);
           if (spot.replaces === undefined) {
@@ -238,6 +277,7 @@ export function observeDecorations({
           // standing in for it.
           hide(entry.hidden.node);
         }
+        paint(entry, spot);
         decorations.push({
           key: entry.key,
           owner: spot.owner,
