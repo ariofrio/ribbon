@@ -483,6 +483,7 @@ export async function capture({ stack, fixture, shots, shotFiles }) {
   const captured = [];
   try {
     for (const shot of shots) {
+      const shotStartedAt = performance.now();
       // Nothing is written while a shot is being taken. Every capture is an
       // ingredient: a split shot pairs each mode's with the other's, and all of
       // them are framed before they land.
@@ -492,6 +493,7 @@ export async function capture({ stack, fixture, shots, shotFiles }) {
       // better in a smaller one.
       const windowSize = shot.viewport ?? VIEWPORT;
       const frames = { fullWindow: {}, card: {} };
+      const renderStartedAt = performance.now();
       for (const theme of shot.themes ?? THEMES) {
         const takeCard = async ({ page, focusBoxes }, viewport) => {
           const clip = cropRectangle({
@@ -552,6 +554,8 @@ export async function capture({ stack, fixture, shots, shotFiles }) {
           take: (frame) => takeCard(frame, shot.card.viewport),
         });
       }
+      const renderSeconds = (performance.now() - renderStartedAt) / 1000;
+      const composeStartedAt = performance.now();
       for (const theme of shot.themes ?? THEMES) {
         const other = OTHER_THEME[theme];
         for (const [name, frame, taken, size] of [
@@ -587,9 +591,15 @@ export async function capture({ stack, fixture, shots, shotFiles }) {
           });
         }
       }
+      const composeSeconds = (performance.now() - composeStartedAt) / 1000;
       await shot.teardown?.({ fixture, stack });
       captured.push(shot);
-      console.log(`  ${shot.id}`);
+      console.log(
+        `  ${shot.id} [timing: ${(
+          (performance.now() - shotStartedAt) /
+          1000
+        ).toFixed(1)}s; render ${renderSeconds.toFixed(1)}s; compose ${composeSeconds.toFixed(1)}s]`,
+      );
     }
   } finally {
     await browser.close();
