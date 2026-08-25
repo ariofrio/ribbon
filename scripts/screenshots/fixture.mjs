@@ -12,12 +12,12 @@ import { join } from "node:path";
  * the same project.
  */
 export const PROJECTS = [
-  { name: "Atlas Web", icon: "browser", color: "blue" },
-  { name: "Atlas API", icon: "api", color: "teal" },
+  { name: "atlas-web", icon: "web-programming", color: "blue" },
+  { name: "atlas-api", icon: "server-stack-01", color: "teal" },
 ];
 
 /** The section both repositories' threads are filed under. */
-export const SECTION = { name: "Atlas", icon: "compass", color: "purple" };
+export const SECTION = { name: "Atlas", icon: "globe", color: "purple" };
 
 /** bb's own project for threads that belong to no repository. */
 export const PERSONAL_PROJECT_ID = "proj_personal";
@@ -27,7 +27,7 @@ export const PERSONAL_PROJECT_ID = "proj_personal";
 // stage while keeping the collapsed ones worth collapsing.
 export const THREADS = [
   {
-    project: "Atlas Web",
+    project: "atlas-web",
     title: "Polish analytics dashboard",
     // The thread the shots open, in the stage a thread sits in most of the
     // time: bb returns a thread to Idle the moment its turn ends.
@@ -38,7 +38,7 @@ export const THREADS = [
       "Dashboard polish is in place.\n\n- Refined metric formatting and loading states\n- Added keyboard-focus coverage\n- Verified all 18 dashboard tests pass",
   },
   {
-    project: "Atlas API",
+    project: "atlas-api",
     title: "Investigate webhook retries",
     // Its turn never ends, which is how the fixture keeps one thread running
     // and one stage occupied by a thread bb placed there itself.
@@ -60,49 +60,49 @@ export const THREADS = [
       "For this size, the shared tiers on Neon and Supabase both cover it, and Neon's branching is the one that pays off during migrations.",
   },
   {
-    project: "Atlas Web",
+    project: "atlas-web",
     title: "Replace the legacy filter drawer",
     stage: "Deferred",
     prompt: "Replace the legacy filter drawer with the new panel.",
     reply: "Sketched the swap; it waits on the panel's focus behaviour landing first.",
   },
   {
-    project: "Atlas API",
+    project: "atlas-api",
     title: "Migrate export jobs to the new queue",
     stage: "Deferred",
     prompt: "Migrate the export jobs to the new queue.",
     reply: "Mapped the job payloads; the cutover needs a maintenance window.",
   },
   {
-    project: "Atlas Web",
+    project: "atlas-web",
     title: "Add keyboard navigation to filters",
     stage: "Completed",
     prompt: "Add keyboard navigation to the filter controls.",
     reply: "Arrow keys move between filters and Escape closes the open one.",
   },
   {
-    project: "Atlas Web",
+    project: "atlas-web",
     title: "Fix chart legends on locale switch",
     stage: "Completed",
     prompt: "Fix the chart legends when the locale changes.",
     reply: "Legends re-render on locale change, and the number formats follow it.",
   },
   {
-    project: "Atlas Web",
+    project: "atlas-web",
     title: "Ship the empty-state illustration",
     stage: "Completed",
     prompt: "Ship the empty-state illustration for reports.",
     reply: "The empty report view now carries the illustration and a single call to action.",
   },
   {
-    project: "Atlas API",
+    project: "atlas-api",
     title: "Make webhook delivery idempotent",
     stage: "Completed",
     prompt: "Make webhook delivery idempotent per event id.",
     reply: "Deliveries are now idempotent per event id, and replays are safe.",
   },
   {
-    project: "Atlas API",
+    project: "atlas-api",
     title: "Retire the v1 pricing endpoint",
     stage: "Completed",
     prompt: "Retire the v1 pricing endpoint.",
