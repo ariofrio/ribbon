@@ -9,10 +9,13 @@
   ],
   "scripts": {
     "build:heading-icons": "node scripts/heading-icons.mjs",
+    "build:ui": "node scripts/vendor-ui.mjs",
     "changeset": "changeset",
     "check:heading-icons": "node scripts/heading-icons.mjs --check",
-    "check:screenshots": "node scripts/screenshots/run.mjs --check",
+    "check:layout": "node scripts/plugin-layout.mjs",
+    "check:ui": "node scripts/vendor-ui.mjs --check",
     "install:plugins": "node scripts/install-plugins.mjs",
+    "prepare": "git config --local core.hooksPath .githooks || true",
     "screenshots": "node scripts/require-node.mjs && node scripts/screenshots/run.mjs",
     "test": "node --test scripts/*.test.mjs scripts/screenshots/*.test.mjs",
     "version:plugins": "changeset version && node scripts/sync-plugin-lockfiles.mjs"

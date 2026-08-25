@@ -1,0 +1,10 @@
+{
+  "name": "ribbon-screenshots",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The bb these screenshots are taken against, pinned beside the harness that takes them.",
+  "license": "MIT",
+  "dependencies": {
+    "bb-app": "0.39.0"
+  }
+}

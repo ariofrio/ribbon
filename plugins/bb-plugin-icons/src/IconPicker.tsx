@@ -27,15 +27,14 @@ import {
   visibleRows,
   type RowRange,
 } from "./virtual-rows";
-import { Icon } from "@/components/ui/icon";
-import { Input } from "@/components/ui/input";
-import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
+import { Icon } from "@/vendor/components/ui/icon";
+import { Input } from "@/vendor/components/ui/input";
+import { useIsCompactViewport } from "@/vendor/components/ui/hooks/use-compact-viewport";
 import {
   Popover,
   PopoverContent,
-  PopoverTitle,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from "@/vendor/components/ui/popover";
 
 export interface CatalogIcon extends Omit<CatalogEntry, "export"> {
   glyph: IconSvgElement;
@@ -241,8 +240,8 @@ export function IconPicker({
         align="start"
         sideOffset={8}
         collisionPadding={8}
-        aria-labelledby={titleId}
-        mobileTitle={null}
+        aria-labelledby={isCompactViewport ? undefined : titleId}
+        mobileTitle={`Icon for ${ownerName}`}
         style={isCompactViewport ? undefined : { width: 386 }}
       >
         {/*
@@ -253,9 +252,11 @@ export function IconPicker({
           below, so a measured value only ever shrinks it.
         */}
         <div className="flex h-[calc(var(--radix-popover-content-available-height,32rem)-2rem)] max-h-[32rem] flex-col gap-3 pr-1 max-md:h-[calc(85dvh-3rem)] max-md:max-h-none">
-          <PopoverTitle id={titleId} className="sr-only">
-            Icon for {ownerName}
-          </PopoverTitle>
+          {isCompactViewport ? null : (
+            <h2 id={titleId} className="sr-only">
+              Icon for {ownerName}
+            </h2>
+          )}
 
           <div className="flex items-center gap-2 py-1">
             <div
