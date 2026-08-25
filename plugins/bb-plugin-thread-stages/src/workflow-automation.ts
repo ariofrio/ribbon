@@ -48,6 +48,21 @@ export function registerThreadWorkflow(
     }
   };
 
+  const hasRunningBackgroundCommand = async (
+    threadId: string,
+  ): Promise<boolean | null> => {
+    try {
+      const timeline = await bb.sdk.threads.timeline({ threadId });
+      return timeline.activeBackgroundCommands.length > 0;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      bb.log.warn(
+        `Could not read background commands for ${threadId}: ${message}`,
+      );
+      return null;
+    }
+  };
+
   const observe = async (thread: WorkflowThread) => {
     if (thread.parentThreadId) {
       if (store.removeRootThread(thread.id)) {
@@ -55,8 +70,16 @@ export function registerThreadWorkflow(
       }
       return;
     }
+    const lifecycleIsActive = isActiveThreadLifecycle(thread.status);
+    const [isWaiting, hasBackgroundCommand] = await Promise.all([
+      lifecycleIsActive ? isWaitingOnUser(thread.id) : false,
+      hasRunningBackgroundCommand(thread.id),
+    ]);
+    if (hasBackgroundCommand === null && (!lifecycleIsActive || isWaiting)) {
+      return;
+    }
     const isActive =
-      isActiveThreadLifecycle(thread.status) && !(await isWaitingOnUser(thread.id));
+      hasBackgroundCommand === true || (lifecycleIsActive && !isWaiting);
     const result = store.observeActiveState(thread.id, isActive);
     if (result.workflowStageChanged) {
       bb.realtime.publish("state-changed", { threadId: thread.id });
@@ -95,7 +118,8 @@ export function registerThreadWorkflow(
           if (
             event.id &&
             (event.changes.includes("status-changed") ||
-              event.changes.includes("interactions-changed"))
+              event.changes.includes("interactions-changed") ||
+              event.metadata?.backgroundActivityChanged === true)
           ) {
             enqueue(event.id);
           }
