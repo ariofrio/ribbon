@@ -231,7 +231,22 @@ export const SHOTS = [
     plugin: "bb-plugin-missing-keyboard-shortcuts",
     outputs: THEME_FILES,
     async prepare({ page }) {
-      await openFeaturedThread(page);
+      // A full navigation can render the thread before remounting the plugin's
+      // content script, and a shortcut sent then is lost. The plugin fetches
+      // this configuration during the same synchronous mount that installs its
+      // keydown listener. Listen before navigation so a fast response cannot
+      // escape the wait.
+      await Promise.all([
+        page.waitForResponse(
+          (response) =>
+            response.request().method() === "POST" &&
+            new URL(response.url()).pathname ===
+              "/api/v1/plugins/missing-keyboard-shortcuts/rpc/listAppKeybindings" &&
+            response.ok(),
+          { timeout: 120000 },
+        ),
+        openFeaturedThread(page),
+      ]);
       // ⇧⌘L opens a side chat and puts the cursor in its composer, so the
       // question can be typed without clicking anything.
       await page.keyboard.press("Shift+Meta+KeyL");
