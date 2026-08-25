@@ -1,4 +1,8 @@
-import { BubbleChatIcon, Folder01Icon } from "@hugeicons/core-free-icons";
+import {
+  BubbleChatIcon,
+  Folder01Icon,
+  ListViewIcon,
+} from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
 
 /**
@@ -31,8 +35,23 @@ export const ICON_ATTRIBUTE = "data-thread-stages-icon";
  */
 export const ICON_OPTIONAL_ATTRIBUTE = "data-thread-stages-icon-optional";
 
-/** Which glyph a box falls back to when nobody has chosen one. */
-export type IconFallback = "project" | "personal";
+/**
+ * Whose icon a box wants, and the glyph it keeps until somebody picks one.
+ *
+ * The fallback is this plugin's own, not the Icons plugin's: the contract
+ * leaves it to the consumer, and this filter has drawn these three since
+ * before there were icons to override them.
+ */
+export type IconFallback = "project" | "personal" | "section";
+
+const FALLBACKS: Record<
+  IconFallback,
+  { kind: "project" | "section"; glyph: IconSvgElement }
+> = {
+  project: { kind: "project", glyph: Folder01Icon },
+  personal: { kind: "project", glyph: BubbleChatIcon },
+  section: { kind: "section", glyph: ListViewIcon },
+};
 
 /**
  * A glyph as a CSS mask.
@@ -63,22 +82,25 @@ function attributes(attrs: Readonly<Record<string, string | number>>): string {
 }
 
 export function iconStyles(): string {
-  return [
-    `[${ICON_ATTRIBUTE}]{`,
-    "display:inline-block;flex:none;inline-size:1rem;block-size:1rem;",
-    // No color of its own unless someone picked one, so the icon reads as part
-    // of the title beside it rather than a dimmer thing near it.
-    "background-color:var(--ribbon-icons-project-color,currentColor);",
-    "-webkit-mask:var(--ribbon-icons-project-glyph,var(--thread-stages-icon-fallback)) center/contain no-repeat;",
-    "mask:var(--ribbon-icons-project-glyph,var(--thread-stages-icon-fallback)) center/contain no-repeat}",
-    "\n",
-    `[${ICON_ATTRIBUTE}="project"]{--thread-stages-icon-fallback:${glyphDataUrl(Folder01Icon)}}`,
-    "\n",
-    `[${ICON_ATTRIBUTE}="personal"]{--thread-stages-icon-fallback:${glyphDataUrl(BubbleChatIcon)}}`,
-    "\n",
+  const rules = [`[${ICON_ATTRIBUTE}]{${BOX}}`];
+  for (const [fallback, { kind, glyph }] of Object.entries(FALLBACKS)) {
+    const chosen = `var(--ribbon-icons-${kind}-glyph,${glyphDataUrl(glyph)})`;
+    rules.push(
+      `[${ICON_ATTRIBUTE}="${fallback}"]{` +
+        // No color of its own unless someone picked one, so the icon reads as
+        // part of the label beside it rather than a dimmer thing near it.
+        `background-color:var(--ribbon-icons-${kind}-color,currentColor);` +
+        `-webkit-mask:${chosen} center/contain no-repeat;` +
+        `mask:${chosen} center/contain no-repeat}`,
+    );
+  }
+  rules.push(
     `:root:not([${READY_ATTRIBUTE}]) [${ICON_OPTIONAL_ATTRIBUTE}]{display:none}`,
-  ].join("");
+  );
+  return rules.join("\n");
 }
+
+const BOX = "display:inline-block;flex:none;inline-size:1rem;block-size:1rem";
 
 /**
  * Puts the stylesheet in the document, and takes it back out.

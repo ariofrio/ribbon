@@ -205,6 +205,40 @@ describe("ThreadFilter", () => {
     ).toBeDefined();
   });
 
+  it("lists a section in the menu under its own icon", () => {
+    render(
+      <ThreadFilter
+        projects={projects}
+        sections={sections}
+        value={null}
+        onChange={() => {}}
+        onNewProject={() => {}}
+        onNewSection={() => {}}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", {
+      name: "Sections and projects",
+    });
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const sectionsGroup = within(screen.getByRole("menu")).getByRole("group", {
+      name: "Sections",
+    });
+
+    // The section names itself, the way a project row does, so the Icons
+    // plugin can paint whatever was chosen for it.
+    expect(
+      sectionsGroup.querySelector('[data-ribbon-icons-section="section_waiting"]'),
+    ).not.toBeNull();
+    expect(
+      sectionsGroup.querySelector('[data-thread-stages-icon="section"]'),
+    ).not.toBeNull();
+    // Unorganized is not a section and keeps the generic glyph.
+    expect(
+      sectionsGroup.querySelector('[data-icon="ListViewOff"]'),
+    ).not.toBeNull();
+  });
+
   it("shows the selected section or project icon in the trigger", () => {
     const sharedProps = {
       projects,
@@ -254,7 +288,14 @@ describe("ThreadFilter", () => {
     trigger = screen.getByRole("button", {
       name: "Sections and projects: Waiting",
     });
-    expect(trigger.querySelector('[data-icon="ListView"]')).not.toBeNull();
+    // A section carries an icon the same way a project does, so the filter
+    // names the section it is on rather than sections in general.
+    expect(
+      trigger.querySelector('[data-ribbon-icons-section="section_waiting"]'),
+    ).not.toBeNull();
+    expect(
+      trigger.querySelector('[data-thread-stages-icon="section"]'),
+    ).not.toBeNull();
 
     rerender(
       <ThreadFilter {...sharedProps} value={{ kind: "uncategorized" }} />,

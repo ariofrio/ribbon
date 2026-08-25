@@ -12,6 +12,7 @@ import {
   glyphDataUrl,
   iconStyles,
   publishIconStyles,
+  type IconFallback,
 } from "./icon-styles";
 
 describe("glyphDataUrl", () => {
@@ -51,29 +52,36 @@ describe("glyphDataUrl", () => {
 });
 
 describe("iconStyles", () => {
-  it("prefers the plugin's icon over the fallback, per box", () => {
-    const sheet = iconStyles();
+  const ruleFor = (fallback: IconFallback) => {
+    const match = new RegExp(
+      `\\[data-thread-stages-icon="${fallback}"\\]\\{(.+?)\\}`,
+      "u",
+    ).exec(iconStyles());
+    return match?.[1];
+  };
 
-    expect(sheet).toContain(
-      "var(--ribbon-icons-project-glyph,var(--thread-stages-icon-fallback))",
+  it("prefers what somebody picked, and falls back to this filter's own glyph", () => {
+    expect(ruleFor("project")).toContain(
+      "mask:var(--ribbon-icons-project-glyph,url(",
     );
-    expect(sheet).toContain(
+    expect(ruleFor("project")).toContain(
       "background-color:var(--ribbon-icons-project-color,currentColor)",
     );
   });
 
-  it("gives the personal project its own fallback", () => {
-    const sheet = iconStyles();
-    const project = sheet.match(
-      /\[data-thread-stages-icon="project"\]\{--thread-stages-icon-fallback:(.+?)\}/u,
-    );
-    const personal = sheet.match(
-      /\[data-thread-stages-icon="personal"\]\{--thread-stages-icon-fallback:(.+?)\}/u,
+  it("reads a section's own properties, never a project's", () => {
+    // Each kind carries its own pair, so nothing here chains across kinds.
+    expect(ruleFor("section")).toContain("var(--ribbon-icons-section-glyph,");
+    expect(ruleFor("section")).not.toContain("--ribbon-icons-project");
+  });
+
+  it("gives the personal project and a section their own fallbacks", () => {
+    const drawings = new Set(
+      (["project", "personal", "section"] as const).map(ruleFor),
     );
 
-    expect(project?.[1]).toBeDefined();
-    expect(personal?.[1]).toBeDefined();
-    expect(project?.[1]).not.toBe(personal?.[1]);
+    expect(drawings.size).toBe(3);
+    expect([...drawings].every((rule) => rule?.includes("url("))).toBe(true);
   });
 
   it("collapses only the boxes that exist for the plugin's sake", () => {

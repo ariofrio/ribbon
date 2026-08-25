@@ -11,6 +11,7 @@ import {
   type ThreadFilter as ThreadFilterValue,
 } from "../thread-filter";
 import { cn } from "@/vendor/lib/utils";
+import type { IconFallback } from "../icon-styles";
 import { Icon } from "./Icon";
 import { ThreadFilterOptionsMenu } from "./SidebarOptionsMenu";
 import { CompactViewportOverrideProvider } from "@/vendor/components/ui/hooks/use-compact-viewport";
@@ -166,12 +167,12 @@ export function ThreadFilter({
             className="thread-filter-trigger flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[state=open]:bg-state-active data-[state=open]:text-sidebar-foreground max-md:pointer-coarse:h-9 dark:text-sidebar-foreground"
           >
             {activeProject ? (
-              <ProjectFilterIcon
-                projectId={activeProject.id}
-                personal={activeProject.isPersonal}
+              <FilterOwnerIcon
+                id={activeProject.id}
+                fallback={activeProject.isPersonal ? "personal" : "project"}
               />
             ) : activeSection ? (
-              <Icon name="ListView" className="size-4 shrink-0" aria-hidden />
+              <FilterOwnerIcon id={activeSection.id} fallback="section" />
             ) : activeUncategorized ? (
               <Icon
                 name="ListViewOff"
@@ -187,7 +188,13 @@ export function ThreadFilter({
             )}
             <span
               data-thread-filter-label-cluster=""
-              className="flex min-w-0 items-center gap-1"
+              // 10px, which is what a stage header leaves between its own
+              // label and its chevron: 4px of gap plus the 6px of slack a
+              // 12px glyph has inside its 24px button. This indicator is the
+              // same shape of thing one column over — a small glyph trailing
+              // a name — and its own box has no slack, so the gap carries it
+              // all.
+              className="flex min-w-0 items-center gap-2.5"
             >
               <span data-thread-filter-label="" className="truncate">
                 {activeLabel ?? scopeLabel}
@@ -250,11 +257,7 @@ export function ThreadFilter({
                     setOpen(false);
                   }}
                 >
-                  <Icon
-                    name="ListView"
-                    className="size-4 shrink-0"
-                    aria-hidden
-                  />
+                  <FilterOwnerIcon id={section.id} fallback="section" />
                   <SectionActions
                     onRemove={() => onRemoveSection(section)}
                     onRename={() => onRenameSection(section)}
@@ -304,7 +307,7 @@ export function ThreadFilter({
                     setOpen(false);
                   }}
                 >
-                  <ProjectFilterIcon projectId={project.id} />
+                  <FilterOwnerIcon id={project.id} fallback="project" />
                   <ProjectActions
                     canAddLocalPath={
                       projectActionStates.get(project.id)?.canAddLocalPath ??
@@ -323,7 +326,7 @@ export function ThreadFilter({
                   selectedValue={selectedValue}
                   value={`project:${personalProject.id}`}
                 >
-                  <ProjectFilterIcon projectId={personalProject.id} personal />
+                  <FilterOwnerIcon id={personalProject.id} fallback="personal" />
                 </ThreadFilterItem>
               ) : null}
             </DropdownMenuRadioGroup>
@@ -596,26 +599,24 @@ function FilterActionItem({
 }
 
 /**
- * A project's icon, drawn by naming the project rather than by fetching it.
+ * An owner's icon, drawn by naming the owner rather than by fetching it.
  *
  * The Icons plugin paints whatever was chosen through the cascade; with that
- * plugin absent, or with nothing chosen, the box keeps the folder this filter
- * has always shown. See icon-styles.ts.
+ * plugin absent, or with nothing chosen for this owner, the box keeps the
+ * glyph this filter has always shown. See icon-styles.ts.
  */
-function ProjectFilterIcon({
-  projectId,
-  personal = false,
+function FilterOwnerIcon({
+  id,
+  fallback,
 }: {
-  projectId: string;
-  personal?: boolean;
+  id: string;
+  fallback: IconFallback;
 }) {
-  return (
-    <span
-      aria-hidden
-      data-ribbon-icons-project={projectId}
-      data-thread-stages-icon={personal ? "personal" : "project"}
-    />
-  );
+  const named =
+    fallback === "section"
+      ? { "data-ribbon-icons-section": id }
+      : { "data-ribbon-icons-project": id };
+  return <span aria-hidden data-thread-stages-icon={fallback} {...named} />;
 }
 
 function ThreadFilterAction({
