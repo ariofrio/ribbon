@@ -110,6 +110,11 @@ function headerIcon(page) {
   return page.locator('header [aria-label="Icon for Storefront"]');
 }
 
+/** The collection is presented in ChatGPT's palette, including every plugin shot. */
+export function setupScreenshots({ fixture }) {
+  fixture.run(["theme", "set", "plugin:chatgpt-theme:chatgpt"]);
+}
+
 export const SHOTS = [
   {
     // The collection, not a plugin: one window with four of the five at work —
@@ -249,14 +254,6 @@ export const SHOTS = [
     // choose between: each of its files shows both palettes, meeting along the
     // diagonal, with the mode it is named for in the top-left corner.
     split: true,
-    // The palette is server state, so it is switched on for this shot only and
-    // switched back after it, leaving every other shot on bb's own default.
-    setup({ fixture }) {
-      fixture.run(["theme", "set", "plugin:chatgpt-theme:chatgpt"]);
-    },
-    teardown({ fixture }) {
-      fixture.run(["theme", "reset"]);
-    },
     async prepare({ page }) {
       await openFeaturedThread(page);
     },
