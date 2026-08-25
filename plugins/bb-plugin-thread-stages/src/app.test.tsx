@@ -205,4 +205,34 @@ describe("thread stages app registration", () => {
     expect(await slot.findByText("Deferred")).toBeTruthy();
     slot.lifecycle.unmount();
   });
+
+  it("falls back to bb's original list after ownership transfers", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(
+      app.threadLists[0]!,
+      {
+        ...threadListProps,
+        experimental_Original: () => <div>Original thread list</div>,
+      },
+      {
+        ...threadListOptions(true),
+        rpc: {
+          ...threadListOptions(true).rpc,
+          listState: () => {
+            throw new Error(
+              "Thread stages placement ownership has transferred to Ribbon sidebar.",
+            );
+          },
+        },
+      },
+    );
+
+    expect(await slot.findByText("Original thread list")).toBeTruthy();
+    expect(
+      slot.getByText(
+        "Ribbon sidebar now owns stage placement. The original thread list is available below while Ribbon recovers.",
+      ),
+    ).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
 });

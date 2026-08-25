@@ -1,4 +1,5 @@
 import type BetterSqlite3 from "better-sqlite3";
+import type { PlacementMigrationSnapshotV1 } from "./contracts";
 import { createOrderKeyAfter, createOrderKeyBetween } from "./order-keys";
 import {
   DEFAULT_WORKFLOW_STAGE,
@@ -196,6 +197,36 @@ export const THREAD_WORKFLOW_MIGRATIONS = [
     INSERT OR IGNORE INTO thread_stage_entry(thread_id, entered_at)
       SELECT thread_id, updated_at FROM thread_organization;
   `,
+  `
+    CREATE TABLE IF NOT EXISTS thread_stage_migration_meta (
+      singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+      source_schema INTEGER NOT NULL CHECK (source_schema = 1),
+      installation_id TEXT NOT NULL CHECK (length(installation_id) = 32),
+      revision INTEGER NOT NULL CHECK (revision >= 0),
+      placement_owner TEXT NOT NULL CHECK (placement_owner IN ('thread-stages', 'ribbon-sidebar')),
+      forwarding_reconciliation_needed INTEGER NOT NULL DEFAULT 0
+        CHECK (forwarding_reconciliation_needed IN (0, 1))
+    );
+    INSERT OR IGNORE INTO thread_stage_migration_meta(
+      singleton, source_schema, installation_id, revision, placement_owner
+    ) VALUES (1, 1, lower(hex(randomblob(16))), 0, 'thread-stages');
+
+    CREATE TABLE IF NOT EXISTS thread_stage_order (
+      thread_id TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('Deferred', 'Idle', 'Active', 'Blocked', 'Completed')),
+      sort_key TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (thread_id, status)
+    );
+    INSERT OR IGNORE INTO thread_stage_order(thread_id, status, sort_key, updated_at)
+      SELECT thread_id, status, sort_key, updated_at
+      FROM thread_organization
+      WHERE sort_key IS NOT NULL;
+    INSERT OR IGNORE INTO thread_stage_order(thread_id, status, sort_key, updated_at)
+      SELECT thread_id, previous_status, previous_sort_key, updated_at
+      FROM thread_organization
+      WHERE previous_status IS NOT NULL AND previous_sort_key IS NOT NULL;
+  `,
 ];
 
 interface AssignmentRow {
@@ -205,8 +236,40 @@ interface AssignmentRow {
   updated_at: number;
 }
 
+interface MigrationMetaRow {
+  source_schema: 1;
+  installation_id: string;
+  revision: number;
+  placement_owner: PlacementOwnership;
+  forwarding_reconciliation_needed: 0 | 1;
+}
+
+interface MigrationPlacementRow extends AssignmentRow {
+  entered_at: number;
+  moved_by: MoveSource | null;
+  previous_status: string | null;
+}
+
+interface RetainedOrderRow {
+  thread_id: string;
+  status: string;
+  sort_key: string;
+  updated_at: number;
+}
+
 /** Where a stage change came from. Only `app` moves are undoable. */
 export type MoveSource = "app" | "cli" | "auto";
+
+export class PlacementOwnershipTransferredError extends Error {
+  constructor() {
+    super(
+      "Thread stages placement ownership has transferred to Ribbon sidebar.",
+    );
+    this.name = "PlacementOwnershipTransferredError";
+  }
+}
+
+export type PlacementOwnership = "thread-stages" | "ribbon-sidebar";
 
 /** Stages a thread only reaches by being filed, never by automation. */
 const FILED_STAGES: readonly WorkflowStage[] = [
@@ -247,6 +310,11 @@ export interface ActiveStateObservation {
   workflowStageChanged: boolean;
 }
 
+export interface ForwardedActiveStateObservation {
+  enteredWorking: boolean;
+  leftWorking: boolean;
+}
+
 export interface ThreadPreview {
   threadId: string;
   preview: string | null;
@@ -279,9 +347,22 @@ export interface ThreadWorkflowStore {
     threadId: string,
     isWorking: boolean,
   ): ActiveStateObservation;
+  observeForwardedActiveState(
+    threadId: string,
+    isWorking: boolean,
+  ): ForwardedActiveStateObservation;
   setPreview(threadId: string, preview: string | null): boolean;
   reorderThread(input: ReorderThreadInput): WorkflowStageState;
   delete(threadId: string): boolean;
+  getPlacementMigrationSnapshot(): PlacementMigrationSnapshotV1;
+  acknowledgePlacementMigration(input: {
+    installationId: string;
+    revision: number;
+  }): { transferred: boolean };
+  placementOwnership(): PlacementOwnership;
+  markForwardingReconciliationNeeded(): void;
+  forwardingReconciliationNeeded(): boolean;
+  clearForwardingReconciliationNeeded(): void;
 }
 
 function assignmentFromRow(row: AssignmentRow): ThreadAssignment {
@@ -404,6 +485,95 @@ export function createThreadWorkflowStore(db: Database): ThreadWorkflowStore {
   const deletePreview = db.prepare(
     "DELETE FROM thread_task_preview WHERE thread_id = ?",
   );
+  const getMigrationMeta = db.prepare(`
+    SELECT source_schema, installation_id, revision, placement_owner,
+      forwarding_reconciliation_needed
+    FROM thread_stage_migration_meta
+    WHERE singleton = 1
+  `);
+  const incrementMigrationRevision = db.prepare(`
+    UPDATE thread_stage_migration_meta
+    SET revision = revision + 1
+    WHERE singleton = 1
+  `);
+  const transferPlacementOwnership = db.prepare(`
+    UPDATE thread_stage_migration_meta
+    SET placement_owner = 'ribbon-sidebar'
+    WHERE singleton = 1
+      AND placement_owner = 'thread-stages'
+      AND installation_id = ?
+      AND revision = ?
+  `);
+  const markForwardingReconciliation = db.prepare(`
+    UPDATE thread_stage_migration_meta
+    SET forwarding_reconciliation_needed = 1
+    WHERE singleton = 1
+  `);
+  const clearForwardingReconciliation = db.prepare(`
+    UPDATE thread_stage_migration_meta
+    SET forwarding_reconciliation_needed = 0
+    WHERE singleton = 1
+  `);
+  const listMigrationPlacementRows = db.prepare(`
+    SELECT organization.thread_id, organization.status, organization.sort_key,
+      organization.updated_at, organization.moved_by,
+      organization.previous_status, entry.entered_at
+    FROM thread_organization AS organization
+    JOIN thread_stage_entry AS entry ON entry.thread_id = organization.thread_id
+    WHERE organization.sort_key IS NOT NULL
+    ORDER BY
+      CASE organization.status
+        WHEN 'Deferred' THEN 0
+        WHEN 'Idle' THEN 1
+        WHEN 'Active' THEN 2
+        WHEN 'Blocked' THEN 3
+        WHEN 'Completed' THEN 4
+      END,
+      organization.sort_key,
+      organization.thread_id
+  `);
+  const listRetainedOrderRows = db.prepare(`
+    SELECT thread_id, status, sort_key, updated_at
+    FROM thread_stage_order
+    ORDER BY thread_id,
+      CASE status
+        WHEN 'Deferred' THEN 0
+        WHEN 'Idle' THEN 1
+        WHEN 'Active' THEN 2
+        WHEN 'Blocked' THEN 3
+        WHEN 'Completed' THEN 4
+      END
+  `);
+  const upsertRetainedOrder = db.prepare(`
+    INSERT INTO thread_stage_order(thread_id, status, sort_key, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(thread_id, status) DO UPDATE SET
+      sort_key = excluded.sort_key,
+      updated_at = CASE
+        WHEN thread_stage_order.sort_key = excluded.sort_key
+          THEN thread_stage_order.updated_at
+        ELSE excluded.updated_at
+      END
+  `);
+  const deleteRetainedOrders = db.prepare(
+    "DELETE FROM thread_stage_order WHERE thread_id = ?",
+  );
+
+  function migrationMeta(): MigrationMetaRow {
+    const row = getMigrationMeta.get() as MigrationMetaRow | undefined;
+    if (!row) throw new Error("Thread stages migration metadata is missing.");
+    return row;
+  }
+
+  function assertPlacementWritable(): void {
+    if (migrationMeta().placement_owner !== "thread-stages") {
+      throw new PlacementOwnershipTransferredError();
+    }
+  }
+
+  function bumpRevisionIf(changed: boolean): void {
+    if (changed) incrementMigrationRevision.run();
+  }
 
   function listState(): WorkflowStageState {
     return {
@@ -413,7 +583,7 @@ export function createThreadWorkflowStore(db: Database): ThreadWorkflowStore {
     };
   }
 
-  function ensureThreads(threadIds: readonly string[]): WorkflowStageState {
+  function ensureThreadRows(threadIds: readonly string[]): boolean {
     if (threadIds.length > 10_000) throw new Error("Too many thread ids.");
     const uniqueIds = new Set(threadIds);
     if (uniqueIds.size !== threadIds.length) {
@@ -426,6 +596,7 @@ export function createThreadWorkflowStore(db: Database): ThreadWorkflowStore {
       | undefined;
     let previousKey = last?.sort_key ?? null;
     const now = Date.now();
+    let changed = false;
     for (const threadId of threadIds) {
       if (getAssignment.get(threadId)) continue;
       const sortKey =
@@ -442,17 +613,31 @@ export function createThreadWorkflowStore(db: Database): ThreadWorkflowStore {
         null,
       );
       upsertStageEntry.run(threadId, now);
+      upsertRetainedOrder.run(
+        threadId,
+        DEFAULT_WORKFLOW_STAGE,
+        sortKey,
+        now,
+      );
       previousKey = sortKey;
+      changed = true;
     }
-    return listState();
+    return changed;
   }
 
-  const ensureThreadsTransaction = db.transaction(ensureThreads);
+  const ensureThreadsTransaction = db.transaction(
+    (threadIds: readonly string[]): WorkflowStageState => {
+      assertPlacementWritable();
+      bumpRevisionIf(ensureThreadRows(threadIds));
+      return listState();
+    },
+  );
   const syncRootThreadsTransaction = db.transaction(
     (
       rootThreadIds: readonly string[],
       childThreadIds: readonly string[],
     ): WorkflowStageState => {
+      assertPlacementWritable();
       if (childThreadIds.length > 10_000) {
         throw new Error("Too many child thread ids.");
       }
@@ -461,24 +646,35 @@ export function createThreadWorkflowStore(db: Database): ThreadWorkflowStore {
       if (childIds.size !== childThreadIds.length) {
         throw new Error("Child thread ids must be unique.");
       }
+      let placementChanged = false;
       for (const threadId of childThreadIds) {
         assertThreadId(threadId);
         if (rootIds.has(threadId)) {
           throw new Error("A thread cannot be both a root and a child.");
         }
-        deleteAssignment.run(threadId);
-        deleteStageEntry.run(threadId);
+        placementChanged =
+          deleteAssignment.run(threadId).changes > 0 || placementChanged;
+        placementChanged =
+          deleteStageEntry.run(threadId).changes > 0 || placementChanged;
+        placementChanged =
+          deleteRetainedOrders.run(threadId).changes > 0 || placementChanged;
         deleteWorkingState.run(threadId);
       }
-      return ensureThreads(rootThreadIds);
+      placementChanged = ensureThreadRows(rootThreadIds) || placementChanged;
+      bumpRevisionIf(placementChanged);
+      return listState();
     },
   );
 
   const removeRootThreadTransaction = db.transaction((threadId: string): boolean => {
+    assertPlacementWritable();
     const assignmentDeleted = deleteAssignment.run(threadId).changes > 0;
     const stageEntryDeleted = deleteStageEntry.run(threadId).changes > 0;
+    const ordersDeleted = deleteRetainedOrders.run(threadId).changes > 0;
     const workflowDeleted = deleteWorkingState.run(threadId).changes > 0;
-    return assignmentDeleted || stageEntryDeleted || workflowDeleted;
+    const placementChanged = assignmentDeleted || stageEntryDeleted || ordersDeleted;
+    bumpRevisionIf(placementChanged);
+    return placementChanged || workflowDeleted;
   });
 
   function moveToStage(
@@ -503,6 +699,7 @@ export function createThreadWorkflowStore(db: Database): ThreadWorkflowStore {
       existing?.sort_key ?? null,
     );
     upsertStageEntry.run(threadId, now);
+    upsertRetainedOrder.run(threadId, stage, sortKey, now);
     return true;
   }
 
@@ -512,18 +709,23 @@ export function createThreadWorkflowStore(db: Database): ThreadWorkflowStore {
       stage: WorkflowStage,
       source: MoveSource,
     ): WorkflowStageState => {
-      moveToStage(threadId, stage, source);
+      assertPlacementWritable();
+      bumpRevisionIf(moveToStage(threadId, stage, source));
       return listState();
     },
   );
 
   const restoreToIdleTransaction = db.transaction(
     (threadId: string, sortKey: string | null): WorkflowStageState => {
+      assertPlacementWritable();
       if (sortKey === null) {
-        moveToStage(threadId, "Idle", "app");
+        bumpRevisionIf(moveToStage(threadId, "Idle", "app"));
         return listState();
       }
       const existing = getAssignment.get(threadId) as AssignmentRow | undefined;
+      if (existing?.status === "Idle" && existing.sort_key === sortKey) {
+        return listState();
+      }
       const now = Date.now();
       upsertAssignment.run(
         threadId,
@@ -537,12 +739,15 @@ export function createThreadWorkflowStore(db: Database): ThreadWorkflowStore {
       if (existing?.status !== "Idle") {
         upsertStageEntry.run(threadId, now);
       }
+      upsertRetainedOrder.run(threadId, "Idle", sortKey, now);
+      incrementMigrationRevision.run();
       return listState();
     },
   );
 
   const observeActiveStateTransaction = db.transaction(
     (threadId: string, isWorking: boolean): ActiveStateObservation => {
+      assertPlacementWritable();
       const previous = getWorkingState.get(threadId) as
         | { is_working: number }
         | undefined;
@@ -572,12 +777,14 @@ export function createThreadWorkflowStore(db: Database): ThreadWorkflowStore {
       }
 
       upsertWorkingState.run(threadId, isWorking ? 1 : 0, Date.now());
+      bumpRevisionIf(workflowStageChanged);
       return { state: listState(), workflowStageChanged };
     },
   );
 
   const reorderThreadTransaction = db.transaction(
     (input: ReorderThreadInput): WorkflowStageState => {
+      assertPlacementWritable();
       const moved = getAssignment.get(input.threadId) as AssignmentRow | undefined;
       if (
         moved?.status === input.workflowStage &&
@@ -642,6 +849,13 @@ export function createThreadWorkflowStore(db: Database): ThreadWorkflowStore {
       if (moved?.status !== input.workflowStage) {
         upsertStageEntry.run(input.threadId, now);
       }
+      upsertRetainedOrder.run(
+        input.threadId,
+        input.workflowStage,
+        sortKey,
+        now,
+      );
+      incrementMigrationRevision.run();
       return listState();
     },
   );
@@ -726,6 +940,21 @@ export function createThreadWorkflowStore(db: Database): ThreadWorkflowStore {
       assertThreadId(threadId);
       return observeActiveStateTransaction.immediate(threadId, isWorking);
     },
+    observeForwardedActiveState(threadId, isWorking) {
+      assertThreadId(threadId);
+      return db
+        .transaction(() => {
+          const previous = getWorkingState.get(threadId) as
+            | { is_working: number }
+            | undefined;
+          upsertWorkingState.run(threadId, isWorking ? 1 : 0, Date.now());
+          return {
+            enteredWorking: isWorking && previous?.is_working !== 1,
+            leftWorking: !isWorking && previous?.is_working !== 0,
+          };
+        })
+        .immediate();
+    },
     setPreview(threadId, preview) {
       assertThreadId(threadId);
       if (preview !== null && preview.length > 500) {
@@ -751,18 +980,96 @@ export function createThreadWorkflowStore(db: Database): ThreadWorkflowStore {
       assertThreadId(threadId);
       return db
         .transaction(() => {
+          assertPlacementWritable();
           const assignmentDeleted = deleteAssignment.run(threadId).changes > 0;
           const stageEntryDeleted = deleteStageEntry.run(threadId).changes > 0;
+          const ordersDeleted = deleteRetainedOrders.run(threadId).changes > 0;
           const workflowDeleted = deleteWorkingState.run(threadId).changes > 0;
           const previewDeleted = deletePreview.run(threadId).changes > 0;
+          const placementChanged =
+            assignmentDeleted || stageEntryDeleted || ordersDeleted;
+          bumpRevisionIf(placementChanged);
           return (
-            assignmentDeleted ||
-            stageEntryDeleted ||
+            placementChanged ||
             workflowDeleted ||
             previewDeleted
           );
         })
         .immediate();
+    },
+    getPlacementMigrationSnapshot() {
+      const meta = migrationMeta();
+      const ordersByThread = new Map<
+        string,
+        PlacementMigrationSnapshotV1["placements"][number]["orders"]
+      >();
+      for (const row of listRetainedOrderRows.all() as RetainedOrderRow[]) {
+        const orders = ordersByThread.get(row.thread_id) ?? [];
+        orders.push({
+          groupId: row.status,
+          sortKey: row.sort_key,
+          updatedAtMs: row.updated_at,
+        });
+        ordersByThread.set(row.thread_id, orders);
+      }
+      return {
+        sourcePluginId: "thread-stages",
+        sourceSchema: meta.source_schema,
+        installationId: meta.installation_id,
+        revision: meta.revision,
+        placements: (
+          listMigrationPlacementRows.all() as MigrationPlacementRow[]
+        ).map((row) => ({
+          groupingId: "stages",
+          threadId: row.thread_id,
+          groupId: row.status,
+          enteredAtMs: row.entered_at,
+          updatedAtMs: row.updated_at,
+          ...(row.previous_status === null
+            ? {}
+            : { previousGroupId: row.previous_status }),
+          origin:
+            row.moved_by === "app"
+              ? "ui"
+              : row.moved_by === "cli"
+                ? "cli"
+                : "auto",
+          orders: ordersByThread.get(row.thread_id) ?? [],
+        })),
+      };
+    },
+    acknowledgePlacementMigration({ installationId, revision }) {
+      return db
+        .transaction(() => {
+          const meta = migrationMeta();
+          if (
+            meta.installation_id !== installationId ||
+            meta.revision !== revision
+          ) {
+            return { transferred: false };
+          }
+          if (meta.placement_owner === "ribbon-sidebar") {
+            return { transferred: true };
+          }
+          return {
+            transferred:
+              transferPlacementOwnership.run(installationId, revision).changes ===
+              1,
+          };
+        })
+        .immediate();
+    },
+    placementOwnership() {
+      return migrationMeta().placement_owner;
+    },
+    markForwardingReconciliationNeeded() {
+      markForwardingReconciliation.run();
+    },
+    forwardingReconciliationNeeded() {
+      return migrationMeta().forwarding_reconciliation_needed === 1;
+    },
+    clearForwardingReconciliationNeeded() {
+      clearForwardingReconciliation.run();
     },
   };
 }

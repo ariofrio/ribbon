@@ -78,6 +78,29 @@ Update an installed copy with:
 bb plugin update thread-stages
 ```
 
+## Ribbon sidebar migration
+
+Thread stages is also the provider and compatibility source for the
+`plugin:thread-stages:stages` grouping. It exposes the versioned
+`getGroupingCatalogV1`, `getPlacementMigrationSnapshotV1`, and
+`acknowledgePlacementMigrationV1` RPCs so Ribbon sidebar can import placement
+without reaching into this plugin's database.
+
+Installing Ribbon sidebar does not transfer anything by itself. Thread stages
+continues to own its sidebar, CLI, ordering, automation, undo, and retention
+behavior until Ribbon acknowledges the same installation ID and placement
+revision it imported. That acknowledgement atomically makes the legacy
+placement tables read-only. From then on, stage actions, shortcuts, the legacy
+CLI, and lifecycle automation forward to Ribbon; retention and undo read
+Ribbon's authoritative placement. A failed dependency call reports a Ribbon
+sidebar dependency problem and schedules reconciliation without resuming writes
+to the frozen source. The legacy slot shows recovery guidance and bb's original
+thread list after the handoff.
+
+Deferred and Blocked visibility remains provider-owned, along with stage
+automation and Completed retention. Provider setting changes invalidate
+Ribbon's cached catalog.
+
 ## Keyboard shortcuts
 
 On a thread route, `.` chords set the open thread's stage and move you

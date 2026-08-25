@@ -269,6 +269,58 @@ describe("task workflow", () => {
     }
   });
 
+  it("forwards Active and Idle automation after placement handoff", async () => {
+    const db = new Database(":memory:");
+    for (const migration of THREAD_WORKFLOW_MIGRATIONS) db.exec(migration);
+    const store = createThreadWorkflowStore(db);
+    store.ensureThreads(["thr_a"]);
+    store.acknowledgePlacementMigration(store.getPlacementMigrationSnapshot());
+    const handlers = new Map<string, (payload: never) => unknown>();
+    const forwardStage = vi.fn(async () => undefined);
+    let status = "active" as "active" | "idle";
+    const bb = {
+      events: {
+        on: (event: string, handler: (payload: never) => unknown) => {
+          handlers.set(event, handler);
+        },
+      },
+      background: { service: () => undefined },
+      realtime: { publish: vi.fn() },
+      log: { warn: vi.fn() },
+      sdk: {
+        threads: {
+          interactions: { list: async () => [] },
+          list: async () => [
+            { id: "thr_a", parentThreadId: null, status },
+          ],
+          timeline: async () => ({ activeBackgroundCommands: [] }),
+        },
+      },
+    } as unknown as BbPluginApi;
+
+    try {
+      registerThreadWorkflow(bb, store, {
+        forwardStage,
+        placementOwnership: () => store.placementOwnership(),
+      });
+      await handlers.get("thread.active")?.({
+        thread: { id: "thr_a", parentThreadId: null, status: "active" },
+      } as never);
+      status = "idle";
+      await handlers.get("thread.idle")?.({
+        thread: { id: "thr_a", parentThreadId: null, status: "idle" },
+      } as never);
+
+      expect(forwardStage.mock.calls).toEqual([
+        ["thr_a", "Active"],
+        ["thr_a", "Idle"],
+      ]);
+      expect(store.getPlacementMigrationSnapshot().revision).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
   it("reconciles starting and stopping through thread status changes", async () => {
     const db = new Database(":memory:");
     for (const migration of THREAD_WORKFLOW_MIGRATIONS) db.exec(migration);

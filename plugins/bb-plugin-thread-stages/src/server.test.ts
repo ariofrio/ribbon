@@ -15,6 +15,7 @@ type ThreadChangedCallback = Extract<
 
 afterEach(async () => {
   await Promise.all(disposeHosts.splice(0).map((dispose) => dispose()));
+  vi.unstubAllGlobals();
 });
 
 function createPluginHarness() {
@@ -96,6 +97,9 @@ describe("thread stages plugin API", () => {
       "updateSettings",
       "listProjectIcons",
       "listAppKeybindings",
+      "getGroupingCatalogV1",
+      "getPlacementMigrationSnapshotV1",
+      "acknowledgePlacementMigrationV1",
     ]);
     expect(
       harness.inspection.registrations.services.map(({ name }) => name),
@@ -106,6 +110,7 @@ describe("thread stages plugin API", () => {
     ]);
     expect(harness.inspection.registrations.schedules).toMatchObject([
       { name: "completed-auto-archive", cron: "17 * * * *" },
+      { name: "placement-forward-reconciliation", cron: "* * * * *" },
     ]);
     expect(harness.inspection.registrations.cli?.name).toBe("thread-stages");
     expect(harness.inspection.registrations.threadEventHandlers).toMatchObject({
@@ -658,6 +663,328 @@ describe("thread stages plugin API", () => {
         nextThreadId: null,
       }),
     ).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("serves the provider catalog through its strict versioned RPC", async () => {
+    const harness = createPluginHarness();
+
+    await expect(
+      harness.behavior.callRpc("getGroupingCatalogV1", null),
+    ).resolves.toMatchObject({
+      protocolVersion: 1,
+      groupings: [
+        {
+          id: "stages",
+          defaultGroupId: "Idle",
+          groups: [
+            { id: "Deferred" },
+            { id: "Idle" },
+            { id: "Active" },
+            { id: "Blocked" },
+            { id: "Completed" },
+          ],
+        },
+      ],
+    });
+    await expect(
+      harness.behavior.callRpc("getGroupingCatalogV1", {}),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("snapshots and acknowledges placement migration through strict RPCs", async () => {
+    const harness = createPluginHarness();
+    await harness.behavior.callRpc("syncThreads", {
+      rootThreadIds: ["thr_a"],
+      childThreadIds: [],
+    });
+
+    const snapshot = (await harness.behavior.callRpc(
+      "getPlacementMigrationSnapshotV1",
+      null,
+    )) as { installationId: string; revision: number };
+    await expect(
+      harness.behavior.callRpc("acknowledgePlacementMigrationV1", {
+        installationId: snapshot.installationId,
+        revision: snapshot.revision,
+        unexpected: true,
+      }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(
+      harness.behavior.callRpc("acknowledgePlacementMigrationV1", {
+        installationId: snapshot.installationId,
+        revision: snapshot.revision,
+      }),
+    ).resolves.toEqual({ transferred: true });
+    await expect(harness.behavior.callRpc("listState", null)).rejects.toThrow(
+      "ownership has transferred",
+    );
+  });
+
+  it("forwards UI placement after handoff without changing the frozen source", async () => {
+    const fetcher = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            ok: true,
+            value: {
+              placement: {
+                groupingKey: "plugin:thread-stages:stages",
+                groupId: "Completed",
+                threadId: "thr_a",
+                enteredAtMs: 2,
+                previousGroupId: "Idle",
+                origin: "ui",
+              },
+              revision: 2,
+            },
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: {
+        threads: {
+          list: vi.fn(async () => [
+            { id: "thr_a", parentThreadId: null, projectId: "proj_a" },
+          ]),
+        },
+      },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+    await host.harness.behavior.callRpc("syncThreads", {
+      rootThreadIds: ["thr_a"],
+      childThreadIds: [],
+    });
+    const before = (await host.harness.behavior.callRpc(
+      "getPlacementMigrationSnapshotV1",
+      null,
+    )) as { installationId: string; revision: number };
+    await host.harness.behavior.callRpc("acknowledgePlacementMigrationV1", {
+      installationId: before.installationId,
+      revision: before.revision,
+    });
+
+    await expect(
+      host.harness.behavior.callRpc("moveThread", {
+        threadId: "thr_a",
+        workflowStage: "Completed",
+        previousThreadId: null,
+        nextThreadId: null,
+      }),
+    ).resolves.toMatchObject({ assignments: [{ threadId: "thr_a" }] });
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining("/ribbon-sidebar/rpc/updatePlacementV1"),
+      expect.objectContaining({
+        body: JSON.stringify({
+          groupingKey: "plugin:thread-stages:stages",
+          groupId: "Completed",
+          threadId: "thr_a",
+          anchor: { kind: "end" },
+          origin: "ui",
+        }),
+      }),
+    );
+    await expect(
+      host.harness.behavior.callRpc("getPlacementMigrationSnapshotV1", null),
+    ).resolves.toMatchObject({ revision: before.revision });
+  });
+
+  it("forwards post-handoff root reconciliation without writing the source", async () => {
+    const fetcher = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true, result: null }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    const host = createFakePluginHost({ pluginId: "thread-stages" });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+    await host.harness.behavior.callRpc("syncThreads", {
+      rootThreadIds: ["thr_a"],
+      childThreadIds: [],
+    });
+    const snapshot = (await host.harness.behavior.callRpc(
+      "getPlacementMigrationSnapshotV1",
+      null,
+    )) as { installationId: string; revision: number };
+    await host.harness.behavior.callRpc("acknowledgePlacementMigrationV1", {
+      installationId: snapshot.installationId,
+      revision: snapshot.revision,
+    });
+
+    await expect(
+      host.harness.behavior.callRpc("syncThreads", {
+        rootThreadIds: ["thr_a", "thr_new"],
+        childThreadIds: [],
+      }),
+    ).rejects.toThrow("ownership has transferred");
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining("/invalidateGroupingCatalogV1"),
+      expect.objectContaining({
+        body: JSON.stringify({ providerPluginId: "thread-stages" }),
+      }),
+    );
+    await expect(
+      host.harness.behavior.callRpc("getPlacementMigrationSnapshotV1", null),
+    ).resolves.toMatchObject({ revision: snapshot.revision });
+  });
+
+  it("reports forwarding failure and schedules later reconciliation", async () => {
+    const fetcher = vi.fn(async () => new Response("missing", { status: 404 }));
+    vi.stubGlobal("fetch", fetcher);
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: {
+        threads: {
+          list: vi.fn(async () => [
+            { id: "thr_a", parentThreadId: null, projectId: "proj_a" },
+          ]),
+        },
+      },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+    await host.harness.behavior.callRpc("syncThreads", {
+      rootThreadIds: ["thr_a"],
+      childThreadIds: [],
+    });
+    const snapshot = (await host.harness.behavior.callRpc(
+      "getPlacementMigrationSnapshotV1",
+      null,
+    )) as { installationId: string; revision: number };
+    await host.harness.behavior.callRpc("acknowledgePlacementMigrationV1", {
+      installationId: snapshot.installationId,
+      revision: snapshot.revision,
+    });
+
+    await expect(
+      host.harness.behavior.callRpc("moveThread", {
+        threadId: "thr_a",
+        workflowStage: "Completed",
+        previousThreadId: null,
+        nextThreadId: null,
+      }),
+    ).rejects.toThrow("Ribbon sidebar dependency problem");
+
+    fetcher.mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true, result: null }), { status: 200 }),
+    );
+    await host.harness.behavior.runSchedule(
+      "placement-forward-reconciliation",
+    );
+    expect(fetcher).toHaveBeenLastCalledWith(
+      expect.stringContaining("/invalidateGroupingCatalogV1"),
+      expect.objectContaining({
+        body: JSON.stringify({ providerPluginId: "thread-stages" }),
+      }),
+    );
+  });
+
+  it("uses Ribbon placements for post-handoff undo policy", async () => {
+    const rpc = (result: unknown) =>
+      new Response(JSON.stringify({ ok: true, result }), { status: 200 });
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        rpc({
+          ok: true,
+          value: {
+            groupingKey: "plugin:thread-stages:stages",
+            revision: 7,
+            items: [
+              {
+                groupingKey: "plugin:thread-stages:stages",
+                groupId: "Idle",
+                threadId: "thr_a",
+                enteredAtMs: 100,
+                origin: "auto",
+              },
+              {
+                groupingKey: "plugin:thread-stages:stages",
+                groupId: "Completed",
+                threadId: "thr_b",
+                enteredAtMs: 200,
+                previousGroupId: "Idle",
+                origin: "ui",
+              },
+            ],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        rpc({
+          ok: true,
+          value: {
+            placement: {
+              groupingKey: "plugin:thread-stages:stages",
+              groupId: "Idle",
+              threadId: "thr_b",
+              enteredAtMs: 300,
+              previousGroupId: "Completed",
+              origin: "ui",
+            },
+            revision: 8,
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetcher);
+    const listedThreads = ["thr_a", "thr_b"].map((id, index) => ({
+      id,
+      parentThreadId: null,
+      projectId: "proj_a",
+      visibility: "visible",
+      archivedAt: null,
+      pinnedAt: null,
+      pinSortKey: null,
+      createdAt: index,
+    }));
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { threads: { list: vi.fn(async () => listedThreads) } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+    await host.harness.behavior.callRpc("syncThreads", {
+      rootThreadIds: ["thr_a", "thr_b"],
+      childThreadIds: [],
+    });
+    const snapshot = (await host.harness.behavior.callRpc(
+      "getPlacementMigrationSnapshotV1",
+      null,
+    )) as { installationId: string; revision: number };
+    await host.harness.behavior.callRpc("acknowledgePlacementMigrationV1", {
+      installationId: snapshot.installationId,
+      revision: snapshot.revision,
+    });
+
+    await expect(
+      host.harness.behavior.callRpc("setWorkflowStage", {
+        threadId: "thr_a",
+        workflowStage: "Idle",
+      }),
+    ).resolves.toEqual({
+      destination: {
+        kind: "thread",
+        threadId: "thr_b",
+        projectId: "proj_a",
+      },
+    });
+    expect(fetcher).toHaveBeenLastCalledWith(
+      expect.stringContaining("/updatePlacementV1"),
+      expect.objectContaining({
+        body: JSON.stringify({
+          groupingKey: "plugin:thread-stages:stages",
+          groupId: "Idle",
+          threadId: "thr_b",
+          anchor: { kind: "preserve" },
+          expectedRevision: 7,
+          origin: "ui",
+        }),
+      }),
+    );
   });
 
   it("rejects moves into disabled stages", async () => {
