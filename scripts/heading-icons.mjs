@@ -8,6 +8,7 @@
 //
 // Usage: npm run build:heading-icons  (npm run check:heading-icons reports drift)
 import {
+  existsSync,
   readFileSync,
   readdirSync,
   realpathSync,
@@ -40,6 +41,11 @@ export function headingIcons(repositoryRoot) {
     .filter((entry) => entry.isDirectory())
     .flatMap((entry) => {
       const manifest = join(pluginsDirectory, entry.name, "package.json");
+      // A directory here is a plugin only if it carries a manifest, the same
+      // test plugin-layout.mjs makes. Tooling leaves untracked directories
+      // beside them — an agent's `.claude/`, say — and one of those must not
+      // read as a plugin missing its icon.
+      if (!existsSync(manifest)) return [];
       const id = derivePluginId(JSON.parse(readFileSync(manifest, "utf8")).name);
       return [
         {
