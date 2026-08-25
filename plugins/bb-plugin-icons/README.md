@@ -7,7 +7,7 @@ it opens, and each row of the
 [Thread stages](../bb-plugin-thread-stages#readme) sidebar.
 
 Click one on a sidebar header, in the thread header, or on the strip under an
-open thread to change it: search 2,530 icons by name or synonym, filter by
+open thread to change it: search 2,374 icons by name or synonym, filter by
 category, and pick a color. Changes save as you click and appear everywhere at
 once.
 
@@ -59,7 +59,7 @@ render it without shipping the catalog themselves.
 `src/icon-catalog.generated.ts` from Hugeicons' published index. It keeps the
 categories that describe a project rather than interface furniture, collapses
 `-01`/`-02` name variants, and drops anything the free package does not export
-— 2,532 icons across 32 categories. The result is committed, so builds and CI
+— 2,376 icons across 32 categories. The result is committed, so builds and CI
 never reach the network.
 
 That index is unversioned and sends no `ETag` or `Last-Modified`, and no

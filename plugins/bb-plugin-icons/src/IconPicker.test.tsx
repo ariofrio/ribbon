@@ -6,6 +6,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +16,24 @@ import { iconColor } from "./icon-colors";
 const catalog = [
   {
     name: "sparkles",
+    category: "ai",
+    tags: [],
+    glyph: CircleIcon,
+  },
+  {
+    name: "ai-search",
+    category: "ai",
+    tags: [],
+    glyph: CircleIcon,
+  },
+  {
+    name: "ai-search-01",
+    category: "ai",
+    tags: [],
+    glyph: CircleIcon,
+  },
+  {
+    name: "ai-search-02",
     category: "ai",
     tags: [],
     glyph: CircleIcon,
@@ -70,6 +89,57 @@ beforeEach(() => {
 });
 
 describe("IconPicker", () => {
+  it("shows distinct bb tooltips from pointer hover and keyboard focus", async () => {
+    render(
+      <IconPicker
+        catalog={catalog}
+        loading={false}
+        open
+        onOpenChange={vi.fn()}
+        ownerName="Example project"
+        stored
+        icon="ai-search"
+        defaultIcon="folder"
+        color={null}
+        onPick={vi.fn()}
+        onPickColor={vi.fn()}
+        onReset={vi.fn()}
+        trigger={<button type="button">Change icon</button>}
+      />,
+    );
+
+    const base = screen.getByRole("button", { name: "ai search" });
+    const firstVariant = screen.getByRole("button", {
+      name: "ai search 01",
+    });
+    const secondVariant = screen.getByRole("button", {
+      name: "ai search 02",
+    });
+    expect(base.getAttribute("title")).toBeNull();
+    expect(firstVariant.getAttribute("title")).toBeNull();
+    expect(secondVariant.getAttribute("title")).toBeNull();
+
+    fireEvent.pointerMove(firstVariant, { pointerType: "mouse" });
+    const pointerTooltip = await screen.findByRole(
+      "tooltip",
+      {},
+      { timeout: 1_500 },
+    );
+    expect(pointerTooltip.textContent).toBe("ai search 01");
+    expect(getComputedStyle(pointerTooltip).display).not.toBe("none");
+    expect(getComputedStyle(pointerTooltip).visibility).not.toBe("hidden");
+
+    fireEvent.pointerLeave(firstVariant);
+    await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
+
+    secondVariant.focus();
+    expect(document.activeElement).toBe(secondVariant);
+    const focusTooltip = await screen.findByRole("tooltip");
+    expect(focusTooltip.textContent).toBe("ai search 02");
+    expect(getComputedStyle(focusTooltip).display).not.toBe("none");
+    expect(getComputedStyle(focusTooltip).visibility).not.toBe("hidden");
+  });
+
   it("offers Remove for a stored icon even when it is the owner's default", () => {
     // Reachable before this glyph left the catalog: the row exists, outranks
     // the section's icon everywhere, and inferring "nothing chosen" from the
