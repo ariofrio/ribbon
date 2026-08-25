@@ -12,4 +12,6 @@ read-only migration snapshot and acknowledgement contract. Ribbon imports and
 verifies the former stage assignments, retained order, and client-local view
 state before completing the one-way handoff; Thread stages continues to
 provide its catalog, automation, shortcuts, retention, and compatibility CLI
-through the required Ribbon sidebar.
+through the required Ribbon sidebar. Preserve lifecycle edge observations
+across provider reloads and apply provider-declared collapse defaults when a
+client has no earlier collapse preference.

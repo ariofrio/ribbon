@@ -22,7 +22,10 @@ import {
 } from "./ribbon-sidebar-client";
 import { resolveStageChord } from "./workflow-chords";
 import { resolveWorkflowReorder } from "./workflow-reorder";
-import { registerThreadWorkflow } from "./workflow-automation";
+import {
+  createWorkflowObservationState,
+  registerThreadWorkflow,
+} from "./workflow-automation";
 import {
   WORKFLOW_STAGES,
   enabledWorkflowStages,
@@ -425,7 +428,11 @@ export default function plugin(bb: BbPluginApi) {
     },
   });
 
-  registerThreadWorkflow(bb, updateLifecycleStage);
+  registerThreadWorkflow(
+    bb,
+    updateLifecycleStage,
+    createWorkflowObservationState(database),
+  );
   registerCompletedAutoArchive(
     bb,
     {

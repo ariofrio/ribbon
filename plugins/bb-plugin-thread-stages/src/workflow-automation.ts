@@ -22,15 +22,53 @@ interface WorkflowThread {
   status: ThreadLifecycleStatus;
 }
 
+export interface WorkflowObservationState {
+  get(threadId: string): boolean | undefined;
+  set(threadId: string, isWorking: boolean): unknown;
+  delete(threadId: string): unknown;
+}
+
+export function createWorkflowObservationState(
+  database: ReturnType<BbPluginApi["storage"]["database"]>,
+  now: () => number = Date.now,
+): WorkflowObservationState {
+  const getWorking = database.prepare(`
+    SELECT is_working FROM thread_task_workflow WHERE thread_id = ?
+  `);
+  const upsertWorking = database.prepare(`
+    INSERT INTO thread_task_workflow(thread_id, is_working, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(thread_id) DO UPDATE SET
+      is_working = excluded.is_working,
+      updated_at = excluded.updated_at
+  `);
+  const deleteWorking = database.prepare(`
+    DELETE FROM thread_task_workflow WHERE thread_id = ?
+  `);
+  return {
+    get(threadId) {
+      const row = getWorking.get(threadId) as
+        | { is_working: 0 | 1 }
+        | undefined;
+      return row === undefined ? undefined : row.is_working === 1;
+    },
+    set(threadId, isWorking) {
+      upsertWorking.run(threadId, isWorking ? 1 : 0, now());
+    },
+    delete(threadId) {
+      deleteWorking.run(threadId);
+    },
+  };
+}
+
 export function registerThreadWorkflow(
   bb: BbPluginApi,
   updateStage: (
     threadId: string,
     stage: Extract<WorkflowStage, "Active" | "Idle">,
   ) => Promise<void>,
+  observedWorking: WorkflowObservationState = new Map<string, boolean>(),
 ): void {
-  const observedWorking = new Map<string, boolean>();
-
   const isWaitingOnUser = async (threadId: string): Promise<boolean> => {
     try {
       const interactions = await bb.sdk.threads.interactions.list({ threadId });
@@ -90,10 +128,8 @@ export function registerThreadWorkflow(
       }
     }
 
-    const currentRootIds = new Set<string>();
     for (const root of threads) {
       if (roots.get(root.id) !== root.id) continue;
-      currentRootIds.add(root.id);
       if (!activeRootIds.has(root.id) && indeterminateRootIds.has(root.id)) {
         continue;
       }
@@ -101,9 +137,6 @@ export function registerThreadWorkflow(
       if (observedWorking.get(root.id) === isWorking) continue;
       await updateStage(root.id, isWorking ? "Active" : "Idle");
       observedWorking.set(root.id, isWorking);
-    }
-    for (const threadId of observedWorking.keys()) {
-      if (!currentRootIds.has(threadId)) observedWorking.delete(threadId);
     }
   };
 
@@ -126,6 +159,9 @@ export function registerThreadWorkflow(
   bb.events.on("thread.active", () => enqueue());
   bb.events.on("thread.idle", () => enqueue());
   bb.events.on("thread.failed", () => enqueue());
+  bb.events.on("thread.deleted", ({ thread }) => {
+    observedWorking.delete(thread.id);
+  });
 
   bb.background.service("stage-automation", {
     async start(signal) {

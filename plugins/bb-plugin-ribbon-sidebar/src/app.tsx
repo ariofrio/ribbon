@@ -236,6 +236,13 @@ function RibbonSidebarList({
       return loadSidebarPreferences(
         window.localStorage,
         next.groupings.map(({ groupingKey }) => groupingKey as GroupingKey),
+        next.groupings.flatMap((candidate) =>
+          candidate.groups.flatMap((group) =>
+            group.defaultCollapsed
+              ? [`${candidate.groupingKey}/${group.id}`]
+              : [],
+          ),
+        ),
       );
     });
   }, [rpc]);

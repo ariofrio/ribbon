@@ -1,6 +1,7 @@
 import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createWorkflowObservationState,
   isActiveThreadLifecycle,
   registerThreadWorkflow,
 } from "./workflow-automation";
@@ -59,6 +60,29 @@ describe("stage automation", () => {
       lastAssistantText: null,
     });
     expect(updateStage).toHaveBeenLastCalledWith("root", "Idle");
+  });
+
+  it("does not replay a persisted idle edge after the plugin reloads", async () => {
+    const threads = [makeThreadResponse({ id: "root", status: "idle" })];
+    const host = setup(threads);
+    const database = host.bb.storage.database();
+    host.bb.storage.migrate(database, [
+      `CREATE TABLE thread_task_workflow (
+        thread_id TEXT PRIMARY KEY,
+        is_working INTEGER NOT NULL CHECK (is_working IN (0, 1)),
+        updated_at INTEGER NOT NULL
+      )`,
+    ]);
+    createWorkflowObservationState(database).set("root", false);
+    const observedWorking = createWorkflowObservationState(database);
+    const updateStage = vi.fn(async () => {});
+    registerThreadWorkflow(host.bb, updateStage, observedWorking);
+
+    await host.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: threads[0]!,
+      lastAssistantText: null,
+    });
+    expect(updateStage).not.toHaveBeenCalled();
   });
 
   it("assigns a root from activity anywhere in its hierarchy", async () => {

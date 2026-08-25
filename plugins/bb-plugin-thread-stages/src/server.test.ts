@@ -68,6 +68,11 @@ describe("thread stages provider", () => {
         thread_id TEXT PRIMARY KEY,
         entered_at INTEGER NOT NULL
       );
+      CREATE TABLE thread_task_workflow (
+        thread_id TEXT PRIMARY KEY,
+        is_working INTEGER NOT NULL CHECK (is_working IN (0, 1)),
+        updated_at INTEGER NOT NULL
+      );
       CREATE TABLE thread_stage_migration_meta (
         singleton INTEGER PRIMARY KEY,
         source_schema INTEGER NOT NULL,

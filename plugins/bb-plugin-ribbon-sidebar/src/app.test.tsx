@@ -261,6 +261,34 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("applies provider collapse defaults for a fresh client", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    fixture.synchronizeV1.mockResolvedValue({
+      ...snapshot,
+      groupings: snapshot.groupings.map((grouping) => ({
+        ...grouping,
+        groups: grouping.groups.map((group) => ({
+          ...group,
+          defaultCollapsed:
+            grouping.groupingKey === "plugin:thread-stages:stages" &&
+            group.id === "Active",
+        })),
+      })),
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    await waitFor(() =>
+      expect(
+        slot
+          .getByRole("button", { name: "Stage: Active" })
+          .getAttribute("aria-expanded"),
+      ).toBe("false"),
+    );
+    expect(slot.queryByText("Ship UI")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
   it("keeps pins and hierarchy while host search filters roots", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();

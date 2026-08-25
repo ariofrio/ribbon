@@ -94,11 +94,14 @@ function legacyScope(storage: Storage): Scope {
   };
 }
 
-function legacyCollapsed(storage: Storage): Set<string> {
+function legacyCollapsed(
+  storage: Storage,
+  defaultCollapsed: readonly string[],
+): Set<string> {
   try {
-    const parsed: unknown = JSON.parse(
-      storage.getItem(THREAD_STAGES_COLLAPSED_KEY) ?? "[]",
-    );
+    const raw = storage.getItem(THREAD_STAGES_COLLAPSED_KEY);
+    if (raw === null) return new Set(defaultCollapsed);
+    const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return new Set();
     return new Set(
       parsed
@@ -130,6 +133,7 @@ export function saveSidebarPreferences(
 export function loadSidebarPreferences(
   storage: Storage,
   availableGroupingKeys: readonly GroupingKey[],
+  defaultCollapsed: readonly string[] = [],
 ): SidebarPreferences {
   const fallback =
     availableGroupingKeys.find(
@@ -161,7 +165,7 @@ export function loadSidebarPreferences(
   try {
     migrated = {
       view: { scope: legacyScope(storage), groupingKey: fallback },
-      collapsed: legacyCollapsed(storage),
+      collapsed: legacyCollapsed(storage, defaultCollapsed),
     };
   } catch {
     migrated = {

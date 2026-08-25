@@ -82,4 +82,27 @@ describe("client-local sidebar preferences", () => {
       collapsed: new Set(["plugin:removed:status/Waiting"]),
     });
   });
+
+  it("uses provider collapse defaults only when no prior collapse choice exists", () => {
+    const defaults = [
+      "plugin:thread-stages:stages/Deferred",
+      "plugin:thread-stages:stages/Completed",
+    ];
+    expect(
+      loadSidebarPreferences(
+        storage(),
+        ["plugin:thread-stages:stages"],
+        defaults,
+      ).collapsed,
+    ).toEqual(new Set(defaults));
+    expect(
+      loadSidebarPreferences(
+        storage({
+          "bb.plugin.workflow-stage.collapsedStatuses": "[]",
+        }),
+        ["plugin:thread-stages:stages"],
+        defaults,
+      ).collapsed,
+    ).toEqual(new Set());
+  });
 });
