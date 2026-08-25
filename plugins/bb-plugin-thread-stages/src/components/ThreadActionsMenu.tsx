@@ -181,7 +181,7 @@ function ContextMenuItems(props: CommonMenuProps) {
                     <Icon name="Check" aria-hidden />
                   ) : null}
                 </span>
-                <Icon name="ListView" aria-hidden />
+                <SectionMenuIcon id={section.id} />
                 {section.name}
               </ContextMenuItem>
             ))}
@@ -301,7 +301,7 @@ function DropdownMenuItems(props: CommonMenuProps) {
                     <Icon name="Check" aria-hidden />
                   ) : null}
                 </span>
-                <Icon name="ListView" aria-hidden />
+                <SectionMenuIcon id={section.id} />
                 {section.name}
               </DropdownMenuItem>
             ))}
@@ -337,6 +337,19 @@ function DropdownMenuItems(props: CommonMenuProps) {
         Delete
       </DropdownItem>
     </>
+  );
+}
+
+/**
+ * A section's icon, drawn by naming the section rather than by fetching it.
+ *
+ * The Icons plugin paints whatever was chosen through the cascade; with that
+ * plugin absent, or with nothing chosen, the box keeps the glyph this menu has
+ * always shown. See icon-styles.ts.
+ */
+function SectionMenuIcon({ id }: { id: string }) {
+  return (
+    <span aria-hidden data-ribbon-icons-section={id} data-thread-stages-icon="section" />
   );
 }
 

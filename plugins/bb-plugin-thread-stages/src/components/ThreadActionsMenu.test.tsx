@@ -51,6 +51,20 @@ function expectMenuItemIcon(label: string, iconName: string): void {
   expect(item?.querySelector(`[data-icon="${iconName}"]`)).not.toBeNull();
 }
 
+/**
+ * A section row names its section and the Icons plugin paints it through the
+ * cascade, so there is no glyph here to read — only the name. See
+ * icon-styles.ts; a capture is what checks the drawing.
+ */
+function expectSectionIcon(label: string, sectionId: string): void {
+  const item = screen.getByText(label).closest('[role="menuitem"]');
+  expect(
+    item?.querySelector(
+      `[data-ribbon-icons-section="${sectionId}"][data-thread-stages-icon="section"]`,
+    ),
+  ).not.toBeNull();
+}
+
 describe("ThreadActionsDropdown", () => {
   it("mirrors the built-in thread actions and adds workflow organization", () => {
     const actions = {
@@ -227,8 +241,8 @@ describe("ThreadActionsDropdown", () => {
     expect(screen.getByText("Now")).toBeDefined();
     expect(screen.getByText("Later")).toBeDefined();
     expectMenuItemIcon("Unorganized", "ListViewOff");
-    expectMenuItemIcon("Now", "ListView");
-    expectMenuItemIcon("Later", "ListView");
+    expectSectionIcon("Now", "section_1");
+    expectSectionIcon("Later", "section_2");
     const newSectionItem = screen
       .getByText("New section")
       .closest('[role="menuitem"]');
@@ -441,7 +455,7 @@ describe("ThreadActionsContextMenu", () => {
     expect(screen.getByText("Later")).toBeDefined();
     expect(screen.getByText("New section")).toBeDefined();
     expectMenuItemIcon("Unorganized", "ListViewOff");
-    expectMenuItemIcon("Later", "ListView");
+    expectSectionIcon("Later", "section_1");
     expect(parentMenu.contains(screen.getByText("New section"))).toBe(false);
   });
 });

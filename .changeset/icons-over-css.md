@@ -8,8 +8,8 @@ stylesheet, keyed by an attribute a consumer puts on a box it draws itself, so
 drawing an icon costs a plugin nothing per row. The contract is documented in
 the Icons README.
 
-Thread stages draws its row and filter icons that way instead of over RPC, and
-Icons draws its own read-only placements that way too, keeping React only where
-the icon opens the picker.
+Thread stages draws its row, filter and menu icons that way instead of over RPC,
+and Icons draws its own read-only placements that way too, keeping React only
+where the icon opens the picker.
 
 Neither plugin's appearance changes.

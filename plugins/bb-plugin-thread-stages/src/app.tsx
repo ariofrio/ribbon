@@ -1726,7 +1726,7 @@ function WorkflowStageList({
                             ? (previews.get(thread.id) ?? null)
                             : null
                         }
-                          reorderable={isRoot && !Boolean(normalizedSearch)}
+                        reorderable={isRoot && !Boolean(normalizedSearch)}
                         showDropAfter={
                           dropGroup === stage && dropAfter === thread.id
                         }
