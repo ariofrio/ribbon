@@ -28,12 +28,12 @@ decided before the work starts.
 ## Screenshots
 
 - Every plugin screenshot comes from `npm run screenshots`. Never edit or replace the files it writes by hand; change `scripts/screenshots/shots.mjs` and recapture.
-- `--only` is for looking, not for committing. Every shot runs against one seeded bb and the run changes it along the way, so a shot taken on its own starts from a state a full run never gives it. A file that is going to be committed comes from a full run.
-- Two runs must write the same files byte for byte, on one machine and on two machines running the same container. That is the bar a change to the harness has to keep.
+- Commit only files that came from a full run. Every shot runs against one seeded bb and the run changes it along the way, so `--only` starts from a state a full run never gives it.
+- Two runs must write the same files byte for byte, on one machine and on two machines running the same container.
 - Keep whatever the capturing machine brings with it out of frame, and wait for whatever the app resolves late rather than racing it.
 - Nothing records what a shot was captured from, and nothing should: two runs write the same bytes, so git already reports whether a screenshot changed.
 - The pinned container is the authoritative renderer, and its Chromium comes from the `playwright` version in `package-lock.json`. Capture locally to look sooner, but expect CI's bytes to be the ones that land.
-- CI recaptures on the pull request and never on main, which the Protect main ruleset only lets a pull request write to. Main has to arrive current, which is why the Screenshots check is required and strict.
+- CI recaptures on the pull request, and again on main when a branch merged without recapturing, so a branch need not be up to date with main before it merges. That second commit is pushed with a deploy key, because GitHub Actions cannot be a bypass actor on a repository a person owns.
 - Adding an input that can change a screenshot means adding it to `affects.mjs`, which decides whether a pull request captures at all. It cannot become the workflow's `paths:` filter, because a skipped workflow never reports its check and the pull request requiring it could never merge.
 
 ## Testing

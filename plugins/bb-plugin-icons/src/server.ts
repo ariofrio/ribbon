@@ -116,6 +116,16 @@ export const rpcContract = defineRpcContract({
     input: ownerSchema,
     output: iconsSchema,
   },
+  /**
+   * The section a thread is filed under, for the header's fallback icon.
+   *
+   * bb keeps a section on the root thread, so a child reports its root's. It
+   * comes from bb because a header can mount before the sidebar hydrates.
+   */
+  sectionForThread: {
+    input: z.object({ threadId: z.string().min(1) }).strict(),
+    output: z.object({ sectionId: z.string().nullable() }).strict(),
+  },
 });
 
 export const ICON_PLACEMENTS = {
@@ -216,6 +226,20 @@ export default function plugin(bb: BbPluginApi) {
     }
   };
 
+  /**
+   * The glyphs an owner already draws when nobody has picked for it.
+   *
+   * They are left out of the picker. Choosing one stores a row that looks like
+   * having chosen nothing, and a project's row outranks its section's icon on
+   * every thread in it, so the pick changes the sidebar while appearing not to.
+   * A section's default is composed below rather than taken from the catalog,
+   * so only these two need dropping.
+   */
+  const defaultGlyphNames = new Set([
+    DEFAULT_PROJECT_ICON,
+    PERSONAL_PROJECT_ICON,
+  ]);
+
   const catalog = {
     icons: (catalogMetadata as Array<{
       name: string;
@@ -223,7 +247,7 @@ export default function plugin(bb: BbPluginApi) {
       tags: string[];
     }>).flatMap((entry) => {
       const glyph = CATALOG_ICONS[entry.name];
-      return glyph === undefined
+      return glyph === undefined || defaultGlyphNames.has(entry.name)
         ? []
         : [
             {
@@ -262,6 +286,28 @@ export default function plugin(bb: BbPluginApi) {
     clearIcon(owner) {
       store.clear(owner);
       return publish(owner);
+    },
+    async sectionForThread({ threadId }) {
+      const read = (id: string) =>
+        bb.sdk.threads.get({ threadId: id }).catch(() => null) as Promise<{
+          parentThreadId?: string | null;
+          sectionId?: string | null;
+        } | null>;
+
+      // Walks parents only. A fork carries a source rather than a parent and
+      // sits at the root, so it is filed on its own, exactly as bb shows it.
+      const seen = new Set<string>();
+      let current = await read(threadId);
+      while (current !== null) {
+        if (typeof current.sectionId === "string") {
+          return { sectionId: current.sectionId };
+        }
+        const parent = current.parentThreadId;
+        if (typeof parent !== "string" || seen.has(parent)) break;
+        seen.add(parent);
+        current = await read(parent);
+      }
+      return { sectionId: null };
     },
   });
 

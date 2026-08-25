@@ -141,9 +141,39 @@ interface CrumbsProps {
   threadActions: ReturnType<typeof experimental_useSidebarThreadActions>;
 }
 
+/**
+ * Where the Icons plugin draws this owner's icon.
+ *
+ * bb's SDK gives one plugin no way to render another's component, and these
+ * icons belong between the crumbs, so this marks the spot and lets the
+ * neighbour fill it. Unfilled it draws nothing and adds no flex gap.
+ *
+ * It must stay childless: React reconciles children it created, and the
+ * neighbour's are not its own. Being a container React owns is also what lets
+ * bb's foreign-DOM guard admit a fresh node while a plugin is attributed.
+ */
+function IconAnchor({
+  kind,
+  ownerId,
+}: {
+  kind: "section" | "project";
+  ownerId: string;
+}) {
+  return (
+    <span
+      data-breadcrumb-icon-anchor={kind}
+      data-breadcrumb-icon-owner={ownerId}
+      className="contents"
+    />
+  );
+}
+
 function Crumbs({ section, project, ancestors, refresh, rpc, navigate, threadActions }: CrumbsProps) {
   return (
     <>
+      {section === null ? null : (
+        <IconAnchor kind="section" ownerId={section.id} />
+      )}
       {section === null ? null : (
         <SectionBreadcrumb
           sectionName={section.name}
@@ -160,6 +190,9 @@ function Crumbs({ section, project, ancestors, refresh, rpc, navigate, threadAct
             await refresh();
           }}
         />
+      )}
+      {project === null ? null : (
+        <IconAnchor kind="project" ownerId={project.id} />
       )}
       {project === null ? null : (
         <ProjectBreadcrumb

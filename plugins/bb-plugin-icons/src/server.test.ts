@@ -25,11 +25,32 @@ describe("icon plugin API", () => {
       "listPlacements",
       "setIcon",
       "clearIcon",
+      "sectionForThread",
     ]);
     expect(harness.inspection.registrations.services).toHaveLength(1);
     expect(harness.inspection.registrations.services[0]?.name).toBe(
       "icon-cleanup",
     );
+  });
+
+  it("keeps the default glyphs out of the catalog, so picking one is never a no-op", async () => {
+    const harness = createPluginHarness();
+
+    const { icons } = (await harness.behavior.callRpc(
+      "listIconCatalog",
+      null,
+    )) as { icons: Array<{ name: string }> };
+    const names = new Set(icons.map((icon) => icon.name));
+
+    // Choosing one of these would store a row indistinguishable from having
+    // chosen nothing, which then outranks the section's icon on every row.
+    expect(names.has("folder-01")).toBe(false);
+    expect(names.has("bubble-chat")).toBe(false);
+    // The section's default is drawn by the plugin and was never in here.
+    expect(names.has("section")).toBe(false);
+    // Pinned: a filter that dropped far more than these two would still
+    // satisfy a lower bound.
+    expect(icons.length).toBe(2530);
   });
 
   it("persists a project icon through the schema-validated RPC boundary", async () => {

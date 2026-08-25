@@ -59,7 +59,7 @@ import { createNativeCommandDelegate } from "./native-command-delegation";
 import { notifyNativeShortcutHandled } from "./native-command-hints";
 import { usePersistentStringSet } from "./persistent-string-set";
 import {
-  fetchProjectIcons,
+  fetchIcons,
   subscribeToProjectIconChanges,
   type ProjectIconView,
 } from "./icons";
@@ -68,6 +68,8 @@ import {
   partitionWorkflowThreads,
   withThreadAncestors,
 } from "./root-thread-ownership";
+import { rowIcon } from "./row-icon";
+import { nearestSectionId } from "./section-of";
 import {
   currentThreadId,
   workflowReorderShortcut,
@@ -841,17 +843,28 @@ function WorkflowStageList({
   const [projectIcons, setProjectIcons] = useState<
     ReadonlyMap<string, ProjectIconView>
   >(new Map());
+  const [sectionIcons, setSectionIcons] = useState<
+    ReadonlyMap<string, ProjectIconView>
+  >(new Map());
+  const [chosenProjectIcons, setChosenProjectIcons] = useState<
+    ReadonlyMap<string, ProjectIconView>
+  >(new Map());
+  const sectionOf = useCallback(
+    (thread: { id: string }) => nearestSectionId(thread.id, sidebar.threads),
+    [sidebar.threads],
+  );
   const [projectActionStates, setProjectActionStates] = useState<
     ReadonlyMap<string, { canAddLocalPath: boolean }>
   >(new Map());
   useEffect(() => {
     let canceled = false;
     const load = () => {
-      void fetchProjectIcons(projectIds.split(",").filter(Boolean)).then(
-        (icons) => {
-          if (!canceled) setProjectIcons(icons);
-        },
-      );
+      void fetchIcons(projectIds.split(",").filter(Boolean)).then((icons) => {
+        if (canceled) return;
+        setProjectIcons(icons.projects);
+        setChosenProjectIcons(icons.chosenProjects);
+        setSectionIcons(icons.sections);
+      });
     };
     load();
     const unsubscribe = subscribeToProjectIconChanges(load);
@@ -1524,7 +1537,14 @@ function WorkflowStageList({
                           ? (previews.get(thread.id) ?? null)
                           : null
                       }
-                      projectIcon={projectIcons.get(thread.projectId) ?? null}
+                      projectIcon={rowIcon(
+                        { sectionId: sectionOf(thread), projectId: thread.projectId },
+                        {
+                          projects: projectIcons,
+                          chosenProjects: chosenProjectIcons,
+                          sections: sectionIcons,
+                        },
+                      )}
                       reorderable={isRoot && !Boolean(normalizedSearch)}
                       showDropAfter={
                         dropGroup === PINNED_SECTION &&
@@ -1708,7 +1728,14 @@ function WorkflowStageList({
                             ? (previews.get(thread.id) ?? null)
                             : null
                         }
-                        projectIcon={projectIcons.get(thread.projectId) ?? null}
+                        projectIcon={rowIcon(
+                          { sectionId: sectionOf(thread), projectId: thread.projectId },
+                          {
+                          projects: projectIcons,
+                          chosenProjects: chosenProjectIcons,
+                          sections: sectionIcons,
+                        },
+                        )}
                         reorderable={isRoot && !Boolean(normalizedSearch)}
                         showDropAfter={
                           dropGroup === stage && dropAfter === thread.id
