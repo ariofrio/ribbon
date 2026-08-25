@@ -64,7 +64,7 @@
     {
       "id": "icons",
       "displayName": "Icons",
-      "description": "Give each project and section an icon and color.",
+      "description": "Give each section and project an icon and color.",
       "icon": {
         "url": "./plugins/bb-plugin-icons/assets/icon.svg"
       },

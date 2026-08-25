@@ -56,7 +56,7 @@ agent-browser --session "$qa_session" wait '[role="menu"][data-state="open"]' >/
 
 agent-browser --session "$qa_session" eval '(() => {
   const element = [...document.querySelectorAll("[role=menu][data-state=open]")].find(
-    (candidate) => /All projects/.test(candidate.textContent ?? ""),
+    (candidate) => /All sections/.test(candidate.textContent ?? ""),
   );
   if (!(element instanceof HTMLElement)) {
     throw new Error("The project filter menu did not open.");

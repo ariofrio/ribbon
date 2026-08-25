@@ -25,7 +25,7 @@ agent-browser --session "$qa_session" eval '(() => {
   if (
     !(control instanceof HTMLButtonElement) ||
     !(icon instanceof SVGElement) ||
-    label !== "Projects and sections" ||
+    label !== "Sections and projects" ||
     icon.getAttribute("data-icon") !== "FolderLibrary"
   ) {
     throw new Error(
@@ -57,11 +57,11 @@ agent-browser --session "$qa_session" eval '(() => {
   if (
     !(menu instanceof HTMLElement) ||
     !(stageHeader instanceof HTMLElement) ||
-    groupLabels.length === 0 ||
+    groupLabels.map((label) => label.textContent).join(",") !== "Sections,Projects" ||
     groups.length !== groupLabels.length ||
     separators.length !== groupLabels.length ||
-    createItems.length !== 2 ||
-    allItem?.textContent !== "All projects and sections"
+    createItems.map((item) => item.textContent).join(",") !== "New section,New project" ||
+    allItem?.textContent !== "All sections and projects"
   ) {
     throw new Error(`Unexpected native dropdown structure: ${JSON.stringify({
       labels: groupLabels.map((label) => label.textContent),
@@ -151,6 +151,13 @@ agent-browser --session "$qa_session" eval '(() => {
   const actions = document.querySelector("[data-thread-filter-actions]");
   if (!(actions instanceof HTMLElement)) {
     throw new Error("Could not find the thread filter creation actions.");
+  }
+  const actionLabels = [...actions.querySelectorAll("button[aria-label]")]
+    .map((button) => button.getAttribute("aria-label"));
+  if (actionLabels.join(",") !== "New section,New project,Sections and projects options") {
+    throw new Error(
+      `Unexpected thread filter action order: ${JSON.stringify(actionLabels)}.`,
+    );
   }
   const style = getComputedStyle(actions);
   const state = {
@@ -599,7 +606,7 @@ agent-browser --session "$qa_session" eval '(() => {
     indicator.parentElement?.parentElement !== control ||
     labelElement.nextElementSibling !== indicator ||
     label === "Projects" ||
-    label === "Projects and sections" ||
+    label === "Sections and projects" ||
     (iconName !== null && iconName !== undefined && iconName !== "Folder")
   ) {
     throw new Error(

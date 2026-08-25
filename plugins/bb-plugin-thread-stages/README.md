@@ -20,10 +20,10 @@ still tells you what a thread belongs to. Without that plugin the rows look as
 they always have. Message previews remain visible by
 default and can be hidden in the plugin's settings for a denser list.
 
-Use **Projects** (or **Projects and sections** when sections exist) above the
-stages to focus the whole sidebar—including pinned and search results—on one
-project or one native thread section. Its menu retains the **All projects** or
-**All projects and sections** choice for clearing the filter. The control shows
+Use **Sections and projects** above the stages to focus the whole
+sidebar—including pinned and search results—on one project or one native thread
+section. Its menu retains the **All sections and projects** choice for clearing
+the filter. The control shows
 the selected project's Icons glyph, a folder when that plugin is absent, the
 chat glyph for the personal **Threads** project, or the section glyph for a
 selected section. A filter indicator appears beside the selected label. The
