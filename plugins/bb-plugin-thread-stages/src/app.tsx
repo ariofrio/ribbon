@@ -467,7 +467,6 @@ interface SidebarSectionProps {
   onDropAtEnd: (event: DragEvent<HTMLElement>) => void;
   onDragOverEnd: (event: DragEvent<HTMLElement>) => void;
   onToggle: () => void;
-  showCollapsedIndicator?: boolean;
   label: SidebarGroup;
   threads: readonly PluginSidebarThread[];
 }
@@ -480,12 +479,11 @@ function SidebarSection({
   onDropAtEnd,
   onDragOverEnd,
   onToggle,
-  showCollapsedIndicator = false,
   label,
   threads,
 }: SidebarSectionProps) {
   const activityThread =
-    collapsed && showCollapsedIndicator ? groupIndicator(threads) : null;
+    collapsed && label !== PINNED_SECTION ? groupIndicator(threads) : null;
   const id = `thread-stages-group-${label.replace(/\s/g, "-")}`;
   return (
     <section
@@ -673,8 +671,6 @@ function WorkflowStageList({
   const [collapsedThreads, setCollapsedThreads] = usePersistentStringSet(
     COLLAPSED_THREADS_STORAGE_KEY,
   );
-  const showCollapsedStageIndicators =
-    settings.values?.showCollapsedStageIndicators === true;
   const showThreadPreviews = settings.values?.showThreadPreviews !== false;
   const enabledStages = useMemo(
     () => enabledWorkflowStages(settings.values),
@@ -1591,7 +1587,6 @@ function WorkflowStageList({
                 dropGroup === stage && dropBefore === null && dropAfter === null
               }
               onToggle={() => toggleCollapsed(stage)}
-              showCollapsedIndicator={showCollapsedStageIndicators}
               onDragOverEnd={(event) => {
                 if (
                   !draggingThreadId ||

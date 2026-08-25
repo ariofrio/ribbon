@@ -28,13 +28,6 @@ describe("thread stages plugin API", () => {
           "Show the Sections and projects filter and management controls in the sidebar.",
         default: true,
       },
-      showCollapsedStageIndicators: {
-        type: "boolean",
-        label: "Show collapsed stage indicators (experimental)",
-        description:
-          "Show the highest-priority thread activity indicator in collapsed stage headers.",
-        default: false,
-      },
       showThreadPreviews: {
         type: "boolean",
         label: "Show thread message previews",

@@ -31,11 +31,11 @@ selection is stored only in the current browser and
 does not change stage assignments or synchronization.
 The adjacent actions and matching dropdown items create a project through bb's
 native host folder picker or open the New section dialog. Collapsed, nonempty stages show the number of
-filtered root threads; expanded and empty stages omit the count. An experimental
-setting can add the highest-priority aggregate activity indicator to collapsed
-stage headers, immediately to the right of the count. On a client with no saved
-collapse choices, Deferred and Completed start collapsed; Idle, Active, and
-Blocked start expanded. Saved choices from the former stage names migrate.
+filtered root threads; expanded and empty stages omit the count. Collapsed
+stages also show bb's highest-priority aggregate activity indicator immediately
+to the right of the count, except for the ordinary unread dot. On a client with
+no saved collapse choices, Deferred and Completed start collapsed; Idle,
+Active, and Blocked start expanded. Saved choices from the former stage names migrate.
 Deferred and Blocked can each be disabled in plugin settings. A disabled stage
 stays visible while it still contains threads, but no longer accepts moves;
 after it is emptied, it disappears.
@@ -184,8 +184,8 @@ so it can be.
 `qa:project-filter-hover` opens an isolated browser against `BB_SERVER_URL` and
 fails if a sticky stage shield covers the thread filter's rounded bottom edge
 or an empty project filter loses the sidebar's horizontal inset.
-`qa:sidebar-indicator-alignment` verifies that collapsed-stage activity and
-unread indicators share the same trailing alignment as thread indicators.
+`qa:sidebar-indicator-alignment` verifies that collapsed-stage activity
+indicators share the same trailing alignment as thread indicators.
 
 ## License
 

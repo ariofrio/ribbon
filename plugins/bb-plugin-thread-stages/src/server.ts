@@ -282,7 +282,6 @@ export const rpcContract = defineRpcContract({
     input: z
       .object({
         showSidebarFilter: z.boolean().optional(),
-        showCollapsedStageIndicators: z.boolean().optional(),
         showThreadPreviews: z.boolean().optional(),
         showDeferredStage: z.boolean().optional(),
         showBlockedStage: z.boolean().optional(),
@@ -317,13 +316,6 @@ export default function plugin(bb: BbPluginApi) {
       description:
         "Show the Sections and projects filter and management controls in the sidebar.",
       default: true,
-    },
-    showCollapsedStageIndicators: {
-      type: "boolean",
-      label: "Show collapsed stage indicators (experimental)",
-      description:
-        "Show the highest-priority thread activity indicator in collapsed stage headers.",
-      default: false,
     },
     showThreadPreviews: {
       type: "boolean",

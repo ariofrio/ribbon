@@ -3,6 +3,7 @@ import {
   loadPluginApp,
   renderSlot,
 } from "@get-bb/plugin-sdk/testing/app";
+import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { cleanup } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { ICON_ATTRIBUTE, ICON_OPTIONAL_ATTRIBUTE } from "./icon-styles";
@@ -38,7 +39,7 @@ const sidebarThread = {
   updatedAt: 2,
   lastReadAt: 2,
   latestAttentionAt: 1,
-};
+} satisfies PluginSidebarThread;
 
 const threadListProps = {
   activeThreadId: null,
@@ -53,6 +54,7 @@ function threadListOptions(
   showThreadPreviews: boolean,
   workflowStage: "Deferred" | "Idle" = "Idle",
   settings: Record<string, boolean> = {},
+  thread: PluginSidebarThread = sidebarThread,
 ) {
   return {
     settings: { ...settings, showThreadPreviews },
@@ -77,7 +79,7 @@ function threadListOptions(
       projects: [
         { id: "project-1", name: "Example project", isPersonal: false },
       ],
-      threads: [sidebarThread],
+      threads: [thread],
     },
   };
 }
@@ -158,6 +160,50 @@ describe("thread stages app registration", () => {
     expect(
       document.head.querySelector("style[data-thread-stages-icons]"),
     ).toBeNull();
+  });
+
+  it("always shows non-unread activity in a collapsed stage header", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(
+      app.threadLists[0]!,
+      threadListProps,
+      threadListOptions(
+        true,
+        "Deferred",
+        { showCollapsedStageIndicators: false },
+        {
+          ...sidebarThread,
+          indicator: "runtime",
+          indicatorLabel: "Thread working",
+        },
+      ),
+    );
+
+    expect(await slot.findByLabelText("Thread working")).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it("never shows unread-success activity in a collapsed stage header", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(
+      app.threadLists[0]!,
+      threadListProps,
+      threadListOptions(
+        true,
+        "Deferred",
+        {},
+        {
+          ...sidebarThread,
+          indicator: "unread-success",
+          indicatorLabel: "Unread thread succeeded",
+          isUnread: true,
+        },
+      ),
+    );
+
+    await slot.findByText("Deferred");
+    expect(slot.queryByLabelText("Unread thread succeeded")).toBeNull();
+    slot.lifecycle.unmount();
   });
 
   it("hides an empty disabled stage", async () => {
