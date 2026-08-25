@@ -1,5 +1,23 @@
 # bb-plugin-missing-keyboard-shortcuts
 
+## 0.2.3
+
+### Patch Changes
+
+- 3606c83: Move the terminal panel's DOM probing out of the app entry into its own module,
+  so the selectors this plugin assumes bb renders are written down in one place
+  and covered by tests.
+- 77f4e11: These plugins now use bb's documented APIs instead of private paths. Calls
+  into a neighbouring plugin, a plugin's own settings, and bb's keybinding table
+  go through `bb.sdk` rather than fetched routes.
+  
+  Stage chords ask bb to open the composer instead of arranging its stored state
+  and faking a keystroke. That needs Thread stages' own list mounted: with bb's
+  built-in list selected instead, emptying Idle still files the thread and opens
+  a composer, but on the project you last used rather than on none.
+- 3606c83: Fail the release check when a Tailwind arbitrary variant the source uses never
+  reaches the built stylesheet.
+
 ## 0.2.2
 
 ### Patch Changes

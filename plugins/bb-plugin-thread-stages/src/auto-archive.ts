@@ -2,6 +2,14 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { listAllThreads } from "./list-all-threads";
 import type { ThreadWorkflowStore } from "./store";
 
+export interface CompletedPlacementSource {
+  listCompletedBefore(
+    cutoff: number,
+  ):
+    | ReturnType<ThreadWorkflowStore["listCompletedBefore"]>
+    | Promise<ReturnType<ThreadWorkflowStore["listCompletedBefore"]>>;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
 export const AUTO_ARCHIVE_OPTIONS = [
@@ -54,7 +62,7 @@ function collectHierarchy(
 
 export async function archiveEligibleCompletedThreads(
   bb: Pick<BbPluginApi, "sdk" | "log">,
-  store: ThreadWorkflowStore,
+  source: CompletedPlacementSource,
   delayMs: number,
   now = Date.now(),
 ): Promise<string[]> {
@@ -62,7 +70,7 @@ export async function archiveEligibleCompletedThreads(
     throw new Error("Auto-archive delay must be positive.");
   }
 
-  const candidates = store.listCompletedBefore(now - delayMs);
+  const candidates = await source.listCompletedBefore(now - delayMs);
   if (candidates.length === 0) return [];
 
   const threads = await listAllThreads(({ limit, offset }) =>
@@ -114,13 +122,13 @@ export async function archiveEligibleCompletedThreads(
 
 export function registerCompletedAutoArchive(
   bb: BbPluginApi,
-  store: ThreadWorkflowStore,
+  source: CompletedPlacementSource,
   getRetention: () => Promise<unknown>,
 ): void {
   bb.background.schedule("completed-auto-archive", "17 * * * *", async () => {
     const delayMs = autoArchiveDelayMs(await getRetention());
     if (delayMs === null) return;
-    const archived = await archiveEligibleCompletedThreads(bb, store, delayMs);
+    const archived = await archiveEligibleCompletedThreads(bb, source, delayMs);
     if (archived.length > 0) {
       bb.log.info(`Auto-archived ${archived.length} Completed thread(s).`);
     }

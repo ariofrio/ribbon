@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-missing-keyboard-shortcuts",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Add shortcuts to start personal or project threads, navigate history, and reach the composer or panel tabs.",
   "license": "MIT",
   "repository": {

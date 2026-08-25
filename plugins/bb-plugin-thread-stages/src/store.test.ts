@@ -1,6 +1,10 @@
 import Database from "better-sqlite3";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  PlacementOwnershipTransferredError,
   THREAD_WORKFLOW_MIGRATIONS,
   createThreadWorkflowStore,
   type ThreadWorkflowStore,
@@ -147,7 +151,7 @@ describe("thread status store", () => {
   it("migrates every legacy stage into the five-stage model", () => {
     const migrationDb = new Database(":memory:");
     try {
-      for (const migration of THREAD_WORKFLOW_MIGRATIONS.slice(0, -2)) {
+      for (const migration of THREAD_WORKFLOW_MIGRATIONS.slice(0, 8)) {
         migrationDb.exec(migration);
       }
       const insert = migrationDb.prepare(
@@ -173,8 +177,9 @@ describe("thread status store", () => {
         );
       }
 
-      migrationDb.exec(THREAD_WORKFLOW_MIGRATIONS.at(-2) ?? "");
-      migrationDb.exec(THREAD_WORKFLOW_MIGRATIONS.at(-1) ?? "");
+      for (const migration of THREAD_WORKFLOW_MIGRATIONS.slice(8)) {
+        migrationDb.exec(migration);
+      }
       const migrated = createThreadWorkflowStore(migrationDb);
 
       expect(
@@ -198,7 +203,7 @@ describe("thread status store", () => {
   it("backfills stage-entry age from existing assignment timestamps", () => {
     const migrationDb = new Database(":memory:");
     try {
-      for (const migration of THREAD_WORKFLOW_MIGRATIONS.slice(0, -1)) {
+      for (const migration of THREAD_WORKFLOW_MIGRATIONS.slice(0, 9)) {
         migrationDb.exec(migration);
       }
       migrationDb
@@ -206,7 +211,9 @@ describe("thread status store", () => {
           "INSERT INTO thread_organization(thread_id, status, position, updated_at, sort_key) VALUES (?, ?, ?, ?, ?)",
         )
         .run("thr_existing", "Completed", 0, 123, "a");
-      migrationDb.exec(THREAD_WORKFLOW_MIGRATIONS.at(-1) ?? "");
+      for (const migration of THREAD_WORKFLOW_MIGRATIONS.slice(9)) {
+        migrationDb.exec(migration);
+      }
 
       expect(
         createThreadWorkflowStore(migrationDb).listCompletedBefore(124),
@@ -599,5 +606,186 @@ describe("thread status store", () => {
 
     store.observeActiveState("thr_a", true);
     expect(store.get("thr_a").workflowStage).toBe("Active");
+  });
+
+  it("returns a normalized migration snapshot with durable identity and retained order", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_000);
+      store.ensureThreads(["thr_a", "thr_b"]);
+      const idleOrder = store.get("thr_a").sortKey;
+
+      vi.setSystemTime(2_000);
+      store.setStage("thr_a", "Active", "app");
+      vi.setSystemTime(3_000);
+      store.reorderThread({
+        threadId: "thr_a",
+        workflowStage: "Active",
+        previousThreadId: null,
+        nextThreadId: null,
+        source: "app",
+      });
+
+      const snapshot = store.getPlacementMigrationSnapshot();
+      expect(snapshot).toMatchObject({
+        sourcePluginId: "thread-stages",
+        sourceSchema: 1,
+        installationId: expect.stringMatching(/^[a-f0-9]{32}$/),
+        revision: 2,
+        placements: [
+          {
+            groupingId: "stages",
+            threadId: "thr_b",
+            groupId: "Idle",
+            enteredAtMs: 1_000,
+            updatedAtMs: 1_000,
+            origin: "auto",
+          },
+          {
+            groupingId: "stages",
+            threadId: "thr_a",
+            groupId: "Active",
+            enteredAtMs: 2_000,
+            updatedAtMs: 2_000,
+            previousGroupId: "Idle",
+            origin: "ui",
+            orders: expect.arrayContaining([
+              { groupId: "Idle", sortKey: idleOrder, updatedAtMs: 1_000 },
+              {
+                groupId: "Active",
+                sortKey: expect.any(String),
+                updatedAtMs: 2_000,
+              },
+            ]),
+          },
+        ],
+      });
+
+      expect(
+        createThreadWorkflowStore(db).getPlacementMigrationSnapshot()
+          .installationId,
+      ).toBe(snapshot.installationId);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("increments the migration revision once for every committed placement mutation", () => {
+    const revision = () => store.getPlacementMigrationSnapshot().revision;
+
+    expect(revision()).toBe(0);
+    store.ensureThreads(["thr_a", "thr_b"]);
+    expect(revision()).toBe(1);
+    store.ensureThreads(["thr_a", "thr_b"]);
+    store.setStage("thr_a", "Idle");
+    store.setPreview("thr_a", "not placement state");
+    expect(revision()).toBe(1);
+
+    store.setStage("thr_a", "Active", "cli");
+    expect(revision()).toBe(2);
+    store.reorderThread({
+      threadId: "thr_b",
+      workflowStage: "Active",
+      previousThreadId: "thr_a",
+      nextThreadId: null,
+    });
+    expect(revision()).toBe(3);
+    store.delete("thr_a");
+    expect(revision()).toBe(4);
+  });
+
+  it("transfers ownership only for a matching installation and revision", () => {
+    store.ensureThreads(["thr_a"]);
+    const snapshot = store.getPlacementMigrationSnapshot();
+
+    expect(
+      store.acknowledgePlacementMigration({
+        installationId: "0".repeat(32),
+        revision: snapshot.revision,
+      }),
+    ).toEqual({ transferred: false });
+    expect(
+      store.acknowledgePlacementMigration({
+        installationId: snapshot.installationId,
+        revision: snapshot.revision - 1,
+      }),
+    ).toEqual({ transferred: false });
+    expect(store.placementOwnership()).toBe("thread-stages");
+
+    expect(
+      store.acknowledgePlacementMigration({
+        installationId: snapshot.installationId,
+        revision: snapshot.revision,
+      }),
+    ).toEqual({ transferred: true });
+    expect(store.placementOwnership()).toBe("ribbon-sidebar");
+    expect(
+      store.acknowledgePlacementMigration({
+        installationId: snapshot.installationId,
+        revision: snapshot.revision,
+      }),
+    ).toEqual({ transferred: true });
+  });
+
+  it("makes every legacy placement mutation read-only after handoff", () => {
+    store.ensureThreads(["thr_a"]);
+    const snapshot = store.getPlacementMigrationSnapshot();
+    store.acknowledgePlacementMigration(snapshot);
+
+    const mutations = [
+      () => store.ensureThreads(["thr_b"]),
+      () => store.syncRootThreads(["thr_a"], []),
+      () => store.removeRootThread("thr_a"),
+      () => store.setStage("thr_a", "Completed"),
+      () => store.restoreToIdle("thr_a", null),
+      () => store.observeActiveState("thr_a", true),
+      () =>
+        store.reorderThread({
+          threadId: "thr_a",
+          workflowStage: "Idle",
+          previousThreadId: null,
+          nextThreadId: null,
+        }),
+      () => store.delete("thr_a"),
+    ];
+    for (const mutate of mutations) {
+      expect(mutate).toThrow(PlacementOwnershipTransferredError);
+    }
+
+    expect(store.getPlacementMigrationSnapshot()).toEqual(snapshot);
+  });
+
+  it("serializes revision CAS and the ownership barrier across connections", () => {
+    const directory = mkdtempSync(join(tmpdir(), "thread-stages-handoff-"));
+    const databasePath = join(directory, "state.sqlite");
+    const firstDb = new Database(databasePath);
+    const secondDb = new Database(databasePath);
+    try {
+      for (const migration of THREAD_WORKFLOW_MIGRATIONS) {
+        firstDb.exec(migration);
+      }
+      const first = createThreadWorkflowStore(firstDb);
+      const second = createThreadWorkflowStore(secondDb);
+      first.ensureThreads(["thr_a"]);
+      const staleSnapshot = first.getPlacementMigrationSnapshot();
+
+      second.setStage("thr_a", "Active", "app");
+      expect(first.acknowledgePlacementMigration(staleSnapshot)).toEqual({
+        transferred: false,
+      });
+
+      const currentSnapshot = second.getPlacementMigrationSnapshot();
+      expect(first.acknowledgePlacementMigration(currentSnapshot)).toEqual({
+        transferred: true,
+      });
+      expect(() => second.setStage("thr_a", "Idle", "app")).toThrow(
+        PlacementOwnershipTransferredError,
+      );
+      expect(second.getPlacementMigrationSnapshot()).toEqual(currentSnapshot);
+    } finally {
+      secondDb.close();
+      firstDb.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });

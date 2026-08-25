@@ -90,14 +90,13 @@ nothing, which errs towards no icon rather than the wrong one.
 **The header.** One icon before each crumb
 [Breadcrumbs](../bb-plugin-breadcrumbs#readme) draws above an open thread, and
 none where that crumb is turned off. With no crumbs at all the header keeps a
-single icon and picks its owner the way a sidebar row does: the project's, or
-the section's where that project has no icon of its own. Also before the
+single icon, the thread's project, the way a sidebar row does. Also before the
 project's own crumb above its settings, the one screen where bb's header names
 a project and no thread.
 
 The picker does not offer the glyphs bb already draws for a project and for the
-personal project. A row holding one of those looks like no choice at all, and
-still outranks the section's icon.
+personal project, because a row holding one of those is indistinguishable from
+having picked nothing.
 
 **The prompt box.** Its project control and every project in the menu that
 control opens, each project in the list `@` brings up, a project mentioned in
