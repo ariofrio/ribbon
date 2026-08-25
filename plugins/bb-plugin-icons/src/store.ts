@@ -137,8 +137,8 @@ export function createIconStore(db: Database): IconStore {
 }
 
 /**
- * The icon an owner shows when the user has not chosen one. Which project is
- * personal is bb's to say, so it is passed in; null means bb has not said.
+ * The icon an owner shows when the user has not chosen one. `personalProjectId`
+ * comes from bb; null when bb has not reported it yet.
  */
 export function defaultIcon(
   { kind, id }: IconOwner,

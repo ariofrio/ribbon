@@ -4,11 +4,10 @@
 "bb-plugin-thread-stages": patch
 ---
 
-These plugins now take bb's documented APIs in place of the private paths they
-were on: which project is personal comes from bb rather than from the id
-`proj_personal`, and calls into a neighbouring plugin, into a plugin's own
-settings, and into bb's keybinding table go through `bb.sdk` instead of fetched
-routes.
+These plugins now use bb's documented APIs instead of private paths. Which
+project is personal comes from bb rather than from the id `proj_personal`, and
+calls into a neighbouring plugin, a plugin's own settings, and bb's keybinding
+table go through `bb.sdk` rather than fetched routes.
 
 Stage chords ask bb to open the composer instead of arranging its stored state
 and faking a keystroke. That needs Thread stages' own list mounted: before the

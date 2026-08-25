@@ -85,7 +85,7 @@ export function buildProjectIconMap(
 
 /**
  * Icons come from the Icons plugin, which bb calls on this plugin's behalf.
- * Never throws: without that plugin the sidebar simply draws no icons.
+ * Never throws: without that plugin the sidebar draws no icons.
  */
 export async function fetchProjectIcons(
   loadIcons: () => Promise<IconsResponse>,
