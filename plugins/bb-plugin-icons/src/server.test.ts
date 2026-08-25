@@ -32,7 +32,7 @@ describe("icon plugin API", () => {
     );
   });
 
-  it("keeps the default glyphs out of the catalog, so picking one is never a no-op", async () => {
+  it("keeps bb's section, project, and projectless glyphs out of the picker", async () => {
     const harness = createPluginHarness();
 
     const { icons } = (await harness.behavior.callRpc(
@@ -41,15 +41,21 @@ describe("icon plugin API", () => {
     )) as { icons: Array<{ name: string }> };
     const names = new Set(icons.map((icon) => icon.name));
 
-    // Choosing one of these would store a row indistinguishable from having
-    // chosen nothing, which then outranks the section's icon on every row.
-    expect(names.has("folder-01")).toBe(false);
-    expect(names.has("bubble-chat")).toBe(false);
-    // The section's default is drawn by the plugin and was never in here.
-    expect(names.has("section")).toBe(false);
-    // Pinned: a filter that dropped far more than these two would still
-    // satisfy a lower bound.
-    expect(icons.length).toBe(3525);
+    expect(
+      [
+        "list-view",
+        "folder-01",
+        "folder-add",
+        "folder-remove",
+        "bubble-chat",
+        "bubble-chat-add",
+      ].filter((name) => names.has(name)),
+    ).toEqual([]);
+    // Editing was outside the old category allowlist. Its neighboring list
+    // glyph proves the picker now keeps categories that are unrelated to a
+    // project, while reserving only the exact glyphs bb draws itself.
+    expect(names.has("list-minus")).toBe(true);
+    expect(icons).toHaveLength(5930);
   });
 
   it("persists a project icon through the schema-validated RPC boundary", async () => {

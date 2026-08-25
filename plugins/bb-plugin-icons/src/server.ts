@@ -217,17 +217,17 @@ export default function plugin(bb: BbPluginApi) {
   };
 
   /**
-   * The glyphs an owner already draws when nobody has picked for it.
-   *
-   * They are left out of the picker. Choosing one stores a row that looks like
-   * having chosen nothing, and a project's row outranks its section's icon on
-   * every thread in it, so the pick changes the sidebar while appearing not to.
-   * A section's default is composed below rather than taken from the catalog,
-   * so only these two need dropping.
+   * The section, project, and projectless glyphs bb or this plugin already
+   * draw for those concepts. Keeping them out of the picker prevents a custom
+   * choice from being visually indistinguishable from bb's own chrome.
    */
-  const defaultGlyphNames = new Set([
+  const reservedGlyphNames = new Set([
+    "list-view",
     DEFAULT_PROJECT_ICON,
+    "folder-add",
+    "folder-remove",
     PERSONAL_PROJECT_ICON,
+    "bubble-chat-add",
   ]);
 
   const catalog = {
@@ -237,7 +237,7 @@ export default function plugin(bb: BbPluginApi) {
       tags: string[];
     }>).flatMap((entry) => {
       const glyph = CATALOG_ICONS[entry.name];
-      return glyph === undefined || defaultGlyphNames.has(entry.name)
+      return glyph === undefined || reservedGlyphNames.has(entry.name)
         ? []
         : [
             {
