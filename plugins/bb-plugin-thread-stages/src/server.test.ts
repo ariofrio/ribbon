@@ -22,9 +22,9 @@ describe("thread stages plugin API", () => {
     expect(harness.inspection.registrations.settingsDescriptors).toEqual({
       showSidebarFilter: {
         type: "boolean",
-        label: "Show projects and sections in sidebar",
+        label: "Show sections and projects in sidebar",
         description:
-          "Show the Projects and sections filter and management controls in the sidebar.",
+          "Show the Sections and projects filter and management controls in the sidebar.",
         default: true,
       },
       showCollapsedStageIndicators: {
@@ -301,7 +301,7 @@ describe("thread stages plugin API", () => {
     });
   });
 
-  it("renames and removes projects and sections through the bb SDK", async () => {
+  it("renames and removes sections and projects through the bb SDK", async () => {
     const projectUpdate = vi.fn(async () => ({}));
     const projectDelete = vi.fn(async () => ({ ok: true as const }));
     const sectionUpdate = vi.fn(async () => ({}));
