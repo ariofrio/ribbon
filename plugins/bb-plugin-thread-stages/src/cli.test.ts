@@ -1,6 +1,10 @@
 import Database from "better-sqlite3";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runThreadWorkflowCli } from "./cli";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  runForwardedThreadWorkflowCli,
+  runThreadWorkflowCli,
+} from "./cli";
+import type { RibbonSidebarClient } from "./ribbon-sidebar-client";
 import {
   THREAD_WORKFLOW_MIGRATIONS,
   createThreadWorkflowStore,
@@ -354,5 +358,94 @@ describe("thread stages CLI", () => {
     expect(updated.exitCode).toBe(1);
     expect(store.get("parent").workflowStage).toBe("Idle");
     expect(store.get("child").workflowStage).toBe("Idle");
+  });
+
+  it("forwards compatibility CLI reads and writes after handoff", async () => {
+    const getPlacementV1 = vi.fn(async (input) => ({
+      ok: true as const,
+      value: {
+        placement: {
+          groupingKey: "plugin:thread-stages:stages" as const,
+          groupId: input.threadId === "thr_after" ? "Active" : "Idle",
+          threadId: input.threadId,
+          enteredAtMs: 100,
+          origin: "cli" as const,
+        },
+        revision: 4,
+      },
+    }));
+    const listPlacementsV1 = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        groupingKey: "plugin:thread-stages:stages" as const,
+        revision: 4,
+        items: [
+          {
+            groupingKey: "plugin:thread-stages:stages" as const,
+            groupId: "Active",
+            threadId: "thr_a",
+            enteredAtMs: 100,
+            origin: "auto" as const,
+          },
+        ],
+      },
+    }));
+    const updatePlacementV1 = vi.fn(async (input) => ({
+      ok: true as const,
+      value: {
+        placement: {
+          groupingKey: "plugin:thread-stages:stages" as const,
+          groupId: input.groupId,
+          threadId: input.threadId,
+          enteredAtMs: 200,
+          origin: "cli" as const,
+        },
+        revision: 5,
+      },
+    }));
+    const client = {
+      getPlacementV1,
+      listPlacementsV1,
+      updatePlacementV1,
+      invalidateGroupingCatalogV1: vi.fn(),
+    } as RibbonSidebarClient;
+
+    await expect(
+      runForwardedThreadWorkflowCli(
+        client,
+        ["list", "--stage", "Active", "--json"],
+        { listThreadIds: ["thr_a"] },
+      ),
+    ).resolves.toMatchObject({
+      exitCode: 0,
+      stdout: expect.stringContaining('"workflowStage": "Active"'),
+    });
+    await expect(
+      runForwardedThreadWorkflowCli(client, ["show", "--self", "--json"], {
+        threadId: "thr_self",
+      }),
+    ).resolves.toMatchObject({
+      exitCode: 0,
+      stdout: expect.stringContaining('"id": "thr_self"'),
+    });
+    await expect(
+      runForwardedThreadWorkflowCli(client, [
+        "update",
+        "thr_a",
+        "--stage",
+        "Active",
+        "--after",
+        "thr_after",
+        "--json",
+      ]),
+    ).resolves.toMatchObject({ exitCode: 0 });
+    expect(updatePlacementV1).toHaveBeenCalledWith({
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Active",
+      threadId: "thr_a",
+      anchor: { kind: "after", threadId: "thr_after" },
+      expectedRevision: 4,
+      origin: "cli",
+    });
   });
 });

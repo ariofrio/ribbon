@@ -165,4 +165,33 @@ describe("completed auto-archive", () => {
       db.close();
     }
   });
+
+  it("accepts authoritative Completed candidates from Ribbon sidebar", async () => {
+    const listCompletedBefore = vi.fn(async () => [
+      { threadId: "root", enteredAt: 100 },
+    ]);
+    const archiveAll = vi.fn(async () => ({
+      archivedThreadIds: ["root"],
+      ok: true as const,
+    }));
+    const bb = {
+      sdk: {
+        threads: {
+          list: vi.fn(async () => [thread("root")]),
+          archiveAll,
+        },
+      },
+      log: { warn: vi.fn(), info: vi.fn() },
+    } as unknown as BbPluginApi;
+
+    await expect(
+      archiveEligibleCompletedThreads(
+        bb,
+        { listCompletedBefore },
+        DAY,
+        2 * DAY,
+      ),
+    ).resolves.toEqual(["root"]);
+    expect(listCompletedBefore).toHaveBeenCalledWith(DAY);
+  });
 });

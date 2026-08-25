@@ -1,16 +1,34 @@
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
+  acknowledgePlacementMigrationInputSchema,
+  acknowledgePlacementMigrationOutputSchema,
+  createGroupingCatalog,
+  getGroupingCatalogInputSchema,
+  groupingCatalogSchema,
+  placementMigrationSnapshotSchema,
+} from "./contracts";
+import {
   AUTO_ARCHIVE_OPTIONS,
   registerCompletedAutoArchive,
 } from "./auto-archive";
-import { runThreadWorkflowCli } from "./cli";
+import {
+  runForwardedThreadWorkflowCli,
+  runThreadWorkflowCli,
+} from "./cli";
 import { listAllThreads } from "./list-all-threads";
 import { sortExplicitPinnedThreadIds } from "./pinned-threads";
+import {
+  RibbonSidebarDependencyError,
+  THREAD_STAGES_GROUPING_KEY,
+  createRibbonSidebarClient,
+  type RibbonSidebarClient,
+} from "./ribbon-sidebar-client";
 import { sidebarThreadsFromSearchResult } from "./search-results";
 import { resolveStageChord } from "./workflow-chords";
 import { resolveWorkflowReorder } from "./workflow-reorder";
 import {
+  PlacementOwnershipTransferredError,
   THREAD_WORKFLOW_MIGRATIONS,
   createThreadWorkflowStore,
 } from "./store";
@@ -19,6 +37,7 @@ import { registerThreadPreviews } from "./thread-preview";
 import {
   WORKFLOW_STAGES,
   enabledWorkflowStages,
+  parseWorkflowStage,
   type WorkflowStage,
 } from "./workflow-stage";
 import {
@@ -240,6 +259,18 @@ export const rpcContract = defineRpcContract({
       .strict(),
     output: z.object({ ok: z.literal(true) }).strict(),
   },
+  getGroupingCatalogV1: {
+    input: getGroupingCatalogInputSchema,
+    output: groupingCatalogSchema,
+  },
+  getPlacementMigrationSnapshotV1: {
+    input: z.null(),
+    output: placementMigrationSnapshotSchema,
+  },
+  acknowledgePlacementMigrationV1: {
+    input: acknowledgePlacementMigrationInputSchema,
+    output: acknowledgePlacementMigrationOutputSchema,
+  },
 });
 
 export default function plugin(bb: BbPluginApi) {
@@ -290,6 +321,152 @@ export default function plugin(bb: BbPluginApi) {
   const db = bb.storage.database();
   bb.storage.migrate(db, THREAD_WORKFLOW_MIGRATIONS);
   const store = createThreadWorkflowStore(db);
+  const ribbonSidebar = createRibbonSidebarClient({
+    baseUrl: bb.server.loopbackBaseUrl,
+  });
+
+  async function forwardPlacement(
+    input: Parameters<RibbonSidebarClient["updatePlacementV1"]>[0],
+  ): Promise<void> {
+    try {
+      const result = await ribbonSidebar.updatePlacementV1(input);
+      if (!result.ok) {
+        throw new RibbonSidebarDependencyError(
+          `placement update was rejected (${result.error.code}): ${result.error.message}`,
+        );
+      }
+    } catch (error) {
+      store.markForwardingReconciliationNeeded();
+      const message = error instanceof Error ? error.message : String(error);
+      bb.log.warn(`Could not forward Thread stages placement: ${message}`);
+      throw error;
+    }
+  }
+
+  async function forwardLifecycleStage(
+    threadId: string,
+    stage: "Active" | "Idle",
+  ): Promise<void> {
+    if (stage === "Idle") {
+      try {
+        const current = await ribbonSidebar.getPlacementV1({
+          groupingKey: THREAD_STAGES_GROUPING_KEY,
+          threadId,
+        });
+        if (!current.ok) {
+          throw new RibbonSidebarDependencyError(
+            `placement read was rejected (${current.error.code}): ${current.error.message}`,
+          );
+        }
+        if (current.value.placement.groupId !== "Active") return;
+        await forwardPlacement({
+          groupingKey: THREAD_STAGES_GROUPING_KEY,
+          groupId: stage,
+          threadId,
+          expectedRevision: current.value.revision,
+          origin: "auto",
+        });
+        return;
+      } catch (error) {
+        store.markForwardingReconciliationNeeded();
+        throw error;
+      }
+    }
+    await forwardPlacement({
+      groupingKey: THREAD_STAGES_GROUPING_KEY,
+      groupId: stage,
+      threadId,
+      origin: "auto",
+    });
+  }
+
+  async function readRibbonPlacements(
+    input: Parameters<RibbonSidebarClient["listPlacementsV1"]>[0],
+  ) {
+    try {
+      const result = await ribbonSidebar.listPlacementsV1(input);
+      if (!result.ok) {
+        throw new RibbonSidebarDependencyError(
+          `placement list was rejected (${result.error.code}): ${result.error.message}`,
+        );
+      }
+      return result.value;
+    } catch (error) {
+      store.markForwardingReconciliationNeeded();
+      const message = error instanceof Error ? error.message : String(error);
+      bb.log.warn(`Could not read Ribbon sidebar placement: ${message}`);
+      throw error;
+    }
+  }
+
+  async function ribbonAssignments(threadIds: readonly string[]) {
+    const placementState = await readRibbonPlacements({
+      groupingKey: THREAD_STAGES_GROUPING_KEY,
+      threadIds: [...threadIds],
+    });
+    return {
+      assignments: placementState.items.map((placement, index) => {
+        const workflowStage = parseWorkflowStage(placement.groupId);
+        if (workflowStage === null) {
+          store.markForwardingReconciliationNeeded();
+          throw new RibbonSidebarDependencyError(
+            `unknown Thread stages group ${placement.groupId}`,
+          );
+        }
+        return {
+          threadId: placement.threadId,
+          workflowStage,
+          sortKey: index.toString().padStart(12, "0"),
+          updatedAt: placement.enteredAtMs ?? 0,
+        };
+      }),
+      placements: placementState.items,
+      revision: placementState.revision,
+    };
+  }
+
+  const completedPlacementSource = {
+    async listCompletedBefore(cutoff: number) {
+      if (store.placementOwnership() === "thread-stages") {
+        return store.listCompletedBefore(cutoff);
+      }
+      try {
+        const result = await ribbonSidebar.listPlacementsV1({
+          groupingKey: THREAD_STAGES_GROUPING_KEY,
+          groupIds: ["Completed"],
+          enteredBeforeMs: cutoff + 1,
+        });
+        if (!result.ok) {
+          throw new RibbonSidebarDependencyError(
+            `placement list was rejected (${result.error.code}): ${result.error.message}`,
+          );
+        }
+        return result.value.items.flatMap((placement) =>
+          placement.enteredAtMs === null
+            ? []
+            : [{
+                threadId: placement.threadId,
+                enteredAt: placement.enteredAtMs,
+              }],
+        );
+      } catch (error) {
+        store.markForwardingReconciliationNeeded();
+        throw error;
+      }
+    },
+  };
+
+  async function requestRibbonReconciliation(): Promise<void> {
+    try {
+      await ribbonSidebar.invalidateGroupingCatalogV1({
+        providerPluginId: "thread-stages",
+      });
+      store.clearForwardingReconciliationNeeded();
+    } catch (error) {
+      store.markForwardingReconciliationNeeded();
+      throw error;
+    }
+  }
 
   function requireRootThread(
     threadId: string,
@@ -401,7 +578,12 @@ export default function plugin(bb: BbPluginApi) {
         sections: sections.map(({ id, name }) => ({ id, name })),
       };
     },
-    listState: () => store.listState(),
+    listState() {
+      if (store.placementOwnership() !== "thread-stages") {
+        throw new PlacementOwnershipTransferredError();
+      }
+      return store.listState();
+    },
     listPreviews: () => ({ previews: store.listPreviews() }),
     async listPinnedThreadIds() {
       const threads = await listAllThreads(({ limit, offset }) =>
@@ -426,7 +608,12 @@ export default function plugin(bb: BbPluginApi) {
       await bb.sdk.threads.update({ threadId, sectionId });
       return { sectionId };
     },
-    syncThreads({ rootThreadIds, childThreadIds }) {
+    async syncThreads({ rootThreadIds, childThreadIds }) {
+      if (store.placementOwnership() === "ribbon-sidebar") {
+        store.markForwardingReconciliationNeeded();
+        await requestRibbonReconciliation();
+        throw new PlacementOwnershipTransferredError();
+      }
       const previousIds = store
         .listState()
         .assignments.map(({ threadId }) => threadId)
@@ -446,6 +633,21 @@ export default function plugin(bb: BbPluginApi) {
         bb.sdk.threads.list({ archived: false, limit, offset }),
       );
       requireRootThread(input.threadId, threads);
+      if (store.placementOwnership() === "ribbon-sidebar") {
+        await forwardPlacement({
+          groupingKey: THREAD_STAGES_GROUPING_KEY,
+          groupId: input.workflowStage,
+          threadId: input.threadId,
+          anchor:
+            input.nextThreadId !== null
+              ? { kind: "before", threadId: input.nextThreadId }
+              : input.previousThreadId !== null
+                ? { kind: "after", threadId: input.previousThreadId }
+                : { kind: "end" },
+          origin: "ui",
+        });
+        return store.listState();
+      }
       const state = store.reorderThread(input);
       bb.realtime.publish("state-changed", { threadId: input.threadId });
       return state;
@@ -456,17 +658,72 @@ export default function plugin(bb: BbPluginApi) {
         bb.sdk.threads.list({ archived: false, limit, offset }),
       );
       requireRootThread(threadId, threads);
+      const transferred = store.placementOwnership() === "ribbon-sidebar";
+      const rootThreadIds = partitionWorkflowThreads(threads).rootThreads.map(
+        ({ id }) => id,
+      );
+      let assignments = store.listState().assignments;
+      let undoCandidates = store.listUndoCandidates();
+      let expectedRevision: number | undefined;
+      if (transferred) {
+        const placementState = await ribbonAssignments(rootThreadIds);
+        assignments = placementState.assignments;
+        expectedRevision = placementState.revision;
+        undoCandidates = placementState.placements
+          .filter(
+            (placement) =>
+              placement.origin === "ui" &&
+              (placement.groupId === "Deferred" ||
+                placement.groupId === "Blocked" ||
+                placement.groupId === "Completed"),
+          )
+          .map((placement) => {
+            const previousStage = placement.previousGroupId
+              ? parseWorkflowStage(placement.previousGroupId)
+              : null;
+            return {
+              threadId: placement.threadId,
+              previousStage,
+              previousSortKey: previousStage === "Idle" ? "preserve" : null,
+              updatedAt: placement.enteredAtMs ?? 0,
+            };
+          })
+          .sort((left, right) => right.updatedAt - left.updatedAt);
+      }
       const chord = resolveStageChord({
         threadId,
         workflowStage,
         threads,
-        assignments: store.listState().assignments,
-        undoCandidates: store.listUndoCandidates(),
+        assignments,
+        undoCandidates,
       });
       const stay: ChordDestination = { kind: "stay" };
       if (chord.kind === "none") return { destination: stay };
 
-      if (chord.kind === "restore") {
+      if (transferred) {
+        if (chord.kind === "restore") {
+          await forwardPlacement({
+            groupingKey: THREAD_STAGES_GROUPING_KEY,
+            groupId: "Idle",
+            threadId: chord.threadId,
+            anchor:
+              chord.sortKey !== null
+                ? { kind: "preserve" }
+                : { kind: "end" },
+            expectedRevision,
+            origin: "ui",
+          });
+        } else {
+          await forwardPlacement({
+            groupingKey: THREAD_STAGES_GROUPING_KEY,
+            groupId: chord.workflowStage,
+            threadId,
+            anchor: { kind: "end" },
+            expectedRevision,
+            origin: "ui",
+          });
+        }
+      } else if (chord.kind === "restore") {
         store.restoreToIdle(chord.threadId, chord.sortKey);
       } else {
         store.setStage(threadId, chord.workflowStage, "app");
@@ -491,12 +748,21 @@ export default function plugin(bb: BbPluginApi) {
         bb.sdk.threads.list({ archived: false, limit, offset }),
       );
       requireRootThread(threadId, threads);
-      store.ensureThreads([threadId]);
+      const transferred = store.placementOwnership() === "ribbon-sidebar";
+      if (!transferred) store.ensureThreads([threadId]);
+      const ribbonState = transferred
+        ? await ribbonAssignments(
+            partitionWorkflowThreads(threads).rootThreads.map(({ id }) => id),
+          )
+        : null;
+      const assignments = ribbonState?.assignments ?? store.listState().assignments;
       const move = resolveWorkflowReorder({
         threads,
-        assignments: store.listState().assignments,
+        assignments,
         threadId,
-        workflowStage: store.get(threadId).workflowStage,
+        workflowStage:
+          assignments.find(({ threadId: id }) => id === threadId)
+            ?.workflowStage ?? "Idle",
         enabledStages: enabledWorkflowStages(await settings.get()),
         intent: { scope, direction },
       });
@@ -508,6 +774,24 @@ export default function plugin(bb: BbPluginApi) {
           nextThreadId: move.nextThreadId,
         });
         bb.realtime.publish("state-changed", { threadId });
+        return store.listState();
+      }
+      if (transferred) {
+        await forwardPlacement({
+          groupingKey: THREAD_STAGES_GROUPING_KEY,
+          groupId: move.workflowStage,
+          threadId,
+          anchor:
+            move.kind === "stage"
+              ? { kind: "end" }
+              : move.nextThreadId !== null
+                ? { kind: "before", threadId: move.nextThreadId }
+                : move.previousThreadId !== null
+                  ? { kind: "after", threadId: move.previousThreadId }
+                  : { kind: "preserve" },
+          expectedRevision: ribbonState?.revision,
+          origin: "ui",
+        });
         return store.listState();
       }
       const state =
@@ -529,6 +813,20 @@ export default function plugin(bb: BbPluginApi) {
     async renameSection({ sectionId, name }) {
       await bb.sdk.threadSections.update({ id: sectionId, name });
       return { ok: true as const };
+    },
+    async getGroupingCatalogV1() {
+      return createGroupingCatalog(await settings.get());
+    },
+    getPlacementMigrationSnapshotV1() {
+      return store.getPlacementMigrationSnapshot();
+    },
+    acknowledgePlacementMigrationV1(input) {
+      const wasLegacyOwner = store.placementOwnership() === "thread-stages";
+      const result = store.acknowledgePlacementMigration(input);
+      if (wasLegacyOwner && result.transferred) {
+        bb.realtime.publish("state-changed", { threadId: null });
+      }
+      return result;
     },
   });
 
@@ -554,6 +852,7 @@ export default function plugin(bb: BbPluginApi) {
       },
     ],
     async run(argv, context) {
+      const transferred = store.placementOwnership() === "ribbon-sidebar";
       let listThreadIds: string[] | undefined;
       let rootIdsByThreadId: ReadonlyMap<string, string | null> | undefined;
       if (["list", "show", "update"].includes(argv[0] ?? "")) {
@@ -565,28 +864,40 @@ export default function plugin(bb: BbPluginApi) {
         if (argv[0] === "list") {
           listThreadIds = partition.rootThreads.map((thread) => thread.id);
         }
-        const previousIds = store
-          .listState()
-          .assignments.map(({ threadId }) => threadId)
-          .join("\n");
-        const state = store.syncRootThreads(
-          partition.rootThreads.map((thread) => thread.id),
-          partition.childThreads.map((thread) => thread.id),
-        );
-        if (
-          state.assignments.map(({ threadId }) => threadId).join("\n") !==
-          previousIds
-        ) {
-          bb.realtime.publish("state-changed", { threadId: null });
+        if (!transferred) {
+          const previousIds = store
+            .listState()
+            .assignments.map(({ threadId }) => threadId)
+            .join("\n");
+          const state = store.syncRootThreads(
+            partition.rootThreads.map((thread) => thread.id),
+            partition.childThreads.map((thread) => thread.id),
+          );
+          if (
+            state.assignments.map(({ threadId }) => threadId).join("\n") !==
+            previousIds
+          ) {
+            bb.realtime.publish("state-changed", { threadId: null });
+          }
         }
       }
-      const result = runThreadWorkflowCli(store, argv, {
+      const cliContext = {
         enabledStages: enabledWorkflowStages(await settings.get()),
         ...(listThreadIds ? { listThreadIds } : {}),
         ...(rootIdsByThreadId ? { rootIdsByThreadId } : {}),
         ...(context.threadId ? { threadId: context.threadId } : {}),
-      });
-      if (argv[0] === "update" && result.exitCode === 0) {
+      };
+      const result = transferred
+        ? await runForwardedThreadWorkflowCli(ribbonSidebar, argv, cliContext)
+        : runThreadWorkflowCli(store, argv, cliContext);
+      if (
+        transferred &&
+        result.exitCode !== 0 &&
+        result.stderr?.includes("Ribbon sidebar dependency problem")
+      ) {
+        store.markForwardingReconciliationNeeded();
+      }
+      if (!transferred && argv[0] === "update" && result.exitCode === 0) {
         bb.realtime.publish("state-changed", { threadId: null });
       }
       return result;
@@ -594,18 +905,47 @@ export default function plugin(bb: BbPluginApi) {
   });
 
   bb.events.on("thread.deleted", ({ thread }) => {
+    if (store.placementOwnership() === "ribbon-sidebar") {
+      store.markForwardingReconciliationNeeded();
+      return;
+    }
     if (store.delete(thread.id)) {
       bb.realtime.publish("state-changed", { threadId: thread.id });
     }
   });
 
-  registerThreadWorkflow(bb, store);
+  registerThreadWorkflow(bb, store, {
+    placementOwnership: () => store.placementOwnership(),
+    forwardStage: forwardLifecycleStage,
+  });
   registerThreadPreviews(bb, store);
   registerCompletedAutoArchive(
     bb,
-    store,
+    completedPlacementSource,
     async () => (await settings.get()).autoArchiveCompletedAfter,
   );
+  bb.background.schedule(
+    "placement-forward-reconciliation",
+    "* * * * *",
+    async () => {
+      if (!store.forwardingReconciliationNeeded()) return;
+      try {
+        await requestRibbonReconciliation();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        bb.log.warn(`Could not reconcile Ribbon sidebar placement: ${message}`);
+      }
+    },
+  );
+
+  settings.onChange(() => {
+    if (store.placementOwnership() !== "ribbon-sidebar") return;
+    store.markForwardingReconciliationNeeded();
+    void requestRibbonReconciliation().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      bb.log.warn(`Could not invalidate the Ribbon sidebar catalog: ${message}`);
+    });
+  });
 
   bb.log.info("Thread stages loaded");
 }
