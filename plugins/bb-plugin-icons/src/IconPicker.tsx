@@ -38,6 +38,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/vendor/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/vendor/components/ui/tooltip";
+
+const ICON_TOOLTIP_DELAY_MS = 350;
 
 export interface CatalogIcon extends Omit<CatalogEntry, "export"> {
   glyph: IconSvgElement;
@@ -390,61 +398,66 @@ export function IconPicker({
           ) : null}
 
           <div className="relative min-h-0 flex-1">
-            <div
-              ref={setCatalogScroller}
-              role="region"
-              aria-label={searching ? "Icon search results" : "Icon catalog"}
-              className="h-full overflow-y-auto"
-              onScroll={(event) => {
-                updateCatalogOverflow(event.currentTarget);
-                trackVisibleCategory(event.currentTarget);
-              }}
-            >
-              <div ref={catalogContentRef}>
-                {loading ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    Loading icons…
-                  </p>
-                ) : searching && results.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    No icons match.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {visibleGroups.map(({ name, entries }) => {
-                      const headingId = `${titleId}-${name}`;
-                      return (
-                        <section
-                          key={name}
-                          ref={(node) => {
-                            if (node === null) sectionRefs.current.delete(name);
-                            else sectionRefs.current.set(name, node);
-                          }}
-                          aria-labelledby={headingId}
-                          className="scroll-mt-1"
-                        >
-                          <h3
-                            id={headingId}
-                            className="mb-1.5 text-xs font-medium text-muted-foreground"
+            <TooltipProvider>
+              <div
+                ref={setCatalogScroller}
+                role="region"
+                aria-label={searching ? "Icon search results" : "Icon catalog"}
+                className="h-full overflow-y-auto"
+                onScroll={(event) => {
+                  updateCatalogOverflow(event.currentTarget);
+                  trackVisibleCategory(event.currentTarget);
+                }}
+              >
+                <div ref={catalogContentRef}>
+                  {loading ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      Loading icons…
+                    </p>
+                  ) : searching && results.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      No icons match.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {visibleGroups.map(({ name, entries }) => {
+                        const headingId = `${titleId}-${name}`;
+                        return (
+                          <section
+                            key={name}
+                            ref={(node) => {
+                              if (node === null) {
+                                sectionRefs.current.delete(name);
+                              } else {
+                                sectionRefs.current.set(name, node);
+                              }
+                            }}
+                            aria-labelledby={headingId}
+                            className="scroll-mt-1"
                           >
-                            {titleCase(categoryLabel(name))}
-                          </h3>
-                          <IconGrid
-                            entries={entries}
-                            icon={icon}
-                            color={color}
-                            onPick={onPick}
-                            scroller={catalogScroller}
-                            columns={catalogColumns}
-                            resizeTick={resizeTick}
-                          />
-                        </section>
-                      );
-                    })}
-                  </div>
-                )}
+                            <h3
+                              id={headingId}
+                              className="mb-1.5 text-xs font-medium text-muted-foreground"
+                            >
+                              {titleCase(categoryLabel(name))}
+                            </h3>
+                            <IconGrid
+                              entries={entries}
+                              icon={icon}
+                              color={color}
+                              onPick={onPick}
+                              scroller={catalogScroller}
+                              columns={catalogColumns}
+                              resizeTick={resizeTick}
+                            />
+                          </section>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            </TooltipProvider>
             <div
               aria-hidden
               data-scroll-fade="top"
@@ -638,24 +651,36 @@ function IconButton({
   color: IconColor | null;
   onPick: (icon: string) => void;
 }) {
+  const label = iconLabel(entry.name);
   return (
-    <button
-      type="button"
-      title={iconLabel(entry.name)}
-      aria-label={iconLabel(entry.name)}
-      aria-pressed={entry.name === icon}
-      onClick={() => onPick(entry.name)}
-      style={iconColorStyle(color)}
-      className={`flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors duration-150 hover:duration-0 ${
-        entry.name === icon
-          ? "bg-state-active"
-          : color === null
-            ? "text-muted-foreground hover:bg-state-hover hover:text-foreground"
-            : "hover:bg-state-hover"
-      }`}
+    <Tooltip
+      delayDuration={ICON_TOOLTIP_DELAY_MS}
+      disableHoverableContent
     >
-      <HugeiconsIcon icon={entry.glyph} className="size-[18px]" aria-hidden />
-    </button>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          aria-pressed={entry.name === icon}
+          onClick={() => onPick(entry.name)}
+          style={iconColorStyle(color)}
+          className={`flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors duration-150 hover:duration-0 ${
+            entry.name === icon
+              ? "bg-state-active"
+              : color === null
+                ? "text-muted-foreground hover:bg-state-hover hover:text-foreground"
+                : "hover:bg-state-hover"
+          }`}
+        >
+          <HugeiconsIcon
+            icon={entry.glyph}
+            className="size-[18px]"
+            aria-hidden
+          />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
   );
 }
 

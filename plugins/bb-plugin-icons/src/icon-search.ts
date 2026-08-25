@@ -5,7 +5,7 @@ export interface CatalogEntry {
 }
 
 function label(name: string): string {
-  return name.replace(/-\d+$/, "").replace(/-/g, " ");
+  return name.replace(/-/g, " ");
 }
 
 /**
