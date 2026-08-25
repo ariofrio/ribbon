@@ -1,12 +1,8 @@
 import type { IconSvgElement } from "@hugeicons/react";
 
-/**
- * Project icons come from the Icons plugin, over its RPC. The sidebar
- * degrades to no icons when that plugin is not installed, so this never
- * throws — a missing neighbour is a normal state, not an error.
- */
-const ICONS_PLUGIN_ID = "icons";
+/** bb keeps project-less threads in the personal project, under a reserved id. */
 const PERSONAL_PROJECT_ID = "proj_personal";
+
 /**
  * The Icons plugin announces edits here. A plugin cannot join another
  * plugin's realtime channel, and both run in the same document, so a broadcast
@@ -132,28 +128,20 @@ export interface IconMaps {
   sections: Map<string, ProjectIconView>;
 }
 
+/**
+ * Icons come from the Icons plugin, which bb calls on this plugin's behalf.
+ * Never throws: without that plugin the sidebar draws no icons.
+ */
 export async function fetchIcons(
+  loadIcons: () => Promise<IconsResponse>,
   projectIds: readonly string[],
 ): Promise<IconMaps> {
   try {
-    const response = await fetch(
-      `/api/v1/plugins/${ICONS_PLUGIN_ID}/rpc/listIcons`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "null",
-        credentials: "same-origin",
-      },
-    );
-    if (!response.ok) return empty();
-    const envelope = (await response.json()) as
-      | { ok: true; result: IconsResponse }
-      | { ok: false };
-    if (!envelope.ok) return empty();
+    const response = await loadIcons();
     return {
-      projects: buildProjectIconMap(envelope.result, projectIds),
-      chosenProjects: buildChosenIconMap(envelope.result, "project"),
-      sections: buildSectionIconMap(envelope.result),
+      projects: buildProjectIconMap(response, projectIds),
+      chosenProjects: buildChosenIconMap(response, "project"),
+      sections: buildSectionIconMap(response),
     };
   } catch {
     return empty();

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ICONS_CHANNEL,
   buildProjectIconMap,
+  fetchIcons,
   type IconsResponse,
   subscribeToProjectIconChanges,
 } from "./icons";
@@ -60,6 +61,26 @@ describe("buildProjectIconMap", () => {
     );
 
     expect(map.get("proj_a")?.color).toBeNull();
+  });
+});
+
+describe("fetchIcons", () => {
+  it("draws what the Icons plugin answers", async () => {
+    const icons = await fetchIcons(async () => response, ["proj_a"]);
+
+    expect(icons.projects.get("proj_a")?.name).toBe("rocket");
+  });
+
+  it("leaves the sidebar iconless when that plugin is not there", async () => {
+    const icons = await fetchIcons(
+      async () => {
+        throw new Error("plugin not installed");
+      },
+      ["proj_a"],
+    );
+
+    expect(icons.projects.size).toBe(0);
+    expect(icons.sections.size).toBe(0);
   });
 });
 

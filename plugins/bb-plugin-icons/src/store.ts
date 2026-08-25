@@ -52,7 +52,7 @@ export interface IconOwner {
   id: string;
 }
 
-/** bb keeps project-less threads in the personal project. */
+/** bb keeps project-less threads in the personal project, under a reserved id. */
 export const PERSONAL_PROJECT_ID = "proj_personal";
 export const DEFAULT_PROJECT_ICON = "folder-01";
 export const PERSONAL_PROJECT_ICON = "bubble-chat";

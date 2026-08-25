@@ -286,7 +286,7 @@ function padBox(box, padding) {
 const HOST_STATE_STYLE =
   '[data-sidebar="footer"] a[href="/settings/updates"] { display: none !important; }';
 
-export async function openApp({ browser, stack, theme, viewport, style }) {
+export async function openApp({ browser, stack, fixture, theme, viewport, style }) {
   const context = await browser.newContext({
     viewport: viewport ?? VIEWPORT,
     deviceScaleFactor: 2,
@@ -298,6 +298,18 @@ export async function openApp({ browser, stack, theme, viewport, style }) {
   await context.addInitScript(
     (mode) => window.localStorage.setItem("bb.theme", mode),
     theme,
+  );
+  // The sidebar opens focused on the product rather than on everything bb
+  // knows about, which is what a section is for and what the shots are of.
+  // Thread stages keeps this choice per client, so it is set here rather than
+  // seeded on the server.
+  await context.addInitScript(
+    (id) =>
+      window.localStorage.setItem(
+        "bb.plugin.thread-stages.threadFilter",
+        `section:${id}`,
+      ),
+    fixture.section.id,
   );
   await context.addInitScript(
     (css) => {
@@ -627,6 +639,7 @@ async function render({ browser, stack, fixture, shot, theme, viewport, style, t
   const { context, page, diagnostics } = await openApp({
     browser,
     stack,
+    fixture,
     theme,
     viewport,
     style,
