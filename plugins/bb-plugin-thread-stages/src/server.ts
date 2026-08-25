@@ -349,9 +349,9 @@ export default function plugin(bb: BbPluginApi) {
   const settings = bb.settings.define({
     showSidebarFilter: {
       type: "boolean",
-      label: "Show projects and sections in sidebar",
+      label: "Show sections and projects in sidebar",
       description:
-        "Show the Projects and sections filter and management controls in the sidebar.",
+        "Show the Sections and projects filter and management controls in the sidebar.",
       default: true,
     },
     showCollapsedStageIndicators: {

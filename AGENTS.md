@@ -27,13 +27,12 @@ decided before the work starts.
 
 ## Screenshots
 
-- Every plugin screenshot comes from `npm run screenshots`. Never edit or replace the files it writes by hand; change `scripts/screenshots/shots.mjs` and recapture.
-- Commit only files that came from a full run. Every shot runs against one seeded bb and the run changes it along the way, so `--only` starts from a state a full run never gives it.
+- CI owns screenshot recapture and its commits. For ordinary plugin changes, do not run `npm run screenshots` locally or commit generated images; the pull-request workflow runs the full suite and pushes the authoritative bytes, and main recaptures if a branch merged without them.
+- Run screenshots locally only when the user explicitly asks to inspect a capture or when developing or debugging the screenshot harness. Treat the generated images as disposable and restore them before committing. Every local capture comes from `npm run screenshots`; never edit or replace its files by hand, and do not use `--only` because every shot shares one seeded bb whose state changes throughout a full run.
 - Two runs must write the same files byte for byte, on one machine and on two machines running the same container.
 - Keep whatever the capturing machine brings with it out of frame, and wait for whatever the app resolves late rather than racing it.
 - Nothing records what a shot was captured from, and nothing should: two runs write the same bytes, so git already reports whether a screenshot changed.
-- The pinned container is the authoritative renderer, and its Chromium comes from the `playwright` version in `package-lock.json`. Capture locally to look sooner, but expect CI's bytes to be the ones that land.
-- CI recaptures on the pull request, and again on main when a branch merged without recapturing, so a branch need not be up to date with main before it merges. That second commit is pushed with a deploy key, because GitHub Actions cannot be a bypass actor on a repository a person owns.
+- The pinned CI container is the authoritative renderer, and its Chromium comes from the `playwright` version in `package-lock.json`. A branch need not be up to date with main before it merges. CI's second recapture commit is pushed with a deploy key, because GitHub Actions cannot be a bypass actor on a repository a person owns.
 - Adding an input that can change a screenshot means adding it to `affects.mjs`, which decides whether a pull request captures at all. It cannot become the workflow's `paths:` filter, because a skipped workflow never reports its check and the pull request requiring it could never merge.
 
 ## Testing

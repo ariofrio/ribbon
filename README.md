@@ -39,7 +39,7 @@ bb plugin install thread-stages@ribbon
 
 ### <img src="assets/icons/icons.svg" alt="" width="26" align="absmiddle"> &nbsp;Icons
 
-Give each project and section an icon and color.
+Give each section and project an icon and color.
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon
