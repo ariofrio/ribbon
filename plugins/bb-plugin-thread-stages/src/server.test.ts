@@ -1,4 +1,7 @@
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
+import {
+  createFakePluginHost,
+  makeThreadResponse,
+} from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import plugin from "./server";
 
@@ -94,7 +97,7 @@ describe("thread stages plugin API", () => {
     expect(harness.inspection.registrations.cli?.name).toBe("thread-stages");
     expect(harness.inspection.registrations.threadEventHandlers).toMatchObject({
       "thread.active": 1,
-      "thread.created": 1,
+      "thread.created": 2,
       "thread.deleted": 1,
       "thread.failed": 1,
       "thread.idle": 1,
@@ -153,6 +156,88 @@ describe("thread stages plugin API", () => {
       threadId: "thr_1",
       sectionId: null,
     });
+  });
+
+  it("places a new sourced thread in the source thread's section", async () => {
+    const update = vi.fn(async () => ({}));
+    const get = vi.fn(async () =>
+      makeThreadResponse({ id: "thr_source", sectionId: "section_now" }),
+    );
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { threads: { get, update } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await host.harness.behavior.emitThreadEvent("thread.created", {
+      thread: makeThreadResponse({
+        id: "thr_created",
+        sectionId: null,
+        sourceThreadId: "thr_source",
+      }),
+    });
+
+    expect(get).toHaveBeenCalledWith({ threadId: "thr_source" });
+    expect(update).toHaveBeenCalledWith({
+      threadId: "thr_created",
+      sectionId: "section_now",
+    });
+  });
+
+  it("uses the root section when a sourced thread points to a child", async () => {
+    const update = vi.fn(async () => ({}));
+    const get = vi.fn(async ({ threadId }: { threadId: string }) =>
+      threadId === "thr_child"
+        ? makeThreadResponse({
+            id: "thr_child",
+            parentThreadId: "thr_root",
+            sectionId: null,
+          })
+        : makeThreadResponse({ id: "thr_root", sectionId: "section_now" }),
+    );
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { threads: { get, update } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await host.harness.behavior.emitThreadEvent("thread.created", {
+      thread: makeThreadResponse({
+        id: "thr_created",
+        sectionId: null,
+        sourceThreadId: "thr_child",
+      }),
+    });
+
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(update).toHaveBeenCalledWith({
+      threadId: "thr_created",
+      sectionId: "section_now",
+    });
+  });
+
+  it("keeps a section explicitly selected when the thread was created", async () => {
+    const get = vi.fn();
+    const update = vi.fn();
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { threads: { get, update } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await host.harness.behavior.emitThreadEvent("thread.created", {
+      thread: makeThreadResponse({
+        id: "thr_created",
+        sectionId: "section_selected",
+        sourceThreadId: "thr_source",
+      }),
+    });
+
+    expect(get).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
   });
 
   it("creates a section and assigns the requesting thread", async () => {

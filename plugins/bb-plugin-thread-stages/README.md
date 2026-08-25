@@ -31,6 +31,10 @@ chat glyph for the personal **Threads** project, or the section glyph for a
 selected section. A filter indicator appears beside the selected label. The
 selection is stored only in the current browser and
 does not change stage assignments or synchronization.
+Starting a thread in the UI while a section or **Unorganized** filter is
+selected carries that selection into bb's New thread composer. A sourced
+thread without an explicit section, including a CLI fork, inherits the nearest
+section of its source hierarchy; a source-less CLI thread remains Unorganized.
 The adjacent actions and matching dropdown items create a project through bb's
 native host folder picker or open the New section dialog. Collapsed, nonempty stages show the number of
 filtered root threads; expanded and empty stages omit the count. An experimental

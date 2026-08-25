@@ -91,6 +91,10 @@ import {
   updateThreadStagesSettings,
   type ThreadStagesSettingsUpdate,
 } from "./sidebar-settings";
+import {
+  mountSectionAwareComposeNavigation,
+  THREAD_FILTER_CHANGED_EVENT,
+} from "./new-thread-section";
 
 const COLLAPSED_STATUSES_STORAGE_KEY =
   "bb.plugin.workflow-stage.collapsedStatuses";
@@ -839,6 +843,7 @@ function WorkflowStageList({
     }
     window.localStorage.removeItem(PROJECT_FILTER_STORAGE_KEY);
     window.localStorage.removeItem(LEGACY_PROJECT_FILTER_STORAGE_KEY);
+    window.dispatchEvent(new Event(THREAD_FILTER_CHANGED_EVENT));
   }, []);
   const [projectIcons, setProjectIcons] = useState<
     ReadonlyMap<string, ProjectIconView>
@@ -1863,6 +1868,15 @@ export default definePluginApp((app) => {
     title: "Thread stages",
     description: "Organize root threads into manually ordered stages.",
     component: WorkflowStageList,
+  });
+
+  app.contentScripts.register({
+    id: "new-thread-section",
+    mount({ signal }) {
+      const dispose = mountSectionAwareComposeNavigation(window);
+      signal.addEventListener("abort", dispose, { once: true });
+      return dispose;
+    },
   });
 
   app.contentScripts.register({

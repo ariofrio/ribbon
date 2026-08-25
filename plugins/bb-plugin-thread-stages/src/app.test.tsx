@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {
   loadPluginApp,
+  mountPluginContentScripts,
   renderSlot,
 } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup } from "@testing-library/react";
@@ -92,14 +93,66 @@ describe("thread stages app registration", () => {
         id: "workflow-stage",
         title: "Thread stages",
       });
-      expect(app.contentScripts).toHaveLength(2);
+      expect(app.contentScripts).toHaveLength(3);
       expect(app.contentScripts.map(({ id }) => id)).toEqual([
+        "new-thread-section",
         "workflow-shortcuts",
         "sidebar-content-spacing",
       ]);
     },
     10_000,
   );
+
+  it("creates UI threads in the section selected by the sidebar filter", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.thread-stages.threadFilter",
+      "section:section_now",
+    );
+    window.history.replaceState({}, "", "/threads/thread-1");
+    const app = await loadPluginApp(() => import("./app"));
+    const contentScripts = await mountPluginContentScripts(app, {
+      pluginId: "thread-stages",
+      generation: 1,
+    });
+
+    window.history.pushState(
+      { idx: 1, key: "compose", usr: { focusPrompt: true } },
+      "",
+      "/",
+    );
+
+    expect(window.history.state.usr).toEqual({
+      focusPrompt: true,
+      sectionId: "section_now",
+    });
+    await contentScripts.lifecycle.dispose();
+    window.localStorage.clear();
+  });
+
+  it("updates an already-open composer when the section filter changes", async () => {
+    window.history.replaceState(
+      { idx: 1, key: "compose", usr: { focusPrompt: true } },
+      "",
+      "/",
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const contentScripts = await mountPluginContentScripts(app, {
+      pluginId: "thread-stages",
+      generation: 1,
+    });
+
+    window.localStorage.setItem(
+      "bb.plugin.thread-stages.threadFilter",
+      "section:section_now",
+    );
+    window.dispatchEvent(
+      new Event("bb.thread-stages.thread-filter-changed"),
+    );
+
+    expect(window.history.state.usr.sectionId).toBe("section_now");
+    await contentScripts.lifecycle.dispose();
+    window.localStorage.clear();
+  });
 
   it("hides message previews when the setting is disabled", async () => {
     const app = await loadPluginApp(() => import("./app"));
