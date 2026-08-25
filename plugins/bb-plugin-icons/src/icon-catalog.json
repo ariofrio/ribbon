@@ -30,21 +30,6 @@
   ]
  },
  {
-  "name": "accessibility",
-  "export": "AccessibilityIcon",
-  "category": "medical",
-  "tags": [
-   "wheelchair",
-   "disability",
-   "handicap",
-   "accessible",
-   "inclusive",
-   "mobility",
-   "ada",
-   "assistance"
-  ]
- },
- {
   "name": "accident",
   "export": "AccidentIcon",
   "category": "logistics",
@@ -1015,21 +1000,6 @@
   ]
  },
  {
-  "name": "air-vent",
-  "export": "AirVentIcon",
-  "category": "devices",
-  "tags": [
-   "air vent",
-   "ventilation",
-   "airflow",
-   "air conditioner",
-   "ac",
-   "hvac",
-   "cooling",
-   "climate control"
-  ]
- },
- {
   "name": "airbnb",
   "export": "AirbnbIcon",
   "category": "logos",
@@ -1165,21 +1135,6 @@
   ]
  },
  {
-  "name": "airplay",
-  "export": "AirplayIcon",
-  "category": "devices",
-  "tags": [
-   "screen mirroring",
-   "cast",
-   "streaming",
-   "apple airplay",
-   "screen share",
-   "wireless display",
-   "tv",
-   "mirror screen"
-  ]
- },
- {
   "name": "airplay-line",
   "export": "AirplayLineIcon",
   "category": "devices",
@@ -1254,36 +1209,6 @@
   ]
  },
  {
-  "name": "alarm-clock-check",
-  "export": "AlarmClockCheckIcon",
-  "category": "date-time",
-  "tags": [
-   "alarm set",
-   "alarm check",
-   "alarm confirmed",
-   "clock check",
-   "alarm on",
-   "reminder done",
-   "time confirmed",
-   "checkmark"
-  ]
- },
- {
-  "name": "alarm-clock-minus",
-  "export": "AlarmClockMinusIcon",
-  "category": "date-time",
-  "tags": [
-   "remove alarm",
-   "alarm minus",
-   "delete alarm",
-   "snooze",
-   "reduce alarm",
-   "clock minus",
-   "cancel reminder",
-   "alarm clock"
-  ]
- },
- {
   "name": "alarm-clock-off",
   "export": "AlarmClockOffIcon",
   "category": "date-time",
@@ -1296,21 +1221,6 @@
    "turn off alarm",
    "clock slash",
    "silent"
-  ]
- },
- {
-  "name": "alarm-clock-plus",
-  "export": "AlarmClockPlusIcon",
-  "category": "date-time",
-  "tags": [
-   "add alarm",
-   "new alarm",
-   "alarm plus",
-   "set alarm",
-   "create reminder",
-   "clock plus",
-   "add reminder",
-   "alarm clock"
   ]
  },
  {
@@ -1645,21 +1555,6 @@
   ]
  },
  {
-  "name": "aperture",
-  "export": "ApertureIcon",
-  "category": "image-camera",
-  "tags": [
-   "camera",
-   "shutter",
-   "lens",
-   "photography",
-   "f-stop",
-   "exposure",
-   "diaphragm",
-   "photo"
-  ]
- },
- {
   "name": "api",
   "export": "ApiIcon",
   "category": "programming",
@@ -1702,36 +1597,6 @@
    "mac app store",
    "install app",
    "apple logo"
-  ]
- },
- {
-  "name": "app-window",
-  "export": "AppWindowIcon",
-  "category": "devices",
-  "tags": [
-   "browser window",
-   "app window",
-   "application",
-   "webpage",
-   "browser",
-   "interface",
-   "tab",
-   "desktop app"
-  ]
- },
- {
-  "name": "app-window-mac",
-  "export": "AppWindowMacIcon",
-  "category": "devices",
-  "tags": [
-   "mac window",
-   "app window",
-   "macos",
-   "browser window",
-   "application",
-   "traffic lights",
-   "desktop app",
-   "interface"
   ]
  },
  {
@@ -2013,36 +1878,6 @@
    "storage box",
    "recover",
    "move out"
-  ]
- },
- {
-  "name": "archive-x",
-  "export": "ArchiveXIcon",
-  "category": "devices",
-  "tags": [
-   "delete archive",
-   "archive remove",
-   "cancel archive",
-   "storage box x",
-   "discard",
-   "remove",
-   "close",
-   "reject"
-  ]
- },
- {
-  "name": "armchair",
-  "export": "ArmchairIcon",
-  "category": "devices",
-  "tags": [
-   "chair",
-   "sofa",
-   "furniture",
-   "seat",
-   "living room",
-   "couch",
-   "lounge",
-   "interior"
   ]
  },
  {
@@ -2644,21 +2479,6 @@
   ]
  },
  {
-  "name": "baggage-claim",
-  "export": "BaggageClaimIcon",
-  "category": "e-commerce",
-  "tags": [
-   "luggage",
-   "suitcase",
-   "conveyor belt",
-   "airport",
-   "travel",
-   "trip",
-   "bag",
-   "arrival"
-  ]
- },
- {
   "name": "balance-scale",
   "export": "BalanceScaleIcon",
   "category": "business",
@@ -2671,21 +2491,6 @@
    "court",
    "fairness",
    "equality"
-  ]
- },
- {
-  "name": "balloon",
-  "export": "BalloonIcon",
-  "category": "business",
-  "tags": [
-   "party",
-   "celebration",
-   "birthday",
-   "festive",
-   "helium",
-   "event",
-   "fun",
-   "decoration"
   ]
  },
  {
@@ -2749,66 +2554,6 @@
   ]
  },
  {
-  "name": "banknote",
-  "export": "BanknoteIcon",
-  "category": "business",
-  "tags": [
-   "money",
-   "cash",
-   "dollar bill",
-   "currency",
-   "payment",
-   "bill",
-   "finance",
-   "note"
-  ]
- },
- {
-  "name": "banknote-arrow-down",
-  "export": "BanknoteArrowDownIcon",
-  "category": "business",
-  "tags": [
-   "receive money",
-   "money down",
-   "cash in",
-   "income",
-   "deposit",
-   "payment received",
-   "withdraw",
-   "expense"
-  ]
- },
- {
-  "name": "banknote-arrow-up",
-  "export": "BanknoteArrowUpIcon",
-  "category": "business",
-  "tags": [
-   "send money",
-   "money up",
-   "cash out",
-   "payment sent",
-   "transfer",
-   "income",
-   "profit",
-   "withdraw"
-  ]
- },
- {
-  "name": "banknote-x",
-  "export": "BanknoteXIcon",
-  "category": "business",
-  "tags": [
-   "cancel payment",
-   "money",
-   "declined payment",
-   "no cash",
-   "refund",
-   "payment failed",
-   "remove money",
-   "finance"
-  ]
- },
- {
   "name": "bar-chart",
   "export": "BarChartIcon",
   "category": "business",
@@ -2854,21 +2599,6 @@
   ]
  },
  {
-  "name": "barcode",
-  "export": "BarcodeIcon",
-  "category": "business",
-  "tags": [
-   "scan",
-   "product code",
-   "sku",
-   "upc",
-   "label",
-   "inventory",
-   "retail",
-   "ecommerce"
-  ]
- },
- {
   "name": "barcode-scan",
   "export": "BarcodeScanIcon",
   "category": "business",
@@ -2905,12 +2635,8 @@
   "tags": [
    "cask",
    "keg",
-   "wine barrel",
-   "beer",
    "wooden barrel",
-   "storage",
-   "whiskey",
-   "brewery"
+   "storage"
   ]
  },
  {
@@ -2954,21 +2680,6 @@
    "headgear",
    "safety",
    "equipment"
-  ]
- },
- {
-  "name": "baseline",
-  "export": "BaselineIcon",
-  "category": "business",
-  "tags": [
-   "text",
-   "typography",
-   "underline",
-   "font",
-   "letter a",
-   "alignment",
-   "type",
-   "text formatting"
   ]
  },
  {
@@ -3016,21 +2727,6 @@
   ]
  },
  {
-  "name": "bath",
-  "export": "BathIcon",
-  "category": "furnitures",
-  "tags": [
-   "bathtub",
-   "shower",
-   "bathroom",
-   "tub",
-   "bathing",
-   "hygiene",
-   "spa",
-   "plumbing"
-  ]
- },
- {
   "name": "bathtub-01",
   "export": "Bathtub01Icon",
   "category": "furnitures",
@@ -3057,21 +2753,6 @@
    "electricity",
    "recharge",
    "cells"
-  ]
- },
- {
-  "name": "battery",
-  "export": "BatteryIcon",
-  "category": "devices",
-  "tags": [
-   "power",
-   "charge",
-   "energy",
-   "battery level",
-   "empty battery",
-   "device",
-   "electricity",
-   "status"
   ]
  },
  {
@@ -3223,21 +2904,6 @@
   ]
  },
  {
-  "name": "beaker",
-  "export": "BeakerIcon",
-  "category": "energy",
-  "tags": [
-   "measuring cup",
-   "laboratory",
-   "chemistry",
-   "science",
-   "lab",
-   "flask",
-   "experiment",
-   "measurement"
-  ]
- },
- {
   "name": "bean",
   "export": "BeanIcon",
   "category": "foods",
@@ -3370,51 +3036,6 @@
    "grill",
    "cooking",
    "restaurant"
-  ]
- },
- {
-  "name": "beef-off",
-  "export": "BeefOffIcon",
-  "category": "foods",
-  "tags": [
-   "no meat",
-   "no beef",
-   "meat free",
-   "vegetarian",
-   "vegan",
-   "no steak",
-   "meatless",
-   "dietary restriction"
-  ]
- },
- {
-  "name": "beer",
-  "export": "BeerIcon",
-  "category": "foods",
-  "tags": [
-   "pint",
-   "drink",
-   "alcohol",
-   "pub",
-   "bar",
-   "beverage",
-   "brewery",
-   "glass"
-  ]
- },
- {
-  "name": "beer-off",
-  "export": "BeerOffIcon",
-  "category": "foods",
-  "tags": [
-   "no beer",
-   "no alcohol",
-   "alcohol free",
-   "no drinking",
-   "sober",
-   "prohibition",
-   "dry",
-   "non alcoholic"
   ]
  },
  {
@@ -5901,17 +5522,17 @@
   ]
  },
  {
-  "name": "building",
-  "export": "BuildingIcon",
+  "name": "building-01",
+  "export": "Building01Icon",
   "category": "buildings",
   "tags": [
+   "skyscraper",
+   "tower",
    "office",
-   "company",
-   "apartment",
    "architecture",
-   "headquarters",
-   "business",
    "city",
+   "modern building",
+   "business",
    "real estate"
   ]
  },
@@ -6003,21 +5624,6 @@
    "commute",
    "transportation",
    "travel"
-  ]
- },
- {
-  "name": "bus-front",
-  "export": "BusFrontIcon",
-  "category": "logistics",
-  "tags": [
-   "bus front",
-   "public transport",
-   "transit",
-   "shuttle",
-   "coach",
-   "bus stop",
-   "commute",
-   "vehicle"
   ]
  },
  {
@@ -6126,21 +5732,6 @@
   ]
  },
  {
-  "name": "cake",
-  "export": "CakeIcon",
-  "category": "foods",
-  "tags": [
-   "birthday cake",
-   "candle",
-   "dessert",
-   "celebration",
-   "birthday",
-   "party",
-   "sweet",
-   "bakery"
-  ]
- },
- {
   "name": "cake-slice",
   "export": "CakeSliceIcon",
   "category": "foods",
@@ -6231,36 +5822,6 @@
   ]
  },
  {
-  "name": "calendar-arrow-down",
-  "export": "CalendarArrowDownIcon",
-  "category": "date-time",
-  "tags": [
-   "download schedule",
-   "arrow down",
-   "import event",
-   "date",
-   "save event",
-   "export calendar",
-   "schedule",
-   "past date"
-  ]
- },
- {
-  "name": "calendar-arrow-up",
-  "export": "CalendarArrowUpIcon",
-  "category": "date-time",
-  "tags": [
-   "upload schedule",
-   "arrow up",
-   "export event",
-   "date",
-   "share calendar",
-   "upcoming event",
-   "schedule",
-   "sync"
-  ]
- },
- {
   "name": "calendar-block-01",
   "export": "CalendarBlock01Icon",
   "category": "date-time",
@@ -6273,21 +5834,6 @@
    "restricted",
    "forbidden",
    "schedule"
-  ]
- },
- {
-  "name": "calendar-check",
-  "export": "CalendarCheckIcon",
-  "category": "date-time",
-  "tags": [
-   "confirmed",
-   "event done",
-   "checkmark",
-   "appointment confirmed",
-   "schedule",
-   "approved",
-   "date",
-   "completed"
   ]
  },
  {
@@ -6318,51 +5864,6 @@
    "date",
    "reservation",
    "schedule"
-  ]
- },
- {
-  "name": "calendar-clock",
-  "export": "CalendarClockIcon",
-  "category": "date-time",
-  "tags": [
-   "date and time",
-   "schedule",
-   "appointment time",
-   "deadline",
-   "reminder",
-   "event time",
-   "timer",
-   "planning"
-  ]
- },
- {
-  "name": "calendar-cog",
-  "export": "CalendarCogIcon",
-  "category": "date-time",
-  "tags": [
-   "calendar settings",
-   "gear",
-   "schedule settings",
-   "configure",
-   "event settings",
-   "preferences",
-   "date",
-   "manage calendar"
-  ]
- },
- {
-  "name": "calendar-days",
-  "export": "CalendarDaysIcon",
-  "category": "date-time",
-  "tags": [
-   "dates",
-   "month view",
-   "schedule",
-   "planner",
-   "agenda",
-   "events",
-   "multiple dates",
-   "organizer"
   ]
  },
  {
@@ -6411,21 +5912,6 @@
   ]
  },
  {
-  "name": "calendar-heart",
-  "export": "CalendarHeartIcon",
-  "category": "date-time",
-  "tags": [
-   "calendar heart",
-   "date night",
-   "anniversary",
-   "valentines day",
-   "romantic date",
-   "wedding date",
-   "favorite date",
-   "love"
-  ]
- },
- {
   "name": "calendar-lock-01",
   "export": "CalendarLock01Icon",
   "category": "date-time",
@@ -6455,8 +5941,8 @@
   ]
  },
  {
-  "name": "calendar-minus",
-  "export": "CalendarMinusIcon",
+  "name": "calendar-minus-01",
+  "export": "CalendarMinus01Icon",
   "category": "date-time",
   "tags": [
    "calendar minus",
@@ -6500,36 +5986,6 @@
   ]
  },
  {
-  "name": "calendar-plus",
-  "export": "CalendarPlusIcon",
-  "category": "date-time",
-  "tags": [
-   "add event",
-   "new appointment",
-   "calendar plus",
-   "add date",
-   "create event",
-   "schedule meeting",
-   "book date",
-   "reminder"
-  ]
- },
- {
-  "name": "calendar-range",
-  "export": "CalendarRangeIcon",
-  "category": "date-time",
-  "tags": [
-   "date range",
-   "calendar range",
-   "schedule",
-   "agenda",
-   "date picker",
-   "duration",
-   "period",
-   "timeline"
-  ]
- },
- {
   "name": "calendar-remove-01",
   "export": "CalendarRemove01Icon",
   "category": "date-time",
@@ -6542,21 +5998,6 @@
    "declined event",
    "x mark",
    "unschedule"
-  ]
- },
- {
-  "name": "calendar-search",
-  "export": "CalendarSearchIcon",
-  "category": "date-time",
-  "tags": [
-   "search date",
-   "find event",
-   "calendar search",
-   "magnifying glass",
-   "lookup schedule",
-   "search appointment",
-   "date finder",
-   "browse events"
   ]
  },
  {
@@ -6617,21 +6058,6 @@
    "attendee",
    "profile schedule",
    "event organizer"
-  ]
- },
- {
-  "name": "calendar-x",
-  "export": "CalendarXIcon",
-  "category": "date-time",
-  "tags": [
-   "calendar cancel",
-   "cancelled event",
-   "delete event",
-   "remove event",
-   "calendar x",
-   "no appointment",
-   "declined meeting",
-   "unschedule"
   ]
  },
  {
@@ -7309,21 +6735,6 @@
   ]
  },
  {
-  "name": "car-front",
-  "export": "CarFrontIcon",
-  "category": "logistics",
-  "tags": [
-   "automobile",
-   "vehicle",
-   "sedan",
-   "transportation",
-   "motor",
-   "transport",
-   "drive",
-   "headlights"
-  ]
- },
- {
   "name": "car-parking-01",
   "export": "CarParking01Icon",
   "category": "logistics",
@@ -7351,21 +6762,6 @@
    "transmission",
    "broadcast",
    "waves"
-  ]
- },
- {
-  "name": "car-taxi-front",
-  "export": "CarTaxiFrontIcon",
-  "category": "logistics",
-  "tags": [
-   "cab",
-   "taxi cab",
-   "transportation",
-   "ride",
-   "service",
-   "vehicle",
-   "public transport",
-   "yellow cab"
   ]
  },
  {
@@ -7411,21 +6807,6 @@
    "transaction",
    "transfer",
    "cards"
-  ]
- },
- {
-  "name": "card-sim",
-  "export": "CardSimIcon",
-  "category": "devices",
-  "tags": [
-   "sim card",
-   "mobile",
-   "phone",
-   "chip",
-   "device",
-   "telecom",
-   "connectivity",
-   "wireless"
   ]
  },
  {
@@ -7624,21 +7005,6 @@
   ]
  },
  {
-  "name": "cast",
-  "export": "CastIcon",
-  "category": "devices",
-  "tags": [
-   "broadcast",
-   "streaming",
-   "airplay",
-   "share",
-   "screen",
-   "wireless",
-   "chromecast",
-   "mirroring"
-  ]
- },
- {
   "name": "castbox",
   "export": "CastboxIcon",
   "category": "logos",
@@ -7666,21 +7032,6 @@
    "fantasy",
    "game",
    "historical"
-  ]
- },
- {
-  "name": "cat",
-  "export": "CatIcon",
-  "category": "games",
-  "tags": [
-   "kitten",
-   "animal",
-   "pet",
-   "feline",
-   "domestic",
-   "face",
-   "cute",
-   "mammal"
   ]
  },
  {
@@ -7714,21 +7065,6 @@
   ]
  },
  {
-  "name": "cctv",
-  "export": "CctvIcon",
-  "category": "devices",
-  "tags": [
-   "camera",
-   "security",
-   "surveillance",
-   "monitoring",
-   "video",
-   "security camera",
-   "closed circuit",
-   "recording"
-  ]
- },
- {
   "name": "cctv-camera",
   "export": "CctvCameraIcon",
   "category": "security",
@@ -7741,21 +7077,6 @@
    "security",
    "closed circuit",
    "safety"
-  ]
- },
- {
-  "name": "cctv-off",
-  "export": "CctvOffIcon",
-  "category": "devices",
-  "tags": [
-   "camera off",
-   "cctv off",
-   "disabled",
-   "security off",
-   "surveillance off",
-   "stop",
-   "inactive",
-   "offline"
   ]
  },
  {
@@ -8137,21 +7458,6 @@
   ]
  },
  {
-  "name": "chart-column-increasing",
-  "export": "ChartColumnIncreasingIcon",
-  "category": "business",
-  "tags": [
-   "column chart",
-   "growth",
-   "uptrend",
-   "rising",
-   "analytics",
-   "graph",
-   "trend",
-   "data visualization"
-  ]
- },
- {
   "name": "chart-column-stacked",
   "export": "ChartColumnStackedIcon",
   "category": "business",
@@ -8272,21 +7578,6 @@
   ]
  },
  {
-  "name": "chart-line",
-  "export": "ChartLineIcon",
-  "category": "business",
-  "tags": [
-   "line chart",
-   "trend",
-   "uptrend",
-   "growth",
-   "rising",
-   "data visualization",
-   "analytics",
-   "graph"
-  ]
- },
- {
   "name": "chart-line-data-01",
   "export": "ChartLineData01Icon",
   "category": "business",
@@ -8344,51 +7635,6 @@
    "low value",
    "trend",
    "line chart"
-  ]
- },
- {
-  "name": "chart-network",
-  "export": "ChartNetworkIcon",
-  "category": "business",
-  "tags": [
-   "connection",
-   "nodes",
-   "linked",
-   "relationship",
-   "graph",
-   "distributed",
-   "data network",
-   "connection map"
-  ]
- },
- {
-  "name": "chart-no-axes-column",
-  "export": "ChartNoAxesColumnIcon",
-  "category": "business",
-  "tags": [
-   "column chart",
-   "bar chart",
-   "bars",
-   "columns",
-   "histogram",
-   "graph",
-   "vertical",
-   "data"
-  ]
- },
- {
-  "name": "chart-no-axes-column-decreasing",
-  "export": "ChartNoAxesColumnDecreasingIcon",
-  "category": "business",
-  "tags": [
-   "declining",
-   "downward trend",
-   "bars",
-   "reduction",
-   "negative trend",
-   "columns",
-   "decline",
-   "graph"
   ]
  },
  {
@@ -8509,21 +7755,6 @@
    "dots",
    "graph",
    "analysis"
-  ]
- },
- {
-  "name": "chart-spline",
-  "export": "ChartSplineIcon",
-  "category": "business",
-  "tags": [
-   "smooth curve",
-   "line graph",
-   "trend",
-   "curve",
-   "data",
-   "line chart",
-   "smooth line",
-   "graph"
   ]
  },
  {
@@ -9043,21 +8274,6 @@
   ]
  },
  {
-  "name": "chess-knight",
-  "export": "ChessKnightIcon",
-  "category": "games",
-  "tags": [
-   "horse",
-   "piece",
-   "game",
-   "strategy",
-   "board game",
-   "play",
-   "entertainment",
-   "moves"
-  ]
- },
- {
   "name": "chess-pawn",
   "export": "ChessPawnIcon",
   "category": "games",
@@ -9068,32 +8284,6 @@
    "board game",
    "token",
    "white piece"
-  ]
- },
- {
-  "name": "chess-queen",
-  "export": "ChessQueenIcon",
-  "category": "games",
-  "tags": [
-   "piece",
-   "game",
-   "strategy",
-   "board game",
-   "crown",
-   "royal"
-  ]
- },
- {
-  "name": "chess-rook",
-  "export": "ChessRookIcon",
-  "category": "games",
-  "tags": [
-   "castle",
-   "piece",
-   "game",
-   "strategy",
-   "board game",
-   "tower"
   ]
  },
  {
@@ -9299,21 +8489,6 @@
   ]
  },
  {
-  "name": "circle-dollar-sign",
-  "export": "CircleDollarSignIcon",
-  "category": "business",
-  "tags": [
-   "money",
-   "payment",
-   "price",
-   "cost",
-   "currency",
-   "business",
-   "finance",
-   "economic"
-  ]
- },
- {
   "name": "circle-lock-01",
   "export": "CircleLock01Icon",
   "category": "security",
@@ -9386,34 +8561,6 @@
   ]
  },
  {
-  "name": "circle-off",
-  "export": "CircleOffIcon",
-  "category": "shapes",
-  "tags": [
-   "disable",
-   "prohibited",
-   "slash",
-   "forbidden",
-   "not allowed",
-   "cancelled",
-   "disabled state"
-  ]
- },
- {
-  "name": "circle-parking",
-  "export": "CircleParkingIcon",
-  "category": "logistics",
-  "tags": [
-   "lot",
-   "vehicle",
-   "transportation",
-   "p symbol",
-   "designated",
-   "car park",
-   "logistics"
-  ]
- },
- {
   "name": "circle-parking-off",
   "export": "CircleParkingOffIcon",
   "category": "logistics",
@@ -9454,20 +8601,6 @@
    "energy",
    "battery",
    "charge"
-  ]
- },
- {
-  "name": "circle-pound-sterling",
-  "export": "CirclePoundSterlingIcon",
-  "category": "business",
-  "tags": [
-   "currency",
-   "money",
-   "finance",
-   "uk",
-   "business",
-   "payment",
-   "gbp"
   ]
  },
  {
@@ -9613,19 +8746,6 @@
   ]
  },
  {
-  "name": "clipboard-check",
-  "export": "ClipboardCheckIcon",
-  "category": "notes-tasks",
-  "tags": [
-   "checkmark",
-   "complete",
-   "done",
-   "approved",
-   "verified",
-   "confirmation"
-  ]
- },
- {
   "name": "clipboard-clock",
   "export": "ClipboardClockIcon",
   "category": "notes-tasks",
@@ -9648,19 +8768,6 @@
    "transfer",
    "clone",
    "duplicate document"
-  ]
- },
- {
-  "name": "clipboard-list",
-  "export": "ClipboardListIcon",
-  "category": "notes-tasks",
-  "tags": [
-   "checklist",
-   "items",
-   "notes",
-   "organize",
-   "task list",
-   "todo"
   ]
  },
  {
@@ -9687,71 +8794,6 @@
    "clipboard action",
    "duplicate",
    "sticky"
-  ]
- },
- {
-  "name": "clipboard-pen",
-  "export": "ClipboardPenIcon",
-  "category": "notes-tasks",
-  "tags": [
-   "write",
-   "edit",
-   "annotation",
-   "pencil",
-   "mark",
-   "signature"
-  ]
- },
- {
-  "name": "clipboard-pen-line",
-  "export": "ClipboardPenLineIcon",
-  "category": "notes-tasks",
-  "tags": [
-   "write",
-   "draw",
-   "edit",
-   "annotation",
-   "sketch"
-  ]
- },
- {
-  "name": "clipboard-plus",
-  "export": "ClipboardPlusIcon",
-  "category": "notes-tasks",
-  "tags": [
-   "add",
-   "create",
-   "new",
-   "insert",
-   "expand",
-   "positive"
-  ]
- },
- {
-  "name": "clipboard-type",
-  "export": "ClipboardTypeIcon",
-  "category": "notes-tasks",
-  "tags": [
-   "text",
-   "edit",
-   "write",
-   "document",
-   "typing",
-   "content"
-  ]
- },
- {
-  "name": "clipboard-x",
-  "export": "ClipboardXIcon",
-  "category": "notes-tasks",
-  "tags": [
-   "delete",
-   "remove",
-   "cancel",
-   "close",
-   "reject",
-   "discard",
-   "clear"
   ]
  },
  {
@@ -9829,19 +8871,6 @@
    "verified",
    "approved",
    "success"
-  ]
- },
- {
-  "name": "clock-fading",
-  "export": "ClockFadingIcon",
-  "category": "date-time",
-  "tags": [
-   "fade out",
-   "time passing",
-   "duration",
-   "disappearing",
-   "animation",
-   "loading"
   ]
  },
  {
@@ -9939,21 +8968,6 @@
   ]
  },
  {
-  "name": "cloud-backup",
-  "export": "CloudBackupIcon",
-  "category": "weather",
-  "tags": [
-   "cloud storage",
-   "save",
-   "sync",
-   "data backup",
-   "synchronize",
-   "archive",
-   "storage",
-   "transfer"
-  ]
- },
- {
   "name": "cloud-big-rain",
   "export": "CloudBigRainIcon",
   "category": "weather",
@@ -9966,51 +8980,6 @@
    "weather",
    "drops",
    "wet"
-  ]
- },
- {
-  "name": "cloud-check",
-  "export": "CloudCheckIcon",
-  "category": "weather",
-  "tags": [
-   "saved",
-   "confirmed",
-   "success",
-   "verified",
-   "checkmark",
-   "cloud save",
-   "backup complete",
-   "approval"
-  ]
- },
- {
-  "name": "cloud-cog",
-  "export": "CloudCogIcon",
-  "category": "weather",
-  "tags": [
-   "settings",
-   "configuration",
-   "cloud settings",
-   "gear",
-   "manage",
-   "admin",
-   "maintenance",
-   "control"
-  ]
- },
- {
-  "name": "cloud-drizzle",
-  "export": "CloudDrizzleIcon",
-  "category": "weather",
-  "tags": [
-   "light rain",
-   "mist",
-   "sprinkle",
-   "rain",
-   "precipitation",
-   "weather",
-   "damp",
-   "forecast"
   ]
  },
  {
@@ -10029,36 +8998,6 @@
   ]
  },
  {
-  "name": "cloud-fog",
-  "export": "CloudFogIcon",
-  "category": "weather",
-  "tags": [
-   "mist",
-   "haze",
-   "cloudy",
-   "visibility",
-   "weather",
-   "overcast",
-   "murky",
-   "forecast"
-  ]
- },
- {
-  "name": "cloud-hail",
-  "export": "CloudHailIcon",
-  "category": "weather",
-  "tags": [
-   "sleet",
-   "precipitation",
-   "weather",
-   "ice",
-   "storm",
-   "freezing rain",
-   "cold",
-   "winter"
-  ]
- },
- {
   "name": "cloud-hailstone",
   "export": "CloudHailstoneIcon",
   "category": "weather",
@@ -10071,21 +9010,6 @@
    "freezing",
    "winter",
    "sleet"
-  ]
- },
- {
-  "name": "cloud-lightning",
-  "export": "CloudLightningIcon",
-  "category": "weather",
-  "tags": [
-   "thunderstorm",
-   "storm",
-   "electric",
-   "thunder",
-   "weather",
-   "bolt",
-   "danger",
-   "electricity"
   ]
  },
  {
@@ -10149,51 +9073,6 @@
   ]
  },
  {
-  "name": "cloud-moon-rain",
-  "export": "CloudMoonRainIcon",
-  "category": "weather",
-  "tags": [
-   "night rain",
-   "weather",
-   "evening",
-   "precipitation",
-   "nocturnal",
-   "forecast",
-   "storm",
-   "darkness"
-  ]
- },
- {
-  "name": "cloud-rain",
-  "export": "CloudRainIcon",
-  "category": "weather",
-  "tags": [
-   "rainfall",
-   "precipitation",
-   "weather",
-   "storm",
-   "shower",
-   "downpour",
-   "wet",
-   "forecast"
-  ]
- },
- {
-  "name": "cloud-rain-wind",
-  "export": "CloudRainWindIcon",
-  "category": "weather",
-  "tags": [
-   "stormy",
-   "weather",
-   "windy rain",
-   "gust",
-   "precipitation",
-   "blustery",
-   "forecast",
-   "storm"
-  ]
- },
- {
   "name": "cloud-server",
   "export": "CloudServerIcon",
   "category": "ai",
@@ -10234,73 +9113,6 @@
    "winter",
    "snowflake",
    "cold weather"
-  ]
- },
- {
-  "name": "cloud-sun-rain",
-  "export": "CloudSunRainIcon",
-  "category": "weather",
-  "tags": [
-   "weather",
-   "mixed weather",
-   "forecast",
-   "precipitation",
-   "temperature"
-  ]
- },
- {
-  "name": "cloud-sync",
-  "export": "CloudSyncIcon",
-  "category": "weather",
-  "tags": [
-   "synchronize",
-   "backup",
-   "database",
-   "restore",
-   "update",
-   "refresh"
-  ]
- },
- {
-  "name": "cloudy",
-  "export": "CloudyIcon",
-  "category": "weather",
-  "tags": [
-   "cloud",
-   "weather",
-   "overcast",
-   "sky",
-   "climate",
-   "forecast",
-   "meteorology"
-  ]
- },
- {
-  "name": "clover",
-  "export": "CloverIcon",
-  "category": "games",
-  "tags": [
-   "luck",
-   "lucky",
-   "plant",
-   "leaf",
-   "four leaf",
-   "fortune",
-   "shamrock"
-  ]
- },
- {
-  "name": "club",
-  "export": "ClubIcon",
-  "category": "games",
-  "tags": [
-   "card suit",
-   "poker",
-   "card game",
-   "suit",
-   "hearts",
-   "spades",
-   "diamonds"
   ]
  },
  {
@@ -10381,19 +9193,6 @@
    "coding",
    "script",
    "development",
-   "syntax"
-  ]
- },
- {
-  "name": "code-xml",
-  "export": "CodeXmlIcon",
-  "category": "games",
-  "tags": [
-   "programming",
-   "html",
-   "tag",
-   "markup",
-   "script",
    "syntax"
   ]
  },
@@ -11032,19 +9831,6 @@
   ]
  },
  {
-  "name": "concierge-bell",
-  "export": "ConciergeBellIcon",
-  "category": "games",
-  "tags": [
-   "service",
-   "notification",
-   "alert",
-   "ring",
-   "customer service",
-   "help"
-  ]
- },
- {
   "name": "conference",
   "export": "ConferenceIcon",
   "category": "business",
@@ -11149,21 +9935,6 @@
   ]
  },
  {
-  "name": "contact-round",
-  "export": "ContactRoundIcon",
-  "category": "games",
-  "tags": [
-   "person",
-   "chat",
-   "communication",
-   "message",
-   "user",
-   "profile",
-   "discussion",
-   "conversation"
-  ]
- },
- {
   "name": "container",
   "export": "ContainerIcon",
   "category": "devices",
@@ -11224,21 +9995,6 @@
   ]
  },
  {
-  "name": "contrast",
-  "export": "ContrastIcon",
-  "category": "games",
-  "tags": [
-   "comparison",
-   "light dark",
-   "balance",
-   "toggle",
-   "mode",
-   "duality",
-   "opposite",
-   "difference"
-  ]
- },
- {
   "name": "conversation",
   "export": "ConversationIcon",
   "category": "education",
@@ -11281,21 +10037,6 @@
    "treat",
    "bakery",
    "pastry"
-  ]
- },
- {
-  "name": "cooking-pot",
-  "export": "CookingPotIcon",
-  "category": "games",
-  "tags": [
-   "kitchen",
-   "food",
-   "meal",
-   "cookware",
-   "stove",
-   "culinary",
-   "preparation",
-   "cooking equipment"
   ]
  },
  {
@@ -11554,14 +10295,14 @@
   "export": "CraneIcon",
   "category": "logistics",
   "tags": [
-   "construction",
-   "lift",
-   "equipment",
-   "machinery",
-   "heavy machinery",
-   "industrial",
-   "builder",
-   "hoist"
+   "lifter",
+   "hoister",
+   "elevator",
+   "pulley",
+   "derrick",
+   "winch",
+   "jib",
+   "dolly"
   ]
  },
  {
@@ -11760,36 +10501,6 @@
   ]
  },
  {
-  "name": "cross",
-  "export": "CrossIcon",
-  "category": "shapes",
-  "tags": [
-   "plus",
-   "add",
-   "positive",
-   "shape",
-   "intersection",
-   "mathematics",
-   "plus sign",
-   "medical"
-  ]
- },
- {
-  "name": "crosshair",
-  "export": "CrosshairIcon",
-  "category": "image-camera",
-  "tags": [
-   "target",
-   "aim",
-   "focus",
-   "precision",
-   "sight",
-   "targeting",
-   "marker",
-   "alignment"
-  ]
- },
- {
   "name": "crowdfunding",
   "export": "CrowdfundingIcon",
   "category": "business",
@@ -11832,21 +10543,6 @@
    "export",
    "data format",
    "table"
-  ]
- },
- {
-  "name": "cup-soda",
-  "export": "CupSodaIcon",
-  "category": "foods",
-  "tags": [
-   "drink",
-   "beverage",
-   "straw",
-   "soft drink",
-   "cola",
-   "refreshment",
-   "glass",
-   "liquid"
   ]
  },
  {
@@ -12040,19 +10736,6 @@
   ]
  },
  {
-  "name": "database-backup",
-  "export": "DatabaseBackupIcon",
-  "category": "programming",
-  "tags": [
-   "data",
-   "copy",
-   "archive",
-   "recovery",
-   "duplicate",
-   "save"
-  ]
- },
- {
   "name": "database-expand",
   "export": "DatabaseExpandIcon",
   "category": "programming",
@@ -12131,19 +10814,6 @@
   ]
  },
  {
-  "name": "database-search",
-  "export": "DatabaseSearchIcon",
-  "category": "programming",
-  "tags": [
-   "find",
-   "query",
-   "magnifying glass",
-   "locate",
-   "discover",
-   "data"
-  ]
- },
- {
   "name": "database-setting",
   "export": "DatabaseSettingIcon",
   "category": "programming",
@@ -12166,19 +10836,6 @@
    "update",
    "exchange",
    "mirror",
-   "data"
-  ]
- },
- {
-  "name": "database-zap",
-  "export": "DatabaseZapIcon",
-  "category": "programming",
-  "tags": [
-   "lightning",
-   "power",
-   "energy",
-   "flash",
-   "bolt",
    "data"
   ]
  },
@@ -12449,21 +11106,6 @@
   ]
  },
  {
-  "name": "dessert",
-  "export": "DessertIcon",
-  "category": "foods",
-  "tags": [
-   "cake",
-   "sweet",
-   "food",
-   "layer cake",
-   "treat",
-   "baking",
-   "confection",
-   "pastry"
-  ]
- },
- {
   "name": "detergent",
   "export": "DetergentIcon",
   "category": "clothing",
@@ -12626,21 +11268,6 @@
    "cube",
    "roll",
    "pip"
-  ]
- },
- {
-  "name": "dices",
-  "export": "DicesIcon",
-  "category": "games",
-  "tags": [
-   "dice",
-   "multiple",
-   "roll",
-   "shake",
-   "game",
-   "gambling",
-   "random",
-   "chance"
   ]
  },
  {
@@ -12919,21 +11546,6 @@
   ]
  },
  {
-  "name": "dna-off",
-  "export": "DnaOffIcon",
-  "category": "medical",
-  "tags": [
-   "genetics",
-   "disabled",
-   "biology",
-   "inactive",
-   "toggle",
-   "medical",
-   "blocked",
-   "deactivate"
-  ]
- },
- {
   "name": "doc-01",
   "export": "Doc01Icon",
   "category": "files-folders",
@@ -13054,21 +11666,6 @@
   ]
  },
  {
-  "name": "dollar-sign",
-  "export": "DollarSignIcon",
-  "category": "business",
-  "tags": [
-   "money",
-   "currency",
-   "payment",
-   "finance",
-   "cash",
-   "price",
-   "financial",
-   "cost"
-  ]
- },
- {
   "name": "dollar-square",
   "export": "DollarSquareIcon",
   "category": "business",
@@ -13114,21 +11711,6 @@
   ]
  },
  {
-  "name": "donut",
-  "export": "DonutIcon",
-  "category": "foods",
-  "tags": [
-   "pastry",
-   "dessert",
-   "food",
-   "sweet",
-   "breakfast",
-   "snack",
-   "treat",
-   "baked"
-  ]
- },
- {
   "name": "door",
   "export": "DoorIcon",
   "category": "furnitures",
@@ -13141,35 +11723,6 @@
    "gateway",
    "portal",
    "home"
-  ]
- },
- {
-  "name": "door-closed",
-  "export": "DoorClosedIcon",
-  "category": "home",
-  "tags": [
-   "entrance",
-   "exit",
-   "access",
-   "shut",
-   "barrier",
-   "entry",
-   "passage",
-   "security"
-  ]
- },
- {
-  "name": "door-closed-locked",
-  "export": "DoorClosedLockedIcon",
-  "category": "home",
-  "tags": [
-   "secure",
-   "padlock",
-   "access control",
-   "security",
-   "protection",
-   "barrier",
-   "restricted"
   ]
  },
  {
@@ -13215,21 +11768,6 @@
    "breakfast",
    "snack",
    "treat"
-  ]
- },
- {
-  "name": "drama",
-  "export": "DramaIcon",
-  "category": "games",
-  "tags": [
-   "theater",
-   "masks",
-   "acting",
-   "performance",
-   "comedy",
-   "tragedy",
-   "emotions",
-   "stage"
   ]
  },
  {
@@ -13367,21 +11905,6 @@
   ]
  },
  {
-  "name": "droplets",
-  "export": "DropletsIcon",
-  "category": "energy",
-  "tags": [
-   "water drops",
-   "rain",
-   "moisture",
-   "liquid",
-   "spray",
-   "splash",
-   "multiple drops",
-   "hydration"
-  ]
- },
- {
   "name": "dropper",
   "export": "DropperIcon",
   "category": "medical",
@@ -13394,36 +11917,6 @@
    "liquid dispenser",
    "measurement",
    "laboratory"
-  ]
- },
- {
-  "name": "drum",
-  "export": "DrumIcon",
-  "category": "games",
-  "tags": [
-   "percussion",
-   "instrument",
-   "music",
-   "beat",
-   "sound",
-   "rhythm",
-   "musical instrument",
-   "acoustic"
-  ]
- },
- {
-  "name": "drumstick",
-  "export": "DrumstickIcon",
-  "category": "foods",
-  "tags": [
-   "chicken leg",
-   "meat",
-   "food",
-   "poultry",
-   "drum mallet",
-   "percussion",
-   "cooked",
-   "eating"
   ]
  },
  {
@@ -13544,21 +12037,6 @@
    "encryption",
    "padlock",
    "world"
-  ]
- },
- {
-  "name": "eclipse",
-  "export": "EclipseIcon",
-  "category": "shapes",
-  "tags": [
-   "circle",
-   "overlap",
-   "moon",
-   "lunar",
-   "shadow",
-   "celestial",
-   "overlapping",
-   "orb"
   ]
  },
  {
@@ -13789,18 +12267,6 @@
    "electrical",
    "bolt",
    "lightning"
-  ]
- },
- {
-  "name": "ellipse",
-  "export": "EllipseIcon",
-  "category": "shapes",
-  "tags": [
-   "oval",
-   "shape",
-   "geometry",
-   "geometric",
-   "curve"
   ]
  },
  {
@@ -14091,21 +12557,6 @@
    "business",
    "exchange",
    "eur"
-  ]
- },
- {
-  "name": "ev-charger",
-  "export": "EvChargerIcon",
-  "category": "energy",
-  "tags": [
-   "electric vehicle",
-   "charging",
-   "plug",
-   "power",
-   "energy",
-   "battery",
-   "vehicle",
-   "car"
   ]
  },
  {
@@ -14594,19 +13045,6 @@
   ]
  },
  {
-  "name": "file-braces-corner",
-  "export": "FileBracesCornerIcon",
-  "category": "files-folders",
-  "tags": [
-   "code",
-   "programming",
-   "brackets",
-   "snippet",
-   "coding",
-   "developer"
-  ]
- },
- {
   "name": "file-chart-column",
   "export": "FileChartColumnIcon",
   "category": "files-folders",
@@ -14633,19 +13071,6 @@
   ]
  },
  {
-  "name": "file-chart-line",
-  "export": "FileChartLineIcon",
-  "category": "files-folders",
-  "tags": [
-   "graph",
-   "trend",
-   "analytics",
-   "data",
-   "visualization",
-   "statistics"
-  ]
- },
- {
   "name": "file-chart-pie",
   "export": "FileChartPieIcon",
   "category": "files-folders",
@@ -14657,33 +13082,6 @@
    "segment",
    "percentage",
    "proportion"
-  ]
- },
- {
-  "name": "file-check",
-  "export": "FileCheckIcon",
-  "category": "files-folders",
-  "tags": [
-   "checkmark",
-   "verified",
-   "approved",
-   "done",
-   "complete",
-   "tick",
-   "success"
-  ]
- },
- {
-  "name": "file-check-corner",
-  "export": "FileCheckCornerIcon",
-  "category": "files-folders",
-  "tags": [
-   "checkmark",
-   "verified",
-   "approved",
-   "stamp",
-   "complete",
-   "valid"
   ]
  },
  {
@@ -14739,20 +13137,6 @@
    "snippet",
    "coding",
    "source"
-  ]
- },
- {
-  "name": "file-cog",
-  "export": "FileCogIcon",
-  "category": "files-folders",
-  "tags": [
-   "settings",
-   "gear",
-   "configuration",
-   "options",
-   "preferences",
-   "setup",
-   "tools"
   ]
  },
  {
@@ -15770,20 +14154,6 @@
   ]
  },
  {
-  "name": "fingerprint-pattern",
-  "export": "FingerprintPatternIcon",
-  "category": "security",
-  "tags": [
-   "biometric",
-   "security",
-   "scan",
-   "identity",
-   "unlock",
-   "recognition",
-   "ridges"
-  ]
- },
- {
   "name": "fins",
   "export": "FinsIcon",
   "category": "games",
@@ -15902,21 +14272,6 @@
   ]
  },
  {
-  "name": "fish",
-  "export": "FishIcon",
-  "category": "foods",
-  "tags": [
-   "animal",
-   "aquatic",
-   "pet",
-   "water",
-   "marine",
-   "food",
-   "swim",
-   "swimming"
-  ]
- },
- {
   "name": "fish-food",
   "export": "FishFoodIcon",
   "category": "foods",
@@ -15962,21 +14317,6 @@
   ]
  },
  {
-  "name": "fishing-rod",
-  "export": "FishingRodIcon",
-  "category": "games",
-  "tags": [
-   "catch",
-   "sport",
-   "angling",
-   "pole",
-   "water",
-   "line",
-   "reel",
-   "bait"
-  ]
- },
- {
   "name": "fiverr",
   "export": "FiverrIcon",
   "category": "logos",
@@ -16004,64 +14344,6 @@
    "waypoint",
    "banner",
    "waving"
-  ]
- },
- {
-  "name": "flag-off",
-  "export": "FlagOffIcon",
-  "category": "maps",
-  "tags": [
-   "disabled",
-   "crossed out",
-   "no flag",
-   "blocked",
-   "hidden",
-   "inactive",
-   "cancelled",
-   "remove"
-  ]
- },
- {
-  "name": "flag-triangle-left",
-  "export": "FlagTriangleLeftIcon",
-  "category": "maps",
-  "tags": [
-   "direction",
-   "marker",
-   "location",
-   "pointer",
-   "arrow",
-   "position",
-   "waypoint"
-  ]
- },
- {
-  "name": "flag-triangle-right",
-  "export": "FlagTriangleRightIcon",
-  "category": "maps",
-  "tags": [
-   "direction",
-   "marker",
-   "location",
-   "pointer",
-   "arrow",
-   "position",
-   "waypoint"
-  ]
- },
- {
-  "name": "flame",
-  "export": "FlameIcon",
-  "category": "energy",
-  "tags": [
-   "fire",
-   "burn",
-   "heat",
-   "energy",
-   "hot",
-   "temperature",
-   "light",
-   "energy source"
   ]
  },
  {
@@ -16122,65 +14404,6 @@
    "portable light",
    "brightness",
    "device"
-  ]
- },
- {
-  "name": "flashlight-off",
-  "export": "FlashlightOffIcon",
-  "category": "devices",
-  "tags": [
-   "torch",
-   "disabled",
-   "crossed out",
-   "light",
-   "no light",
-   "blocked",
-   "inactive",
-   "dark"
-  ]
- },
- {
-  "name": "flask-conical",
-  "export": "FlaskConicalIcon",
-  "category": "science-technology",
-  "tags": [
-   "lab",
-   "chemistry",
-   "science",
-   "experiment",
-   "erlenmeyer",
-   "beaker",
-   "test",
-   "laboratory"
-  ]
- },
- {
-  "name": "flask-conical-off",
-  "export": "FlaskConicalOffIcon",
-  "category": "science-technology",
-  "tags": [
-   "disabled",
-   "crossed out",
-   "lab",
-   "chemistry",
-   "blocked",
-   "inactive",
-   "science"
-  ]
- },
- {
-  "name": "flask-round",
-  "export": "FlaskRoundIcon",
-  "category": "science-technology",
-  "tags": [
-   "lab",
-   "chemistry",
-   "science",
-   "experiment",
-   "beaker",
-   "test",
-   "laboratory",
-   "bottom"
   ]
  },
  {
@@ -16311,21 +14534,6 @@
    "movement",
    "dynamic",
    "figure"
-  ]
- },
- {
-  "name": "focus",
-  "export": "FocusIcon",
-  "category": "image-camera",
-  "tags": [
-   "target",
-   "camera",
-   "zoom",
-   "lens",
-   "center",
-   "attention",
-   "crosshair",
-   "select"
   ]
  },
  {
@@ -17153,21 +15361,6 @@
   ]
  },
  {
-  "name": "footprints",
-  "export": "FootprintsIcon",
-  "category": "games",
-  "tags": [
-   "footstep",
-   "walking",
-   "running",
-   "trace",
-   "path",
-   "tracks",
-   "movement",
-   "shoe"
-  ]
- },
- {
   "name": "forgot-password",
   "export": "ForgotPasswordIcon",
   "category": "security",
@@ -17195,21 +15388,6 @@
    "food",
    "table",
    "silverware"
-  ]
- },
- {
-  "name": "forklift",
-  "export": "ForkliftIcon",
-  "category": "logistics",
-  "tags": [
-   "vehicle",
-   "lift",
-   "cargo",
-   "warehouse",
-   "logistics",
-   "industrial",
-   "loading",
-   "equipment"
   ]
  },
  {
@@ -17417,21 +15595,6 @@
   ]
  },
  {
-  "name": "gamepad",
-  "export": "GamepadIcon",
-  "category": "games",
-  "tags": [
-   "game controller",
-   "gaming",
-   "console",
-   "controller",
-   "play",
-   "joystick",
-   "entertainment",
-   "buttons"
-  ]
- },
- {
   "name": "gamepad-directional",
   "export": "GamepadDirectionalIcon",
   "category": "devices",
@@ -17522,36 +15685,6 @@
   ]
  },
  {
-  "name": "gauge",
-  "export": "GaugeIcon",
-  "category": "games",
-  "tags": [
-   "meter",
-   "measurement",
-   "speed",
-   "indicator",
-   "dial",
-   "speedometer",
-   "measure",
-   "level"
-  ]
- },
- {
-  "name": "gavel",
-  "export": "GavelIcon",
-  "category": "games",
-  "tags": [
-   "judge",
-   "law",
-   "legal",
-   "court",
-   "judgment",
-   "hammer",
-   "justice",
-   "verdict"
-  ]
- },
- {
   "name": "gem",
   "export": "GemIcon",
   "category": "games",
@@ -17606,20 +15739,6 @@
    "finance",
    "exchange",
    "payment"
-  ]
- },
- {
-  "name": "ghost",
-  "export": "GhostIcon",
-  "category": "games",
-  "tags": [
-   "spirit",
-   "spooky",
-   "halloween",
-   "phantom",
-   "scary",
-   "supernatural",
-   "apparition"
   ]
  },
  {
@@ -17692,30 +15811,6 @@
   ]
  },
  {
-  "name": "git-branch-minus",
-  "export": "GitBranchMinusIcon",
-  "category": "git",
-  "tags": [
-   "delete",
-   "remove",
-   "version control",
-   "code",
-   "subtract"
-  ]
- },
- {
-  "name": "git-branch-plus",
-  "export": "GitBranchPlusIcon",
-  "category": "git",
-  "tags": [
-   "add",
-   "create",
-   "version control",
-   "code",
-   "new"
-  ]
- },
- {
   "name": "git-commit",
   "export": "GitCommitIcon",
   "category": "git",
@@ -17741,18 +15836,6 @@
   ]
  },
  {
-  "name": "git-commit-vertical",
-  "export": "GitCommitVerticalIcon",
-  "category": "git",
-  "tags": [
-   "timeline",
-   "version control",
-   "node",
-   "history",
-   "sequence"
-  ]
- },
- {
   "name": "git-compare",
   "export": "GitCompareIcon",
   "category": "git",
@@ -17763,18 +15846,6 @@
    "contrast",
    "branches",
    "review"
-  ]
- },
- {
-  "name": "git-compare-arrows",
-  "export": "GitCompareArrowsIcon",
-  "category": "git",
-  "tags": [
-   "diff",
-   "bidirectional",
-   "version control",
-   "contrast",
-   "sync"
   ]
  },
  {
@@ -17791,19 +15862,6 @@
   ]
  },
  {
-  "name": "git-graph",
-  "export": "GitGraphIcon",
-  "category": "git",
-  "tags": [
-   "commit history",
-   "timeline",
-   "nodes",
-   "version control",
-   "visualization",
-   "flow"
-  ]
- },
- {
   "name": "git-merge",
   "export": "GitMergeIcon",
   "category": "git",
@@ -17814,19 +15872,6 @@
    "arrows",
    "join",
    "pull request"
-  ]
- },
- {
-  "name": "git-merge-conflict",
-  "export": "GitMergeConflictIcon",
-  "category": "git",
-  "tags": [
-   "merge conflict",
-   "error",
-   "resolve",
-   "version control",
-   "warning",
-   "issue"
   ]
  },
  {
@@ -17844,19 +15889,6 @@
   ]
  },
  {
-  "name": "git-pull-request-arrow",
-  "export": "GitPullRequestArrowIcon",
-  "category": "git",
-  "tags": [
-   "pull request",
-   "merge",
-   "branch",
-   "direction",
-   "code review",
-   "version control"
-  ]
- },
- {
   "name": "git-pull-request-closed",
   "export": "GitPullRequestClosedIcon",
   "category": "git",
@@ -17867,31 +15899,6 @@
    "declined",
    "cancel",
    "branch"
-  ]
- },
- {
-  "name": "git-pull-request-create",
-  "export": "GitPullRequestCreateIcon",
-  "category": "git",
-  "tags": [
-   "pull request",
-   "new",
-   "add",
-   "plus",
-   "branch",
-   "merge request"
-  ]
- },
- {
-  "name": "git-pull-request-create-arrow",
-  "export": "GitPullRequestCreateArrowIcon",
-  "category": "git",
-  "tags": [
-   "pull request",
-   "new",
-   "branch",
-   "add",
-   "direction"
   ]
  },
  {
@@ -17975,19 +15982,6 @@
    "pharmaceutical",
    "hand",
    "healthcare"
-  ]
- },
- {
-  "name": "glass-water",
-  "export": "GlassWaterIcon",
-  "category": "foods",
-  "tags": [
-   "drink",
-   "beverage",
-   "cup",
-   "liquid",
-   "hydration",
-   "container"
   ]
  },
  {
@@ -18115,20 +16109,6 @@
    "figure",
    "creature",
    "toy"
-  ]
- },
- {
-  "name": "goal",
-  "export": "GoalIcon",
-  "category": "business",
-  "tags": [
-   "target",
-   "objective",
-   "aim",
-   "focus",
-   "achievement",
-   "bullseye",
-   "purpose"
   ]
  },
  {
@@ -18457,21 +16437,6 @@
   ]
  },
  {
-  "name": "graduation-cap",
-  "export": "GraduationCapIcon",
-  "category": "education",
-  "tags": [
-   "graduation cap",
-   "mortarboard",
-   "education",
-   "academic",
-   "degree",
-   "ceremony",
-   "achievement",
-   "student"
-  ]
- },
- {
   "name": "graduation-scroll",
   "export": "GraduationScrollIcon",
   "category": "education",
@@ -18484,21 +16449,6 @@
    "achievement",
    "academic",
    "award"
-  ]
- },
- {
-  "name": "grape",
-  "export": "GrapeIcon",
-  "category": "foods",
-  "tags": [
-   "fruit",
-   "food",
-   "produce",
-   "berry",
-   "plant",
-   "organic",
-   "healthy",
-   "agriculture"
   ]
  },
  {
@@ -18618,21 +16568,6 @@
    "lodging",
    "rental",
    "property"
-  ]
- },
- {
-  "name": "guitar",
-  "export": "GuitarIcon",
-  "category": "games",
-  "tags": [
-   "music",
-   "instrument",
-   "strings",
-   "play",
-   "acoustic",
-   "music equipment",
-   "sound",
-   "entertainment"
   ]
  },
  {
@@ -18763,20 +16698,6 @@
   ]
  },
  {
-  "name": "hammer",
-  "export": "HammerIcon",
-  "category": "furnitures",
-  "tags": [
-   "tool",
-   "construction",
-   "repair",
-   "strike",
-   "carpentry",
-   "mallet",
-   "hardware"
-  ]
- },
- {
   "name": "hand-bag-01",
   "export": "HandBag01Icon",
   "category": "clothing",
@@ -18833,19 +16754,6 @@
   ]
  },
  {
-  "name": "hand-heart",
-  "export": "HandHeartIcon",
-  "category": "games",
-  "tags": [
-   "love",
-   "care",
-   "charity",
-   "giving",
-   "compassion",
-   "emotion"
-  ]
- },
- {
   "name": "hand-helping",
   "export": "HandHelpingIcon",
   "category": "business",
@@ -18860,32 +16768,6 @@
   ]
  },
  {
-  "name": "hand-metal",
-  "export": "HandMetalIcon",
-  "category": "games",
-  "tags": [
-   "metal horns",
-   "gesture",
-   "rock",
-   "music",
-   "cool",
-   "devil horns"
-  ]
- },
- {
-  "name": "hand-platter",
-  "export": "HandPlatterIcon",
-  "category": "games",
-  "tags": [
-   "tray",
-   "serving",
-   "dome",
-   "food service",
-   "hospitality",
-   "dish"
-  ]
- },
- {
   "name": "hand-sanitizer",
   "export": "HandSanitizerIcon",
   "category": "medical",
@@ -18897,35 +16779,6 @@
    "antibacterial",
    "disinfectant",
    "health"
-  ]
- },
- {
-  "name": "handbag",
-  "export": "HandbagIcon",
-  "category": "games",
-  "tags": [
-   "bag",
-   "purse",
-   "fashion",
-   "accessory",
-   "tote",
-   "shoulder bag",
-   "women"
-  ]
- },
- {
-  "name": "handshake",
-  "export": "HandshakeIcon",
-  "category": "games",
-  "tags": [
-   "shake",
-   "hands",
-   "agreement",
-   "partnership",
-   "deal",
-   "greeting",
-   "negotiation",
-   "collaboration"
   ]
  },
  {
@@ -18985,34 +16838,6 @@
   ]
  },
  {
-  "name": "hard-hat",
-  "export": "HardHatIcon",
-  "category": "games",
-  "tags": [
-   "helmet",
-   "safety",
-   "construction",
-   "worker",
-   "protection",
-   "gear",
-   "industry"
-  ]
- },
- {
-  "name": "hash",
-  "export": "HashIcon",
-  "category": "games",
-  "tags": [
-   "hashtag",
-   "number",
-   "pound",
-   "tag",
-   "social",
-   "social media",
-   "trend"
-  ]
- },
- {
   "name": "hat",
   "export": "HatIcon",
   "category": "clothing",
@@ -19028,35 +16853,6 @@
   ]
  },
  {
-  "name": "hat-glasses",
-  "export": "HatGlassesIcon",
-  "category": "games",
-  "tags": [
-   "eyeglasses",
-   "spectacles",
-   "sunglasses",
-   "accessory",
-   "fashion",
-   "headwear",
-   "combo"
-  ]
- },
- {
-  "name": "haze",
-  "export": "HazeIcon",
-  "category": "games",
-  "tags": [
-   "glare",
-   "sun",
-   "weather",
-   "visibility",
-   "brightness",
-   "atmospheric",
-   "haziness",
-   "sunlight"
-  ]
- },
- {
   "name": "hdd",
   "export": "HddIcon",
   "category": "devices",
@@ -19069,20 +16865,6 @@
    "computer",
    "device",
    "hard disk"
-  ]
- },
- {
-  "name": "hdmi-port",
-  "export": "HdmiPortIcon",
-  "category": "devices",
-  "tags": [
-   "connector",
-   "cable",
-   "connection",
-   "video",
-   "device",
-   "plug",
-   "interface"
   ]
  },
  {
@@ -19154,21 +16936,6 @@
    "wellbeing",
    "fitness",
    "care"
-  ]
- },
- {
-  "name": "heart-pulse",
-  "export": "HeartPulseIcon",
-  "category": "medical",
-  "tags": [
-   "heartbeat",
-   "health",
-   "medical",
-   "cardiology",
-   "vital signs",
-   "ecg",
-   "monitor",
-   "alive"
   ]
  },
  {
@@ -19573,21 +17340,6 @@
    "comfort",
    "care",
    "affection"
-  ]
- },
- {
-  "name": "house-plug",
-  "export": "HousePlugIcon",
-  "category": "home",
-  "tags": [
-   "house plug",
-   "electrical",
-   "power",
-   "electricity",
-   "outlet",
-   "energy",
-   "charging",
-   "plugged in"
   ]
  },
  {
@@ -31499,14 +29251,8 @@
   "export": "StarsIcon",
   "category": "weather",
   "tags": [
-   "sparkle",
-   "shine",
-   "twinkle",
-   "multiple stars",
    "luminous",
-   "celestial",
-   "night",
-   "bright"
+   "star"
   ]
  },
  {

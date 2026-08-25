@@ -538,7 +538,7 @@ function CategoryChip({
 /**
  * Draws only the rows of a category that are near the viewport.
  *
- * The catalog is 2,530 icons. Drawing every one of them put over fourteen
+ * The catalog is 2,374 icons. Drawing every one of them put over fourteen
  * thousand nodes in the popover, where bb's own menus hold about twenty-five,
  * and the cost landed where it shows most: the browser built the whole grid
  * before it could paint, so the picker arrived late, and its entrance
