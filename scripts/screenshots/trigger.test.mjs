@@ -109,12 +109,16 @@ test("the relevance gate runs outside the renderer container", () => {
   assert.match(relevanceJob, /name: Decide whether anything can have moved/u);
   assert.doesNotMatch(relevanceJob, /container:/u);
   assert.match(relevanceJob, /outputs:\n      capture:/u);
+  assert.match(relevanceJob, /gh api --paginate/u);
+  assert.match(relevanceJob, /CHANGED_FILES/u);
+  assert.doesNotMatch(relevanceJob, /fetch-depth: 0/u);
   assert.match(captureJob, /needs: relevant/u);
   assert.match(
     captureJob,
     /if: needs\.relevant\.outputs\.capture == 'true'/u,
   );
   assert.match(captureJob, /container:/u);
+  assert.doesNotMatch(captureJob, /fetch-depth: 0/u);
   assert.match(captureJob, /uses: actions\/setup-node@v7/u);
   assert.match(captureJob, /name: Prepare the container/u);
   assert.match(captureJob, /run: npm ci/u);
