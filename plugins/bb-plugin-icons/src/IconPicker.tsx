@@ -20,8 +20,11 @@ import {
 } from "./icon-colors";
 import { ICON_COLORS, type IconColor } from "./store";
 import {
+  GRID_COLUMNS,
+  GRID_GAP,
   ROW_HEIGHT,
   chunkRows,
+  columnCountFor,
   gridHeight,
   sameRange,
   visibleRows,
@@ -35,6 +38,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/vendor/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/vendor/components/ui/tooltip";
+
+const ICON_TOOLTIP_DELAY_MS = 350;
 
 export interface CatalogIcon extends Omit<CatalogEntry, "export"> {
   glyph: IconSvgElement;
@@ -89,6 +100,7 @@ export function IconPicker({
   });
   const [catalogScroller, setCatalogScroller] =
     useState<HTMLDivElement | null>(null);
+  const [catalogColumns, setCatalogColumns] = useState(GRID_COLUMNS);
   /**
    * Whether the scroll fades may animate yet.
    *
@@ -179,24 +191,37 @@ export function IconPicker({
   useLayoutEffect(() => {
     const scroller = catalogScroller;
     if (scroller === null) return;
-    updateCatalogOverflow(scroller);
-    const handleResize = () => updateCatalogOverflow();
+    const updateCatalogLayout = () => {
+      updateCatalogOverflow(scroller);
+      const content = catalogContentRef.current;
+      if (content !== null) {
+        const nextColumns = isCompactViewport
+          ? columnCountFor(content.clientWidth)
+          : GRID_COLUMNS;
+        setCatalogColumns((current) =>
+          current === nextColumns ? current : nextColumns,
+        );
+      }
+      setResizeTick((current) => current + 1);
+    };
+    updateCatalogLayout();
     const resizeObserver =
       typeof ResizeObserver === "undefined"
         ? null
-        : new ResizeObserver(() => updateCatalogOverflow(scroller));
+        : new ResizeObserver(updateCatalogLayout);
     resizeObserver?.observe(scroller);
     if (catalogContentRef.current !== null) {
       resizeObserver?.observe(catalogContentRef.current);
     }
-    window.addEventListener("resize", handleResize);
+    window.addEventListener("resize", updateCatalogLayout);
     return () => {
       resizeObserver?.disconnect();
-      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("resize", updateCatalogLayout);
     };
   }, [
     catalog.length,
     catalogScroller,
+    isCompactViewport,
     loading,
     open,
     results.length,
@@ -373,61 +398,66 @@ export function IconPicker({
           ) : null}
 
           <div className="relative min-h-0 flex-1">
-            <div
-              ref={setCatalogScroller}
-              role="region"
-              aria-label={searching ? "Icon search results" : "Icon catalog"}
-              className="h-full overflow-y-auto"
-              onScroll={(event) => {
-                updateCatalogOverflow(event.currentTarget);
-                trackVisibleCategory(event.currentTarget);
-              }}
-            >
-              <div ref={catalogContentRef}>
-                {loading ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    Loading icons…
-                  </p>
-                ) : searching && results.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    No icons match.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {visibleGroups.map(({ name, entries }) => {
-                      const headingId = `${titleId}-${name}`;
-                      return (
-                        <section
-                          key={name}
-                          ref={(node) => {
-                            if (node === null) sectionRefs.current.delete(name);
-                            else sectionRefs.current.set(name, node);
-                          }}
-                          aria-labelledby={headingId}
-                          className="scroll-mt-1"
-                        >
-                          <h3
-                            id={headingId}
-                            className="mb-1.5 text-xs font-medium text-muted-foreground"
+            <TooltipProvider>
+              <div
+                ref={setCatalogScroller}
+                role="region"
+                aria-label={searching ? "Icon search results" : "Icon catalog"}
+                className="h-full overflow-y-auto"
+                onScroll={(event) => {
+                  updateCatalogOverflow(event.currentTarget);
+                  trackVisibleCategory(event.currentTarget);
+                }}
+              >
+                <div ref={catalogContentRef}>
+                  {loading ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      Loading icons…
+                    </p>
+                  ) : searching && results.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      No icons match.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {visibleGroups.map(({ name, entries }) => {
+                        const headingId = `${titleId}-${name}`;
+                        return (
+                          <section
+                            key={name}
+                            ref={(node) => {
+                              if (node === null) {
+                                sectionRefs.current.delete(name);
+                              } else {
+                                sectionRefs.current.set(name, node);
+                              }
+                            }}
+                            aria-labelledby={headingId}
+                            className="scroll-mt-1"
                           >
-                            {titleCase(categoryLabel(name))}
-                          </h3>
-                          <IconGrid
-                            entries={entries}
-                            icon={icon}
-                            color={color}
-                            onPick={onPick}
-                            scroller={catalogScroller}
-                            virtualize={!isCompactViewport}
-                            resizeTick={resizeTick}
-                          />
-                        </section>
-                      );
-                    })}
-                  </div>
-                )}
+                            <h3
+                              id={headingId}
+                              className="mb-1.5 text-xs font-medium text-muted-foreground"
+                            >
+                              {titleCase(categoryLabel(name))}
+                            </h3>
+                            <IconGrid
+                              entries={entries}
+                              icon={icon}
+                              color={color}
+                              onPick={onPick}
+                              scroller={catalogScroller}
+                              columns={catalogColumns}
+                              resizeTick={resizeTick}
+                            />
+                          </section>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            </TooltipProvider>
             <div
               aria-hidden
               data-scroll-fade="top"
@@ -508,7 +538,7 @@ function CategoryChip({
 /**
  * Draws only the rows of a category that are near the viewport.
  *
- * The catalog is 2,530 icons. Drawing every one of them put over fourteen
+ * The catalog is 3,525 icons. Drawing every one of them put over fourteen
  * thousand nodes in the popover, where bb's own menus hold about twenty-five,
  * and the cost landed where it shows most: the browser built the whole grid
  * before it could paint, so the picker arrived late, and its entrance
@@ -521,9 +551,9 @@ function CategoryChip({
  * individually: one listener per category, and a range that only changes when
  * the window of rows actually moves.
  *
- * A compact viewport lays the grid out with as many columns as fit rather than
- * a fixed eleven, so the row arithmetic would not hold; there the grid is
- * drawn whole.
+ * Compact rows use the column count derived from the grid's measured width,
+ * matching the responsive auto-fill layout without borrowing desktop's fixed
+ * count.
  */
 function IconGrid({
   entries,
@@ -531,7 +561,7 @@ function IconGrid({
   color,
   onPick,
   scroller,
-  virtualize,
+  columns,
   resizeTick,
 }: {
   entries: readonly CatalogIcon[];
@@ -539,17 +569,17 @@ function IconGrid({
   color: IconColor | null;
   onPick: (icon: string) => void;
   scroller: HTMLDivElement | null;
-  virtualize: boolean;
+  columns: number;
   resizeTick: number;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
-  const rows = useMemo(() => chunkRows(entries), [entries]);
+  const rows = useMemo(() => chunkRows(entries, columns), [columns, entries]);
   const [range, setRange] = useState<RowRange>({ start: 0, end: 0 });
 
   // Measured before the browser paints, so the first frame already carries
   // the rows that belong on screen rather than filling in behind the popover.
   useLayoutEffect(() => {
-    if (!virtualize || scroller === null) return;
+    if (scroller === null) return;
     let frame = 0;
     const measure = () => {
       frame = 0;
@@ -581,23 +611,7 @@ function IconGrid({
     // resizeTick stands in for the scroller changing shape: the picker already
     // watches it, and thirty-two categories each adding their own observer to
     // the same element would be that much waste for the same answer.
-  }, [resizeTick, rows.length, scroller, virtualize]);
-
-  if (!virtualize) {
-    return (
-      <div className="grid grid-cols-11 gap-1 max-md:grid-cols-[repeat(auto-fill,1.75rem)]">
-        {entries.map((entry) => (
-          <IconButton
-            key={entry.name}
-            entry={entry}
-            icon={icon}
-            color={color}
-            onPick={onPick}
-          />
-        ))}
-      </div>
-    );
-  }
+  }, [columns, resizeTick, rows.length, scroller]);
 
   const drawn = rows.slice(range.start, range.end);
   return (
@@ -606,8 +620,8 @@ function IconGrid({
         {drawn.map((row, index) => (
           <div
             key={range.start + index}
-            className="grid grid-cols-11 gap-1"
-            style={{ height: ROW_HEIGHT - 4, marginBottom: 4 }}
+            className="grid grid-cols-11 gap-1 max-md:grid-cols-[repeat(auto-fill,1.75rem)]"
+            style={{ height: ROW_HEIGHT - GRID_GAP, marginBottom: GRID_GAP }}
           >
             {row.map((entry) => (
               <IconButton
@@ -637,24 +651,36 @@ function IconButton({
   color: IconColor | null;
   onPick: (icon: string) => void;
 }) {
+  const label = iconLabel(entry.name);
   return (
-    <button
-      type="button"
-      title={iconLabel(entry.name)}
-      aria-label={iconLabel(entry.name)}
-      aria-pressed={entry.name === icon}
-      onClick={() => onPick(entry.name)}
-      style={iconColorStyle(color)}
-      className={`flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors duration-150 hover:duration-0 ${
-        entry.name === icon
-          ? "bg-state-active"
-          : color === null
-            ? "text-muted-foreground hover:bg-state-hover hover:text-foreground"
-            : "hover:bg-state-hover"
-      }`}
+    <Tooltip
+      delayDuration={ICON_TOOLTIP_DELAY_MS}
+      disableHoverableContent
     >
-      <HugeiconsIcon icon={entry.glyph} className="size-[18px]" aria-hidden />
-    </button>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          aria-pressed={entry.name === icon}
+          onClick={() => onPick(entry.name)}
+          style={iconColorStyle(color)}
+          className={`flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors duration-150 hover:duration-0 ${
+            entry.name === icon
+              ? "bg-state-active"
+              : color === null
+                ? "text-muted-foreground hover:bg-state-hover hover:text-foreground"
+                : "hover:bg-state-hover"
+          }`}
+        >
+          <HugeiconsIcon
+            icon={entry.glyph}
+            className="size-[18px]"
+            aria-hidden
+          />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
   );
 }
 

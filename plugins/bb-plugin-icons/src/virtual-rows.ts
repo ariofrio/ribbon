@@ -1,7 +1,9 @@
 /** Icons per row on a roomy viewport, and the height one row occupies. */
 export const GRID_COLUMNS = 11;
+export const GRID_ITEM_SIZE = 28;
+export const GRID_GAP = 4;
 /** A 28px button plus the grid's 4px gap. */
-export const ROW_HEIGHT = 32;
+export const ROW_HEIGHT = GRID_ITEM_SIZE + GRID_GAP;
 /**
  * How far beyond the viewport a row is still worth drawing. A little over one
  * popover's worth, so a flick of the wheel lands on icons rather than on gaps.
@@ -15,7 +17,15 @@ export interface RowRange {
 
 /** The height a grid occupies, whether or not its rows are drawn. */
 export function gridHeight(rowCount: number): number {
-  return rowCount === 0 ? 0 : rowCount * ROW_HEIGHT - 4;
+  return rowCount === 0 ? 0 : rowCount * ROW_HEIGHT - GRID_GAP;
+}
+
+/** Mirrors `repeat(auto-fill, 1.75rem)` for the grid's measured width. */
+export function columnCountFor(availableWidth: number): number {
+  return Math.max(
+    1,
+    Math.floor((availableWidth + GRID_GAP) / (GRID_ITEM_SIZE + GRID_GAP)),
+  );
 }
 
 export function rowCountFor(entryCount: number, columns = GRID_COLUMNS): number {

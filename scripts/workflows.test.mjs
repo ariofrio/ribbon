@@ -107,3 +107,50 @@ test("no workflow runs twice for one push to a branch here", () => {
     );
   }
 });
+
+test("automation that updates pull requests uses the CI GitHub App", () => {
+  const versionPlugins = readFileSync(
+    join(workflows, "version-plugins.yml"),
+    "utf8",
+  );
+  assert.match(versionPlugins, /\npermissions:\n  contents: read\n/u);
+  assert.match(versionPlugins, /uses: actions\/create-github-app-token@v3/u);
+  assert.match(versionPlugins, /client-id: \$\{\{ vars\.CI_APP_CLIENT_ID \}\}/u);
+  assert.match(
+    versionPlugins,
+    /private-key: \$\{\{ secrets\.CI_APP_PRIVATE_KEY \}\}/u,
+  );
+  assert.match(versionPlugins, /permission-contents: write/u);
+  assert.match(versionPlugins, /permission-pull-requests: write/u);
+  assert.match(
+    versionPlugins,
+    /github-token: \$\{\{ steps\.app-token\.outputs\.token \}\}/u,
+  );
+  assert.doesNotMatch(
+    versionPlugins,
+    /github-token: \$\{\{ secrets\.GITHUB_TOKEN \}\}/u,
+  );
+
+  const screenshots = readFileSync(
+    join(workflows, "screenshots.yml"),
+    "utf8",
+  );
+  assert.match(
+    screenshots,
+    /\npermissions:\n  contents: read\n  pull-requests: read\n/u,
+  );
+  const captureJob = screenshots.slice(
+    screenshots.indexOf("\n  capture:"),
+    screenshots.indexOf("\n  recapture:"),
+  );
+  assert.match(captureJob, /uses: actions\/create-github-app-token@v3/u);
+  assert.match(
+    captureJob,
+    /if: github\.event_name == 'pull_request' && github\.event\.pull_request\.head\.repo\.full_name == github\.repository/u,
+  );
+  assert.match(captureJob, /permission-contents: write/u);
+  assert.match(
+    captureJob,
+    /token: \$\{\{ steps\.app-token\.outputs\.token \|\| github\.token \}\}/u,
+  );
+});
