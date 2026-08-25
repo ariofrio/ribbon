@@ -4,7 +4,11 @@ import { join } from "node:path";
 import test from "node:test";
 import { ASPECT_RATIO, cropRectangle, unionBox } from "./capture.mjs";
 import { KEY_GLYPHS } from "./key-glyphs.mjs";
-import { setupScreenshots, SHOTS } from "./shots.mjs";
+import {
+  setupScreenshots,
+  SHOTS,
+  SIDEBAR_PROVIDER,
+} from "./shots.mjs";
 
 const viewport = { width: 1280, height: 720 };
 
@@ -18,6 +22,10 @@ test("the screenshot suite uses the ChatGPT theme", () => {
 
 test("Ribbon sidebar's dedicated shot runs last", () => {
   assert.equal(SHOTS.at(-1)?.id, "ribbon-sidebar");
+});
+
+test("every screenshot uses Ribbon's sole thread-list replacement", () => {
+  assert.equal(SIDEBAR_PROVIDER, "Ribbon sidebar");
 });
 
 function aspectOf(rectangle) {

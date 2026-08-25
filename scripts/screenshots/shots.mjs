@@ -21,6 +21,8 @@ const THEME_FILES = [
   "card-beside-dark.png",
 ];
 
+export const SIDEBAR_PROVIDER = "Ribbon sidebar";
+
 /** bb's own sidebar column, which both sidebar cards are framed from. */
 function bbSidebar(page) {
   return page.locator('[data-sidebar="sidebar"]');
@@ -53,11 +55,11 @@ async function hideFixtureModelLabel(page) {
  * view, and a scrolled sidebar is not the top of a sidebar.
  */
 async function openFeaturedThread(page, knownHref) {
-  // Installing Ribbon changes bb's Automatic choice. Existing collection
-  // shots deliberately continue to exercise Thread stages; Ribbon's own shot
-  // selects the replacement and supplies the route directly below.
+  // Installing Ribbon changes bb's Automatic choice. Select it explicitly so
+  // every shot exercises the only sidebar replacement in this repository;
+  // Ribbon's own shot supplies the route directly below.
   if (knownHref === undefined) {
-    await selectSidebar(page, "Thread stages");
+    await selectSidebar(page, SIDEBAR_PROVIDER);
     // Appearance does not render a thread list. Return to bb's main route so
     // the selected provider mounts before resolving the featured row's link.
     await page.goto(new URL("/", page.url()).toString(), {
@@ -106,7 +108,7 @@ async function openFeaturedThread(page, knownHref) {
   // own on an animation frame. Only the breadcrumbs shot clicks the crumb, so
   // every other shot framing this header would otherwise race it and capture
   // whichever title won — with the project before it, or bare.
-  // Given the room the Thread stages sidebar is given, and for the same
+  // Given the room the Ribbon sidebar is given, and for the same
   // reason: a freshly seeded bb is still settling while the first shots are
   // taken, and a plugin bundle can load well past Playwright's default minute.
   await projectCrumb(page).waitFor({ timeout: 120000 });
@@ -140,11 +142,9 @@ async function selectSidebar(page, name) {
  * plugin installs rather than by the label alone.
  *
  * bb's own sidebar lists threads under a project heading whose menu carries
- * the same `<project> actions` label, and it is on screen from the first
- * paint until Thread stages replaces the list — which happens just before the
- * crumb arrives. Waiting on the label alone is therefore answered immediately
- * by a control in the other half of the window, and the wait returns during
- * the one second when neither the heading nor the crumb is on screen.
+ * the same `<project> actions` label. Waiting on the label alone can therefore
+ * be answered by a control in the other half of the window rather than the
+ * crumb this shot needs.
  */
 function projectCrumb(page) {
   return page.locator(
@@ -245,14 +245,13 @@ export const SHOTS = [
         .locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]")
         .waitFor({ timeout: 120000 });
     },
-    // The plugin owns the whole thread list rather than one control inside it,
-    // so the shade lifts its entire sidebar out of the window.
+    // The provider owns every stage heading and membership shown through
+    // Ribbon, so the shade lifts the complete grouped list out of the window.
     highlights: (page) => [
       { locator: page.locator("[data-ribbon-sidebar-root]"), padding: 6 },
     ],
-    // A sidebar is read from its top, so the card starts at the top of the one
-    // the plugin manages, with bb's own rows just above it left in frame,
-    // shaded, marking where bb stops and the plugin starts.
+    // A sidebar is read from its top, so the card starts at the top of the
+    // provider grouping Ribbon renders.
     focus: (page) => [page.locator("[data-ribbon-sidebar-root]")],
     focusAlign: "start",
   },
@@ -324,7 +323,7 @@ export const SHOTS = [
     },
     // A palette has nothing to point at: the whole window is the change.
     highlights: () => [],
-    // Framed like the Thread stages card, from the top of the same sidebar,
+    // Framed from the top of the sidebar,
     // where the palette repaints the most per pixel and the diagonal still has
     // two surfaces to divide.
     focus: (page) => [bbSidebar(page)],
@@ -346,7 +345,7 @@ export const SHOTS = [
     async prepare({ fixture, page }) {
       const featured = fixture.threads.get(FEATURED_THREAD);
       const href = `/projects/${encodeURIComponent(featured.projectId)}/threads/${encodeURIComponent(featured.id)}`;
-      await selectSidebar(page, "Ribbon sidebar");
+      await selectSidebar(page, SIDEBAR_PROVIDER);
       await openFeaturedThread(page, href);
       await page
         .locator(
