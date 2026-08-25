@@ -186,6 +186,7 @@ interface ThreadRowProps {
   preview: string | null;
   projectIcon: ProjectIconView | null;
   reorderable: boolean;
+  sectionIcons: ReadonlyMap<string, ProjectIconView>;
   showDropAfter: boolean;
   showDropBefore: boolean;
   sections: readonly ThreadSectionOption[];
@@ -220,6 +221,7 @@ function ThreadRow({
   preview,
   projectIcon,
   reorderable,
+  sectionIcons,
   showDropAfter,
   showDropBefore,
   sections,
@@ -255,6 +257,7 @@ function ThreadRow({
   const commonMenuProps = {
     actions,
     disabled,
+    sectionIcons,
     sections,
     onNewSection: () =>
       window.setTimeout(() => {
@@ -1575,6 +1578,7 @@ function WorkflowStageList({
                       }
                       projectIcon={projectIcons.get(thread.projectId) ?? null}
                       reorderable={isRoot && !Boolean(normalizedSearch)}
+                      sectionIcons={sectionIcons}
                       showDropAfter={
                         dropGroup === PINNED_SECTION &&
                         dropAfter === thread.id
@@ -1759,6 +1763,7 @@ function WorkflowStageList({
                         }
                         projectIcon={projectIcons.get(thread.projectId) ?? null}
                         reorderable={isRoot && !Boolean(normalizedSearch)}
+                        sectionIcons={sectionIcons}
                         showDropAfter={
                           dropGroup === stage && dropAfter === thread.id
                         }

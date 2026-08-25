@@ -9,7 +9,15 @@ import {
   ThreadActionsContextMenu,
   ThreadActionsDropdown,
 } from "./ThreadActionsMenu";
+import type { ProjectIconView } from "../icons";
 import { CompactViewportOverrideProvider } from "@/vendor/components/ui/hooks/use-compact-viewport";
+
+const sectionGlyph = [["path", { d: "M1 1h14v14H1z" }]] as const;
+const sectionIcon: ProjectIconView = {
+  name: "custom-section",
+  glyph: sectionGlyph,
+  color: "rgb(1, 2, 3)",
+};
 
 function thread(): PluginSidebarThread {
   return {
@@ -66,6 +74,7 @@ describe("ThreadActionsDropdown", () => {
       <ThreadActionsDropdown
         actions={actions}
         disabled={false}
+        sectionIcons={new Map()}
         sections={[
           { id: "section_1", name: "Now" },
           { id: "section_2", name: "Later" },
@@ -127,6 +136,7 @@ describe("ThreadActionsDropdown", () => {
       <ThreadActionsDropdown
         actions={actions}
         disabled={false}
+        sectionIcons={new Map()}
         sections={[]}
         onNewSection={vi.fn()}
         onOpenChange={vi.fn()}
@@ -161,6 +171,7 @@ describe("ThreadActionsDropdown", () => {
         <ThreadActionsDropdown
           actions={actions}
           disabled={false}
+          sectionIcons={new Map()}
           sections={[{ id: "section_1", name: "Later" }]}
           onNewSection={vi.fn()}
           onOpenChange={vi.fn()}
@@ -197,6 +208,7 @@ describe("ThreadActionsDropdown", () => {
       <ThreadActionsDropdown
         actions={actions}
         disabled={false}
+        sectionIcons={new Map()}
         sections={[
           { id: "section_1", name: "Now" },
           { id: "section_2", name: "Later" },
@@ -250,6 +262,7 @@ describe("ThreadActionsDropdown", () => {
       <ThreadActionsDropdown
         actions={actions}
         disabled={false}
+        sectionIcons={new Map()}
         sections={[
           { id: "section_1", name: "Now" },
           { id: "section_2", name: "Later" },
@@ -293,6 +306,7 @@ describe("ThreadActionsDropdown", () => {
       <ThreadActionsDropdown
         actions={actions}
         disabled={false}
+        sectionIcons={new Map()}
         sections={[]}
         onNewSection={vi.fn()}
         onOpenChange={vi.fn()}
@@ -331,6 +345,7 @@ describe("ThreadActionsDropdown", () => {
       <ThreadActionsDropdown
         actions={actions}
         disabled={false}
+        sectionIcons={new Map()}
         sections={[]}
         onNewSection={vi.fn()}
         onOpenChange={vi.fn()}
@@ -372,6 +387,7 @@ describe("ThreadActionsContextMenu", () => {
       <ThreadActionsContextMenu
         actions={actions}
         disabled={false}
+        sectionIcons={new Map()}
         sections={[]}
         onNewSection={vi.fn()}
         onOpenChange={vi.fn()}
@@ -408,6 +424,7 @@ describe("ThreadActionsContextMenu", () => {
       <ThreadActionsContextMenu
         actions={actions}
         disabled={false}
+        sectionIcons={new Map([["section_1", sectionIcon]])}
         sections={[{ id: "section_1", name: "Later" }]}
         onNewSection={vi.fn()}
         onOpenChange={vi.fn()}
@@ -441,7 +458,12 @@ describe("ThreadActionsContextMenu", () => {
     expect(screen.getByText("Later")).toBeDefined();
     expect(screen.getByText("New section")).toBeDefined();
     expectMenuItemIcon("Unorganized", "ListViewOff");
-    expectMenuItemIcon("Later", "ListView");
+    const sectionIconElement = screen
+      .getByText("Later")
+      .closest('[role="menuitem"]')
+      ?.querySelector("svg");
+    expect(sectionIconElement).not.toBeNull();
+    expect(getComputedStyle(sectionIconElement!).color).toBe("rgb(1, 2, 3)");
     expect(parentMenu.contains(screen.getByText("New section"))).toBe(false);
   });
 });
