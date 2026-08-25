@@ -83,6 +83,7 @@ jobs:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git add -A assets plugins/*/assets
           if git diff --cached --quiet; then
             echo "The capture reproduced what is committed; nothing to push."

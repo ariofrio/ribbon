@@ -118,6 +118,10 @@ test("the relevance gate runs outside the renderer container", () => {
   assert.match(captureJob, /uses: actions\/setup-node@v7/u);
   assert.match(captureJob, /name: Prepare the container/u);
   assert.match(captureJob, /run: npm ci/u);
+  assert.match(
+    captureJob,
+    /git config --global --add safe\.directory "\$GITHUB_WORKSPACE"/u,
+  );
   assert.doesNotMatch(workflow, /npm ci --prefix scripts\/screenshots/u);
 });
 
