@@ -339,7 +339,9 @@ export const SHOTS = [
       await selectSidebar(page, "Ribbon sidebar");
       await openFeaturedThread(page, href);
       await page
-        .locator("[data-ribbon-sidebar-root]")
+        .locator(
+          "[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]",
+        )
         .waitFor({ timeout: 120000 });
       await settleAnimations(page);
     },

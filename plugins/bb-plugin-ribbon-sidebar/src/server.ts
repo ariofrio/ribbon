@@ -247,6 +247,7 @@ export default async function plugin(bb: BbPluginApi) {
   ];
   const store = createPlacementStore(database, { grouping, groupings });
   let threadStagesInstalled = false;
+  let mountedMigrationPending = false;
 
   function sidebarSnapshot() {
     return {
@@ -382,6 +383,20 @@ export default async function plugin(bb: BbPluginApi) {
           outputSchema: acknowledgePlacementMigrationOutputSchema,
         }),
     });
+  }
+
+  async function attemptMountedMigration() {
+    if (!mountedMigrationPending || !threadStagesInstalled) return false;
+    try {
+      await migrateFromThreadStages();
+      mountedMigrationPending = false;
+      return true;
+    } catch (error) {
+      bb.log.warn(
+        `Could not migrate Thread stages placement; reconciliation will retry: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false;
+    }
   }
 
   async function updatePlacement(
@@ -604,9 +619,8 @@ export default async function plugin(bb: BbPluginApi) {
     },
     async synchronizeV1({ migrateThreadStages: shouldMigrate }) {
       await refreshCatalogsAndRoots();
-      if (shouldMigrate && threadStagesInstalled) {
-        await migrateFromThreadStages();
-      }
+      if (shouldMigrate) mountedMigrationPending = true;
+      await attemptMountedMigration();
       return sidebarSnapshot();
     },
     updatePlacementV1: updatePlacement,
@@ -666,12 +680,20 @@ export default async function plugin(bb: BbPluginApi) {
     });
   }
   bb.background.schedule("catalog-reconciliation", "* * * * *", async () => {
-    if (await refreshCatalogsAndRoots()) {
+    const catalogChanged = await refreshCatalogsAndRoots();
+    const migrationCompleted = await attemptMountedMigration();
+    if (catalogChanged) {
       bb.realtime.publish("catalog-changed", null);
+    }
+    if (migrationCompleted) {
+      bb.realtime.publish("placements-changed", {
+        groupingKeys: ["plugin:thread-stages:stages"],
+      });
     }
   });
   settings.onChange(() => {
     bb.realtime.publish("settings-changed", null);
   });
+  await refreshCatalogsAndRoots();
   bb.log.info("Ribbon sidebar loaded");
 }

@@ -16,6 +16,10 @@ test("the screenshot suite uses the ChatGPT theme", () => {
   ]);
 });
 
+test("the ownership-transferring Ribbon sidebar shot runs last", () => {
+  assert.equal(SHOTS.at(-1)?.id, "ribbon-sidebar");
+});
+
 function aspectOf(rectangle) {
   return rectangle.width / rectangle.height;
 }

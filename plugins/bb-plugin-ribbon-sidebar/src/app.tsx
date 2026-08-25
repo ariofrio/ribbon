@@ -45,6 +45,7 @@ import {
   DropdownMenuTrigger,
 } from "./vendor/components/ui/dropdown-menu";
 import { Input } from "./vendor/components/ui/input";
+import { COARSE_POINTER_ROW_ACTION_SIZE_CLASS } from "./vendor/components/ui/coarse-pointer-sizing";
 
 type SidebarSnapshot = z.output<
   typeof rpcContract.sidebarSnapshotV1.output
@@ -80,6 +81,8 @@ function ThreadRow({
   onDragEnd,
   onDragStart,
   onDropBefore,
+  onMoveBefore,
+  moveBeforeLabel,
   onMoveStart,
   onOpen,
   preview,
@@ -90,6 +93,8 @@ function ThreadRow({
   onDragEnd(): void;
   onDragStart(event: DragEvent<HTMLElement>): void;
   onDropBefore(event: DragEvent<HTMLElement>): void;
+  onMoveBefore?: () => void;
+  moveBeforeLabel?: string;
   onMoveStart?: () => void;
   onOpen(): void;
   preview: string | null;
@@ -125,10 +130,20 @@ function ThreadRow({
           </span>
         ) : null}
       </button>
+      {onMoveBefore && moveBeforeLabel ? (
+        <button
+          aria-label={moveBeforeLabel}
+          className={`${COARSE_POINTER_ROW_ACTION_SIZE_CLASS} shrink-0 rounded text-muted-foreground outline-none hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring`}
+          onClick={onMoveBefore}
+          type="button"
+        >
+          <span aria-hidden="true">↑</span>
+        </button>
+      ) : null}
       {onMoveStart ? (
         <button
           aria-label={`Move ${title(thread)}`}
-          className="shrink-0 rounded px-1 py-1 text-muted-foreground outline-none hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+          className={`${COARSE_POINTER_ROW_ACTION_SIZE_CLASS} shrink-0 rounded text-muted-foreground outline-none hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring`}
           onClick={onMoveStart}
           type="button"
         >
@@ -161,6 +176,8 @@ function RibbonSidebarList({
   const [previews, setPreviews] = useState<ReadonlyMap<string, string | null>>(
     new Map(),
   );
+  const [placementsLoaded, setPlacementsLoaded] = useState(false);
+  const [previewsLoaded, setPreviewsLoaded] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
@@ -214,32 +231,30 @@ function RibbonSidebarList({
 
   const loadPlacements = useCallback(async () => {
     if (!preferences) return;
+    setPlacementsLoaded(false);
     let threadIds: string[] | undefined;
     if (
       preferences.view.scope.kind === "group" &&
       preferences.view.scope.group.groupingKey !==
         preferences.view.groupingKey
     ) {
+      const scope = preferences.view.scope.group;
       const scoped = await rpc.call("listPlacementsV1", {
-        groupingKey: preferences.view.scope.group.groupingKey,
-        groupIds: [preferences.view.scope.group.groupId],
+        groupingKey: scope.groupingKey,
       });
       if (!scoped.ok) throw new Error(scoped.error.message);
-      threadIds = scoped.value.items.map(({ threadId }) => threadId);
+      threadIds = scoped.value.items
+        .filter(({ groupId }) => groupId === scope.groupId)
+        .map(({ threadId }) => threadId);
     }
     const result = await rpc.call("listPlacementsV1", {
       groupingKey: preferences.view.groupingKey,
       ...(threadIds === undefined ? {} : { threadIds }),
-      ...(preferences.view.scope.kind === "group" &&
-      preferences.view.scope.group.groupingKey ===
-        preferences.view.groupingKey
-        ? { groupIds: [preferences.view.scope.group.groupId] }
-        : {}),
     });
     if (!result.ok) throw new Error(result.error.message);
     setPlacements(result.value.items as PlacementRecordV1[]);
     setRevision(result.value.revision);
-    setMutationError(null);
+    setPlacementsLoaded(true);
   }, [preferences, rpc]);
 
   useEffect(() => {
@@ -297,11 +312,13 @@ function RibbonSidebarList({
     [liveThreadIds, liveThreads],
   );
   useEffect(() => {
+    setPreviewsLoaded(false);
     if (
       sidebar.status !== "ready" ||
       settings.values?.showMessagePreviews === false
     ) {
       setPreviews(new Map());
+      setPreviewsLoaded(true);
       return;
     }
     let canceled = false;
@@ -314,9 +331,12 @@ function RibbonSidebarList({
           setPreviews(
             new Map(next.map(({ threadId, preview }) => [threadId, preview])),
           );
+          setPreviewsLoaded(true);
         }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!canceled) setPreviewsLoaded(true);
+      });
     return () => {
       canceled = true;
     };
@@ -486,8 +506,13 @@ function RibbonSidebarList({
   }, [changePreferences, entityDialog, rpc, synchronize]);
 
   const updatePlacement = useCallback(
-    async (threadId: string, groupId: string, anchor: { kind: "before"; threadId: string } | { kind: "end" }) => {
+    async (
+      threadId: string,
+      groupId: string,
+      anchor: { kind: "before"; threadId: string } | { kind: "end" },
+    ) => {
       if (!preferences) return;
+      setMutationError(null);
       const result = await rpc.call("updatePlacementV1", {
         groupingKey: preferences.view.groupingKey,
         groupId,
@@ -511,50 +536,90 @@ function RibbonSidebarList({
     return <div className="px-2 py-3 text-xs text-muted-foreground">Loading Ribbon sidebar…</div>;
   }
 
-  const renderRoot = (root: PluginSidebarThread, depth = 0) => (
-    <div key={root.id}>
-      <ThreadRow
-        active={activeThreadId === root.id}
-        depth={depth}
-        onDragEnd={() => setDraggingThreadId(null)}
-        onDragStart={(event) => {
-          if (depth !== 0) return;
-          event.dataTransfer.setData("text/plain", root.id);
-          setDraggingThreadId(root.id);
-        }}
-        onDropBefore={(event) => {
-          if (depth !== 0 || !draggingThreadId) return;
-          event.preventDefault();
-          const destination = placementByThread.get(root.id);
-          if (destination) {
-            void updatePlacement(draggingThreadId, destination.groupId, {
-              kind: "before",
-              threadId: root.id,
-            });
+  const movingThread = draggingThreadId
+    ? rootThreads.find(({ id }) => id === draggingThreadId)
+    : undefined;
+
+  const renderRoot = (root: PluginSidebarThread, depth = 0) => {
+    const destination = placementByThread.get(root.id);
+    const canMoveBefore =
+      depth === 0 &&
+      movingThread !== undefined &&
+      movingThread.id !== root.id &&
+      destination !== undefined;
+    return (
+      <div key={root.id}>
+        <ThreadRow
+          active={activeThreadId === root.id}
+          depth={depth}
+          onDragEnd={() => setDraggingThreadId(null)}
+          onDragStart={(event) => {
+            if (depth !== 0) return;
+            event.dataTransfer.setData("text/plain", root.id);
+            setDraggingThreadId(root.id);
+          }}
+          onDropBefore={(event) => {
+            if (depth !== 0 || !draggingThreadId) return;
+            event.preventDefault();
+            if (draggingThreadId === root.id) {
+              setDraggingThreadId(null);
+              return;
+            }
+            if (destination) {
+              void updatePlacement(draggingThreadId, destination.groupId, {
+                kind: "before",
+                threadId: root.id,
+              });
+            }
+          }}
+          moveBeforeLabel={
+            canMoveBefore
+              ? `Move ${title(movingThread)} before ${title(root)}`
+              : undefined
           }
-        }}
-        onMoveStart={
-          depth === 0 ? () => setDraggingThreadId(root.id) : undefined
-        }
-        onOpen={() => {
-          actions.open(root.id);
-          onNavigate();
-        }}
-        preview={
-          settings.values?.showMessagePreviews === false
-            ? null
-            : (previews.get(root.id) ?? null)
-        }
-        thread={root}
-      />
-      {(childrenByParent.get(root.id) ?? []).map((child) =>
-        renderRoot(child, depth + 1),
-      )}
-    </div>
-  );
+          onMoveBefore={
+            canMoveBefore
+              ? () => {
+                  void updatePlacement(movingThread.id, destination.groupId, {
+                    kind: "before",
+                    threadId: root.id,
+                  });
+                  setDraggingThreadId(null);
+                }
+              : undefined
+          }
+          onMoveStart={
+            depth === 0 ? () => setDraggingThreadId(root.id) : undefined
+          }
+          onOpen={() => {
+            actions.open(root.id);
+            onNavigate();
+          }}
+          preview={
+            settings.values?.showMessagePreviews === false
+              ? null
+              : (previews.get(root.id) ?? null)
+          }
+          thread={root}
+        />
+        {(childrenByParent.get(root.id) ?? []).map((child) =>
+          renderRoot(child, depth + 1),
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div className="relative flex w-full min-w-0 flex-col gap-1 px-1" data-ribbon-sidebar-root="">
+    <div
+      className="relative flex w-full min-w-0 flex-col gap-1 px-1"
+      data-ribbon-sidebar-ready={
+        placementsLoaded && previewsLoaded ? "" : undefined
+      }
+      data-ribbon-sidebar-root=""
+      onKeyDown={(event) => {
+        if (event.key === "Escape") setDraggingThreadId(null);
+      }}
+    >
       <div className="sticky top-0 z-10 flex gap-1 bg-background/95 py-1 backdrop-blur">
         {settings.values?.showProjectsAndSections !== false ? (
           <DropdownMenu>

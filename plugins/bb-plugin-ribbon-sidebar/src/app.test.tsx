@@ -501,6 +501,64 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("keeps an orphaned scoped group recoverable instead of falling back", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.ribbon-sidebar.preferences.v1",
+      JSON.stringify({
+        view: {
+          scope: {
+            kind: "group",
+            group: {
+              groupingKey: "plugin:thread-stages:stages",
+              groupId: "Removed",
+            },
+          },
+          groupingKey: "plugin:thread-stages:stages",
+        },
+        collapsed: [],
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    fixture.value.rpc.listPlacementsV1 = vi.fn(async (raw: unknown) => {
+      const input = raw as { groupingKey: string; groupIds?: string[] };
+      if (input.groupIds !== undefined) {
+        return {
+          ok: false as const,
+          error: {
+            code: "GROUP_NOT_FOUND" as const,
+            message: "Group not found",
+          },
+        };
+      }
+      return {
+        ok: true as const,
+        value: {
+          groupingKey: input.groupingKey,
+          revision: 1,
+          items: [
+            {
+              groupingKey: input.groupingKey,
+              groupId: "Removed",
+              threadId: "thread-a",
+              enteredAtMs: 1,
+              origin: "auto" as const,
+            },
+          ],
+        },
+      };
+    }) as never;
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    expect(await slot.findByText("Removed (unavailable) scope")).toBeTruthy();
+    expect(slot.getByText("Design migration")).toBeTruthy();
+    expect(slot.queryByText("BB original list")).toBeNull();
+    expect(fixture.value.rpc.listPlacementsV1).toHaveBeenCalledWith({
+      groupingKey: "plugin:thread-stages:stages",
+    });
+    slot.lifecycle.unmount();
+  });
+
   it("supports pointer collapse and drag placement with rendered targets", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
@@ -534,6 +592,31 @@ describe("Ribbon sidebar app", () => {
     fixture.updatePlacementV1.mockClear();
     fireEvent.click(slot.getByRole("button", { name: "Move Ship UI" }));
     fireEvent.click(
+      slot.getByRole("button", { name: "Move Ship UI before Design migration" }),
+    );
+    expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: "thread-b",
+        groupId: "Idle",
+        anchor: { kind: "before", threadId: "thread-a" },
+        origin: "ui",
+      }),
+    );
+
+    fixture.updatePlacementV1.mockClear();
+    fireEvent.click(slot.getByRole("button", { name: "Move Ship UI" }));
+    fireEvent.keyDown(
+      slot.container.querySelector("[data-ribbon-sidebar-root]")!,
+      { key: "Escape" },
+    );
+    expect(
+      slot.queryByRole("button", {
+        name: "Move Ship UI before Design migration",
+      }),
+    ).toBeNull();
+
+    fireEvent.click(slot.getByRole("button", { name: "Move Ship UI" }));
+    fireEvent.click(
       slot.getByRole("button", { name: "Move to end of Idle" }),
     );
     expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
@@ -543,6 +626,48 @@ describe("Ribbon sidebar app", () => {
         anchor: { kind: "end" },
         origin: "ui",
       }),
+    );
+    slot.lifecycle.unmount();
+  });
+
+  it("ignores self-drops and keeps recoverable placement errors visible", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    fixture.updatePlacementV1.mockResolvedValue({
+      ok: false as const,
+      error: {
+        code: "REVISION_CONFLICT" as const,
+        message: "Grouping revision changed.",
+        revision: 2,
+      },
+    } as never);
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Ship UI");
+
+    const row = slot.getByText("Ship UI").closest("[data-thread-id]")!;
+    const dataTransfer = { setData: vi.fn(), getData: vi.fn() };
+    fireEvent.dragStart(row, { dataTransfer });
+    fireEvent.drop(row, { dataTransfer });
+    expect(fixture.updatePlacementV1).not.toHaveBeenCalled();
+
+    fireEvent.click(slot.getByRole("button", { name: "Move Ship UI" }));
+    fireEvent.click(slot.getByRole("button", { name: "Move to end of Idle" }));
+    expect(await slot.findByText("Grouping revision changed.")).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it("marks the rendered sidebar ready after placements and previews load", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    await slot.findByText("Design migration");
+    await waitFor(() =>
+      expect(
+        slot.container.querySelector(
+          "[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]",
+        ),
+      ).toBeTruthy(),
     );
     slot.lifecycle.unmount();
   });

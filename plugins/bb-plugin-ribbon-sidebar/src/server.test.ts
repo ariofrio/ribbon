@@ -35,6 +35,7 @@ const threadStagesCatalog = {
 
 function setup({
   includeThreadStages = true,
+  migrationSnapshotFails = false,
   threads = [
     makeThreadResponse({
       id: "thread-a",
@@ -54,15 +55,32 @@ function setup({
   ],
 }: {
   includeThreadStages?: boolean;
+  migrationSnapshotFails?: boolean;
   threads?: ReturnType<typeof makeThreadResponse>[];
 } = {}) {
   let currentThreadStagesCatalog = threadStagesCatalog;
+  let currentMigrationSnapshotFails = migrationSnapshotFails;
   const callRpc = vi.fn(async ({ pluginId, method }: {
     pluginId: string;
     method: string;
   }) => {
     if (pluginId !== "thread-stages") throw new Error("unknown provider");
     if (method === "getGroupingCatalogV1") return currentThreadStagesCatalog;
+    if (method === "getPlacementMigrationSnapshotV1") {
+      if (currentMigrationSnapshotFails) {
+        throw new Error("provider is still starting");
+      }
+      return {
+        sourcePluginId: "thread-stages" as const,
+        sourceSchema: 1 as const,
+        installationId: "a".repeat(32),
+        revision: 0,
+        placements: [],
+      };
+    }
+    if (method === "acknowledgePlacementMigrationV1") {
+      return { transferred: true };
+    }
     throw new Error(`unexpected method: ${method}`);
   });
   const host = createFakePluginHost({
@@ -128,10 +146,49 @@ function setup({
     setThreadStagesCatalog(catalog: typeof threadStagesCatalog) {
       currentThreadStagesCatalog = catalog;
     },
+    setMigrationSnapshotFails(value: boolean) {
+      currentMigrationSnapshotFails = value;
+    },
   };
 }
 
 describe("Ribbon sidebar server", () => {
+  it("hydrates built-in and provider placement state before serving RPCs", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+
+    await expect(
+      harness.behavior.callRpc("sidebarSnapshotV1", null),
+    ).resolves.toEqual({
+      groupings: expect.arrayContaining([
+        expect.objectContaining({
+          groupingKey: "builtin:projects",
+          groups: expect.arrayContaining([
+            expect.objectContaining({ id: "project-a" }),
+          ]),
+        }),
+        expect.objectContaining({
+          groupingKey: "builtin:sections",
+          groups: expect.arrayContaining([
+            expect.objectContaining({ id: "section-a" }),
+          ]),
+        }),
+        expect.objectContaining({
+          groupingKey: "plugin:thread-stages:stages",
+        }),
+      ]),
+    });
+    await expect(
+      harness.behavior.callRpc("getPlacementV1", {
+        groupingKey: "builtin:sections",
+        threadId: "thread-a",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { placement: { groupId: "section-a" } },
+    });
+  });
+
   it("registers the exact public placement RPC and generic CLI", async () => {
     const { bb, harness } = setup();
     await plugin(bb);
@@ -265,6 +322,41 @@ describe("Ribbon sidebar server", () => {
       ],
     });
     expect(callRpc).not.toHaveBeenCalled();
+  });
+
+  it("keeps the sidebar usable and retries when mounted migration fails", async () => {
+    const { bb, harness, callRpc, setMigrationSnapshotFails } = setup({
+      migrationSnapshotFails: true,
+    });
+    await plugin(bb);
+
+    await expect(
+      harness.behavior.callRpc("synchronizeV1", {
+        migrateThreadStages: true,
+      }),
+    ).resolves.toMatchObject({
+      groupings: [
+        { groupingKey: "builtin:projects" },
+        { groupingKey: "builtin:sections" },
+        { groupingKey: "plugin:thread-stages:stages" },
+      ],
+    });
+    expect(
+      callRpc.mock.calls.filter(
+        ([input]) => input.method === "getPlacementMigrationSnapshotV1",
+      ),
+    ).toHaveLength(1);
+
+    setMigrationSnapshotFails(false);
+    await harness.behavior.runSchedule("catalog-reconciliation");
+    expect(
+      callRpc.mock.calls.filter(
+        ([input]) => input.method === "getPlacementMigrationSnapshotV1",
+      ),
+    ).toHaveLength(2);
+    expect(callRpc).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "acknowledgePlacementMigrationV1" }),
+    );
   });
 
   it("keeps project membership read-only and moves Section membership", async () => {

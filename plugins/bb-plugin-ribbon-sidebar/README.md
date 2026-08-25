@@ -12,9 +12,11 @@ divides the visible root threads.
 
 Thread stages v0.9.0 is the first grouping provider. On the first mounted
 Ribbon sidebar client, its existing stages and manual order migrate through the
-provider's versioned snapshot and compare-and-swap acknowledgement. Installing
-Ribbon sidebar without selecting it under **Settings → Appearance → Sidebar**
-does not transfer placement.
+provider's versioned snapshot and compare-and-swap acknowledgement. Migration
+starts when bb mounts Ribbon sidebar, not merely when the plugin loads. Because
+bb's **Automatic** Appearance choice can select and mount a newly installed
+sidebar, explicitly select bb's original thread list before installation if
+you need to install Ribbon sidebar without transferring placement.
 
 ## Install
 
@@ -41,11 +43,13 @@ owns provider assignments and manual within-group order. Sections can be moved
 from this release, while Projects remain read-only because bb's public SDK does
 not yet expose project movement.
 
-Drag a root before another row or onto a group's end target. Group headers can
-be collapsed or used as a scope filter. Scope, grouping, and collapsed groups
-are local to the current client. The Projects and sections menu retains project
-and section creation plus entity actions. If the Ribbon UI cannot load, it
-delegates to bb's original list.
+Drag a root before another row or onto a group's end target. For keyboard or
+touch input, start from a row's Move control, then choose a row's move-before
+control or a group's end target; Escape cancels the move. Group headers can be
+collapsed or used as a scope filter. Scope, grouping, and collapsed groups are
+local to the current client. The Projects and sections menu retains project and
+section creation plus entity actions. If the Ribbon UI cannot load, it delegates
+to bb's original list.
 
 ## CLI
 
