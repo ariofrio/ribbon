@@ -1,25 +1,24 @@
 # Ribbon Instructions
 
-## Naming
+A rule a check can enforce lives in the check, not here. Read the check when
+you need the detail, and run it rather than reasoning about it:
 
-- Write plugin names in sentence case: capitalize only the first word and any proper nouns (e.g. "Missing keyboard shortcuts"). This applies everywhere the name appears, including the `bb.name` field in `package.json`, README headings, and links.
+| Check | Enforces |
+| --- | --- |
+| `npm run check:layout` — `scripts/plugin-layout.mjs` | sentence-case plugin names, entry points under `src/`, what may sit in a plugin root, the `files` exclusions for tests and screenshots, and the `@/` alias in both tsconfig and vitest |
+| `npm run check:ui` — `scripts/vendor-ui.mjs` | every file under `src/vendor/` is bb's, verbatim, and explained by `vendor-ui.json` |
+| `npm run check:heading-icons` — `scripts/heading-icons.mjs` | `assets/icons/` matches each plugin's own icon |
+| `npm test` — `scripts/screenshots/trigger.test.mjs`, `scripts/workflows.test.mjs` | which paths make CI recapture, and that every CI job runs once and is required |
 
-## Layout
-
-- Keep every TypeScript source under the plugin's `src/`, including the `bb.server` and `bb.app` entries, generated data, and co-located `*.test.ts`. Point `bb.server` at `./src/server.ts` and set the tsconfig `@/*` alias to `./src/*`; bb's own scaffold puts these in the plugin root, and the manifest resolves plugin-relative paths either way.
-- Everything vendored from bb lives under `src/vendor/`, which `scripts/vendor-ui.mjs` owns outright. Nothing of the plugin's own belongs in there, and every import says `@/vendor/` so a reader can tell whose code it is from the path.
-- Leave only packaging and tooling configuration in the plugin root, where npm and each tool require it: `package.json`, `package-lock.json`, `tsconfig.json`, `README.md`, `CHANGELOG.md`, and `LICENSE`, plus `vitest.config.ts` when used. `assets/`, `skills/`, `themes/`, and build-time `scripts/` stay alongside `src/`.
-- Ship sources without their tests by ending `files` with `"src", "!src/**/*.test.ts", "!src/**/*.test.tsx"`, and keep README screenshots out of the package by following `"assets"` with `"!assets/screenshot*.png", "!assets/card*.png"`.
-- The repository's own `assets/icons/` is generated from each plugin's icon by `npm run build:heading-icons`; never edit those by hand, and `npm run check:heading-icons` reports them stale.
-- A `scripts/` helper that imports plugin code reaches into `src/`, and anything it generates belongs in `src/` too.
+What follows is here because no check can decide it, or because it has to be
+decided before the work starts.
 
 ## UI components
 
 - Prefer the matching component from bb's release-pinned `@bb` shadcn registry over composing the control directly from Radix or recreating bb's chrome. Use primitives or a bespoke component only when the registry component cannot support the required interaction, and preserve the native motion, focus, responsive, and portal behavior in that exception.
-- Never edit a vendored component: the next re-vendor reverts it, and until then the plugin drifts from every other surface. `npm run check:ui` fails on any hand-edit, in CI and in a pre-commit hook.
-- Layer plugin behavior by composing around a component instead. bb exports seams for this and its own app composes with them, so read how `apps/app/src/components/` solves the same problem first, and grep the vendored copies for what is available. A `className` from an outer component wins through `cn`, which covers most styling gaps.
-- A plugin that imports anything under `@/vendor/` from a test needs a `vitest.config.ts` mapping `@` to its `src/`; `tsc` reads the tsconfig path and vitest does not.
+- Layer plugin behavior by composing around a component rather than editing one. bb exports seams for this and its own app composes with them, so read how `apps/app/src/components/` solves the same problem first, and grep the vendored copies for what is available. A `className` from an outer component wins through `cn`, which covers most styling gaps.
 - Add or drop a component by editing the item list in `vendor-ui.json` and running `npm run build:ui`, never `npx shadcn add`.
+- A `scripts/` helper that imports plugin code reaches into `src/`, and anything it generates belongs in `src/` too.
 
 ## Workflow
 
