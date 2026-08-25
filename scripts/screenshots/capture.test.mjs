@@ -4,9 +4,17 @@ import { join } from "node:path";
 import test from "node:test";
 import { ASPECT_RATIO, cropRectangle, unionBox } from "./capture.mjs";
 import { KEY_GLYPHS } from "./key-glyphs.mjs";
-import { SHOTS } from "./shots.mjs";
+import { setupScreenshots, SHOTS } from "./shots.mjs";
 
 const viewport = { width: 1280, height: 720 };
+
+test("the screenshot suite uses the ChatGPT theme", () => {
+  const commands = [];
+  setupScreenshots({ fixture: { run: (command) => commands.push(command) } });
+  assert.deepEqual(commands, [
+    ["theme", "set", "plugin:chatgpt-theme:chatgpt"],
+  ]);
+});
 
 function aspectOf(rectangle) {
   return rectangle.width / rectangle.height;

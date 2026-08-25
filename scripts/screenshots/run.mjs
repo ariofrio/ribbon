@@ -13,7 +13,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capture } from "./capture.mjs";
 import { applyPluginState, seed, writeManagedConfig } from "./fixture.mjs";
-import { SHOTS } from "./shots.mjs";
+import { setupScreenshots, SHOTS } from "./shots.mjs";
 import { BB_CLI_PATH, startStack } from "./stack.mjs";
 
 const harnessDirectory = dirname(fileURLToPath(import.meta.url));
@@ -81,6 +81,9 @@ try {
   const fixture = seed({ stack, workspaceRoot, bb });
   await applyPluginState({ stack, projects: fixture.projects });
 
+  console.log("Applying the ChatGPT theme…");
+  setupScreenshots({ fixture });
+
   console.log("Capturing…");
   const captured = await capture({ stack, fixture, shots, shotFiles, repositoryRoot });
 
@@ -104,4 +107,3 @@ try {
   // is what starves the next capture's seed, which fails, which leaks another.
   if (!options.keep) await stack.stop();
 }
-
