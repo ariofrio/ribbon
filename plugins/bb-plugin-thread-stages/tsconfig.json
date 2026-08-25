@@ -1,26 +1,7 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "strict": true,
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    "lib": [
-      "ES2022",
-      "DOM"
-    ],
-    "types": [
-      "node"
-    ],
-    "paths": {
-      "@/*": [
-        "./src/*"
-      ]
-    },
-    "noEmit": true,
-    "skipLibCheck": false
+    "paths": { "@/*": ["./src/*"] }
   },
-  "include": [
-    "src"
-  ]
+  "include": ["src", "vitest.config.ts"]
 }
