@@ -1,4 +1,4 @@
-import { FEATURED_THREAD, SIDE_CHAT_QUESTION } from "./fixture.mjs";
+import { AGENT, FEATURED_THREAD, SIDE_CHAT_QUESTION } from "./fixture.mjs";
 import { settleAnimations } from "./settle.mjs";
 
 // What each plugin's screenshot pictures. Every shot starts from the same
@@ -26,6 +26,20 @@ function sideChatPanel(page) {
   return page
     .locator("aside")
     .filter({ has: page.getByRole("textbox", { name: "Reply…" }) });
+}
+
+/**
+ * The main composer's model label is fixture chrome outside the shortcut this
+ * shot demonstrates. Its variable-font edge pixels can differ between two
+ * otherwise identical container captures, so leave its layout in place while
+ * keeping those unrelated glyphs out of this full-window image.
+ */
+async function hideFixtureModelLabel(page) {
+  await page.locator("span").evaluateAll((spans, modelName) => {
+    for (const span of spans) {
+      if (span.textContent === modelName) span.style.visibility = "hidden";
+    }
+  }, AGENT.modelName);
 }
 
 /**
@@ -108,6 +122,11 @@ function projectCrumb(page) {
  */
 function headerIcon(page) {
   return page.locator('header [aria-label="Icon for Storefront"]');
+}
+
+/** The collection is presented in ChatGPT's palette, including every plugin shot. */
+export function setupScreenshots({ fixture }) {
+  fixture.run(["theme", "set", "plugin:chatgpt-theme:chatgpt"]);
 }
 
 export const SHOTS = [
@@ -223,6 +242,7 @@ export const SHOTS = [
       await page.keyboard.press("Enter");
       await page.getByText("Eighteen dashboard tests cover them.").waitFor();
       await settleAnimations(page);
+      await hideFixtureModelLabel(page);
     },
     highlights: (page) => [
       {
@@ -249,14 +269,6 @@ export const SHOTS = [
     // choose between: each of its files shows both palettes, meeting along the
     // diagonal, with the mode it is named for in the top-left corner.
     split: true,
-    // The palette is server state, so it is switched on for this shot only and
-    // switched back after it, leaving every other shot on bb's own default.
-    setup({ fixture }) {
-      fixture.run(["theme", "set", "plugin:chatgpt-theme:chatgpt"]);
-    },
-    teardown({ fixture }) {
-      fixture.run(["theme", "reset"]);
-    },
     async prepare({ page }) {
       await openFeaturedThread(page);
     },
