@@ -30,9 +30,10 @@ test("a plugin's manifest recaptures", () => {
 test("the harness that frames every shot recaptures", () => {
   assert.ok(captures("scripts/screenshots/shots.mjs"));
   assert.ok(captures("scripts/screenshots/capture.mjs"));
-  // bb itself is pinned here, and a new bb redraws every window.
+  // bb itself is pinned here and locked at the root; a new bb redraws every
+  // window.
   assert.ok(captures("scripts/screenshots/package.json"));
-  assert.ok(captures("scripts/screenshots/package-lock.json"));
+  assert.ok(captures("package-lock.json"));
 });
 
 // The container tag tracks the playwright version, which picks the Chromium
@@ -89,4 +90,53 @@ test("the trigger filters no paths, so the check always reports", () => {
   );
   assert.doesNotMatch(trigger, /paths(-ignore)?:/u);
   assert.match(trigger, /pull_request:/u);
+});
+
+test("the relevance gate runs outside the renderer container", () => {
+  const workflow = readFileSync(
+    join(repositoryRoot, ".github/workflows/screenshots.yml"),
+    "utf8",
+  );
+  const relevanceJob = workflow.slice(
+    workflow.indexOf("\n  relevant:"),
+    workflow.indexOf("\n  capture:"),
+  );
+  const captureJob = workflow.slice(
+    workflow.indexOf("\n  capture:"),
+    workflow.indexOf("\n  recapture:"),
+  );
+
+  assert.match(relevanceJob, /name: Decide whether anything can have moved/u);
+  assert.doesNotMatch(relevanceJob, /container:/u);
+  assert.match(relevanceJob, /outputs:\n      capture:/u);
+  assert.match(relevanceJob, /gh api --paginate/u);
+  assert.match(relevanceJob, /CHANGED_FILES/u);
+  assert.doesNotMatch(relevanceJob, /fetch-depth: 0/u);
+  assert.match(captureJob, /needs: relevant/u);
+  assert.match(
+    captureJob,
+    /if: needs\.relevant\.outputs\.capture == 'true'/u,
+  );
+  assert.match(captureJob, /container:/u);
+  assert.doesNotMatch(captureJob, /fetch-depth: 0/u);
+  assert.match(captureJob, /uses: actions\/setup-node@v7/u);
+  assert.match(captureJob, /name: Prepare the container/u);
+  assert.match(captureJob, /run: npm ci/u);
+  assert.match(
+    captureJob,
+    /git config --global --add safe\.directory "\$GITHUB_WORKSPACE"/u,
+  );
+  assert.doesNotMatch(workflow, /npm ci --prefix scripts\/screenshots/u);
+});
+
+test("the required recapture job reports skipped captures as success", () => {
+  const workflow = readFileSync(
+    join(repositoryRoot, ".github/workflows/screenshots.yml"),
+    "utf8",
+  );
+  const requiredJob = workflow.slice(workflow.indexOf("\n  recapture:"));
+
+  assert.match(requiredJob, /needs: \[relevant, capture\]/u);
+  assert.match(requiredJob, /if: always\(\)/u);
+  assert.match(requiredJob, /\*failure\*\|\*cancelled\*/u);
 });
