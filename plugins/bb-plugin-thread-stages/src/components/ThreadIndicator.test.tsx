@@ -52,22 +52,36 @@ describe("ThreadIndicator", () => {
     expect(rendered.container.innerHTML).toBe("");
   });
 
-  it("uses the plugin progress icon for plan mode", () => {
+  it("uses bb's list icon for plan mode", () => {
     const rendered = render(
       <ThreadIndicator indicator="plan-mode" label="Planning" />,
     );
 
     expect(
       rendered.container.querySelector("svg")?.getAttribute("data-icon"),
-    ).toBe("Progress02");
+    ).toBe("ListTodo");
   });
 });
 
 describe("groupIndicator", () => {
-  it("rolls up attention ahead of background activity", () => {
+  it("uses bb's per-thread precedence when rolling up activity", () => {
     const waiting = thread("waiting-for-input");
-    expect(groupIndicator([thread("runtime"), waiting, thread("none")])).toBe(
-      waiting,
-    );
+    const planMode = thread("plan-mode");
+    expect(
+      groupIndicator([
+        thread("workflow"),
+        thread("runtime"),
+        waiting,
+        planMode,
+        thread("none"),
+      ]),
+    ).toBe(waiting);
+    expect(
+      groupIndicator([thread("workflow"), thread("runtime"), planMode]),
+    ).toBe(planMode);
+  });
+
+  it("never rolls up the unread-success indicator", () => {
+    expect(groupIndicator([thread("unread-success"), thread("none")])).toBeNull();
   });
 });
