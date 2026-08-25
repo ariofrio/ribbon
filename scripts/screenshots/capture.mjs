@@ -361,7 +361,7 @@ const WINDOW_FRAME = {
   dark: { edge: "rgba(255, 255, 255, 0.16)", shadow: null },
 };
 
-const HERO_SHADOW_BLUR = 6;
+const HERO_SHADOW_BLUR = 12;
 const HERO_FRAME = {
   ...WINDOW_FRAME,
   padding: {
@@ -371,17 +371,11 @@ const HERO_FRAME = {
   },
   light: {
     ...WINDOW_FRAME.light,
-    shadow: [
-      `0 0 ${HERO_SHADOW_BLUR}px rgba(0, 0, 0, 0.24)`,
-      `0 0 ${HERO_SHADOW_BLUR}px rgba(0, 0, 0, 0.24)`,
-    ].join(", "),
+    shadow: `0 0 ${HERO_SHADOW_BLUR}px rgba(0, 0, 0, 0.24)`,
   },
   dark: {
     ...WINDOW_FRAME.dark,
-    shadow: [
-      `0 0 ${HERO_SHADOW_BLUR}px rgba(0, 0, 0, 0.56)`,
-      `0 0 ${HERO_SHADOW_BLUR}px rgba(0, 0, 0, 0.56)`,
-    ].join(", "),
+    shadow: `0 0 ${HERO_SHADOW_BLUR}px rgba(0, 0, 0, 0.56)`,
   },
 };
 
