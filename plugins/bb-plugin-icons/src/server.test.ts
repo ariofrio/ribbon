@@ -310,7 +310,23 @@ describe("icon placements", () => {
 
 describe("the personal project's icon", () => {
   it("names the personal project the way bb does", async () => {
-    const harness = createPluginHarness();
+    // The service reads the list and then waits on project changes, so both
+    // halves need standing in for.
+    const host = createFakePluginHost({
+      pluginId: "icons",
+      sdk: {
+        projects: {
+          list: async () => [
+            { id: "proj_mine", name: "Threads", kind: "personal" },
+            { id: "proj_other", name: "Other", kind: "standard" },
+          ],
+        },
+        subscribe: () => () => {},
+      },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+    const harness = host.harness;
 
     // It rides along with the project list, which is read off the read path.
     harness.behavior.runService("icon-cleanup");
