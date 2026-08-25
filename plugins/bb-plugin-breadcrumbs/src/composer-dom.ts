@@ -217,13 +217,31 @@ export function selectComposeSection(
   targetWindow.dispatchEvent(new PopStateEvent("popstate", { state }));
 }
 
-export function readComposeSectionId(targetWindow: Window): string | null {
-  const state = targetWindow.history.state;
+export function readComposeSectionTarget(
+  state: unknown,
+): { sectionId: string | null } | null {
   if (typeof state !== "object" || state === null) return null;
   const usr = Reflect.get(state, "usr");
   if (typeof usr !== "object" || usr === null) return null;
+  if (!Object.prototype.hasOwnProperty.call(usr, "sectionId")) return null;
   const sectionId = Reflect.get(usr, "sectionId");
-  return typeof sectionId === "string" && sectionId.trim() !== ""
-    ? sectionId
+  if (typeof sectionId !== "string") return null;
+  const normalized = sectionId.trim();
+  return { sectionId: normalized === "" ? null : normalized };
+}
+
+export function readComposeForkSourceId(state: unknown): string | null {
+  if (typeof state !== "object" || state === null) return null;
+  const usr = Reflect.get(state, "usr");
+  if (typeof usr !== "object" || usr === null) return null;
+  const seed = Reflect.get(usr, "forkThreadCreateSeed");
+  if (typeof seed !== "object" || seed === null) return null;
+  const sourceThreadId = Reflect.get(seed, "sourceThreadId");
+  return typeof sourceThreadId === "string" && sourceThreadId.trim() !== ""
+    ? sourceThreadId
     : null;
+}
+
+export function readComposeSectionId(targetWindow: Window): string | null {
+  return readComposeSectionTarget(targetWindow.history.state)?.sectionId ?? null;
 }

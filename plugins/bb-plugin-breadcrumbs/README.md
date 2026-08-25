@@ -24,6 +24,11 @@ Release  >  bb-plugins  >  New thread
 
 Turn the setting off to keep bb's native composer layouts unchanged.
 
+The picker stays synchronized with a section selected elsewhere after the New
+thread composer mounts. Fork drafts show the section inherited from the fork
+source as read-only, because changing it would not affect bb's fork request.
+Changing the project leaves fork mode and restores the editable picker.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-dark.png">
   <img src="assets/screenshot-light.png" alt="The Storefront project and its actions menu in a bb thread header">
@@ -72,7 +77,10 @@ has no slot for New thread's title prefix. It keeps bb's real project selector
 under its React-owned parent and positions it over a header placeholder; bb's
 native project menu, focus handling, and live selection state therefore remain
 the control being used. The section selector sends the same one-use route state
-that bb consumes when New thread is opened from a sidebar section.
+that bb consumes when New thread is opened from a sidebar section, and listens
+for explicit section changes sent through that state by other plugins. A
+missing section key means bb consumed the one-use state; an empty value means
+Unorganized.
 
 These layouts deliberately rely on bb's private header and composer DOM
 structures because the plugin SDK has no title-prefix or New thread layout

@@ -146,6 +146,190 @@ describe("project breadcrumb app registration", () => {
     ).not.toBeNull();
   });
 
+  it("tracks external section choices that arrive after the New thread composer", async () => {
+    window.history.replaceState(
+      { idx: 1, key: "compose", usr: { focusPrompt: true } },
+      "",
+      "/",
+    );
+    document.body.innerHTML = `
+      <div id="pane">
+        <header><div data-testid="app-page-header-content-row"><div><div><div><p>New thread</p></div></div></div></div></header>
+        <div data-app-composer="" data-app-composer-role="primary">
+          <div><button aria-label="Project" data-promptbox-project-control="">bb-plugins</button></div>
+        </div>
+      </div>
+    `;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const result = String(input).endsWith("/listCrumbs")
+          ? {
+              showSection: true,
+              showProject: true,
+              showAncestors: false,
+              showComposerBreadcrumbs: true,
+            }
+          : {
+              sections: [
+                { id: "section_now", name: "Now" },
+                { id: "section_later", name: "Later" },
+              ],
+            };
+        return new Response(JSON.stringify({ ok: true, result }));
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "breadcrumbs",
+      generation: 1,
+    });
+    await waitFor(() =>
+      expect(
+        document.querySelector('[aria-label="Section"]')?.textContent,
+      ).toContain("Unorganized"),
+    );
+    const section = document.querySelector<HTMLButtonElement>(
+      '[aria-label="Section"]',
+    )!;
+
+    const selectLater = {
+      ...window.history.state,
+      usr: { ...window.history.state.usr, sectionId: "section_later" },
+    };
+    window.history.replaceState(selectLater, "", window.location.href);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: selectLater }));
+    await waitFor(() => expect(section.textContent).toContain("Later"));
+
+    const consumed = { ...window.history.state, usr: {} };
+    window.history.replaceState(consumed, "", window.location.href);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: consumed }));
+    expect(section.textContent).toContain("Later");
+
+    const unorganized = {
+      ...window.history.state,
+      usr: { sectionId: "" },
+    };
+    window.history.replaceState(unorganized, "", window.location.href);
+    window.dispatchEvent(
+      new PopStateEvent("popstate", { state: unorganized }),
+    );
+    await waitFor(() => expect(section.textContent).toContain("Unorganized"));
+
+    await scripts.lifecycle.dispose();
+  });
+
+  it("shows a fork source section read-only until changing project leaves fork mode", async () => {
+    const navigation = new EventTarget();
+    vi.stubGlobal("navigation", navigation);
+    window.history.replaceState({ idx: 0, key: "thread", usr: null }, "", "/");
+    document.body.innerHTML = `
+      <div id="pane">
+        <div data-app-composer="" data-app-composer-role="primary">
+          <div data-follow-up-composer-footer="">Follow-up controls</div>
+        </div>
+      </div>
+    `;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const method = String(input).split("/").at(-1);
+        const result =
+          method === "listCrumbs"
+            ? {
+                showSection: true,
+                showProject: true,
+                showAncestors: false,
+                showComposerBreadcrumbs: true,
+              }
+            : method === "trailForThread"
+              ? {
+                  section: { id: "section_inherited", name: "Inherited" },
+                  project: null,
+                  ancestors: [],
+                }
+              : {
+                  sections: [
+                    { id: "section_inherited", name: "Inherited" },
+                    { id: "section_selected", name: "Selected" },
+                  ],
+                };
+        return new Response(JSON.stringify({ ok: true, result }));
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "breadcrumbs",
+      generation: 1,
+    });
+
+    navigation.dispatchEvent(new Event("navigate"));
+    window.history.replaceState(
+      {
+        idx: 1,
+        key: "compose",
+        usr: {
+          forkThreadCreateSeed: {
+            sourceThreadId: "thread_fork_source",
+          },
+        },
+      },
+      "",
+      "/",
+    );
+    await Promise.resolve();
+    window.history.replaceState(
+      { idx: 1, key: "compose", usr: null },
+      "",
+      "/",
+    );
+    document.body.innerHTML = `
+      <div id="pane">
+        <header><div data-testid="app-page-header-content-row"><div><div><div><p>New thread</p></div></div></div></div></header>
+        <div data-app-composer="" data-app-composer-role="primary">
+          <div aria-label="Forking Parent thread">Forking Parent thread</div>
+          <div><button aria-label="Project" data-promptbox-project-control="">bb-plugins</button></div>
+        </div>
+      </div>
+    `;
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-inherited-fork-section]')?.textContent,
+      ).toContain("Inherited"),
+    );
+    expect(document.querySelector('button[aria-label="Section"]')).toBeNull();
+
+    const selected = {
+      ...window.history.state,
+      usr: { sectionId: "section_selected" },
+    };
+    window.history.replaceState(selected, "", window.location.href);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: selected }));
+    expect(
+      document.querySelector('[data-inherited-fork-section]')?.textContent,
+    ).toContain("Inherited");
+
+    const project = document.querySelector<HTMLButtonElement>(
+      '[data-promptbox-project-control]',
+    )!;
+    project.addEventListener(
+      "click",
+      () => document.querySelector('[aria-label^="Forking "]')?.remove(),
+      { once: true },
+    );
+    fireEvent.click(project);
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('button[aria-label="Section"]')?.textContent,
+      ).toContain("Selected"),
+    );
+    expect(document.querySelector('[data-inherited-fork-section]')).toBeNull();
+
+    await scripts.lifecycle.dispose();
+  });
+
   it("hides only the repeated project below an existing thread composer", async () => {
     document.body.innerHTML = `
       <div data-app-composer="" data-app-composer-role="primary">

@@ -16,6 +16,24 @@ interface SectionPickerProps {
   onSelect(sectionId: string | null): void;
 }
 
+export function InheritedForkSection({
+  section,
+}: {
+  section: { id: string; name: string } | null;
+}) {
+  const label = section?.name ?? "Unorganized";
+  return (
+    <span
+      data-inherited-fork-section=""
+      aria-label={`${label}, inherited from fork source`}
+      title="Inherited from fork source"
+      className="inline-flex min-h-7 min-w-0 shrink-0 items-center text-muted-foreground"
+    >
+      <span className="max-w-48 truncate">{label}</span>
+    </span>
+  );
+}
+
 export function SectionPicker({
   sections,
   selectedSectionId,

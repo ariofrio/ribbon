@@ -3,12 +3,14 @@ import { Icon } from "@/vendor/components/ui/icon";
 import {
   hideThreadComposerProject,
   installNewThreadBreadcrumbs,
+  readComposeForkSourceId,
   readComposeSectionId,
+  readComposeSectionTarget,
   selectComposeSection,
   type NewThreadBreadcrumbMount,
 } from "./composer-dom";
 import { createCrumbRoot, type CrumbRoot } from "./crumb-root";
-import { SectionPicker } from "./SectionPicker";
+import { InheritedForkSection, SectionPicker } from "./SectionPicker";
 
 interface ComposerSettings {
   showComposerBreadcrumbs: boolean;
@@ -16,6 +18,10 @@ interface ComposerSettings {
 
 interface SectionsResult {
   sections: Array<{ id: string; name: string }>;
+}
+
+interface TrailSectionResult {
+  section: { id: string; name: string } | null;
 }
 
 async function callRpc<Result>(
@@ -48,6 +54,9 @@ interface InstalledNewThreadLayout {
   sectionRoot: CrumbRoot;
   separatorRoot: CrumbRoot;
   selectedSectionId: string | null;
+  forkSourceThreadId: string | null;
+  inheritedForkSection: TrailSectionResult["section"] | undefined;
+  isForkDraft: boolean;
 }
 
 class ComposerLayoutController {
@@ -57,8 +66,11 @@ class ComposerLayoutController {
   private sectionsLoaded = false;
   private disposed = false;
   private reconcileQueued = false;
+  private pendingForkSourceThreadId: string | null = null;
+  private readonly navigationTarget: EventTarget | null;
   private readonly knownComposers = new WeakSet<HTMLElement>();
   private readonly initialSectionIds = new WeakMap<HTMLElement, string | null>();
+  private readonly forkSourceThreadIds = new WeakMap<HTMLElement, string>();
   private readonly newThreadLayouts = new Map<
     HTMLElement,
     InstalledNewThreadLayout
@@ -69,12 +81,19 @@ class ComposerLayoutController {
   constructor(
     private readonly pluginId: string,
     private readonly signal: AbortSignal,
-  ) {}
+  ) {
+    const navigation = Reflect.get(window, "navigation");
+    this.navigationTarget =
+      navigation instanceof EventTarget ? navigation : null;
+  }
 
   async start(): Promise<void> {
     this.observer.observe(document.body, { childList: true, subtree: true });
+    this.captureForkSource(window.history.state);
     this.captureInitialSections();
     window.addEventListener("focus", this.handleFocus);
+    window.addEventListener("popstate", this.handlePopState);
+    this.navigationTarget?.addEventListener("navigate", this.handleNavigation);
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
     this.signal.addEventListener("abort", this.dispose, { once: true });
     await Promise.allSettled([this.refreshSettings(), this.refreshSections()]);
@@ -86,6 +105,11 @@ class ComposerLayoutController {
     this.disposed = true;
     this.observer.disconnect();
     window.removeEventListener("focus", this.handleFocus);
+    window.removeEventListener("popstate", this.handlePopState);
+    this.navigationTarget?.removeEventListener(
+      "navigate",
+      this.handleNavigation,
+    );
     document.removeEventListener(
       "visibilitychange",
       this.handleVisibilityChange,
@@ -96,6 +120,25 @@ class ComposerLayoutController {
 
   private readonly handleFocus = () => {
     void this.refreshAll();
+  };
+
+  private readonly handlePopState = (event: PopStateEvent) => {
+    this.captureForkSource(event.state);
+    const target = readComposeSectionTarget(event.state);
+    if (target === null) return;
+    for (const composer of this.newThreadComposers()) {
+      this.initialSectionIds.set(composer, target.sectionId);
+      const layout = this.newThreadLayouts.get(composer);
+      if (layout === undefined) continue;
+      layout.selectedSectionId = target.sectionId;
+      this.renderNewThreadLayout(layout);
+    }
+  };
+
+  private readonly handleNavigation = () => {
+    queueMicrotask(() => {
+      if (!this.disposed) this.captureForkSource(window.history.state);
+    });
   };
 
   private readonly handleVisibilityChange = () => {
@@ -156,11 +199,7 @@ class ComposerLayoutController {
 
   private captureInitialSections(): boolean {
     let discoveredComposer = false;
-    for (const composer of Array.from(
-      document.querySelectorAll<HTMLElement>(
-        '[data-app-composer][data-app-composer-role="primary"]',
-      ),
-    )) {
+    for (const composer of this.primaryComposers()) {
       if (!this.knownComposers.has(composer)) {
         this.knownComposers.add(composer);
         discoveredComposer = true;
@@ -171,18 +210,28 @@ class ComposerLayoutController {
       ) {
         this.initialSectionIds.set(composer, readComposeSectionId(window));
       }
+      if (
+        this.isForkDraft(composer) &&
+        !this.forkSourceThreadIds.has(composer) &&
+        this.pendingForkSourceThreadId !== null
+      ) {
+        const forkSourceThreadId = this.pendingForkSourceThreadId;
+        this.forkSourceThreadIds.set(composer, forkSourceThreadId);
+        this.pendingForkSourceThreadId = null;
+      }
     }
     return discoveredComposer;
   }
 
+  private captureForkSource(state: unknown): void {
+    const forkSourceThreadId = readComposeForkSourceId(state);
+    if (forkSourceThreadId !== null) {
+      this.pendingForkSourceThreadId = forkSourceThreadId;
+    }
+  }
+
   private reconcile(): void {
-    const composers = new Set<HTMLElement>(
-      Array.from(
-        document.querySelectorAll<HTMLElement>(
-        '[data-app-composer][data-app-composer-role="primary"]',
-        ),
-      ),
-    );
+    const composers = new Set(this.primaryComposers());
     for (const [composer, layout] of this.newThreadLayouts) {
       if (
         !this.enabled ||
@@ -190,6 +239,22 @@ class ComposerLayoutController {
         !layout.dom.root.isConnected
       ) {
         this.disposeNewThreadLayout(composer, layout);
+        continue;
+      }
+      const isForkDraft = this.isForkDraft(composer);
+      const forkSourceThreadId =
+        this.forkSourceThreadIds.get(composer) ?? null;
+      if (
+        layout.isForkDraft !== isForkDraft ||
+        layout.forkSourceThreadId !== forkSourceThreadId
+      ) {
+        layout.isForkDraft = isForkDraft;
+        layout.forkSourceThreadId = forkSourceThreadId;
+        layout.inheritedForkSection = undefined;
+        this.renderNewThreadLayout(layout);
+        if (isForkDraft && forkSourceThreadId !== null) {
+          void this.loadInheritedForkSection(composer, layout);
+        }
       }
     }
     for (const [composer, cleanup] of this.threadProjectCleanups) {
@@ -218,6 +283,25 @@ class ComposerLayoutController {
     }
   }
 
+  private primaryComposers(): HTMLElement[] {
+    return Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[data-app-composer][data-app-composer-role="primary"]',
+      ),
+    );
+  }
+
+  private newThreadComposers(): HTMLElement[] {
+    return this.primaryComposers().filter(
+      (composer) =>
+        composer.querySelector("[data-promptbox-project-control]") !== null,
+    );
+  }
+
+  private isForkDraft(composer: HTMLElement): boolean {
+    return composer.querySelector('[aria-label^="Forking "]') !== null;
+  }
+
   private installNewThreadLayout(composer: HTMLElement): void {
     const dom = installNewThreadBreadcrumbs(composer);
     if (dom === null) return;
@@ -226,9 +310,43 @@ class ComposerLayoutController {
       sectionRoot: createCrumbRoot(dom.sectionTarget),
       separatorRoot: createCrumbRoot(dom.projectSeparatorTarget),
       selectedSectionId: this.initialSectionIds.get(composer) ?? null,
+      forkSourceThreadId: this.forkSourceThreadIds.get(composer) ?? null,
+      inheritedForkSection: undefined,
+      isForkDraft: this.isForkDraft(composer),
     };
     this.newThreadLayouts.set(composer, layout);
     this.renderNewThreadLayout(layout);
+    if (layout.isForkDraft && layout.forkSourceThreadId !== null) {
+      void this.loadInheritedForkSection(composer, layout);
+    }
+  }
+
+  private async loadInheritedForkSection(
+    composer: HTMLElement,
+    layout: InstalledNewThreadLayout,
+  ): Promise<void> {
+    const sourceThreadId = layout.forkSourceThreadId;
+    if (sourceThreadId === null) return;
+    try {
+      const result = await callRpc<TrailSectionResult>(
+        this.pluginId,
+        "trailForThread",
+        { threadId: sourceThreadId },
+        this.signal,
+      );
+      if (
+        this.disposed ||
+        this.newThreadLayouts.get(composer) !== layout ||
+        !layout.isForkDraft ||
+        layout.forkSourceThreadId !== sourceThreadId
+      ) {
+        return;
+      }
+      layout.inheritedForkSection = result.section;
+      this.renderNewThreadLayout(layout);
+    } catch {
+      // A fork stays non-editable even when its inherited section cannot load.
+    }
   }
 
   private renderNewThreadLayouts(): void {
@@ -238,26 +356,35 @@ class ComposerLayoutController {
   }
 
   private renderNewThreadLayout(layout: InstalledNewThreadLayout): void {
+    const sectionControl = layout.isForkDraft ? (
+      layout.inheritedForkSection === undefined ? null : (
+        <InheritedForkSection section={layout.inheritedForkSection} />
+      )
+    ) : (
+      <SectionPicker
+        sections={this.sections}
+        selectedSectionId={layout.selectedSectionId}
+        isLoading={this.sectionsLoading}
+        onOpen={() => {
+          void this.refreshSections();
+        }}
+        onSelect={(sectionId) => {
+          layout.selectedSectionId = sectionId;
+          this.renderNewThreadLayout(layout);
+          selectComposeSection(window, sectionId);
+        }}
+      />
+    );
     layout.sectionRoot.render(
       <>
-        <SectionPicker
-          sections={this.sections}
-          selectedSectionId={layout.selectedSectionId}
-          isLoading={this.sectionsLoading}
-          onOpen={() => {
-            void this.refreshSections();
-          }}
-          onSelect={(sectionId) => {
-            layout.selectedSectionId = sectionId;
-            this.renderNewThreadLayout(layout);
-            selectComposeSection(window, sectionId);
-          }}
-        />
-        <Icon
-          name="ChevronRight"
-          className="size-3.5 shrink-0 text-subtle-foreground"
-          aria-hidden="true"
-        />
+        {sectionControl}
+        {sectionControl === null ? null : (
+          <Icon
+            name="ChevronRight"
+            className="size-3.5 shrink-0 text-subtle-foreground"
+            aria-hidden="true"
+          />
+        )}
       </>,
     );
     layout.separatorRoot.render(
