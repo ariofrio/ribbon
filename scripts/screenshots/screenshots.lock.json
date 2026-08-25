@@ -2,7 +2,7 @@
   "bbVersion": "0.39.0",
   "shots": {
     "thread-stages": {
-      "inputs": "45771b113831a4649a9cdfb0ca567409823cd2bf8d4cf1eba95dbeb4eeeeaa6f",
+      "inputs": "33c6b79e09a4c19dfbcc8d376d36219aa97b90d71d2abf5855fcc80e302410f8",
       "files": {
         "screenshot-light.png": "470b79b543b2ab2bb211ac4e59fb5c247c780e2a9f5ee7bab21f53850ff2e308",
         "screenshot-dark.png": "fe5287f2b13ec132a58eec098e60e157aa86921178df389c2ddff110f7aa5443",
@@ -35,14 +35,14 @@
       }
     },
     "collection": {
-      "inputs": "e5596db6206db1d2e04185c67a1a4608f4b4e12025a4a48ac42245a2cb79fd48",
+      "inputs": "501399f17d6b74eb85094f8849ee29a5da258b1bac6bedd730b620289f9e3f04",
       "files": {
         "hero-light.png": "5ff298e0f27c83e32b3785f6077bc54a40ac767b4cb6d24b9136d6ae597183c9",
         "hero-dark.png": "2e92741cea0497b7f83732d93633d7a00a8cdc4a5b4bd0ae923095ba0129e879"
       }
     },
     "breadcrumbs": {
-      "inputs": "f900aee780df8979407a79b6082db584c74220a1a86e519d267d82ce58f2b65a",
+      "inputs": "7ab890f6fffd8b5eba01413744af16c5d08b6fcab555d92247fa30e5294bfb67",
       "files": {
         "screenshot-light.png": "b91db08d05e372a070c65da10dd23657f16d1018d85c83da1daac2f6295efddd",
         "screenshot-dark.png": "b240cebf47a8b3e808e80124661adfc93c387c9065fe404bee54cec7bb4fb433",
@@ -53,9 +53,9 @@
       }
     },
     "icons": {
-      "inputs": "f65ace77050e63f4d87057be26049e67f4506c11fbccc2d74cf3f34ba06ee9e5",
+      "inputs": "6a889735986dab96ee1fef143d30f95fa54e2d7ae6495ae66936da5b39113717",
       "files": {
-        "screenshot-light.png": "1e339343017e9606a00ad4426819c2a4c94455dad0a8abdc806fbeb3be2a70b6",
+        "screenshot-light.png": "15c39cd11f18b1c8321d4333591e64849f09e2e521d3776d74dfd4ae325ce2ec",
         "screenshot-dark.png": "43d593832815f11745d3bcb4d013755618c21616f44f1a7fe92efbc14ca37c14",
         "card-light.png": "f185f22ffd08d6a676824aa0b5d18ffb6771a3857a0ad55235590b8d76496fdf",
         "card-dark.png": "11b26b1dec6bd02ac65974a262f4f7ec81488f549e364af00b4b820edb7ad634",
