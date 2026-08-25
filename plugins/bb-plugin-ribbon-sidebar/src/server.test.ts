@@ -64,6 +64,21 @@ function setup({
     pluginId: string;
     method: string;
   }) => {
+    if (pluginId === "icons" && method === "listIcons") {
+      return {
+        icons: [
+          {
+            kind: "section",
+            id: "section-a",
+            icon: "custom-section",
+            color: "blue",
+            glyph: [["path", { d: "M1 1h14v14H1z", key: "section" }]],
+          },
+          { kind: "section", id: "invalid" },
+        ],
+        defaults: { project: [], personal: [], section: [] },
+      };
+    }
     if (pluginId !== "thread-stages") throw new Error("unknown provider");
     if (method === "getGroupingCatalogV1") return currentThreadStagesCatalog;
     if (method === "getPlacementMigrationSnapshotV1") {
@@ -153,6 +168,47 @@ function setup({
 }
 
 describe("Ribbon sidebar server", () => {
+  it("retains Ribbon's opt-in for non-stage collapsed activity", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+
+    expect(harness.inspection.registrations.settingsDescriptors).toEqual({
+      showProjectsAndSections: {
+        type: "boolean",
+        label: "Show Projects and sections",
+        default: true,
+      },
+      showMessagePreviews: {
+        type: "boolean",
+        label: "Show message previews",
+        default: true,
+      },
+      showCollapsedGroupIndicators: {
+        type: "boolean",
+        label: "Show collapsed-group indicators (experimental)",
+        default: false,
+      },
+    });
+  });
+
+  it("filters Icons plugin rows before serving entity icons", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+
+    await expect(
+      harness.behavior.callRpc("listEntityIconsV1", null),
+    ).resolves.toEqual({
+      icons: [
+        expect.objectContaining({
+          kind: "section",
+          id: "section-a",
+          color: "blue",
+        }),
+      ],
+      defaults: { project: [], personal: [], section: [] },
+    });
+  });
+
   it("hydrates built-in and provider placement state before serving RPCs", async () => {
     const { bb, harness } = setup();
     await plugin(bb);
@@ -201,6 +257,7 @@ describe("Ribbon sidebar server", () => {
       "invalidateGroupingCatalogV1",
       "listPlacementsV1",
       "listPreviewsV1",
+      "listEntityIconsV1",
       "searchThreadIdsV1",
       "renameEntityV1",
       "sidebarSnapshotV1",

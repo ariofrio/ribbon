@@ -17,6 +17,7 @@ import {
   useState,
   type DragEvent,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import type { z } from "zod";
 import type { rpcContract } from "./server";
@@ -46,6 +47,13 @@ import {
 } from "./vendor/components/ui/dropdown-menu";
 import { Input } from "./vendor/components/ui/input";
 import { COARSE_POINTER_ROW_ACTION_SIZE_CLASS } from "./vendor/components/ui/coarse-pointer-sizing";
+import { groupIndicator, ThreadIndicator } from "./thread-indicator";
+import {
+  fetchSectionIcons,
+  subscribeToIconChanges,
+  type EntityIconView,
+} from "./icons";
+import { ThreadActionsMenu } from "./thread-actions-menu";
 
 type SidebarSnapshot = z.output<
   typeof rpcContract.sidebarSnapshotV1.output
@@ -75,8 +83,27 @@ function descendants(
   return result;
 }
 
+function rootForThread(
+  threadId: string,
+  threads: readonly PluginSidebarThread[],
+): PluginSidebarThread | undefined {
+  const byId = new Map(threads.map((thread) => [thread.id, thread]));
+  let current = byId.get(threadId);
+  const visited = new Set<string>();
+  while (
+    current?.parentThreadId &&
+    !visited.has(current.parentThreadId) &&
+    byId.has(current.parentThreadId)
+  ) {
+    visited.add(current.id);
+    current = byId.get(current.parentThreadId);
+  }
+  return current;
+}
+
 function ThreadRow({
   active,
+  actionsMenu,
   depth,
   onDragEnd,
   onDragStart,
@@ -89,6 +116,7 @@ function ThreadRow({
   thread,
 }: {
   active: boolean;
+  actionsMenu: ReactNode;
   depth: number;
   onDragEnd(): void;
   onDragStart(event: DragEvent<HTMLElement>): void;
@@ -130,6 +158,7 @@ function ThreadRow({
           </span>
         ) : null}
       </button>
+      {actionsMenu}
       {onMoveBefore && moveBeforeLabel ? (
         <button
           aria-label={moveBeforeLabel}
@@ -176,6 +205,9 @@ function RibbonSidebarList({
   const [previews, setPreviews] = useState<ReadonlyMap<string, string | null>>(
     new Map(),
   );
+  const [sectionIcons, setSectionIcons] = useState<
+    ReadonlyMap<string, EntityIconView>
+  >(new Map());
   const [placementsLoaded, setPlacementsLoaded] = useState(false);
   const [previewsLoaded, setPreviewsLoaded] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
@@ -189,6 +221,8 @@ function RibbonSidebarList({
   }>({ query: "", threadIds: new Set() });
   const mounted = useRef(false);
   const reconnectPending = useRef(false);
+  const scopeSyncedForThreadId = useRef<string | null>(null);
+  const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
 
   const synchronize = useCallback(async () => {
     const next = await rpc.call("synchronizeV1", {
@@ -234,6 +268,7 @@ function RibbonSidebarList({
     setPlacementsLoaded(false);
     let threadIds: string[] | undefined;
     if (
+      !normalizedSearch &&
       preferences.view.scope.kind === "group" &&
       preferences.view.scope.group.groupingKey !==
         preferences.view.groupingKey
@@ -255,7 +290,7 @@ function RibbonSidebarList({
     setPlacements(result.value.items as PlacementRecordV1[]);
     setRevision(result.value.revision);
     setPlacementsLoaded(true);
-  }, [preferences, rpc]);
+  }, [normalizedSearch, preferences, rpc]);
 
   useEffect(() => {
     void loadPlacements().catch((error: unknown) => {
@@ -312,6 +347,47 @@ function RibbonSidebarList({
     [liveThreadIds, liveThreads],
   );
   useEffect(() => {
+    if (activeThreadId === null) {
+      scopeSyncedForThreadId.current = null;
+      return;
+    }
+    if (
+      sidebar.status !== "ready" ||
+      preferences === null ||
+      scopeSyncedForThreadId.current === activeThreadId
+    ) {
+      return;
+    }
+    const root = rootForThread(activeThreadId, liveThreads);
+    if (!root) return;
+    scopeSyncedForThreadId.current = activeThreadId;
+    if (preferences.view.scope.kind !== "group") return;
+    const scope = preferences.view.scope.group;
+    const groupId =
+      scope.groupingKey === "builtin:projects"
+        ? root.projectId
+        : scope.groupingKey === "builtin:sections"
+          ? (root.sectionId ?? "unsectioned")
+          : null;
+    if (groupId === null || groupId === scope.groupId) return;
+    changePreferences((current) => ({
+      ...current,
+      view: {
+        ...current.view,
+        scope: {
+          kind: "group",
+          group: { groupingKey: scope.groupingKey, groupId },
+        },
+      },
+    }));
+  }, [
+    activeThreadId,
+    changePreferences,
+    liveThreads,
+    preferences,
+    sidebar.status,
+  ]);
+  useEffect(() => {
     setPreviewsLoaded(false);
     if (
       sidebar.status !== "ready" ||
@@ -341,6 +417,22 @@ function RibbonSidebarList({
       canceled = true;
     };
   }, [rootThreads, rpc, settings.values?.showMessagePreviews, sidebar.status]);
+  useEffect(() => {
+    let canceled = false;
+    const refresh = () => {
+      void fetchSectionIcons(() => rpc.call("listEntityIconsV1", null)).then(
+        (icons) => {
+          if (!canceled) setSectionIcons(icons);
+        },
+      );
+    };
+    refresh();
+    const unsubscribe = subscribeToIconChanges(refresh);
+    return () => {
+      canceled = true;
+      unsubscribe();
+    };
+  }, [rpc]);
   const childrenByParent = useMemo(() => {
     const result = new Map<string, PluginSidebarThread[]>();
     for (const child of liveThreads.filter(
@@ -352,7 +444,6 @@ function RibbonSidebarList({
     }
     return result;
   }, [liveThreadIds, liveThreads]);
-  const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
   useEffect(() => {
     if (!normalizedSearch) {
       setSearchResult({ query: "", threadIds: new Set() });
@@ -428,6 +519,7 @@ function RibbonSidebarList({
     ];
   }, [grouping, placements]);
   const matchingScope =
+    !normalizedSearch &&
     preferences?.view.scope.kind === "group" &&
     preferences.view.scope.group.groupingKey === grouping?.groupingKey
       ? preferences.view.scope.group
@@ -435,6 +527,10 @@ function RibbonSidebarList({
   const displayedGroupDefinitions = matchingScope
     ? groupDefinitions.filter(({ id }) => id === matchingScope.groupId)
     : groupDefinitions;
+  const sections =
+    snapshot?.groupings
+      .find(({ groupingKey }) => groupingKey === "builtin:sections")
+      ?.groups.filter(({ id }) => id !== "unsectioned") ?? [];
 
   const scopeLabel = useMemo(() => {
     if (!preferences || preferences.view.scope.kind === "all") return null;
@@ -531,6 +627,26 @@ function RibbonSidebarList({
     [loadPlacements, preferences, revision, rpc],
   );
 
+  const updateSection = useCallback(
+    async (threadId: string, sectionId: string | null) => {
+      setMutationError(null);
+      const result = await rpc.call("updatePlacementV1", {
+        groupingKey: "builtin:sections",
+        groupId: sectionId ?? "unsectioned",
+        threadId,
+        anchor: { kind: "preserve" },
+        origin: "ui",
+      });
+      if (!result.ok) {
+        setMutationError(result.error.message);
+        return;
+      }
+      await synchronize();
+      await loadPlacements();
+    },
+    [loadPlacements, rpc, synchronize],
+  );
+
   if (fatalError) return <OriginalThreadList />;
   if (!snapshot || !preferences || !grouping) {
     return <div className="px-2 py-3 text-xs text-muted-foreground">Loading Ribbon sidebar…</div>;
@@ -540,7 +656,11 @@ function RibbonSidebarList({
     ? rootThreads.find(({ id }) => id === draggingThreadId)
     : undefined;
 
-  const renderRoot = (root: PluginSidebarThread, depth = 0) => {
+  const renderRoot = (
+    root: PluginSidebarThread,
+    depth = 0,
+    includeDescendants = true,
+  ) => {
     const destination = placementByThread.get(root.id);
     const canMoveBefore =
       depth === 0 &&
@@ -551,6 +671,21 @@ function RibbonSidebarList({
       <div key={root.id}>
         <ThreadRow
           active={activeThreadId === root.id}
+          actionsMenu={
+            depth === 0 ? (
+              <ThreadActionsMenu
+              onNewSection={() =>
+                setEntityDialog({ kind: "create-section", name: "" })
+              }
+              onSetSection={(sectionId) => {
+                void updateSection(root.id, sectionId);
+              }}
+              sectionIcons={sectionIcons}
+              sections={sections}
+              thread={root}
+              />
+            ) : null
+          }
           depth={depth}
           onDragEnd={() => setDraggingThreadId(null)}
           onDragStart={(event) => {
@@ -602,9 +737,11 @@ function RibbonSidebarList({
           }
           thread={root}
         />
-        {(childrenByParent.get(root.id) ?? []).map((child) =>
-          renderRoot(child, depth + 1),
-        )}
+        {includeDescendants
+          ? (childrenByParent.get(root.id) ?? []).map((child) =>
+              renderRoot(child, depth + 1),
+            )
+          : null}
       </div>
     );
   };
@@ -872,7 +1009,21 @@ function RibbonSidebarList({
         );
         if (roots.length === 0 && !group.visibleWhenEmpty) return null;
         const ref = `${grouping.groupingKey}/${group.id}`;
-        const collapsed = preferences.collapsed.has(ref);
+        const collapsed = !normalizedSearch && preferences.collapsed.has(ref);
+        const groupThreads = roots.flatMap((root) => [
+          root,
+          ...descendants(root.id, childrenByParent),
+        ]);
+        const activityThread =
+          collapsed &&
+          (grouping.groupingKey === "plugin:thread-stages:stages" ||
+            settings.values?.showCollapsedGroupIndicators === true)
+            ? groupIndicator(groupThreads)
+            : null;
+        const activePreview =
+          collapsed && activeThreadId !== null
+            ? groupThreads.find(({ id }) => id === activeThreadId)
+            : undefined;
         const sameKeyScope =
           preferences.view.scope.kind === "group" &&
           preferences.view.scope.group.groupingKey === grouping.groupingKey &&
@@ -880,7 +1031,7 @@ function RibbonSidebarList({
         return (
           <section aria-label={`${group.label} group`} key={group.id}>
             {!sameKeyScope ? (
-              <div className="flex items-center gap-1 px-1 py-0.5">
+              <div className="relative flex items-center gap-1 px-1 py-0.5">
                 <button
                   aria-expanded={!collapsed}
                   className="min-w-0 flex-1 truncate rounded px-1 py-1 text-left text-xs font-medium text-muted-foreground hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-ring"
@@ -895,10 +1046,23 @@ function RibbonSidebarList({
                   type="button"
                 >
                   {grouping.singularLabel}: {group.label}
-                  {collapsed && settings.values?.showCollapsedGroupIndicators === true && roots.length > 0
-                    ? ` · ${roots.length}`
-                    : ""}
                 </button>
+                {collapsed && roots.length > 0 ? (
+                  <span
+                    aria-label={`${roots.length} ${roots.length === 1 ? "thread" : "threads"}`}
+                    className="pointer-events-none text-xs tabular-nums text-muted-foreground/60"
+                  >
+                    {roots.length}
+                  </span>
+                ) : null}
+                {activityThread ? (
+                  <span className="pointer-events-none inline-flex size-7 items-center justify-center text-muted-foreground">
+                    <ThreadIndicator
+                      indicator={activityThread.indicator}
+                      label={activityThread.indicatorLabel}
+                    />
+                  </span>
+                ) : null}
                 <button
                   aria-label={`Filter to ${group.label}`}
                   className="rounded px-1 text-xs hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-ring"
@@ -923,7 +1087,11 @@ function RibbonSidebarList({
                 </button>
               </div>
             ) : null}
-            {!collapsed || sameKeyScope ? roots.map((root) => renderRoot(root)) : null}
+            {!collapsed || sameKeyScope
+              ? roots.map((root) => renderRoot(root))
+              : activePreview
+                ? renderRoot(activePreview, 0, false)
+                : null}
             {(sameKeyScope || !collapsed) && group.acceptsAssignments ? (
               <button
                 aria-label={`Move to end of ${group.label}`}
