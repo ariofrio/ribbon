@@ -361,6 +361,24 @@ const WINDOW_FRAME = {
   dark: { edge: "rgba(255, 255, 255, 0.16)", shadow: null },
 };
 
+const HERO_SHADOW_BLUR = 6;
+const HERO_FRAME = {
+  ...WINDOW_FRAME,
+  padding: {
+    top: HERO_SHADOW_BLUR,
+    side: HERO_SHADOW_BLUR,
+    bottom: HERO_SHADOW_BLUR,
+  },
+  light: {
+    ...WINDOW_FRAME.light,
+    shadow: `0 0 ${HERO_SHADOW_BLUR}px rgba(0, 0, 0, 0.24)`,
+  },
+  dark: {
+    ...WINDOW_FRAME.dark,
+    shadow: `0 0 ${HERO_SHADOW_BLUR}px rgba(0, 0, 0, 0.56)`,
+  },
+};
+
 /**
  * A card is a crop of an interface, not a window, so it gets a tile's corners
  * and a shadow that lifts it off the README's page — and no edge, which would
@@ -568,7 +586,7 @@ export async function capture({ stack, fixture, shots, shotFiles }) {
         for (const [name, frame, taken, size] of [
           [
             FULL_WINDOW_FILE(theme, shot.fileName),
-            WINDOW_FRAME,
+            shot.fileName === "hero" ? HERO_FRAME : WINDOW_FRAME,
             frames.fullWindow,
             windowSize,
           ],
