@@ -152,7 +152,7 @@ describe("placement persistence", () => {
           : key === renamed.groupingKey
             ? renamed
             : null,
-      groupings: () => [stages],
+      groupings: () => [stages, renamed],
       now: () => 100,
     });
     store.reconcileRoots(["thread-a", "thread-b"], []);

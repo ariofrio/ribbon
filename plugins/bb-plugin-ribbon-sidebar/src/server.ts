@@ -308,16 +308,31 @@ export default async function plugin(bb: BbPluginApi) {
       projectByThread.set(thread.id, thread.projectId);
       sectionByThread.set(thread.id, thread.sectionId ?? "unsectioned");
     }
+    const liveThreadIds = new Set(
+      threads
+        .filter(
+          (thread) =>
+            thread.archivedAt === null && thread.visibility === "visible",
+        )
+        .map(({ id }) => id),
+    );
     const eligibleRoots = threads
       .filter(
         (thread) =>
-          thread.parentThreadId === null &&
           thread.archivedAt === null &&
-          thread.visibility === "visible",
+          thread.visibility === "visible" &&
+          (thread.parentThreadId === null ||
+            !liveThreadIds.has(thread.parentThreadId)),
       )
       .map(({ id }) => id);
     const childThreadIds = threads
-      .filter((thread) => thread.parentThreadId !== null)
+      .filter(
+        (thread) =>
+          thread.archivedAt === null &&
+          thread.visibility === "visible" &&
+          thread.parentThreadId !== null &&
+          liveThreadIds.has(thread.parentThreadId),
+      )
       .map(({ id }) => id);
     const result = store.reconcileRoots(eligibleRoots, childThreadIds);
     if (result.changedGroupingKeys.length > 0) {
@@ -347,6 +362,92 @@ export default async function plugin(bb: BbPluginApi) {
           outputSchema: acknowledgePlacementMigrationOutputSchema,
         }),
     });
+  }
+
+  async function updatePlacement(
+    input: z.infer<typeof updatePlacementInputSchema>,
+  ) {
+    const groupingKey = input.groupingKey as GroupingKey;
+    const descriptor = grouping(groupingKey);
+    const before = store.getPlacement({
+      groupingKey,
+      threadId: input.threadId,
+    });
+    const movingSection =
+      descriptor?.groupingKey === "builtin:sections" &&
+      before.ok &&
+      before.value.placement.groupId !== input.groupId;
+    if (!movingSection) {
+      const result = store.updatePlacement({ ...input, groupingKey });
+      if (result.ok) {
+        bb.realtime.publish("placements-changed", {
+          groupingKeys: [input.groupingKey],
+        });
+      }
+      return result;
+    }
+
+    const destination = descriptor.groups.find(({ id }) => id === input.groupId);
+    if (destination === undefined) {
+      return {
+        ok: false as const,
+        error: {
+          code: "GROUP_NOT_FOUND" as const,
+          message: `Group not found: ${input.groupingKey}/${input.groupId}`,
+        },
+      };
+    }
+    if (!destination.acceptsAssignments) {
+      return {
+        ok: false as const,
+        error: {
+          code: "GROUP_NOT_ASSIGNABLE" as const,
+          message: `Group does not accept assignments: ${input.groupingKey}/${input.groupId}`,
+        },
+      };
+    }
+    if (
+      input.expectedRevision !== undefined &&
+      input.expectedRevision !== before.value.revision
+    ) {
+      return {
+        ok: false as const,
+        error: {
+          code: "REVISION_CONFLICT" as const,
+          message: "Grouping revision changed.",
+          revision: before.value.revision,
+        },
+      };
+    }
+
+    const originalSectionId =
+      before.value.placement.groupId === "unsectioned"
+        ? null
+        : before.value.placement.groupId;
+    const nextSectionId = input.groupId === "unsectioned" ? null : input.groupId;
+    await bb.sdk.threads.update({
+      threadId: input.threadId,
+      sectionId: nextSectionId,
+    });
+    const result = store.updatePlacement({ ...input, groupingKey });
+    if (!result.ok) {
+      try {
+        await bb.sdk.threads.update({
+          threadId: input.threadId,
+          sectionId: originalSectionId,
+        });
+        sectionByThread.set(input.threadId, before.value.placement.groupId);
+      } catch (rollbackError) {
+        bb.log.error(
+          `Could not roll back Section membership: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+        );
+      }
+      return result;
+    }
+    bb.realtime.publish("placements-changed", {
+      groupingKeys: [input.groupingKey],
+    });
+    return result;
   }
 
   bb.rpc.register(rpcContract, {
@@ -390,11 +491,15 @@ export default async function plugin(bb: BbPluginApi) {
     },
     invalidateGroupingCatalogV1({ providerPluginId }) {
       providers.invalidate(providerPluginId);
-      void refreshCatalogsAndRoots().catch((error: unknown) => {
-        bb.log.warn(
-          `Could not refresh grouping catalogs: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
+      void refreshCatalogsAndRoots()
+        .then(() => {
+          bb.realtime.publish("catalog-changed", null);
+        })
+        .catch((error: unknown) => {
+          bb.log.warn(
+            `Could not refresh grouping catalogs: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
       return null;
     },
     listPlacementsV1(input) {
@@ -442,57 +547,7 @@ export default async function plugin(bb: BbPluginApi) {
       }
       return sidebarSnapshot();
     },
-    async updatePlacementV1(input) {
-      const groupingKey = input.groupingKey as GroupingKey;
-      const descriptor = grouping(groupingKey);
-      const before = store.getPlacement({
-        groupingKey,
-        threadId: input.threadId,
-      });
-      const movingSection =
-        descriptor?.groupingKey === "builtin:sections" &&
-        before.ok &&
-        before.value.placement.groupId !== input.groupId;
-      if (!movingSection) {
-        const result = store.updatePlacement({ ...input, groupingKey });
-        if (result.ok) {
-          bb.realtime.publish("placements-changed", {
-            groupingKeys: [input.groupingKey],
-          });
-        }
-        return result;
-      }
-
-      const originalSectionId =
-        before.value.placement.groupId === "unsectioned"
-          ? null
-          : before.value.placement.groupId;
-      const nextSectionId = input.groupId === "unsectioned" ? null : input.groupId;
-      await bb.sdk.threads.update({
-        threadId: input.threadId,
-        sectionId: nextSectionId,
-      });
-      sectionByThread.set(input.threadId, input.groupId);
-      const result = store.updatePlacement({ ...input, groupingKey });
-      if (!result.ok) {
-        try {
-          await bb.sdk.threads.update({
-            threadId: input.threadId,
-            sectionId: originalSectionId,
-          });
-          sectionByThread.set(input.threadId, before.value.placement.groupId);
-        } catch (rollbackError) {
-          bb.log.error(
-            `Could not roll back Section membership: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
-          );
-        }
-        return result;
-      }
-      bb.realtime.publish("placements-changed", {
-        groupingKeys: [input.groupingKey],
-      });
-      return result;
-    },
+    updatePlacementV1: updatePlacement,
   });
 
   bb.cli.register({
@@ -513,6 +568,7 @@ export default async function plugin(bb: BbPluginApi) {
         {
           store,
           groupings,
+          updatePlacement,
           migrateThreadStages: migrateFromThreadStages,
         },
         argv,

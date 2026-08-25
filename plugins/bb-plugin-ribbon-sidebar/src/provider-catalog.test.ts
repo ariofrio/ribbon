@@ -112,6 +112,22 @@ describe("provider catalog discovery", () => {
     ).toMatchObject({ groups: [{ label: "New" }], available: true });
   });
 
+  it("keeps an invalidated cached catalog available until refresh resolves", async () => {
+    const call = vi.fn<ProviderCatalogCall>().mockResolvedValue(catalog("Idle"));
+    const providers = setup(call);
+    await providers.refresh(["thread-stages"]);
+
+    providers.invalidate("thread-stages");
+
+    expect(providers.availableGroupings()).toMatchObject([
+      {
+        groupingKey: "plugin:thread-stages:stages",
+        groups: [{ label: "Idle" }],
+        available: true,
+      },
+    ]);
+  });
+
   it("soft-times out without discarding a valid cache and marks removal unavailable", async () => {
     vi.useFakeTimers();
     const call = vi.fn<ProviderCatalogCall>();

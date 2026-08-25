@@ -13,6 +13,11 @@ interface CliResult {
 export interface RibbonSidebarCliContext {
   store: PlacementStore;
   groupings(): readonly GroupingDescriptor[];
+  updatePlacement(
+    input: Parameters<PlacementStore["updatePlacement"]>[0],
+  ):
+    | ReturnType<PlacementStore["updatePlacement"]>
+    | Promise<ReturnType<PlacementStore["updatePlacement"]>>;
   migrateThreadStages(): Promise<unknown>;
 }
 
@@ -257,7 +262,7 @@ export async function runRibbonSidebarCli(
         invocation,
       );
       const destination = groupRef(stringOption(options, "--to"));
-      const result = context.store.updatePlacement({
+      const result = await context.updatePlacement({
         ...destination,
         threadId,
         origin: "cli",

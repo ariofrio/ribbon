@@ -144,7 +144,10 @@ export function createProviderCatalog(
       await Promise.all(providerPluginIds.map(refreshProvider));
     },
     invalidate(providerPluginId) {
-      markUnavailable(providerPluginId);
+      generations.set(
+        providerPluginId,
+        (generations.get(providerPluginId) ?? 0) + 1,
+      );
     },
     availableGroupings() {
       return api.allGroupings().filter(({ available }) => available);

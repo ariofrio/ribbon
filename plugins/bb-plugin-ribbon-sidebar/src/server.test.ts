@@ -33,8 +33,9 @@ const threadStagesCatalog = {
   ],
 };
 
-function setup({ includeThreadStages = true } = {}) {
-  const threads = [
+function setup({
+  includeThreadStages = true,
+  threads = [
     makeThreadResponse({
       id: "thread-a",
       projectId: "project-a",
@@ -50,7 +51,11 @@ function setup({ includeThreadStages = true } = {}) {
       visibility: "visible",
       archivedAt: null,
     }),
-  ];
+  ],
+}: {
+  includeThreadStages?: boolean;
+  threads?: ReturnType<typeof makeThreadResponse>[];
+} = {}) {
   const callRpc = vi.fn(async ({ pluginId, method }: {
     pluginId: string;
     method: string;
@@ -185,6 +190,41 @@ describe("Ribbon sidebar server", () => {
     ).toMatchObject({ ok: false, error: { code: "GROUPING_NOT_FOUND" } });
   });
 
+  it("reconciles a live child as a root when its parent is not live", async () => {
+    const { bb, harness } = setup({
+      threads: [
+        makeThreadResponse({
+          id: "thread-parent",
+          projectId: "project-a",
+          parentThreadId: null,
+          visibility: "visible",
+          archivedAt: 1,
+        }),
+        makeThreadResponse({
+          id: "thread-orphan",
+          projectId: "project-a",
+          parentThreadId: "thread-parent",
+          visibility: "visible",
+          archivedAt: null,
+        }),
+      ],
+    });
+    await plugin(bb);
+    await harness.behavior.callRpc("synchronizeV1", {
+      migrateThreadStages: false,
+    });
+
+    expect(
+      await harness.behavior.callRpc("getPlacementV1", {
+        groupingKey: "plugin:thread-stages:stages",
+        threadId: "thread-orphan",
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: { placement: { groupId: "Idle", origin: "auto" } },
+    });
+  });
+
   it("mounts without migration when Thread stages is not installed", async () => {
     const { bb, harness, callRpc } = setup({ includeThreadStages: false });
     await plugin(bb);
@@ -244,5 +284,89 @@ describe("Ribbon sidebar server", () => {
     expect(harness.inspection.sdk.callsTo("threads.update")).toEqual([
       [expect.objectContaining({ threadId: "thread-a", sectionId: null })],
     ]);
+  });
+
+  it("CAS-protects Section membership before writing bb and increments its revision", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    await harness.behavior.callRpc("synchronizeV1", {
+      migrateThreadStages: false,
+    });
+    const before = (await harness.behavior.callRpc("getPlacementV1", {
+      groupingKey: "builtin:sections",
+      threadId: "thread-a",
+    })) as
+      | { ok: true; value: { revision: number } }
+      | { ok: false; error: { code: string } };
+    expect(before).toMatchObject({ ok: true });
+    if (!before.ok) throw new Error("expected an eligible Section placement");
+
+    expect(
+      await harness.behavior.callRpc("updatePlacementV1", {
+        groupingKey: "builtin:sections",
+        groupId: "unsectioned",
+        threadId: "thread-a",
+        expectedRevision: before.value.revision + 1,
+        origin: "ui",
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "REVISION_CONFLICT",
+        revision: before.value.revision,
+      },
+    });
+    expect(harness.inspection.sdk.callsTo("threads.update")).toEqual([]);
+
+    expect(
+      await harness.behavior.callRpc("updatePlacementV1", {
+        groupingKey: "builtin:sections",
+        groupId: "unsectioned",
+        threadId: "thread-a",
+        expectedRevision: before.value.revision,
+        origin: "ui",
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: { revision: before.value.revision + 1 },
+    });
+    expect(harness.inspection.sdk.callsTo("threads.update")).toEqual([
+      [expect.objectContaining({ threadId: "thread-a", sectionId: null })],
+    ]);
+  });
+
+  it("persists CLI Section placement through bb's membership adapter", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+
+    await expect(
+      harness.behavior.runCli([
+        "place",
+        "thread-a",
+        "--to",
+        "builtin:sections/unsectioned",
+      ]),
+    ).resolves.toMatchObject({ exitCode: 0 });
+    expect(harness.inspection.sdk.callsTo("threads.update")).toEqual([
+      [expect.objectContaining({ threadId: "thread-a", sectionId: null })],
+    ]);
+  });
+
+  it("publishes refreshed catalogs after provider invalidation", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    await harness.behavior.callRpc("synchronizeV1", {
+      migrateThreadStages: false,
+    });
+
+    await harness.behavior.callRpc("invalidateGroupingCatalogV1", {
+      providerPluginId: "thread-stages",
+    });
+    await vi.waitFor(() =>
+      expect(harness.inspection.realtimeSignals).toContainEqual({
+        channel: "catalog-changed",
+        payload: null,
+      }),
+    );
   });
 });

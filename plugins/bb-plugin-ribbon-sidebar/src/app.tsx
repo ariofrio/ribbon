@@ -135,6 +135,7 @@ function RibbonSidebarList({
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
   const mounted = useRef(false);
+  const reconnectPending = useRef(false);
 
   const synchronize = useCallback(async () => {
     const next = await rpc.call("synchronizeV1", {
@@ -161,8 +162,17 @@ function RibbonSidebarList({
   }, [synchronize]);
 
   useEffect(() => {
-    if (connection === "connected" && mounted.current) {
-      void synchronize().catch(() => undefined);
+    if (connection !== "connected") {
+      reconnectPending.current = true;
+      return;
+    }
+    if (reconnectPending.current) {
+      reconnectPending.current = false;
+      void synchronize().catch((error: unknown) => {
+        setFatalError(
+          error instanceof Error ? error.message : "Ribbon sidebar unavailable",
+        );
+      });
     }
   }, [connection, synchronize]);
 
@@ -207,6 +217,13 @@ function RibbonSidebarList({
   useRealtime("placements-changed", () => {
     void loadPlacements();
   });
+  useRealtime("catalog-changed", () => {
+    void synchronize().catch((error: unknown) => {
+      setFatalError(
+        error instanceof Error ? error.message : "Ribbon sidebar unavailable",
+      );
+    });
+  });
 
   const changePreferences = useCallback(
     (change: (current: SidebarPreferences) => SidebarPreferences) => {
@@ -231,9 +248,17 @@ function RibbonSidebarList({
     () => sidebar.threads.filter((thread) => !thread.isArchived),
     [sidebar.threads],
   );
-  const rootThreads = useMemo(
-    () => liveThreads.filter(({ parentThreadId }) => parentThreadId === null),
+  const liveThreadIds = useMemo(
+    () => new Set(liveThreads.map(({ id }) => id)),
     [liveThreads],
+  );
+  const rootThreads = useMemo(
+    () =>
+      liveThreads.filter(
+        ({ parentThreadId }) =>
+          parentThreadId === null || !liveThreadIds.has(parentThreadId),
+      ),
+    [liveThreadIds, liveThreads],
   );
   useEffect(() => {
     if (
@@ -262,13 +287,15 @@ function RibbonSidebarList({
   }, [rootThreads, rpc, settings.values?.showMessagePreviews, sidebar.status]);
   const childrenByParent = useMemo(() => {
     const result = new Map<string, PluginSidebarThread[]>();
-    for (const child of liveThreads.filter(({ parentThreadId }) => parentThreadId)) {
+    for (const child of liveThreads.filter(
+      ({ parentThreadId }) => parentThreadId && liveThreadIds.has(parentThreadId),
+    )) {
       const list = result.get(child.parentThreadId!) ?? [];
       list.push(child);
       result.set(child.parentThreadId!, list);
     }
     return result;
-  }, [liveThreads]);
+  }, [liveThreadIds, liveThreads]);
   const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
   const matchesSearch = useCallback(
     (root: PluginSidebarThread) => {
@@ -282,15 +309,22 @@ function RibbonSidebarList({
   // Pinned membership and ordering come directly from bb; placement never
   // participates in this array.
   const pinnedRoots = useMemo(
-    () => rootThreads.filter((thread) => thread.isPinned),
-    [rootThreads],
+    () => rootThreads.filter((thread) => thread.isPinned && matchesSearch(thread)),
+    [matchesSearch, rootThreads],
   );
   const visiblePlacementIds = new Set(placements.map(({ threadId }) => threadId));
+  const placementOrder = new Map(
+    placements.map(({ threadId }, index) => [threadId, index]),
+  );
   const unpinnedRoots = rootThreads.filter(
     (thread) =>
       !thread.isPinned &&
       visiblePlacementIds.has(thread.id) &&
       matchesSearch(thread),
+  ).sort(
+    (left, right) =>
+      (placementOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+      (placementOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER),
   );
 
   const groupDefinitions = useMemo(() => {
@@ -310,6 +344,14 @@ function RibbonSidebarList({
       })),
     ];
   }, [grouping, placements]);
+  const matchingScope =
+    preferences?.view.scope.kind === "group" &&
+    preferences.view.scope.group.groupingKey === grouping?.groupingKey
+      ? preferences.view.scope.group
+      : null;
+  const displayedGroupDefinitions = matchingScope
+    ? groupDefinitions.filter(({ id }) => id === matchingScope.groupId)
+    : groupDefinitions;
 
   const scopeLabel = useMemo(() => {
     if (!preferences || preferences.view.scope.kind === "all") return null;
@@ -604,7 +646,7 @@ function RibbonSidebarList({
         </section>
       ) : null}
 
-      {groupDefinitions.map((group) => {
+      {displayedGroupDefinitions.map((group) => {
         const roots = unpinnedRoots.filter(
           ({ id }) => placementByThread.get(id)?.groupId === group.id,
         );

@@ -239,11 +239,87 @@ describe("Ribbon sidebar app", () => {
       { ...props, searchQuery: "migration" },
       fixture.value,
     );
-    expect(await slot.findByText("Pinned")).toBeTruthy();
-    expect(slot.getByText("thread-pin")).toBeTruthy();
     expect(await slot.findByText("Design migration")).toBeTruthy();
+    expect(slot.queryByText("Pinned")).toBeNull();
+    expect(slot.queryByText("thread-pin")).toBeNull();
     expect(slot.getByText("thread-child")).toBeTruthy();
     expect(slot.queryByText("Ship UI")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("renders unpinned roots in Ribbon's stored within-group order", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    fixture.value.rpc.listPlacementsV1 = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        groupingKey: "plugin:thread-stages:stages",
+        revision: 1,
+        items: [
+          {
+            groupingKey: "plugin:thread-stages:stages",
+            groupId: "Idle",
+            threadId: "thread-b",
+            enteredAtMs: 1,
+            origin: "ui" as const,
+          },
+          {
+            groupingKey: "plugin:thread-stages:stages",
+            groupId: "Idle",
+            threadId: "thread-a",
+            enteredAtMs: 1,
+            origin: "ui" as const,
+          },
+        ],
+      },
+    }));
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    await slot.findByText("Design migration");
+    const idleGroup = slot.getByRole("region", { name: "Idle group" });
+    const renderedRoots = Array.from(idleGroup.children)
+      .map((child) =>
+        child.querySelector<HTMLElement>("[data-thread-id]")?.dataset.threadId,
+      )
+      .filter((threadId): threadId is string => threadId !== undefined);
+    expect(renderedRoots).toEqual(["thread-b", "thread-a"]);
+    slot.lifecycle.unmount();
+  });
+
+  it("promotes a live child when its parent is absent from the live hierarchy", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        projects: [{ id: "project-a", name: "Storefront", isPersonal: false }],
+        threads: [
+          thread({ id: "thread-parent", isArchived: true }),
+          thread({
+            id: "thread-orphan",
+            parentThreadId: "thread-parent",
+            title: "Visible child",
+          }),
+        ],
+      },
+    });
+    fixture.value.rpc.listPlacementsV1 = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        groupingKey: "plugin:thread-stages:stages",
+        revision: 1,
+        items: [
+          {
+            groupingKey: "plugin:thread-stages:stages",
+            groupId: "Idle",
+            threadId: "thread-orphan",
+            enteredAtMs: 1,
+            origin: "auto" as const,
+          },
+        ],
+      },
+    }));
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    expect(await slot.findByText("Visible child")).toBeTruthy();
     slot.lifecycle.unmount();
   });
 
@@ -268,6 +344,9 @@ describe("Ribbon sidebar app", () => {
     });
     fireEvent.click(await slot.findByText("Sections", { selector: "[role=menuitem]" }));
     expect(slot.queryByText("Section: Release")).toBeNull();
+    expect(
+      slot.queryByRole("region", { name: "No section group" }),
+    ).toBeNull();
     expect(slot.getByTestId("scope-end-drop-target")).toBeTruthy();
     slot.lifecycle.unmount();
   });
@@ -434,6 +513,51 @@ describe("Ribbon sidebar app", () => {
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     expect(await slot.findByText("BB original list")).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it("retries a failed initial synchronization after realtime reconnects", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    fixture.value.rpc.synchronizeV1 = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("provider is still starting"))
+      .mockResolvedValue(snapshot);
+    const slot = renderSlot(app.threadLists[0]!, props, {
+      ...fixture.value,
+      realtimeConnectionState: "connected",
+    });
+
+    expect(await slot.findByText("BB original list")).toBeTruthy();
+    await slot.behavior.setRealtimeConnectionState("reconnecting");
+    await slot.behavior.setRealtimeConnectionState("connected");
+    expect(await slot.findByText("Design migration")).toBeTruthy();
+    expect(fixture.value.rpc.synchronizeV1).toHaveBeenCalledTimes(2);
+    slot.lifecycle.unmount();
+  });
+
+  it("refreshes the mounted catalog when the server publishes an invalidation", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const refreshed = {
+      ...snapshot,
+      groupings: snapshot.groupings.map((grouping) =>
+        grouping.groupingKey === "plugin:thread-stages:stages"
+          ? { ...grouping, pluralLabel: "Workflow stages" }
+          : grouping,
+      ),
+    };
+    fixture.value.rpc.synchronizeV1 = vi
+      .fn()
+      .mockResolvedValueOnce(snapshot)
+      .mockResolvedValue(refreshed);
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+
+    await slot.behavior.emitRealtime("catalog-changed", null);
+    expect(
+      await slot.findByRole("button", { name: "Group by Workflow stages" }),
+    ).toBeTruthy();
     slot.lifecycle.unmount();
   });
 });

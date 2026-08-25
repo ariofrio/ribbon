@@ -310,6 +310,16 @@ export function createPlacementStore(
       (SELECT COUNT(*) FROM group_assignment WHERE grouping_key = ?) AS assignments,
       (SELECT COUNT(*) FROM group_order WHERE grouping_key = ?) AS orders
   `);
+  const countNonDefaultAssignments = database.prepare(`
+    SELECT COUNT(*) AS count
+    FROM group_assignment
+    WHERE grouping_key = ?
+      AND (
+        group_id <> ?
+        OR previous_group_id IS NOT NULL
+        OR origin <> 'auto'
+      )
+  `);
   const rekeyAssignments = database.prepare(`
     UPDATE group_assignment SET grouping_key = ? WHERE grouping_key = ?
   `);
@@ -592,13 +602,19 @@ export function createPlacementStore(
             assignments: number;
             orders: number;
           };
+          const nonDefaultAssignments = countNonDefaultAssignments.get(
+            to,
+            target.defaultGroupId,
+          ) as { count: number };
           if (
-            targetCounts.assignments > 0 ||
             targetCounts.orders > 0 ||
-            getRevision.get(to) !== undefined
+            nonDefaultAssignments.count > 0
           ) {
             throw new Error(`Target grouping already has placement state: ${to}`);
           }
+          deleteGroupingAssignments.run(to);
+          deleteGroupingOrders.run(to);
+          deleteRevision.run(to);
           ensureRevision.run(from);
           const revision = (
             getRevision.get(from) as { revision: number }

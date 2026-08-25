@@ -33,7 +33,7 @@ function setup() {
         : key === renamed.groupingKey
           ? renamed
           : null,
-    groupings: () => [stages],
+    groupings: () => [stages, renamed],
     now: () => 100,
   });
   store.reconcileRoots(["thread-a", "thread-b"], []);
@@ -45,6 +45,8 @@ function setup() {
     context: {
       store,
       groupings: () => [stages],
+      updatePlacement: (input: Parameters<typeof store.updatePlacement>[0]) =>
+        store.updatePlacement(input),
       migrateThreadStages: migrate,
     },
   };
