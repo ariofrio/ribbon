@@ -1,3 +1,4 @@
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import {
   createFakePluginHost,
   makeThreadResponse,
@@ -6,6 +7,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import plugin from "./server";
 
 const disposeHosts: Array<() => Promise<void>> = [];
+type RealtimeSubscribeArgs = Parameters<BbPluginApi["sdk"]["subscribe"]>[0];
+type ThreadChangedCallback = Extract<
+  RealtimeSubscribeArgs,
+  { event: "thread:changed" }
+>["callback"];
 
 afterEach(async () => {
   await Promise.all(disposeHosts.splice(0).map((dispose) => dispose()));
@@ -90,7 +96,11 @@ describe("thread stages plugin API", () => {
     ]);
     expect(
       harness.inspection.registrations.services.map(({ name }) => name),
-    ).toEqual(["stage-automation", "thread-previews"]);
+    ).toEqual([
+      "section-inheritance",
+      "stage-automation",
+      "thread-previews",
+    ]);
     expect(harness.inspection.registrations.schedules).toMatchObject([
       { name: "completed-auto-archive", cron: "17 * * * *" },
     ]);
@@ -98,7 +108,7 @@ describe("thread stages plugin API", () => {
     expect(harness.inspection.registrations.threadEventHandlers).toMatchObject({
       "thread.active": 1,
       "thread.created": 2,
-      "thread.deleted": 1,
+      "thread.deleted": 2,
       "thread.failed": 1,
       "thread.idle": 1,
     });
@@ -185,15 +195,22 @@ describe("thread stages plugin API", () => {
     });
   });
 
-  it("does not inherit a section from the source thread's parent", async () => {
+  it("inherits the nearest section from the source thread's ancestors", async () => {
     const update = vi.fn(async () => ({}));
-    const get = vi.fn(async () =>
-      makeThreadResponse({
-        id: "thr_source",
-        parentThreadId: "thr_parent",
-        sectionId: null,
-      }),
-    );
+    const get = vi.fn(async ({ threadId }: { threadId: string }) => {
+      if (threadId === "thr_source") {
+        return makeThreadResponse({
+          id: threadId,
+          parentThreadId: "thr_parent",
+          sectionId: null,
+        });
+      }
+      return makeThreadResponse({
+        id: threadId,
+        parentThreadId: "thr_grandparent",
+        sectionId: "section_parent",
+      });
+    });
     const host = createFakePluginHost({
       pluginId: "thread-stages",
       sdk: { threads: { get, update } },
@@ -209,9 +226,12 @@ describe("thread stages plugin API", () => {
       }),
     });
 
-    expect(get).toHaveBeenCalledOnce();
-    expect(get).toHaveBeenCalledWith({ threadId: "thr_source" });
-    expect(update).not.toHaveBeenCalled();
+    expect(get).toHaveBeenNthCalledWith(1, { threadId: "thr_source" });
+    expect(get).toHaveBeenNthCalledWith(2, { threadId: "thr_parent" });
+    expect(update).toHaveBeenCalledWith({
+      threadId: "thr_created",
+      sectionId: "section_parent",
+    });
   });
 
   it("keeps a section explicitly selected when the thread was created", async () => {
@@ -234,6 +254,165 @@ describe("thread stages plugin API", () => {
 
     expect(get).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("leaves a source-less thread Unorganized", async () => {
+    const get = vi.fn();
+    const update = vi.fn();
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { threads: { get, update } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await host.harness.behavior.emitThreadEvent("thread.created", {
+      thread: makeThreadResponse({
+        id: "thr_created",
+        sectionId: null,
+        sourceThreadId: null,
+      }),
+    });
+
+    expect(get).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("gives an unparented thread the nearest section from its old parent hierarchy", async () => {
+    let onThreadChanged: ThreadChangedCallback | undefined;
+    const unsubscribe = vi.fn();
+    const subscribe = vi.fn((args: RealtimeSubscribeArgs) => {
+      if (args.event === "thread:changed") {
+        onThreadChanged = args.callback;
+      }
+      return unsubscribe;
+    });
+    const list = vi.fn(async () => [
+      makeThreadResponse({
+        id: "thr_child",
+        parentThreadId: "thr_parent",
+        sectionId: null,
+      }),
+      makeThreadResponse({
+        id: "thr_parent",
+        parentThreadId: "thr_grandparent",
+        sectionId: null,
+      }),
+      makeThreadResponse({
+        id: "thr_grandparent",
+        parentThreadId: null,
+        sectionId: "section_family",
+      }),
+    ]);
+    const get = vi.fn(async ({ threadId }: { threadId: string }) => {
+      if (threadId === "thr_child") {
+        return makeThreadResponse({ id: threadId, parentThreadId: null });
+      }
+      if (threadId === "thr_parent") {
+        return makeThreadResponse({
+          id: threadId,
+          parentThreadId: "thr_grandparent",
+          sectionId: null,
+        });
+      }
+      return makeThreadResponse({
+        id: threadId,
+        parentThreadId: null,
+        sectionId: "section_family",
+      });
+    });
+    const update = vi.fn(async () => ({}));
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { subscribe, threads: { get, list, update } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    const service = host.harness.behavior.runService("section-inheritance");
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+    onThreadChanged?.({
+      type: "changed",
+      entity: "thread",
+      id: "thr_child",
+      changes: ["parent-changed"],
+    });
+
+    await vi.waitFor(() =>
+      expect(update).toHaveBeenCalledWith({
+        threadId: "thr_child",
+        sectionId: "section_family",
+      }),
+    );
+    service.controller.abort();
+    await service.done;
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it("leaves a reparented thread unchanged and follows its new parent", async () => {
+    let onThreadChanged: ThreadChangedCallback | undefined;
+    const subscribe = vi.fn((args: RealtimeSubscribeArgs) => {
+      if (args.event === "thread:changed") {
+        onThreadChanged = args.callback;
+      }
+      return vi.fn();
+    });
+    let currentParentThreadId: string | null = "thr_old_parent";
+    const list = vi.fn(async () => [
+      makeThreadResponse({
+        id: "thr_child",
+        parentThreadId: "thr_old_parent",
+      }),
+    ]);
+    const get = vi.fn(async ({ threadId }: { threadId: string }) => {
+      if (threadId === "thr_child") {
+        return makeThreadResponse({
+          id: threadId,
+          parentThreadId: currentParentThreadId,
+        });
+      }
+      return makeThreadResponse({
+        id: threadId,
+        parentThreadId: null,
+        sectionId:
+          threadId === "thr_new_parent" ? "section_new" : "section_old",
+      });
+    });
+    const update = vi.fn(async () => ({}));
+    const host = createFakePluginHost({
+      pluginId: "thread-stages",
+      sdk: { subscribe, threads: { get, list, update } },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+    const service = host.harness.behavior.runService("section-inheritance");
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+
+    currentParentThreadId = "thr_new_parent";
+    onThreadChanged?.({
+      type: "changed",
+      entity: "thread",
+      id: "thr_child",
+      changes: ["parent-changed"],
+    });
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+    expect(update).not.toHaveBeenCalled();
+
+    currentParentThreadId = null;
+    onThreadChanged?.({
+      type: "changed",
+      entity: "thread",
+      id: "thr_child",
+      changes: ["parent-changed"],
+    });
+    await vi.waitFor(() =>
+      expect(update).toHaveBeenCalledWith({
+        threadId: "thr_child",
+        sectionId: "section_new",
+      }),
+    );
+    service.controller.abort();
+    await service.done;
   });
 
   it("creates a section and assigns the requesting thread", async () => {

@@ -8,6 +8,7 @@ import { runThreadWorkflowCli } from "./cli";
 import { listAllThreads } from "./list-all-threads";
 import { sortExplicitPinnedThreadIds } from "./pinned-threads";
 import { sidebarThreadsFromSearchResult } from "./search-results";
+import { registerThreadSectionInheritance } from "./section-inheritance";
 import { resolveStageChord } from "./workflow-chords";
 import { resolveWorkflowReorder } from "./workflow-reorder";
 import {
@@ -599,19 +600,7 @@ export default function plugin(bb: BbPluginApi) {
     }
   });
 
-  bb.events.on("thread.created", async ({ thread }) => {
-    if (thread.sourceThreadId === null || thread.sectionId !== null) return;
-    const sourceThread = await bb.sdk.threads.get({
-      threadId: thread.sourceThreadId,
-    });
-    const sectionId = sourceThread.sectionId;
-    if (sectionId === thread.sectionId) return;
-    await bb.sdk.threads.update({
-      threadId: thread.id,
-      sectionId,
-    });
-  });
-
+  registerThreadSectionInheritance(bb);
   registerThreadWorkflow(bb, store);
   registerThreadPreviews(bb, store);
   registerCompletedAutoArchive(
