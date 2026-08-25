@@ -243,7 +243,7 @@ function options(overrides: Record<string, unknown> = {}) {
 }
 
 describe("Ribbon sidebar app", () => {
-  it("registers and synchronizes the exclusive list when mounted", async () => {
+  it("registers the exclusive list and starts migration only when mounted", async () => {
     const app = await loadPluginApp(() => import("./app"));
     expect(app.threadLists).toHaveLength(1);
     expect(app.threadLists[0]).toMatchObject({
@@ -255,7 +255,9 @@ describe("Ribbon sidebar app", () => {
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     expect(await slot.findByText("Design migration")).toBeTruthy();
     expect(await slot.findByText("A useful preview")).toBeTruthy();
-    expect(fixture.synchronizeV1).toHaveBeenCalledWith(null);
+    expect(fixture.synchronizeV1).toHaveBeenCalledWith({
+      migrateThreadStages: true,
+    });
     slot.lifecycle.unmount();
   });
 

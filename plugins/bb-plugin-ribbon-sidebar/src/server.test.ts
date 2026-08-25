@@ -35,6 +35,7 @@ const threadStagesCatalog = {
 
 function setup({
   includeThreadStages = true,
+  migrationSnapshotFails = false,
   threads = [
     makeThreadResponse({
       id: "thread-a",
@@ -54,9 +55,11 @@ function setup({
   ],
 }: {
   includeThreadStages?: boolean;
+  migrationSnapshotFails?: boolean;
   threads?: ReturnType<typeof makeThreadResponse>[];
 } = {}) {
   let currentThreadStagesCatalog = threadStagesCatalog;
+  let currentMigrationSnapshotFails = migrationSnapshotFails;
   const callRpc = vi.fn(async ({ pluginId, method }: {
     pluginId: string;
     method: string;
@@ -78,6 +81,33 @@ function setup({
     }
     if (pluginId !== "thread-stages") throw new Error("unknown provider");
     if (method === "getGroupingCatalogV1") return currentThreadStagesCatalog;
+    if (method === "getPlacementMigrationSnapshotV1") {
+      if (currentMigrationSnapshotFails) throw new Error("provider is still starting");
+      return {
+        sourcePluginId: "thread-stages" as const,
+        sourceSchema: 1 as const,
+        installationId: "a".repeat(32),
+        revision: 7,
+        placements: [
+          {
+            groupingId: "stages",
+            threadId: "thread-a",
+            groupId: "Active",
+            enteredAtMs: 200,
+            updatedAtMs: 300,
+            previousGroupId: "Idle",
+            origin: "ui" as const,
+            orders: [
+              { groupId: "Idle", sortKey: "A", updatedAtMs: 100 },
+              { groupId: "Active", sortKey: "B", updatedAtMs: 300 },
+            ],
+          },
+        ],
+      };
+    }
+    if (method === "acknowledgePlacementMigrationV1") {
+      return { transferred: true };
+    }
     throw new Error(`unexpected method: ${method}`);
   });
   const host = createFakePluginHost({
@@ -142,6 +172,9 @@ function setup({
     callRpc,
     setThreadStagesCatalog(catalog: typeof threadStagesCatalog) {
       currentThreadStagesCatalog = catalog;
+    },
+    setMigrationSnapshotFails(value: boolean) {
+      currentMigrationSnapshotFails = value;
     },
   };
 }
@@ -256,7 +289,7 @@ describe("Ribbon sidebar server", () => {
     await plugin(bb);
 
     await expect(
-      harness.behavior.callRpc("synchronizeV1", null),
+      harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: false }),
     ).resolves.toMatchObject({
       groupings: [
         { groupingKey: "builtin:projects" },
@@ -326,7 +359,7 @@ describe("Ribbon sidebar server", () => {
       ],
     });
     await plugin(bb);
-    await harness.behavior.callRpc("synchronizeV1", null);
+    await harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: false });
 
     expect(
       await harness.behavior.callRpc("getPlacementV1", {
@@ -344,7 +377,7 @@ describe("Ribbon sidebar server", () => {
     await plugin(bb);
 
     await expect(
-      harness.behavior.callRpc("synchronizeV1", null),
+      harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: true }),
     ).resolves.toMatchObject({
       groupings: [
         { groupingKey: "builtin:projects" },
@@ -354,10 +387,76 @@ describe("Ribbon sidebar server", () => {
     expect(callRpc).not.toHaveBeenCalled();
   });
 
+  it("restores legacy placement on mount and retries a delayed Thread stages source", async () => {
+    const { bb, harness, callRpc, setMigrationSnapshotFails } = setup({
+      migrationSnapshotFails: true,
+    });
+    await plugin(bb);
+
+    await expect(
+      harness.behavior.callRpc("synchronizeV1", {
+        migrateThreadStages: true,
+      }),
+    ).resolves.toMatchObject({
+      groupings: expect.arrayContaining([
+        expect.objectContaining({
+          groupingKey: "plugin:thread-stages:stages",
+        }),
+      ]),
+    });
+    expect(
+      callRpc.mock.calls.filter(
+        ([input]) => input.method === "acknowledgePlacementMigrationV1",
+      ),
+    ).toHaveLength(0);
+
+    setMigrationSnapshotFails(false);
+    await harness.behavior.runSchedule("catalog-reconciliation");
+    await expect(
+      harness.behavior.callRpc("getPlacementV1", {
+        groupingKey: "plugin:thread-stages:stages",
+        threadId: "thread-a",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: {
+        placement: {
+          groupId: "Active",
+          enteredAtMs: 200,
+          previousGroupId: "Idle",
+          origin: "ui",
+        },
+      },
+    });
+    expect(callRpc).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pluginId: "thread-stages",
+        method: "acknowledgePlacementMigrationV1",
+        input: { installationId: "a".repeat(32), revision: 7 },
+      }),
+    );
+  });
+
+  it("discovers Thread stages when explicit migration runs before the sidebar mounts", async () => {
+    const { bb, harness, callRpc } = setup();
+    await plugin(bb);
+
+    await expect(
+      harness.behavior.runCli(["migrate", "thread-stages", "--json"]),
+    ).resolves.toMatchObject({ exitCode: 0 });
+    expect(callRpc).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pluginId: "thread-stages",
+        method: "acknowledgePlacementMigrationV1",
+        input: { installationId: "a".repeat(32), revision: 7 },
+      }),
+    );
+  });
+
   it("keeps project membership read-only and moves Section membership", async () => {
     const { bb, harness } = setup();
     await plugin(bb);
-    await harness.behavior.callRpc("synchronizeV1", null);
+    await harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: false });
 
     expect(
       await harness.behavior.callRpc("updatePlacementV1", {
@@ -399,7 +498,7 @@ describe("Ribbon sidebar server", () => {
   it("CAS-protects Section membership before writing bb and increments its revision", async () => {
     const { bb, harness } = setup();
     await plugin(bb);
-    await harness.behavior.callRpc("synchronizeV1", null);
+    await harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: false });
     const before = (await harness.behavior.callRpc("getPlacementV1", {
       groupingKey: "builtin:sections",
       threadId: "thread-a",
@@ -446,7 +545,7 @@ describe("Ribbon sidebar server", () => {
   it("rejects an ineligible Section anchor before writing bb membership", async () => {
     const { bb, harness } = setup();
     await plugin(bb);
-    await harness.behavior.callRpc("synchronizeV1", null);
+    await harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: false });
 
     expect(
       await harness.behavior.callRpc("updatePlacementV1", {
@@ -483,7 +582,7 @@ describe("Ribbon sidebar server", () => {
   it("publishes refreshed catalogs after provider invalidation", async () => {
     const { bb, harness } = setup();
     await plugin(bb);
-    await harness.behavior.callRpc("synchronizeV1", null);
+    await harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: false });
 
     await harness.behavior.callRpc("invalidateGroupingCatalogV1", {
       providerPluginId: "thread-stages",
@@ -499,7 +598,7 @@ describe("Ribbon sidebar server", () => {
   it("publishes provider catalog changes discovered by reconciliation", async () => {
     const { bb, harness, setThreadStagesCatalog } = setup();
     await plugin(bb);
-    await harness.behavior.callRpc("synchronizeV1", null);
+    await harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: false });
     setThreadStagesCatalog({
       ...threadStagesCatalog,
       groupings: threadStagesCatalog.groupings.map((grouping) => ({

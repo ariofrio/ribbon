@@ -12,8 +12,10 @@ divides the visible root threads.
 
 Thread stages is the first grouping provider. Install it alongside Ribbon to
 add workflow stages, automation, shortcuts, and Completed retention. Ribbon is
-the sole owner of provider placement and manual order; no legacy Thread stages
-placement is imported.
+the sole owner of provider placement and manual order. On its first mounted
+sync, Ribbon imports and verifies legacy Thread stages placement and retained
+order before acknowledging the handoff. Thread stages keeps that source data
+readable, so installing Ribbon later restores the previous organization.
 
 ## Install
 
@@ -60,10 +62,13 @@ bb ribbon-sidebar groups <grouping>
 bb ribbon-sidebar list [--scope <group-ref>] [--group-by <grouping>]
 bb ribbon-sidebar show [thread] [--self]
 bb ribbon-sidebar place [thread] --to <group-ref> [--before <thread>|--after <thread>]
+bb ribbon-sidebar migrate thread-stages
 bb ribbon-sidebar rekey --from <plugin-key> --to <plugin-key>
 ```
 
-Add `--json` to any data command for machine-readable output. `rekey`
+Add `--json` to any data command for machine-readable output. `migrate`
+explicitly retries the same idempotent import normally started by mounting the
+sidebar. `rekey`
 atomically moves placement when a provider intentionally changes a plugin
 grouping key.
 

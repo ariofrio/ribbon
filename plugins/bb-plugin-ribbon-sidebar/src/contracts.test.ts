@@ -4,6 +4,7 @@ import {
   groupingCatalogSchema,
   groupingKeySchema,
   listPlacementsInputSchema,
+  threadStagesMigrationSnapshotSchema,
   updatePlacementInputSchema,
   updatePlacementOutputSchema,
 } from "./contracts";
@@ -157,5 +158,42 @@ describe("Ribbon sidebar contracts", () => {
         error: { code: "NOT_AN_UPDATE_ERROR", message: "no" },
       }),
     ).toThrow();
+  });
+
+  it("strictly validates migration identity, uniqueness, and retained order", () => {
+    const snapshot = {
+      sourcePluginId: "thread-stages",
+      sourceSchema: 1,
+      installationId: "a".repeat(32),
+      revision: 7,
+      placements: [
+        {
+          groupingId: "stages",
+          threadId: "thread-a",
+          groupId: "Active",
+          enteredAtMs: 200,
+          updatedAtMs: 300,
+          previousGroupId: "Idle",
+          origin: "ui",
+          orders: [
+            { groupId: "Idle", sortKey: "A", updatedAtMs: 100 },
+            { groupId: "Active", sortKey: "B", updatedAtMs: 300 },
+          ],
+        },
+      ],
+    };
+    expect(threadStagesMigrationSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+    expect(() =>
+      threadStagesMigrationSnapshotSchema.parse({
+        ...snapshot,
+        placements: [...snapshot.placements, snapshot.placements[0]],
+      }),
+    ).toThrow("Duplicate placement");
+    expect(() =>
+      threadStagesMigrationSnapshotSchema.parse({
+        ...snapshot,
+        placements: [{ ...snapshot.placements[0], orders: [] }],
+      }),
+    ).toThrow("current group");
   });
 });

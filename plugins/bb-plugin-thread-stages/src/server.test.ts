@@ -36,6 +36,8 @@ describe("thread stages provider", () => {
       "reorderThread",
       "listAppKeybindings",
       "getGroupingCatalogV1",
+      "getPlacementMigrationSnapshotV1",
+      "acknowledgePlacementMigrationV1",
     ]);
     expect(
       harness.inspection.registrations.services.map(({ name }) => name),
@@ -47,21 +49,110 @@ describe("thread stages provider", () => {
     expect(harness.inspection.registrations.cli?.name).toBe("thread-stages");
   });
 
-  it("publishes the stage catalog without exposing migration RPCs", async () => {
-    const harness = createHarness();
+  it("keeps legacy placement readable until Ribbon acknowledges a durable import", async () => {
+    const host = createFakePluginHost({ pluginId: "thread-stages" });
+    const database = host.bb.storage.database();
+    host.bb.storage.migrate(database, Array.from({ length: 10 }, () => "SELECT 1"));
+    database.exec(`
+      CREATE TABLE thread_organization (
+        thread_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        position INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        sort_key TEXT,
+        moved_by TEXT,
+        previous_status TEXT,
+        previous_sort_key TEXT
+      );
+      CREATE TABLE thread_stage_entry (
+        thread_id TEXT PRIMARY KEY,
+        entered_at INTEGER NOT NULL
+      );
+      CREATE TABLE thread_stage_migration_meta (
+        singleton INTEGER PRIMARY KEY,
+        source_schema INTEGER NOT NULL,
+        installation_id TEXT NOT NULL,
+        revision INTEGER NOT NULL,
+        placement_owner TEXT NOT NULL,
+        forwarding_reconciliation_needed INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE thread_stage_order (
+        thread_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        sort_key TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (thread_id, status)
+      );
+      INSERT INTO thread_stage_migration_meta(
+        singleton, source_schema, installation_id, revision, placement_owner
+      ) VALUES (1, 1, '${"a".repeat(32)}', 7, 'thread-stages');
+      INSERT INTO thread_organization(
+        thread_id, status, position, updated_at, sort_key,
+        moved_by, previous_status, previous_sort_key
+      ) VALUES
+        ('thread-a', 'Active', 0, 300, 'B', 'app', 'Idle', 'A'),
+        ('thread-b', 'Idle', 1, 100, 'B', 'auto', NULL, NULL);
+      INSERT INTO thread_stage_entry(thread_id, entered_at) VALUES
+        ('thread-a', 200), ('thread-b', 100);
+      INSERT INTO thread_stage_order(thread_id, status, sort_key, updated_at) VALUES
+        ('thread-a', 'Idle', 'A', 100),
+        ('thread-a', 'Active', 'B', 300),
+        ('thread-b', 'Idle', 'B', 100);
+    `);
+    plugin(host.bb);
+    disposers.push(() => host.harness.lifecycle.dispose());
+    const { harness } = host;
+
+    const snapshot = await harness.behavior.callRpc(
+      "getPlacementMigrationSnapshotV1",
+      null,
+    );
+    expect(snapshot).toEqual({
+      sourcePluginId: "thread-stages",
+      sourceSchema: 1,
+      installationId: "a".repeat(32),
+      revision: 7,
+      placements: [
+        {
+          groupingId: "stages",
+          threadId: "thread-b",
+          groupId: "Idle",
+          enteredAtMs: 100,
+          updatedAtMs: 100,
+          origin: "auto",
+          orders: [{ groupId: "Idle", sortKey: "B", updatedAtMs: 100 }],
+        },
+        {
+          groupingId: "stages",
+          threadId: "thread-a",
+          groupId: "Active",
+          enteredAtMs: 200,
+          updatedAtMs: 300,
+          previousGroupId: "Idle",
+          origin: "ui",
+          orders: [
+            { groupId: "Idle", sortKey: "A", updatedAtMs: 100 },
+            { groupId: "Active", sortKey: "B", updatedAtMs: 300 },
+          ],
+        },
+      ],
+    });
 
     await expect(
-      harness.behavior.callRpc("getGroupingCatalogV1", null),
-    ).resolves.toMatchObject({
-      protocolVersion: 1,
-      groupings: [{ id: "stages", defaultGroupId: "Idle" }],
-    });
-    expect(harness.inspection.registrations.rpcMethods).not.toContain(
-      "getPlacementMigrationSnapshotV1",
-    );
-    expect(harness.inspection.registrations.rpcMethods).not.toContain(
-      "acknowledgePlacementMigrationV1",
-    );
+      harness.behavior.callRpc("acknowledgePlacementMigrationV1", {
+        installationId: "a".repeat(32),
+        revision: 6,
+      }),
+    ).resolves.toEqual({ transferred: false });
+    await expect(
+      harness.behavior.callRpc("acknowledgePlacementMigrationV1", {
+        installationId: "a".repeat(32),
+        revision: 7,
+      }),
+    ).resolves.toEqual({ transferred: true });
+    await expect(
+      harness.behavior.callRpc("getPlacementMigrationSnapshotV1", null),
+    ).resolves.toEqual(snapshot);
   });
 
   it("writes shortcut stage changes directly to Ribbon without a handoff", async () => {

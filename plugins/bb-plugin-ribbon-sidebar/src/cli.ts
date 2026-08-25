@@ -18,6 +18,11 @@ export interface RibbonSidebarCliContext {
   ):
     | ReturnType<PlacementStore["updatePlacement"]>
     | Promise<ReturnType<PlacementStore["updatePlacement"]>>;
+  migrateThreadStages?(): Promise<{
+    installationId: string;
+    revision: number;
+    imported: boolean;
+  }>;
 }
 
 export interface RibbonSidebarCliInvocation {
@@ -34,6 +39,7 @@ Commands:
   list [--scope <group-ref>] [--group-by <grouping>]
   show [thread] [--self]
   place [thread] --to <group-ref> [--before <thread>|--after <thread>]
+  migrate thread-stages
   rekey --from <plugin-key> --to <plugin-key>
 `;
 
@@ -274,6 +280,20 @@ export async function runRibbonSidebarCli(
       return success(
         result.value,
         `${result.value.placement.threadId}\t${result.value.placement.groupingKey}/${result.value.placement.groupId}\n`,
+        wantsJson,
+      );
+    }
+    if (command === "migrate") {
+      if (args.length !== 2 || args[1] !== "thread-stages") {
+        throw new Error("Usage: bb ribbon-sidebar migrate thread-stages");
+      }
+      if (!context.migrateThreadStages) {
+        throw new Error("Thread stages migration is unavailable.");
+      }
+      const result = await context.migrateThreadStages();
+      return success(
+        result,
+        `${result.imported ? "Imported" : "Verified"} Thread stages placement revision ${result.revision}.\n`,
         wantsJson,
       );
     }

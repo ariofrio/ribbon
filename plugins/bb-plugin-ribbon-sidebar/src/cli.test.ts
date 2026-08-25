@@ -134,6 +134,28 @@ describe("Ribbon sidebar CLI", () => {
     ).resolves.toMatchObject({ exitCode: 0 });
   });
 
+  it("explicitly migrates Thread stages placement", async () => {
+    const fixture = setup();
+    databases.push(fixture.database);
+    const migrateThreadStages = vi.fn(async () => ({
+      installationId: "a".repeat(32),
+      revision: 7,
+      imported: true,
+    }));
+
+    const result = await runRibbonSidebarCli(
+      { ...fixture.context, migrateThreadStages },
+      ["migrate", "thread-stages", "--json"],
+    );
+
+    expect(migrateThreadStages).toHaveBeenCalledOnce();
+    expect(JSON.parse(result.stdout ?? "")).toEqual({
+      installationId: "a".repeat(32),
+      revision: 7,
+      imported: true,
+    });
+  });
+
   it("rekeys with strict syntax", async () => {
     const fixture = setup();
     databases.push(fixture.database);

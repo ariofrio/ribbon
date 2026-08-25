@@ -220,11 +220,15 @@ function RibbonSidebarList({
     threadIds: ReadonlySet<string>;
   }>({ query: "", threadIds: new Set() });
   const reconnectPending = useRef(false);
+  const mounted = useRef(false);
   const scopeSyncedForThreadId = useRef<string | null>(null);
   const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
 
   const synchronize = useCallback(async () => {
-    const next = await rpc.call("synchronizeV1", null);
+    const next = await rpc.call("synchronizeV1", {
+      migrateThreadStages: !mounted.current,
+    });
+    mounted.current = true;
     setSnapshot(next);
     setFatalError(null);
     setPreferences((current) => {

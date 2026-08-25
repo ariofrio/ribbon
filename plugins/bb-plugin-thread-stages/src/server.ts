@@ -1,9 +1,12 @@
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
+  acknowledgePlacementMigrationInputSchema,
+  acknowledgePlacementMigrationOutputSchema,
   createGroupingCatalog,
   getGroupingCatalogInputSchema,
   groupingCatalogSchema,
+  placementMigrationSnapshotSchema,
 } from "./contracts";
 import {
   AUTO_ARCHIVE_OPTIONS,
@@ -31,6 +34,10 @@ import {
   rootThreadIdByThreadId,
   type WorkflowHierarchyThread,
 } from "./root-thread-ownership";
+import {
+  THREAD_STAGE_SOURCE_MIGRATIONS,
+  createThreadStageMigrationSource,
+} from "./migration-source";
 
 const workflowStageSchema = z.enum(WORKFLOW_STAGES);
 const assignmentSchema = z
@@ -99,9 +106,20 @@ export const rpcContract = defineRpcContract({
     input: getGroupingCatalogInputSchema,
     output: groupingCatalogSchema,
   },
+  getPlacementMigrationSnapshotV1: {
+    input: z.null(),
+    output: placementMigrationSnapshotSchema,
+  },
+  acknowledgePlacementMigrationV1: {
+    input: acknowledgePlacementMigrationInputSchema,
+    output: acknowledgePlacementMigrationOutputSchema,
+  },
 });
 
 export default function plugin(bb: BbPluginApi) {
+  const database = bb.storage.database();
+  bb.storage.migrate(database, THREAD_STAGE_SOURCE_MIGRATIONS);
+  const migrationSource = createThreadStageMigrationSource(database);
   const settings = bb.settings.define({
     showDeferredStage: {
       type: "boolean",
@@ -355,6 +373,12 @@ export default function plugin(bb: BbPluginApi) {
     },
     async getGroupingCatalogV1() {
       return createGroupingCatalog(await settings.get());
+    },
+    getPlacementMigrationSnapshotV1() {
+      return migrationSource.snapshot();
+    },
+    acknowledgePlacementMigrationV1(input) {
+      return migrationSource.acknowledge(input);
     },
   });
 

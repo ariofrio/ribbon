@@ -18,9 +18,12 @@ bb plugin install thread-stages@ribbon
 ```
 
 Then select **Ribbon sidebar** under **Settings → Appearance → Sidebar**.
-Upgrading from Thread stages 0.9 or earlier starts with fresh Ribbon placement;
-the former sidebar's stage assignments, order, filter, and collapsed state are
-not imported.
+Without Ribbon installed, Thread stages no longer draws a replacement list,
+but its former stage assignments and retained order remain stored and readable.
+Installing and mounting Ribbon later imports that snapshot, verifies it, and
+only then acknowledges the one-way ownership handoff. The former filter and
+collapsed state migrate locally in each client, so the organized sidebar
+returns without restoring Thread stages' retired UI.
 
 ## Automation and retention
 
@@ -70,7 +73,7 @@ bb thread-stages update [<thread-id> | --self] [--stage <stage>] [--after <threa
 ```
 
 If Ribbon sidebar is missing, these commands return an actionable dependency
-error instead of writing a second placement database.
+error instead of writing the read-only migration source.
 
 ## Development
 

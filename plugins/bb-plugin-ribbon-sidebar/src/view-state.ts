@@ -10,6 +10,13 @@ export interface SidebarPreferences {
 
 export const SIDEBAR_PREFERENCES_KEY =
   "bb.plugin.ribbon-sidebar.preferences.v1";
+const THREAD_STAGES_FILTER_KEYS = [
+  "bb.plugin.thread-stages.threadFilter",
+  "bb.plugin.thread-stages.projectFilter",
+  "bb.plugin.thread-workflow.projectFilter",
+] as const;
+const THREAD_STAGES_COLLAPSED_KEY =
+  "bb.plugin.workflow-stage.collapsedStatuses";
 const GROUPING_KEY = /^(?:builtin:(?:projects|sections)|plugin:[^:/]+:[^:/]+)$/u;
 
 function isGroupingKey(value: unknown): value is GroupingKey {
@@ -60,6 +67,49 @@ function storedPreferences(raw: string | null): SidebarPreferences | null {
   }
 }
 
+function legacyScope(storage: Storage): Scope {
+  const filter = THREAD_STAGES_FILTER_KEYS.map((key) => storage.getItem(key)).find(
+    (value) => value !== null,
+  );
+  if (!filter) return { kind: "all" };
+  if (filter === "uncategorized") {
+    return {
+      kind: "group",
+      group: { groupingKey: "builtin:sections", groupId: "unsectioned" },
+    };
+  }
+  const separator = filter.indexOf(":");
+  const kind = separator < 0 ? "project" : filter.slice(0, separator);
+  const groupId = separator < 0 ? filter : filter.slice(separator + 1);
+  if (!groupId || (kind !== "project" && kind !== "section")) {
+    return { kind: "all" };
+  }
+  return {
+    kind: "group",
+    group: {
+      groupingKey:
+        kind === "project" ? "builtin:projects" : "builtin:sections",
+      groupId,
+    },
+  };
+}
+
+function legacyCollapsed(storage: Storage): Set<string> {
+  try {
+    const parsed: unknown = JSON.parse(
+      storage.getItem(THREAD_STAGES_COLLAPSED_KEY) ?? "[]",
+    );
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(
+      parsed
+        .filter((value): value is string => typeof value === "string")
+        .map((groupId) => `plugin:thread-stages:stages/${groupId}`),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
 export function saveSidebarPreferences(
   storage: Storage,
   preferences: SidebarPreferences,
@@ -107,10 +157,18 @@ export function loadSidebarPreferences(
       },
     };
   }
-  const initial = {
-    view: { scope: { kind: "all" as const }, groupingKey: fallback },
-    collapsed: new Set<string>(),
-  };
-  saveSidebarPreferences(storage, initial);
-  return initial;
+  let migrated: SidebarPreferences;
+  try {
+    migrated = {
+      view: { scope: legacyScope(storage), groupingKey: fallback },
+      collapsed: legacyCollapsed(storage),
+    };
+  } catch {
+    migrated = {
+      view: { scope: { kind: "all" }, groupingKey: fallback },
+      collapsed: new Set(),
+    };
+  }
+  saveSidebarPreferences(storage, migrated);
+  return migrated;
 }

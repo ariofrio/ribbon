@@ -1,6 +1,7 @@
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
+  acknowledgePlacementMigrationOutputSchema,
   getPlacementInputSchema,
   getPlacementOutputSchema,
   groupingCatalogSchema,
@@ -9,9 +10,11 @@ import {
   invalidateGroupingCatalogOutputSchema,
   listPlacementsInputSchema,
   listPlacementsOutputSchema,
+  threadStagesMigrationSnapshotSchema,
   updatePlacementInputSchema,
   updatePlacementOutputSchema,
 } from "./contracts";
+import { migrateThreadStages } from "./migration";
 import {
   RIBBON_SIDEBAR_MIGRATIONS,
   createPlacementStore,
@@ -153,7 +156,7 @@ export const rpcContract = defineRpcContract({
     output: sidebarSnapshotSchema,
   },
   synchronizeV1: {
-    input: z.null(),
+    input: z.object({ migrateThreadStages: z.boolean() }).strict(),
     output: sidebarSnapshotSchema,
   },
   updatePlacementV1: {
@@ -271,6 +274,8 @@ export default async function plugin(bb: BbPluginApi) {
     ...providers.allGroupings(),
   ];
   const store = createPlacementStore(database, { grouping, groupings });
+  let threadStagesInstalled = false;
+  let mountedMigrationPending = false;
 
   function sidebarSnapshot() {
     return {
@@ -317,6 +322,9 @@ export default async function plugin(bb: BbPluginApi) {
           candidate.id !== bb.pluginId && candidate.status === "running",
       )
       .map(({ id }) => id);
+    threadStagesInstalled = installed.plugins.some(
+      ({ id, status }) => id === "thread-stages" && status === "running",
+    );
     await providers.refresh(providerPluginIds);
 
     projectGroups = projects.map((project) => ({
@@ -381,6 +389,42 @@ export default async function plugin(bb: BbPluginApi) {
       });
     }
     return catalogBefore !== providerCatalogFingerprint();
+  }
+
+  async function migrateFromThreadStages() {
+    if (!threadStagesInstalled) {
+      throw new Error("Thread stages is not installed and running.");
+    }
+    return migrateThreadStages(store, {
+      getPlacementMigrationSnapshotV1: () =>
+        bb.sdk.plugins.callRpc({
+          pluginId: "thread-stages",
+          method: "getPlacementMigrationSnapshotV1",
+          input: null,
+          outputSchema: threadStagesMigrationSnapshotSchema,
+        }),
+      acknowledgePlacementMigrationV1: (input) =>
+        bb.sdk.plugins.callRpc({
+          pluginId: "thread-stages",
+          method: "acknowledgePlacementMigrationV1",
+          input,
+          outputSchema: acknowledgePlacementMigrationOutputSchema,
+        }),
+    });
+  }
+
+  async function attemptMountedMigration() {
+    if (!mountedMigrationPending || !threadStagesInstalled) return false;
+    try {
+      await migrateFromThreadStages();
+      mountedMigrationPending = false;
+      return true;
+    } catch (error) {
+      bb.log.warn(
+        `Could not migrate Thread stages placement; reconciliation will retry: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false;
+    }
   }
 
   async function updatePlacement(
@@ -616,8 +660,10 @@ export default async function plugin(bb: BbPluginApi) {
     sidebarSnapshotV1() {
       return sidebarSnapshot();
     },
-    async synchronizeV1() {
+    async synchronizeV1({ migrateThreadStages: shouldMigrate }) {
       await refreshCatalogsAndRoots();
+      if (shouldMigrate) mountedMigrationPending = true;
+      await attemptMountedMigration();
       return sidebarSnapshot();
     },
     updatePlacementV1: updatePlacement,
@@ -632,6 +678,7 @@ export default async function plugin(bb: BbPluginApi) {
       { name: "list", summary: "List threads", usage: "bb ribbon-sidebar list [--scope <group-ref>] [--group-by <grouping>] [--json]" },
       { name: "show", summary: "Show thread placement", usage: "bb ribbon-sidebar show [thread] [--self] [--json]" },
       { name: "place", summary: "Place a thread", usage: "bb ribbon-sidebar place [thread] --to <group-ref> [--before <thread>|--after <thread>] [--json]" },
+      { name: "migrate", summary: "Migrate legacy placement", usage: "bb ribbon-sidebar migrate thread-stages [--json]" },
       { name: "rekey", summary: "Rekey provider placement", usage: "bb ribbon-sidebar rekey --from <plugin-key> --to <plugin-key> [--json]" },
     ],
     async run(argv, context) {
@@ -641,13 +688,14 @@ export default async function plugin(bb: BbPluginApi) {
           store,
           groupings,
           updatePlacement,
+          migrateThreadStages: migrateFromThreadStages,
         },
         argv,
         context.threadId ? { threadId: context.threadId } : {},
       );
       if (
         result.exitCode === 0 &&
-        ["place", "rekey"].includes(argv[0] ?? "")
+        ["place", "migrate", "rekey"].includes(argv[0] ?? "")
       ) {
         bb.realtime.publish("placements-changed", {
           groupingKeys: groupings().map(({ groupingKey }) => groupingKey),
@@ -676,8 +724,14 @@ export default async function plugin(bb: BbPluginApi) {
   }
   bb.background.schedule("catalog-reconciliation", "* * * * *", async () => {
     const catalogChanged = await refreshCatalogsAndRoots();
+    const migrationCompleted = await attemptMountedMigration();
     if (catalogChanged) {
       bb.realtime.publish("catalog-changed", null);
+    }
+    if (migrationCompleted) {
+      bb.realtime.publish("placements-changed", {
+        groupingKeys: ["plugin:thread-stages:stages"],
+      });
     }
   });
   settings.onChange(() => {

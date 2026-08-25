@@ -284,3 +284,79 @@ export const invalidateGroupingCatalogInputSchema = z
   .object({ providerPluginId: localIdSchema })
   .strict();
 export const invalidateGroupingCatalogOutputSchema = z.null();
+
+const migrationOrderSchema = z
+  .object({
+    groupId: localIdSchema,
+    sortKey: z.string().min(1),
+    updatedAtMs: z.number().int().nonnegative(),
+  })
+  .strict();
+const migrationPlacementSchema = z
+  .object({
+    groupingId: localIdSchema,
+    threadId: threadIdSchema,
+    groupId: localIdSchema,
+    enteredAtMs: z.number().int().nonnegative(),
+    updatedAtMs: z.number().int().nonnegative(),
+    previousGroupId: localIdSchema.optional(),
+    origin: placementOriginSchema,
+    orders: z.array(migrationOrderSchema),
+  })
+  .strict()
+  .superRefine((placement, context) => {
+    const groupIds = new Set<string>();
+    for (const [index, order] of placement.orders.entries()) {
+      if (groupIds.has(order.groupId)) {
+        context.addIssue({
+          code: "custom",
+          message: `Duplicate retained order for group: ${order.groupId}`,
+          path: ["orders", index, "groupId"],
+        });
+      }
+      groupIds.add(order.groupId);
+    }
+    if (!groupIds.has(placement.groupId)) {
+      context.addIssue({
+        code: "custom",
+        message: "The current group must have a retained order row.",
+        path: ["orders"],
+      });
+    }
+  });
+
+export const threadStagesMigrationSnapshotSchema = z
+  .object({
+    sourcePluginId: z.literal("thread-stages"),
+    sourceSchema: z.literal(1),
+    installationId: z.string().regex(/^[a-f0-9]{32}$/u),
+    revision: z.number().int().nonnegative(),
+    placements: z.array(migrationPlacementSchema),
+  })
+  .strict()
+  .superRefine((snapshot, context) => {
+    const placements = new Set<string>();
+    for (const [index, placement] of snapshot.placements.entries()) {
+      const key = `${placement.groupingId}\u0000${placement.threadId}`;
+      if (placements.has(key)) {
+        context.addIssue({
+          code: "custom",
+          message: "Duplicate placement.",
+          path: ["placements", index],
+        });
+      }
+      placements.add(key);
+    }
+  });
+export type ThreadStagesMigrationSnapshotV1 = z.output<
+  typeof threadStagesMigrationSnapshotSchema
+>;
+export const acknowledgePlacementMigrationInputSchema = z
+  .object({
+    installationId: z.string().regex(/^[a-f0-9]{32}$/u),
+    revision: z.number().int().nonnegative(),
+  })
+  .strict();
+export const acknowledgePlacementMigrationOutputSchema = z
+  .object({ transferred: z.boolean() })
+  .strict();

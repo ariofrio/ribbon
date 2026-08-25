@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createGroupingCatalog, groupingCatalogSchema } from "./contracts";
+import {
+  createGroupingCatalog,
+  groupingCatalogSchema,
+  placementMigrationSnapshotSchema,
+} from "./contracts";
 
 describe("Thread stages provider contracts", () => {
   it("publishes the complete ordered stages catalog", () => {
@@ -110,6 +114,30 @@ describe("Thread stages provider contracts", () => {
       };
       expect(() => groupingCatalogSchema.parse(unsafe)).toThrow();
     }
+  });
+
+  it("keeps the released migration snapshot contract strict", () => {
+    const snapshot = {
+      sourcePluginId: "thread-stages",
+      sourceSchema: 1,
+      installationId: "a".repeat(32),
+      revision: 1,
+      placements: [
+        {
+          groupingId: "stages",
+          threadId: "thread-a",
+          groupId: "Idle",
+          enteredAtMs: 1,
+          updatedAtMs: 1,
+          origin: "auto",
+          orders: [{ groupId: "Idle", sortKey: "A", updatedAtMs: 1 }],
+        },
+      ],
+    };
+    expect(placementMigrationSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+    expect(() =>
+      placementMigrationSnapshotSchema.parse({ ...snapshot, extra: true }),
+    ).toThrow();
   });
 
 });

@@ -16,7 +16,7 @@ function storage(entries: Record<string, string> = {}): Storage {
 }
 
 describe("client-local sidebar preferences", () => {
-  it("starts fresh without importing legacy Thread stages preferences", () => {
+  it("migrates Thread stages scope, grouping, and collapsed stages once", () => {
     const local = storage({
       "bb.plugin.thread-stages.threadFilter": "section:release",
       "bb.plugin.workflow-stage.collapsedStatuses": JSON.stringify([
@@ -24,17 +24,32 @@ describe("client-local sidebar preferences", () => {
         "Active",
       ]),
     });
-    expect(loadSidebarPreferences(local, [
+    const first = loadSidebarPreferences(local, [
       "builtin:projects",
       "builtin:sections",
       "plugin:thread-stages:stages",
-    ])).toEqual({
+    ]);
+    expect(first).toEqual({
       view: {
-        scope: { kind: "all" },
+        scope: {
+          kind: "group",
+          group: { groupingKey: "builtin:sections", groupId: "release" },
+        },
         groupingKey: "plugin:thread-stages:stages",
       },
-      collapsed: new Set(),
+      collapsed: new Set([
+        "plugin:thread-stages:stages/Deferred",
+        "plugin:thread-stages:stages/Active",
+      ]),
     });
+
+    local.setItem("bb.plugin.thread-stages.threadFilter", "project:changed");
+    expect(
+      loadSidebarPreferences(local, [
+        "builtin:projects",
+        "plugin:thread-stages:stages",
+      ]),
+    ).toEqual(first);
   });
 
   it("recovers an unavailable saved grouping and preserves orphan scope", () => {
