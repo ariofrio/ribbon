@@ -371,11 +371,17 @@ const HERO_FRAME = {
   },
   light: {
     ...WINDOW_FRAME.light,
-    shadow: `0 0 ${HERO_SHADOW_BLUR}px rgba(0, 0, 0, 0.24)`,
+    shadow: [
+      `0 0 ${HERO_SHADOW_BLUR}px rgba(0, 0, 0, 0.24)`,
+      `0 0 ${HERO_SHADOW_BLUR}px rgba(0, 0, 0, 0.24)`,
+    ].join(", "),
   },
   dark: {
     ...WINDOW_FRAME.dark,
-    shadow: `0 0 ${HERO_SHADOW_BLUR}px rgba(0, 0, 0, 0.56)`,
+    shadow: [
+      `0 0 ${HERO_SHADOW_BLUR}px rgba(0, 0, 0, 0.56)`,
+      `0 0 ${HERO_SHADOW_BLUR}px rgba(0, 0, 0, 0.56)`,
+    ].join(", "),
   },
 };
 
