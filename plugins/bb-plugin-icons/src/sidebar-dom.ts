@@ -17,8 +17,8 @@ const OWNER_ATTRIBUTES: ReadonlyArray<{
   attribute: string;
   kind: IconOwner["kind"];
 }> = [
-  { attribute: PROJECT_ATTRIBUTE, kind: "project" },
   { attribute: "data-sidebar-section-id", kind: "section" },
+  { attribute: PROJECT_ATTRIBUTE, kind: "project" },
 ];
 
 const MOUNT_ATTRIBUTE = "data-icons-sidebar-root";
@@ -153,8 +153,8 @@ function sameAnchors(left: SidebarAnchor[], right: SidebarAnchor[]): boolean {
  * Watches bb's sidebar and reports where this plugin may draw an icon.
  *
  * The list is re-reported whenever it changes, which covers more than a group
- * appearing: bb shows project groups under Organize → By project and section
- * groups only under Manually, so switching mode replaces every header at once.
+ * appearing: bb shows section groups only under Manually and project groups
+ * under Organize → By project, so switching mode replaces every header at once.
  */
 export function observeSidebarIconAnchors(
   onChange: (anchors: SidebarAnchor[]) => void,

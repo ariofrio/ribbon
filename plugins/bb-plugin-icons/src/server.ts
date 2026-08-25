@@ -139,7 +139,7 @@ export const ICON_PLACEMENTS = {
     type: "boolean",
     label: "Show in the sidebar",
     description:
-      "Draw the icon on bb's own project and section headers. Sidebars other plugins draw are their own.",
+      "Draw the icon on bb's own section and project headers. Sidebars other plugins draw are their own.",
     default: true,
   },
   showInComposer: {

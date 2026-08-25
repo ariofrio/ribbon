@@ -31,7 +31,7 @@ function stickyGroup(label: string, { creates = false } = {}) {
 }
 
 /**
- * A project header and a section header differ only in which id attribute
+ * A section header and a project header differ only in which id attribute
  * their wrapper carries, and the icon goes at the head of the same label row
  * in both.
  */
@@ -62,17 +62,17 @@ function start() {
 }
 
 describe("observeSidebarIconAnchors", () => {
-  it("finds a project header and a section header, and names each owner", () => {
+  it("finds a section header and a project header, and names each owner", () => {
     document.body.innerHTML = `
-      ${groupHeader("data-sidebar-project-id", "proj_a", "Storefront")}
       ${groupHeader("data-sidebar-section-id", "sec_b", "Example")}
+      ${groupHeader("data-sidebar-project-id", "proj_a", "Storefront")}
     `;
 
     const seen = start();
 
     expect(seen.at(-1)?.map(({ owner, name }) => ({ ...owner, name }))).toEqual([
-      { kind: "project", id: "proj_a", name: "Storefront" },
       { kind: "section", id: "sec_b", name: "Example" },
+      { kind: "project", id: "proj_a", name: "Storefront" },
     ]);
   });
 

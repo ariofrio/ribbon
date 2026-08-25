@@ -1,7 +1,7 @@
 # Icons
 
-Gives every project and every thread section an icon and an optional color, and
-draws it wherever bb names a project or a section: bb's own sidebar headers, the header
+Gives every thread section and every project an icon and an optional color, and
+draws it wherever bb names a section or a project: bb's own sidebar headers, the header
 above a thread and above a project's own screens, the prompt box and the menus
 it opens, and each row of the
 [Thread stages](../bb-plugin-thread-stages#readme) sidebar.
@@ -11,10 +11,10 @@ open thread to change it: search 2,530 icons by name or synonym, filter by
 category, and pick a color. Changes save as you click and appear everywhere at
 once.
 
-Projects default to a folder and bb's personal project to a chat bubble,
-because that is what bb draws itself. Sections default to bb's own section
-mark — Hugeicons has none, so the plugin composes it, which is why it is the
-one glyph here that is not from the catalog.
+Sections default to bb's own section mark — Hugeicons has none, so the plugin
+composes it, which is why it is the one glyph here that is not from the
+catalog. Projects default to a folder and bb's personal project to a chat
+bubble, because that is what bb draws itself.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-dark.png">
@@ -73,8 +73,8 @@ before it is adopted.
 
 **bb's sidebar.** The icon sits at the head of a group's label row, where
 Thread stages puts a stage icon, which is what lines the group name up with the
-New thread, Extensions, and Automations labels above it. bb shows project
-groups under *Organize → By project* and section groups only under *Manually*,
+New thread, Extensions, and Automations labels above it. bb shows section
+groups only under *Manually* and project groups under *Organize → By project*,
 so which headers exist depends on that setting.
 
 Under *By project* that includes the personal project, which bb labels

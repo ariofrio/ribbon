@@ -176,7 +176,7 @@ describe("ThreadFilter", () => {
     ).not.toBeNull();
   });
 
-  it("keeps project and section filtering available on compact viewports", () => {
+  it("keeps section and project filtering available on compact viewports", () => {
     render(
       <CompactViewportOverrideProvider isCompactViewport>
         <ThreadFilter
@@ -206,7 +206,7 @@ describe("ThreadFilter", () => {
     ).toBeDefined();
   });
 
-  it("shows the selected project or section icon in the trigger", () => {
+  it("shows the selected section or project icon in the trigger", () => {
     const sharedProps = {
       projects,
       sections,
@@ -277,7 +277,7 @@ describe("ThreadFilter", () => {
     expect(trigger.querySelector('[data-icon="ListViewOff"]')).not.toBeNull();
   });
 
-  it("reports project, section, uncategorized, and clear selections", () => {
+  it("reports section, project, uncategorized, and clear selections", () => {
     const onChange = vi.fn();
     render(
       <ThreadFilter
