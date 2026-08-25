@@ -171,10 +171,13 @@ describe("thread stages plugin API", () => {
     });
   });
 
-  it("places a new sourced thread in the source thread's section", async () => {
+  it("places a new fork in its fork source's section", async () => {
     const update = vi.fn(async () => ({}));
     const get = vi.fn(async () =>
-      makeThreadResponse({ id: "thr_source", sectionId: "section_now" }),
+      makeThreadResponse({
+        id: "thr_fork_source",
+        sectionId: "section_now",
+      }),
     );
     const host = createFakePluginHost({
       pluginId: "thread-stages",
@@ -186,22 +189,23 @@ describe("thread stages plugin API", () => {
     await host.harness.behavior.emitThreadEvent("thread.created", {
       thread: makeThreadResponse({
         id: "thr_created",
+        originKind: "fork",
         sectionId: null,
-        sourceThreadId: "thr_source",
+        sourceThreadId: "thr_fork_source",
       }),
     });
 
-    expect(get).toHaveBeenCalledWith({ threadId: "thr_source" });
+    expect(get).toHaveBeenCalledWith({ threadId: "thr_fork_source" });
     expect(update).toHaveBeenCalledWith({
       threadId: "thr_created",
       sectionId: "section_now",
     });
   });
 
-  it("inherits the nearest section from the source thread's ancestors", async () => {
+  it("inherits the nearest section from the fork source's ancestors", async () => {
     const update = vi.fn(async () => ({}));
     const get = vi.fn(async ({ threadId }: { threadId: string }) => {
-      if (threadId === "thr_source") {
+      if (threadId === "thr_fork_source") {
         return makeThreadResponse({
           id: threadId,
           parentThreadId: "thr_parent",
@@ -224,12 +228,13 @@ describe("thread stages plugin API", () => {
     await host.harness.behavior.emitThreadEvent("thread.created", {
       thread: makeThreadResponse({
         id: "thr_created",
+        originKind: "fork",
         sectionId: null,
-        sourceThreadId: "thr_source",
+        sourceThreadId: "thr_fork_source",
       }),
     });
 
-    expect(get).toHaveBeenNthCalledWith(1, { threadId: "thr_source" });
+    expect(get).toHaveBeenNthCalledWith(1, { threadId: "thr_fork_source" });
     expect(get).toHaveBeenNthCalledWith(2, { threadId: "thr_parent" });
     expect(update).toHaveBeenCalledWith({
       threadId: "thr_created",
@@ -250,8 +255,9 @@ describe("thread stages plugin API", () => {
     await host.harness.behavior.emitThreadEvent("thread.created", {
       thread: makeThreadResponse({
         id: "thr_created",
+        originKind: "fork",
         sectionId: "section_selected",
-        sourceThreadId: "thr_source",
+        sourceThreadId: "thr_fork_source",
       }),
     });
 
@@ -259,7 +265,7 @@ describe("thread stages plugin API", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("leaves a source-less thread Unorganized", async () => {
+  it("leaves an ordinary CLI-spawned thread Unorganized", async () => {
     const get = vi.fn();
     const update = vi.fn();
     const host = createFakePluginHost({
