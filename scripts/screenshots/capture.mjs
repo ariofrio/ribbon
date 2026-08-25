@@ -322,7 +322,9 @@ export async function openApp({ browser, stack, theme, viewport, style }) {
   page.on("pageerror", (error) => {
     diagnostics.push(`pageerror: ${error.stack ?? error.message}`);
   });
-  await page.goto(stack.serverUrl, { waitUntil: "networkidle" });
+  // Each shot waits for the visible state it needs. Network idleness also
+  // waits for unrelated provider and onboarding requests on every fresh page.
+  await page.goto(stack.serverUrl, { waitUntil: "domcontentloaded" });
   return { context, page, diagnostics };
 }
 
