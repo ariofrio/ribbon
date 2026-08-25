@@ -20,8 +20,11 @@ import {
 } from "./icon-colors";
 import { ICON_COLORS, type IconColor } from "./store";
 import {
+  GRID_COLUMNS,
+  GRID_GAP,
   ROW_HEIGHT,
   chunkRows,
+  columnCountFor,
   gridHeight,
   sameRange,
   visibleRows,
@@ -89,6 +92,7 @@ export function IconPicker({
   });
   const [catalogScroller, setCatalogScroller] =
     useState<HTMLDivElement | null>(null);
+  const [catalogColumns, setCatalogColumns] = useState(GRID_COLUMNS);
   /**
    * Whether the scroll fades may animate yet.
    *
@@ -179,24 +183,37 @@ export function IconPicker({
   useLayoutEffect(() => {
     const scroller = catalogScroller;
     if (scroller === null) return;
-    updateCatalogOverflow(scroller);
-    const handleResize = () => updateCatalogOverflow();
+    const updateCatalogLayout = () => {
+      updateCatalogOverflow(scroller);
+      const content = catalogContentRef.current;
+      if (content !== null) {
+        const nextColumns = isCompactViewport
+          ? columnCountFor(content.clientWidth)
+          : GRID_COLUMNS;
+        setCatalogColumns((current) =>
+          current === nextColumns ? current : nextColumns,
+        );
+      }
+      setResizeTick((current) => current + 1);
+    };
+    updateCatalogLayout();
     const resizeObserver =
       typeof ResizeObserver === "undefined"
         ? null
-        : new ResizeObserver(() => updateCatalogOverflow(scroller));
+        : new ResizeObserver(updateCatalogLayout);
     resizeObserver?.observe(scroller);
     if (catalogContentRef.current !== null) {
       resizeObserver?.observe(catalogContentRef.current);
     }
-    window.addEventListener("resize", handleResize);
+    window.addEventListener("resize", updateCatalogLayout);
     return () => {
       resizeObserver?.disconnect();
-      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("resize", updateCatalogLayout);
     };
   }, [
     catalog.length,
     catalogScroller,
+    isCompactViewport,
     loading,
     open,
     results.length,
@@ -418,7 +435,7 @@ export function IconPicker({
                             color={color}
                             onPick={onPick}
                             scroller={catalogScroller}
-                            virtualize={!isCompactViewport}
+                            columns={catalogColumns}
                             resizeTick={resizeTick}
                           />
                         </section>
@@ -521,9 +538,9 @@ function CategoryChip({
  * individually: one listener per category, and a range that only changes when
  * the window of rows actually moves.
  *
- * A compact viewport lays the grid out with as many columns as fit rather than
- * a fixed eleven, so the row arithmetic would not hold; there the grid is
- * drawn whole.
+ * Compact rows use the column count derived from the grid's measured width,
+ * matching the responsive auto-fill layout without borrowing desktop's fixed
+ * count.
  */
 function IconGrid({
   entries,
@@ -531,7 +548,7 @@ function IconGrid({
   color,
   onPick,
   scroller,
-  virtualize,
+  columns,
   resizeTick,
 }: {
   entries: readonly CatalogIcon[];
@@ -539,17 +556,17 @@ function IconGrid({
   color: IconColor | null;
   onPick: (icon: string) => void;
   scroller: HTMLDivElement | null;
-  virtualize: boolean;
+  columns: number;
   resizeTick: number;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
-  const rows = useMemo(() => chunkRows(entries), [entries]);
+  const rows = useMemo(() => chunkRows(entries, columns), [columns, entries]);
   const [range, setRange] = useState<RowRange>({ start: 0, end: 0 });
 
   // Measured before the browser paints, so the first frame already carries
   // the rows that belong on screen rather than filling in behind the popover.
   useLayoutEffect(() => {
-    if (!virtualize || scroller === null) return;
+    if (scroller === null) return;
     let frame = 0;
     const measure = () => {
       frame = 0;
@@ -581,23 +598,7 @@ function IconGrid({
     // resizeTick stands in for the scroller changing shape: the picker already
     // watches it, and thirty-two categories each adding their own observer to
     // the same element would be that much waste for the same answer.
-  }, [resizeTick, rows.length, scroller, virtualize]);
-
-  if (!virtualize) {
-    return (
-      <div className="grid grid-cols-11 gap-1 max-md:grid-cols-[repeat(auto-fill,1.75rem)]">
-        {entries.map((entry) => (
-          <IconButton
-            key={entry.name}
-            entry={entry}
-            icon={icon}
-            color={color}
-            onPick={onPick}
-          />
-        ))}
-      </div>
-    );
-  }
+  }, [columns, resizeTick, rows.length, scroller]);
 
   const drawn = rows.slice(range.start, range.end);
   return (
@@ -606,8 +607,8 @@ function IconGrid({
         {drawn.map((row, index) => (
           <div
             key={range.start + index}
-            className="grid grid-cols-11 gap-1"
-            style={{ height: ROW_HEIGHT - 4, marginBottom: 4 }}
+            className="grid grid-cols-11 gap-1 max-md:grid-cols-[repeat(auto-fill,1.75rem)]"
+            style={{ height: ROW_HEIGHT - GRID_GAP, marginBottom: GRID_GAP }}
           >
             {row.map((entry) => (
               <IconButton
