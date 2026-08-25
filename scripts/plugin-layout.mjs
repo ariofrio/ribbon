@@ -111,6 +111,35 @@ export function layoutProblems({
 }
 
 /** tsconfig.json is JSON with comments often enough to strip them here. */
+/**
+ * Files a plugin keeps its own copy of. npm drops a symlinked LICENSE from the
+ * tarball silently, and vitest.config.ts has to sit where vitest is installed.
+ */
+const REPLICATED = [
+  { field: "license", name: "LICENSE", everywhere: true },
+  { field: "vitestConfig", name: "vitest.config.ts", everywhere: false },
+];
+
+/** Rules that only a second plugin can break. */
+export function sharedFileProblems(plugins) {
+  const problems = [];
+  for (const { field, name, everywhere } of REPLICATED) {
+    if (everywhere) {
+      for (const plugin of plugins.filter((each) => each[field] == null)) {
+        problems.push(`${plugin.id}: has no ${name}, and npm ships one in every package`);
+      }
+    }
+    const [reference, ...rest] = plugins.filter((each) => each[field] != null);
+    if (reference === undefined) continue;
+    for (const plugin of rest) {
+      if (plugin[field] !== reference[field]) {
+        problems.push(`${plugin.id}: ${name} differs from ${reference.id}`);
+      }
+    }
+  }
+  return problems;
+}
+
 function read(path) {
   if (!existsSync(path)) return null;
   const text = readFileSync(path, "utf8").replace(/^\s*\/\/.*$/gmu, "");
@@ -146,6 +175,12 @@ export function readPlugin(pluginDirectory) {
       /["']@["']\s*:/u.test(readFileSync(vitestConfig, "utf8")),
     rootEntries: readdirSync(pluginDirectory),
     sources,
+    license: existsSync(join(pluginDirectory, "LICENSE"))
+      ? readFileSync(join(pluginDirectory, "LICENSE"), "utf8")
+      : null,
+    vitestConfig: existsSync(vitestConfig)
+      ? readFileSync(vitestConfig, "utf8")
+      : null,
     assets: existsSync(join(pluginDirectory, "assets"))
       ? readdirSync(join(pluginDirectory, "assets"))
       : [],
@@ -163,15 +198,19 @@ if (realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url
   const plugins = join(repositoryRoot, "plugins");
   const reported = [];
   const checked = [];
+  const read_ = [];
   for (const id of readdirSync(plugins)) {
     const directory = join(plugins, id);
     if (!statSync(directory).isDirectory()) continue;
     if (!existsSync(join(directory, "package.json"))) continue;
     checked.push(id);
-    for (const problem of layoutProblems(readPlugin(directory))) {
+    const plugin = readPlugin(directory);
+    read_.push(plugin);
+    for (const problem of layoutProblems(plugin)) {
       reported.push(`${id}: ${problem}`);
     }
   }
+  reported.push(...sharedFileProblems(read_));
   if (reported.length > 0) {
     process.stderr.write(
       `Plugin layout problems:\n${reported.map((line) => `  ${line}`).join("\n")}\n`,
