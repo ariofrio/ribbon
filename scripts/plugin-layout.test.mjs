@@ -145,8 +145,6 @@ test("a plugin with no manifest bb block is reported rather than skipped", () =>
   assert.match(problems({ manifest: { files: [] } }).join(), /bb/u);
 });
 
-// npm drops a symlinked LICENSE from the tarball without a word, so each
-// package carries a real copy and the copies have to agree.
 test("a LICENSE that differs from the other plugins is reported", () => {
   const one = { id: "a", license: "MIT\n" };
   assert.deepEqual(sharedFileProblems([one, { id: "b", license: "MIT\n" }]), []);
@@ -167,8 +165,6 @@ test("nothing to compare reports nothing", () => {
   assert.deepEqual(sharedFileProblems([]), []);
 });
 
-// vitest.config.ts has to sit where vitest is installed, so it is replicated
-// too — but only the plugins that have one are compared.
 test("a vitest config that differs from the others is reported", () => {
   const shared = (id, vitestConfig) => ({ id, license: "MIT\n", vitestConfig });
   assert.deepEqual(

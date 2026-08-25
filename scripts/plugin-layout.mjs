@@ -112,10 +112,8 @@ export function layoutProblems({
 
 /** tsconfig.json is JSON with comments often enough to strip them here. */
 /**
- * Files a plugin has to keep its own copy of, and what makes each copy needed.
- * LICENSE ships in every tarball, and npm drops a symlinked one without a
- * word. vitest.config.ts has to sit where vitest is installed, which is the
- * plugin rather than the repository root.
+ * Files a plugin keeps its own copy of. npm drops a symlinked LICENSE from the
+ * tarball silently, and vitest.config.ts has to sit where vitest is installed.
  */
 const REPLICATED = [
   { field: "license", name: "LICENSE", everywhere: true },
