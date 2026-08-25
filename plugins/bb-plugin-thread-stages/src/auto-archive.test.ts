@@ -17,6 +17,7 @@ function thread(
     visibility: "visible",
     archivedAt: null,
     pinnedAt: null,
+    updatedAt: 10,
     lastReadAt: 20,
     latestAttentionAt: 10,
     hasPendingInteraction: false,
@@ -41,6 +42,70 @@ describe("completed auto-archive", () => {
     expect(autoArchiveDelayMs("1 day")).toBe(DAY);
     expect(autoArchiveDelayMs("7 days")).toBe(7 * DAY);
     expect(autoArchiveDelayMs("30 days")).toBe(30 * DAY);
+  });
+
+  it("restarts retention from a Completed root's latest update", async () => {
+    const listCompletedBefore = vi.fn(async () => [
+      { threadId: "root", enteredAt: 100 },
+    ]);
+    const archiveAll = vi.fn(async () => ({
+      archivedThreadIds: ["root"],
+      ok: true as const,
+    }));
+    const bb = {
+      sdk: {
+        threads: {
+          list: vi.fn(async () => [thread("root", { updatedAt: DAY + 1 })]),
+          archiveAll,
+        },
+      },
+      log: { warn: vi.fn(), info: vi.fn() },
+    } as unknown as BbPluginApi;
+
+    await expect(
+      archiveEligibleCompletedThreads(
+        bb,
+        { listCompletedBefore },
+        DAY,
+        2 * DAY,
+      ),
+    ).resolves.toEqual([]);
+    expect(archiveAll).not.toHaveBeenCalled();
+  });
+
+  it("restarts root retention from a descendant's latest update", async () => {
+    const listCompletedBefore = vi.fn(async () => [
+      { threadId: "root", enteredAt: 100 },
+    ]);
+    const archiveAll = vi.fn(async () => ({
+      archivedThreadIds: ["root"],
+      ok: true as const,
+    }));
+    const bb = {
+      sdk: {
+        threads: {
+          list: vi.fn(async () => [
+            thread("root"),
+            thread("child", {
+              parentThreadId: "root",
+              updatedAt: DAY + 1,
+            }),
+          ]),
+          archiveAll,
+        },
+      },
+      log: { warn: vi.fn(), info: vi.fn() },
+    } as unknown as BbPluginApi;
+
+    await expect(
+      archiveEligibleCompletedThreads(
+        bb,
+        { listCompletedBefore },
+        DAY,
+        2 * DAY,
+      ),
+    ).resolves.toEqual([]);
+    expect(archiveAll).not.toHaveBeenCalled();
   });
 
   it("archives unpinned Completed hierarchies bottom-up with archiveAll", async () => {

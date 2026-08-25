@@ -29,7 +29,11 @@ describe("thread stages provider", () => {
     expect(harness.inspection.registrations.settingsDescriptors).toEqual({
       showDeferredStage: expect.objectContaining({ default: true }),
       showBlockedStage: expect.objectContaining({ default: true }),
-      autoArchiveCompletedAfter: expect.objectContaining({ default: "7 days" }),
+      autoArchiveCompletedAfter: expect.objectContaining({
+        default: "7 days",
+        description:
+          "Archive unpinned Completed thread hierarchies after the selected time without a root or descendant thread update.",
+      }),
     });
     expect(harness.inspection.registrations.rpcMethods).toEqual([
       "setWorkflowStage",
