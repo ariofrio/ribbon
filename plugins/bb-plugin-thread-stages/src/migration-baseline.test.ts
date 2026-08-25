@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import packageJson from "../package.json";
 import { THREAD_WORKFLOW_MIGRATIONS } from "./store";
 
 const baselinePath = fileURLToPath(
@@ -33,7 +32,7 @@ describe("Thread stages migration baseline v1", () => {
 
     expect(baseline).toMatchObject({
       manifestVersion: 1,
-      frozenRelease: packageJson.version,
+      frozenRelease: "0.7.0",
       sourceSchema: 1,
       legacyMigrationCount: THREAD_WORKFLOW_MIGRATIONS.length - 1,
     });
