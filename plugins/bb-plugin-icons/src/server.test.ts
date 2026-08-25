@@ -49,7 +49,7 @@ describe("icon plugin API", () => {
     expect(names.has("section")).toBe(false);
     // Pinned: a filter that dropped far more than these two would still
     // satisfy a lower bound.
-    expect(icons.length).toBe(2530);
+    expect(icons.length).toBe(3525);
   });
 
   it("persists a project icon through the schema-validated RPC boundary", async () => {
@@ -296,5 +296,3 @@ describe("icon placements", () => {
     });
   });
 });
-
-
