@@ -311,6 +311,18 @@ export async function openApp({ browser, stack, fixture, theme, viewport, style 
       ),
     fixture.section.id,
   );
+  // Ribbon is installed alongside Thread stages. Pin the released provider
+  // before first paint so existing shots do not mount Ribbon and transfer
+  // ownership before they explicitly opt into the new sidebar. Ribbon's own
+  // shot switches through Appearance and proves that cutover separately.
+  await context.addInitScript(() => {
+    if (window.localStorage.getItem("bb.sidebar.threadListProvider") === null) {
+      window.localStorage.setItem(
+        "bb.sidebar.threadListProvider",
+        JSON.stringify("thread-stages/workflow-stage"),
+      );
+    }
+  });
   await context.addInitScript(
     (css) => {
       const sheet = document.createElement("style");

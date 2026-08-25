@@ -15,6 +15,11 @@
       "input",
       "popover"
     ],
+    "plugins/bb-plugin-ribbon-sidebar": [
+      "button",
+      "dropdown-menu",
+      "tooltip"
+    ],
     "plugins/bb-plugin-thread-stages": [
       "context-menu",
       "dropdown-menu",

@@ -52,11 +52,24 @@ async function hideFixtureModelLabel(page) {
  * own target rather than clicking it, because clicking scrolls the row into
  * view, and a scrolled sidebar is not the top of a sidebar.
  */
-async function openFeaturedThread(page) {
-  const href = await page
-    .getByRole("link", { name: new RegExp(`^Open ${FEATURED_THREAD}`) })
-    .first()
-    .getAttribute("href");
+async function openFeaturedThread(page, knownHref) {
+  // Installing Ribbon changes bb's Automatic choice. Existing collection
+  // shots deliberately continue to exercise Thread stages; Ribbon's own shot
+  // selects the replacement and supplies the route directly below.
+  if (knownHref === undefined) {
+    await selectSidebar(page, "Thread stages");
+    // Appearance does not render a thread list. Return to bb's main route so
+    // the selected provider mounts before resolving the featured row's link.
+    await page.goto(new URL("/", page.url()).toString(), {
+      waitUntil: "domcontentloaded",
+    });
+  }
+  const href =
+    knownHref ??
+    (await page
+      .getByRole("link", { name: new RegExp(`^Open ${FEATURED_THREAD}`) })
+      .first()
+      .getAttribute("href", { timeout: 120000 }));
   // Not networkidle: bb holds a socket open, so idleness never arrives
   // reliably. The wait below is the real proof the thread rendered.
   await page.goto(new URL(href, page.url()).toString(), {
@@ -102,6 +115,26 @@ async function openFeaturedThread(page) {
   await settleAnimations(page);
 }
 
+async function selectSidebar(page, name) {
+  await page.goto(new URL("/settings/appearance", page.url()).toString(), {
+    waitUntil: "domcontentloaded",
+  });
+  await page
+    .getByRole("heading", { name: "Appearance", exact: true })
+    .waitFor({ timeout: 120000 });
+  const selector = page.getByRole("button", { name: "Sidebar thread list" });
+  await selector.waitFor({ timeout: 120000 });
+  if ((await selector.innerText()) !== name) {
+    await selector.click();
+    // The accessible name also includes the option description, so filter the
+    // menu item by its exact title instead of matching the whole name.
+    await page
+      .getByRole("menuitem")
+      .filter({ has: page.getByText(name, { exact: true }) })
+      .click();
+  }
+}
+
 /**
  * The crumb the featured thread's project draws, named by the container the
  * plugin installs rather than by the label alone.
@@ -138,7 +171,7 @@ export function setupScreenshots({ fixture }) {
 
 export const SHOTS = [
   {
-    // The collection, not a plugin: one window with four of the five at work —
+    // The collection, not a plugin: one window with four of the six at work —
     // the stage sidebar, a project icon on every row and in the header, and the
     // project the thread belongs to before its title. Nothing is shaded here,
     // because nothing is being pointed at.
@@ -295,5 +328,25 @@ export const SHOTS = [
       viewport: { width: 900, height: 400 },
       style: '[data-sidebar="panel"], [data-sidebar="gap"] { --sidebar-width: 220px !important; }',
     },
+  },
+  {
+    id: "ribbon-sidebar",
+    plugin: "bb-plugin-ribbon-sidebar",
+    outputs: THEME_FILES,
+    async prepare({ fixture, page }) {
+      const featured = fixture.threads.get(FEATURED_THREAD);
+      const href = `/projects/${encodeURIComponent(featured.projectId)}/threads/${encodeURIComponent(featured.id)}`;
+      await selectSidebar(page, "Ribbon sidebar");
+      await openFeaturedThread(page, href);
+      await page
+        .locator("[data-ribbon-sidebar-root]")
+        .waitFor({ timeout: 120000 });
+      await settleAnimations(page);
+    },
+    highlights: (page) => [
+      { locator: page.locator("[data-ribbon-sidebar-root]"), padding: 6 },
+    ],
+    focus: (page) => [page.locator("[data-ribbon-sidebar-root]")],
+    focusAlign: "start",
   },
 ];

@@ -118,6 +118,35 @@
       }
     },
     {
+      "id": "ribbon-sidebar",
+      "displayName": "Ribbon sidebar",
+      "description": "Organize threads by projects, sections, and provider-defined groupings in one sidebar.",
+      "icon": {
+        "url": "./plugins/bb-plugin-ribbon-sidebar/assets/icon.svg"
+      },
+      "tags": [
+        "sidebar",
+        "threads",
+        "projects",
+        "sections",
+        "productivity",
+        "cli"
+      ],
+      "author": {
+        "name": "Andres Riofrio",
+        "github": "ariofrio",
+        "url": "https://github.com/ariofrio"
+      },
+      "source": {
+        "git": {
+          "url": "https://github.com/ariofrio/ribbon.git",
+          "subdir": "plugins/bb-plugin-ribbon-sidebar",
+          "range": "*",
+          "tagPrefix": "ribbon-sidebar/"
+        }
+      }
+    },
+    {
       "id": "thread-stages",
       "displayName": "Thread stages",
       "description": "Group threads in the sidebar into stages from Deferred to Completed, updating as they run.",
