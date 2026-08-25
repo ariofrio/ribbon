@@ -1,5 +1,61 @@
 # bb-plugin-thread-stages
 
+## 0.8.0
+
+### Minor Changes
+
+- 28ca086: Prepare Thread stages for an ownership-safe Ribbon sidebar migration. Publish
+  the strict stage catalog and migration snapshot/acknowledgement RPCs, freeze a
+  versioned compatibility baseline, and persist installation, revision, retained
+  order, and ownership metadata. After acknowledgement, keep source placement
+  read-only while legacy UI, CLI, shortcuts, automation, undo, and retention use
+  Ribbon's authoritative placement or report and reconcile dependency failures.
+- 67b3d6b: Fall back to a thread's section icon on its sidebar row. The row still draws its
+  project's icon first, but a project nobody has picked an icon for now defers to
+  the section the thread is filed under, and falls back to the project's default
+  glyph only when neither was picked. A thread takes the nearest section walking up, its own included.
+
+### Patch Changes
+
+- 2ff5814: Seed the screenshots from one product in two repositories, filed under a section
+  of its own. The shots now picture a section icon, a section crumb, and a sidebar
+  focused on one product, none of which the previous fixture could show.
+- a25614c: Treat a running background command as active work when switching automatically
+  between Idle and Active. The thread returns to Idle only after its last
+  background command finishes and no foreground work remains.
+- b620fa2: Keep Deferred, Blocked, and Completed threads in their assigned stage when
+  their lifecycle status changes. Automatic lifecycle moves now apply only to
+  threads already in Idle or Active.
+- 67b3d6b: Resolve a thread's section the same way in every plugin: the nearest section
+  walking up, the thread's own included. Breadcrumbs took the root's section over
+  the thread's own, and Thread stages took the thread's own over any ancestor's,
+  so a chain filed at more than one level could show one section's name beside
+  another's icon.
+- 77f4e11: These plugins now use bb's documented APIs instead of private paths. Calls
+  into a neighbouring plugin, a plugin's own settings, and bb's keybinding table
+  go through `bb.sdk` rather than fetched routes.
+  
+  Stage chords ask bb to open the composer instead of arranging its stored state
+  and faking a keystroke. That needs Thread stages' own list mounted: with bb's
+  built-in list selected instead, emptying Idle still files the thread and opens
+  a composer, but on the project you last used rather than on none.
+- 3606c83: Move everything vendored from BB into each plugin's `src/vendor/`, so a reader
+  can tell BB's code from the plugin's own by its path.
+- 3606c83: Refresh every vendored BB component to the pinned registry release, so all
+  three plugins share one vintage of BB's menus, overlays, and icons instead of
+  two. Breadcrumbs and Icons were carrying components from an older release whose
+  pin had been bumped without a re-vendor, which left their overlays a rewrite
+  behind and their icon set six icons short.
+  
+  The four local edits those copies had accumulated are now composed rather than
+  patched in, so no plugin forks BB's UI kit: menus that should stay a dropdown
+  on a narrow window use BB's own compact-viewport override, destructive context
+  items take the classes BB's app gives them, and the thread filter draws its own
+  check and submenu chevron the way its actionable rows already did — which also
+  makes its two row types finally render the same selected state.
+- 3606c83: Fail the release check when a Tailwind arbitrary variant the source uses never
+  reaches the built stylesheet.
+
 ## 0.7.0
 
 ### Minor Changes
