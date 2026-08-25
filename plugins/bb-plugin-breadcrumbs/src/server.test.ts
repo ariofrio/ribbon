@@ -129,6 +129,10 @@ function createTrailHarness() {
     child: { id: "child", parentThreadId: "root", sourceThreadId: null, sectionId: null, projectId: "proj_a", title: "Trace the timer" },
     // bb gives a fork a source and no parent, so it sits at the sidebar root.
     forked: { id: "forked", parentThreadId: null, sourceThreadId: "root", sectionId: null, projectId: "proj_a", title: "A fork of the first" },
+    // bb lets a non-root thread carry a section of its own, so a chain can
+    // hold one at more than one level.
+    mid: { id: "mid", parentThreadId: "root", sourceThreadId: null, sectionId: "sec_b", projectId: "proj_a", title: "Filed apart" },
+    leaf: { id: "leaf", parentThreadId: "mid", sourceThreadId: null, sectionId: null, projectId: "proj_a", title: "Under the filed one" },
   };
   const host = createFakePluginHost({
     pluginId: "breadcrumbs",
@@ -137,7 +141,10 @@ function createTrailHarness() {
         get: vi.fn(async ({ threadId }: { threadId: string }) => threads[threadId] ?? null),
       },
       threadSections: {
-        list: vi.fn().mockResolvedValue([{ id: "sec_a", name: "Example", createdAt: 1, updatedAt: 1 }]),
+        list: vi.fn().mockResolvedValue([
+          { id: "sec_a", name: "Example", createdAt: 1, updatedAt: 1 },
+          { id: "sec_b", name: "Filed apart", createdAt: 1, updatedAt: 1 },
+        ]),
       },
       projects: {
         get: vi.fn().mockResolvedValue({ name: "bb-plugins", kind: "standard" }),
@@ -160,6 +167,26 @@ describe("the trail's ancestry", () => {
     expect(trail.ancestors).toEqual([{ id: "root", title: "Polish the sidebar" }]);
     // The section hangs off the root, which is why the walk runs first.
     expect(trail.section).toEqual({ id: "sec_a", name: "Example" });
+  });
+
+  it("takes the nearest section walking up, not the root's", async () => {
+    const harness = createTrailHarness();
+
+    const trail = (await harness.behavior.callRpc("trailForThread", {
+      threadId: "leaf",
+    })) as { section: { id: string; name: string } | null };
+
+    expect(trail.section).toEqual({ id: "sec_b", name: "Filed apart" });
+  });
+
+  it("takes a thread's own section over any ancestor's", async () => {
+    const harness = createTrailHarness();
+
+    const trail = (await harness.behavior.callRpc("trailForThread", {
+      threadId: "mid",
+    })) as { section: { id: string; name: string } | null };
+
+    expect(trail.section).toEqual({ id: "sec_b", name: "Filed apart" });
   });
 
   it("leaves a fork's source out, because bb shows that elsewhere", async () => {

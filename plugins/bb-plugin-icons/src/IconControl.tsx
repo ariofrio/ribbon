@@ -68,6 +68,12 @@ export function IconControl({
       ownerName={name}
       icon={drawn.name}
       defaultIcon={defaultIcon(owner)}
+      // A row holding the default glyph is still a choice, and still removable.
+      stored={
+        state?.icons.some(
+          (item) => item.kind === owner.kind && item.id === owner.id,
+        ) ?? false
+      }
       color={drawn.color}
       onPick={(next) => apply(owner, { icon: next })}
       onPickColor={(next) => apply(owner, { color: next })}

@@ -77,6 +77,49 @@ describe("project breadcrumb app registration", () => {
     slot.lifecycle.unmount();
   });
 
+  it("leaves an anchor before each crumb for the Icons plugin to fill", async () => {
+    document.body.innerHTML = `
+      <header>
+        <div><div><p>Thread title</p></div><span data-testid="thread-detail-header-actions-menu"></span></div>
+        <span id="slot-wrapper" role="group"></span>
+      </header>
+    `;
+    const app = await loadPluginApp(() => import("./app"));
+    const action = app.threadHeaderActions[0]!;
+    const wrapper = document.querySelector("#slot-wrapper")!;
+    const slot = renderSlot(
+      action,
+      { threadId: "thread-1", projectId: "project-1", isCompactViewport: false },
+      {
+        rpc: {
+          trailForThread: () => ({
+            section: { id: "sec_1", name: "Example" },
+            project: { id: "project-1", name: "Example project", isPersonal: false },
+            ancestors: [],
+          }),
+        },
+        sidebarThreads: { projects: [], threads: [] },
+      },
+    );
+    wrapper.append(slot.container);
+    await slot.findByRole("button", { name: "Example project actions" });
+
+    // The neighbour finds its place by these attributes alone, so the pair of
+    // them — kind and owner, one per crumb, in crumb order — is the contract.
+    const anchors = Array.from(
+      document.querySelectorAll("[data-breadcrumb-icon-anchor]"),
+    ).map((node) => [
+      node.getAttribute("data-breadcrumb-icon-anchor"),
+      node.getAttribute("data-breadcrumb-icon-owner"),
+    ]);
+
+    expect(anchors).toEqual([
+      ["section", "sec_1"],
+      ["project", "project-1"],
+    ]);
+    slot.lifecycle.unmount();
+  });
+
   it("draws nothing for a personal-project thread with no section or parent", async () => {
     document.body.innerHTML = `
       <header>
