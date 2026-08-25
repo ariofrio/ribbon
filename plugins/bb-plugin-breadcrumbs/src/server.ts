@@ -25,6 +25,13 @@ export const CRUMBS = {
       "Put the thread's parent and every ancestor above it before its title.",
     default: false,
   },
+  showComposerBreadcrumbs: {
+    type: "boolean",
+    label: "Show composer breadcrumbs",
+    description:
+      "Put section and project selectors in the New thread header and hide the repeated project below thread composers.",
+    default: true,
+  },
 } as const;
 
 export const rpcContract = defineRpcContract({
@@ -94,6 +101,7 @@ export const rpcContract = defineRpcContract({
         showSection: z.boolean(),
         showProject: z.boolean(),
         showAncestors: z.boolean(),
+        showComposerBreadcrumbs: z.boolean(),
       })
       .strict(),
   },
@@ -205,8 +213,18 @@ export default function plugin(bb: BbPluginApi) {
       return { ok: true as const };
     },
     async listCrumbs() {
-      const { showSection, showProject, showAncestors } = await settings.get();
-      return { showSection, showProject, showAncestors };
+      const {
+        showSection,
+        showProject,
+        showAncestors,
+        showComposerBreadcrumbs,
+      } = await settings.get();
+      return {
+        showSection,
+        showProject,
+        showAncestors,
+        showComposerBreadcrumbs,
+      };
     },
   });
 }
