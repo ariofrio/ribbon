@@ -13,7 +13,7 @@ import {
   type ThreadFilter as ThreadFilterValue,
 } from "../thread-filter";
 import { cn } from "@/vendor/lib/utils";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 import { ThreadFilterOptionsMenu } from "./SidebarOptionsMenu";
 import { CompactViewportOverrideProvider } from "@/vendor/components/ui/hooks/use-compact-viewport";
 import {
@@ -64,6 +64,7 @@ interface ThreadFilterProps {
   onRenameSection?: (section: ThreadFilterSection) => void;
   projectActionStates?: ReadonlyMap<string, { canAddLocalPath: boolean }>;
   projectIcons?: ReadonlyMap<string, ProjectIconView>;
+  sectionIcons?: ReadonlyMap<string, ProjectIconView>;
   projects: readonly ThreadFilterProject[];
   sections: readonly ThreadFilterSection[];
   value: ThreadFilterValue;
@@ -112,6 +113,7 @@ export function ThreadFilter({
   onRenameSection = () => {},
   projectActionStates = new Map(),
   projectIcons = new Map(),
+  sectionIcons = new Map(),
   projects,
   sections,
   value,
@@ -175,7 +177,10 @@ export function ThreadFilter({
                 personal={activeProject.isPersonal}
               />
             ) : activeSection ? (
-              <Icon name="ListView" className="size-4 shrink-0" aria-hidden />
+              <ProjectFilterIcon
+                icon={sectionIcons.get(activeSection.id)}
+                fallback="ListView"
+              />
             ) : activeUncategorized ? (
               <Icon
                 name="ListViewOff"
@@ -191,7 +196,13 @@ export function ThreadFilter({
             )}
             <span
               data-thread-filter-label-cluster=""
-              className="flex min-w-0 items-center gap-1"
+              // 10px, which is what a stage header leaves between its own
+              // label and its chevron: 4px of gap plus the 6px of slack a
+              // 12px glyph has inside its 24px button. This indicator is the
+              // same shape of thing one column over — a small glyph trailing
+              // a name — and its own box has no slack, so the gap carries it
+              // all.
+              className="flex min-w-0 items-center gap-2.5"
             >
               <span data-thread-filter-label="" className="truncate">
                 {activeLabel ?? scopeLabel}
@@ -314,10 +325,9 @@ export function ThreadFilter({
                     setOpen(false);
                   }}
                 >
-                  <Icon
-                    name="ListView"
-                    className="size-4 shrink-0"
-                    aria-hidden
+                  <ProjectFilterIcon
+                    icon={sectionIcons.get(section.id)}
+                    fallback="ListView"
                   />
                   <SectionActions
                     onRemove={() => onRemoveSection(section)}
@@ -605,14 +615,17 @@ function FilterActionItem({
 function ProjectFilterIcon({
   icon,
   personal = false,
+  fallback,
 }: {
   icon?: ProjectIconView;
   personal?: boolean;
+  /** Drawn where the owner has no icon of its own. */
+  fallback?: IconName;
 }) {
   if (!icon) {
     return (
       <Icon
-        name={personal ? "BubbleChat" : "Folder"}
+        name={fallback ?? (personal ? "BubbleChat" : "Folder")}
         className="size-4 shrink-0"
         aria-hidden
       />
