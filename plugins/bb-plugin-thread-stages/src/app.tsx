@@ -66,10 +66,10 @@ import {
 import { shouldSyncThreads } from "./workflow-sync";
 import {
   partitionWorkflowThreads,
-  rootThreadIdByThreadId,
   withThreadAncestors,
 } from "./root-thread-ownership";
 import { rowIcon } from "./row-icon";
+import { nearestSectionId } from "./section-of";
 import {
   currentThreadId,
   workflowReorderShortcut,
@@ -849,27 +849,9 @@ function WorkflowStageList({
   const [chosenProjectIcons, setChosenProjectIcons] = useState<
     ReadonlyMap<string, ProjectIconView>
   >(new Map());
-  const threadsById = useMemo(
-    () => new Map(sidebar.threads.map((thread) => [thread.id, thread] as const)),
-    [sidebar.threads],
-  );
-  const rootIdByThreadId = useMemo(
-    () => rootThreadIdByThreadId(sidebar.threads),
-    [sidebar.threads],
-  );
-  /**
-   * A thread's section, which bb keeps on its root thread — a child carries
-   * null and shows what its root is filed under, the same rule the Breadcrumbs
-   * plugin follows for the section crumb.
-   */
   const sectionOf = useCallback(
-    (thread: { id: string; sectionId: string | null }) => {
-      if (thread.sectionId !== null) return thread.sectionId;
-      const rootId = rootIdByThreadId.get(thread.id) ?? null;
-      if (rootId === null || rootId === thread.id) return null;
-      return threadsById.get(rootId)?.sectionId ?? null;
-    },
-    [rootIdByThreadId, threadsById],
+    (thread: { id: string }) => nearestSectionId(thread.id, sidebar.threads),
+    [sidebar.threads],
   );
   const [projectActionStates, setProjectActionStates] = useState<
     ReadonlyMap<string, { canAddLocalPath: boolean }>

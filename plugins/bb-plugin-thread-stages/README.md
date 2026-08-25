@@ -18,8 +18,8 @@ Each row shows its project's icon, or its section's where that project has none
 of its own, when the [Icons](../bb-plugin-icons#readme) plugin is installed, so a
 stage-grouped list still tells you what a thread belongs to. An owner carries an
 icon only once someone picks one, so a row falls through project, then section,
-then the project's default glyph, and a child thread follows the section its root
-is filed under. Without that plugin the rows look as they always have. Message previews remain visible by
+then the project's default glyph, and a thread takes the nearest section walking
+up, its own included. Without that plugin the rows look as they always have. Message previews remain visible by
 default and can be hidden in the plugin's settings for a denser list.
 
 Use **Projects** (or **Projects and sections** when sections exist) above the

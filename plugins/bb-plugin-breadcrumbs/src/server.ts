@@ -144,12 +144,24 @@ export default function plugin(bb: BbPluginApi) {
       const self = await read(threadId);
       const ancestors: Array<{ id: string; title: string }> = [];
       let current = self;
+      /**
+       * The nearest section walking up, the thread's own included.
+       *
+       * bb keeps a section on a root thread and leaves a child's null, so
+       * this is usually the root's. It does not require that: a thread filed
+       * somewhere of its own answers for itself, and for anything under it.
+       */
+      let nearestSectionId =
+        typeof self?.sectionId === "string" ? self.sectionId : null;
       while (current !== null && typeof current.parentThreadId === "string") {
         const id: string = current.parentThreadId;
         if (seen.has(id)) break;
         seen.add(id);
         current = await read(id);
         if (current === null) break;
+        if (nearestSectionId === null && typeof current.sectionId === "string") {
+          nearestSectionId = current.sectionId;
+        }
         const named = current.title ?? current.titleFallback ?? "";
         ancestors.unshift({
           id,
@@ -157,8 +169,7 @@ export default function plugin(bb: BbPluginApi) {
         });
       }
 
-      // Sections attach to root threads; a child inherits its root's.
-      const rootSectionId = current?.sectionId ?? self?.sectionId ?? null;
+      const rootSectionId = nearestSectionId;
       const sections =
         rootSectionId === null
           ? []

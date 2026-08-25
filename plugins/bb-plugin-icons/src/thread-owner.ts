@@ -18,8 +18,8 @@ export interface ThreadPlacement {
  * project nobody has picked for defers to the section. With neither picked the
  * project answers anyway and draws its default glyph.
  *
- * The sidebar row applies the same precedence. It resolves the thread's
- * section separately, so the two can still name different sections.
+ * The sidebar row applies the same precedence, over the same section: all
+ * three plugins take the nearest section walking up.
  */
 export function threadIconOwner(
   { sectionId, projectId }: ThreadPlacement,
