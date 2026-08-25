@@ -45,11 +45,11 @@ describe("ThreadFilter", () => {
 
     const indicator = screen.getByLabelText("Threads are filtered");
     const options = screen.getByRole("button", {
-      name: "Projects and sections options",
+      name: "Sections and projects options",
     });
     const actionsContainer = screen.getByTestId("thread-filter-actions");
     const trigger = screen.getByRole("button", {
-      name: "Projects and sections: Alpha",
+      name: "Sections and projects: Alpha",
     });
     const label = within(trigger).getByText("Alpha");
     expect(indicator.parentElement?.parentElement).toBe(trigger);
@@ -95,7 +95,7 @@ describe("ThreadFilter", () => {
     );
 
     const trigger = screen.getByRole("button", {
-      name: "Projects and sections",
+      name: "Sections and projects",
     });
     expect(trigger.querySelector('[data-icon="FolderLibrary"]')).not.toBeNull();
     expect(
@@ -108,6 +108,15 @@ describe("ThreadFilter", () => {
         .getByRole("button", { name: "New section" })
         .querySelector('[data-icon="SectionAdd"]'),
     ).not.toBeNull();
+    expect(
+      within(screen.getByTestId("thread-filter-actions"))
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
+    ).toEqual([
+      "New section",
+      "New project",
+      "Sections and projects options",
+    ]);
 
     fireEvent.keyDown(trigger, { key: "Enter" });
 
@@ -115,8 +124,13 @@ describe("ThreadFilter", () => {
     expect(menu.className).toContain(
       "min-w-[var(--radix-dropdown-menu-trigger-width)]",
     );
-    expect(within(menu).getByText("Projects")).toBeDefined();
     expect(within(menu).getByText("Sections")).toBeDefined();
+    expect(within(menu).getByText("Projects")).toBeDefined();
+    expect(
+      within(menu)
+        .getAllByText(/^(Sections|Projects)$/)
+        .map((heading) => heading.textContent),
+    ).toEqual(["Sections", "Projects"]);
     expect(within(menu).getAllByRole("separator")).toHaveLength(2);
     const projectsGroup = within(menu).getByRole("group", {
       name: "Projects",
@@ -124,10 +138,10 @@ describe("ThreadFilter", () => {
     const sectionsGroup = within(menu).getByRole("group", {
       name: "Sections",
     });
-    expect(projectsGroup.textContent).toBe("ProjectsAlphaThreadsNew project");
     expect(sectionsGroup.textContent).toBe(
       "SectionsWaitingUnorganizedNew section",
     );
+    expect(projectsGroup.textContent).toBe("ProjectsAlphaThreadsNew project");
     expect(
       within(projectsGroup).getByRole("menuitem", { name: "New project" }),
     ).toBeDefined();
@@ -139,15 +153,15 @@ describe("ThreadFilter", () => {
         .getAllByRole("menuitemradio")
         .map((item) => item.textContent),
     ).toEqual([
-      "All projects and sections",
-      "Alpha",
-      "Threads",
+      "All sections and projects",
       "Waiting",
       "Unorganized",
+      "Alpha",
+      "Threads",
     ]);
     expect(
       within(menu)
-        .getByRole("menuitemradio", { name: "All projects and sections" })
+        .getByRole("menuitemradio", { name: "All sections and projects" })
         .querySelector('[data-icon="FolderLibrary"]'),
     ).not.toBeNull();
     expect(
@@ -162,7 +176,7 @@ describe("ThreadFilter", () => {
     ).not.toBeNull();
   });
 
-  it("keeps project and section filtering available on compact viewports", () => {
+  it("keeps section and project filtering available on compact viewports", () => {
     render(
       <CompactViewportOverrideProvider isCompactViewport>
         <ThreadFilter
@@ -177,13 +191,13 @@ describe("ThreadFilter", () => {
     );
 
     fireEvent.keyDown(
-      screen.getByRole("button", { name: "Projects and sections" }),
+      screen.getByRole("button", { name: "Sections and projects" }),
       { key: "Enter" },
     );
 
     expect(
       screen.getByRole("menuitemradio", {
-        name: "All projects and sections",
+        name: "All sections and projects",
       }),
     ).toBeDefined();
     expect(screen.getByRole("menuitemradio", { name: "Alpha" })).toBeDefined();
@@ -192,7 +206,7 @@ describe("ThreadFilter", () => {
     ).toBeDefined();
   });
 
-  it("shows the selected project or section icon in the trigger", () => {
+  it("shows the selected section or project icon in the trigger", () => {
     const sharedProps = {
       projects,
       sections,
@@ -216,7 +230,7 @@ describe("ThreadFilter", () => {
     );
 
     let trigger = screen.getByRole("button", {
-      name: "Projects and sections: Alpha",
+      name: "Sections and projects: Alpha",
     });
     expect(trigger.querySelector('path[d="M1"]')).not.toBeNull();
     expect(trigger.querySelector("svg")?.style.color).toBe("rgb(1, 2, 3)");
@@ -228,7 +242,7 @@ describe("ThreadFilter", () => {
       />,
     );
     trigger = screen.getByRole("button", {
-      name: "Projects and sections: Alpha",
+      name: "Sections and projects: Alpha",
     });
     expect(trigger.querySelector('[data-icon="Folder"]')).not.toBeNull();
 
@@ -239,7 +253,7 @@ describe("ThreadFilter", () => {
       />,
     );
     trigger = screen.getByRole("button", {
-      name: "Projects and sections: Threads",
+      name: "Sections and projects: Threads",
     });
     expect(trigger.querySelector('[data-icon="BubbleChat"]')).not.toBeNull();
 
@@ -250,7 +264,7 @@ describe("ThreadFilter", () => {
       />,
     );
     trigger = screen.getByRole("button", {
-      name: "Projects and sections: Waiting",
+      name: "Sections and projects: Waiting",
     });
     expect(trigger.querySelector('[data-icon="ListView"]')).not.toBeNull();
 
@@ -258,12 +272,12 @@ describe("ThreadFilter", () => {
       <ThreadFilter {...sharedProps} value={{ kind: "uncategorized" }} />,
     );
     trigger = screen.getByRole("button", {
-      name: "Projects and sections: Unorganized",
+      name: "Sections and projects: Unorganized",
     });
     expect(trigger.querySelector('[data-icon="ListViewOff"]')).not.toBeNull();
   });
 
-  it("reports project, section, uncategorized, and clear selections", () => {
+  it("reports section, project, uncategorized, and clear selections", () => {
     const onChange = vi.fn();
     render(
       <ThreadFilter
@@ -277,7 +291,7 @@ describe("ThreadFilter", () => {
     );
 
     const trigger = screen.getByRole("button", {
-      name: "Projects and sections: Alpha",
+      name: "Sections and projects: Alpha",
     });
     fireEvent.keyDown(trigger, { key: "Enter" });
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Waiting" }), {
@@ -293,7 +307,7 @@ describe("ThreadFilter", () => {
     fireEvent.keyDown(trigger, { key: "Enter" });
     fireEvent.click(
       screen.getByRole("menuitemradio", {
-        name: "All projects and sections",
+        name: "All sections and projects",
       }),
     );
 
@@ -317,7 +331,7 @@ describe("ThreadFilter", () => {
     );
 
     fireEvent.keyDown(
-      screen.getByRole("button", { name: "Projects and sections" }),
+      screen.getByRole("button", { name: "Sections and projects" }),
       { key: "Enter" },
     );
     expect(screen.getByText("Projects")).toBeDefined();
@@ -336,13 +350,13 @@ describe("ThreadFilter", () => {
       <ThreadFilter {...sharedProps} projects={projects} sections={[]} />,
     );
     fireEvent.keyDown(
-      screen.getByRole("button", { name: "Projects and sections" }),
+      screen.getByRole("button", { name: "Sections and projects" }),
       { key: "Enter" },
     );
     const projectsOnlyMenu = screen.getByRole("menu");
     expect(
       within(projectsOnlyMenu).getByRole("menuitemradio", {
-        name: "All projects and sections",
+        name: "All sections and projects",
       }),
     ).toBeDefined();
     expect(within(projectsOnlyMenu).getByText("Projects")).toBeDefined();
@@ -372,7 +386,7 @@ describe("ThreadFilter", () => {
       />,
     );
     expect(
-      screen.getByRole("button", { name: "Projects and sections: Alpha" }),
+      screen.getByRole("button", { name: "Sections and projects: Alpha" }),
     ).toBeDefined();
   });
 
@@ -414,7 +428,7 @@ describe("ThreadFilter", () => {
     );
 
     const trigger = screen.getByRole("button", {
-      name: "Projects and sections",
+      name: "Sections and projects",
     });
     fireEvent.keyDown(trigger, { key: "Enter" });
     fireEvent.click(
@@ -453,7 +467,7 @@ describe("ThreadFilter", () => {
     expect(creationActions?.getAttribute("data-state")).toBe("closed");
 
     fireEvent.keyDown(
-      screen.getByRole("button", { name: "Projects and sections" }),
+      screen.getByRole("button", { name: "Sections and projects" }),
       { key: "Enter" },
     );
 
@@ -500,7 +514,7 @@ describe("ThreadFilter", () => {
     );
 
     fireEvent.keyDown(
-      screen.getByRole("button", { name: "Projects and sections" }),
+      screen.getByRole("button", { name: "Sections and projects" }),
       { key: "Enter" },
     );
     expect(
@@ -526,7 +540,7 @@ describe("ThreadFilter", () => {
     );
 
     fireEvent.keyDown(
-      screen.getByRole("button", { name: "Projects and sections" }),
+      screen.getByRole("button", { name: "Sections and projects" }),
       { key: "Enter" },
     );
     const alpha = screen.getByRole("menuitemradio", { name: "Alpha" });
@@ -550,7 +564,7 @@ describe("ThreadFilter", () => {
     expect(onChange).not.toHaveBeenCalled();
 
     fireEvent.keyDown(
-      screen.getByRole("button", { name: "Projects and sections" }),
+      screen.getByRole("button", { name: "Sections and projects" }),
       { key: "Enter" },
     );
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Alpha" }), {
@@ -577,7 +591,7 @@ describe("ThreadFilter", () => {
         />,
       );
       fireEvent.keyDown(
-        screen.getByRole("button", { name: "Projects and sections" }),
+        screen.getByRole("button", { name: "Sections and projects" }),
         { key: "Enter" },
       );
       fireEvent.pointerMove(
@@ -608,7 +622,7 @@ describe("ThreadFilter", () => {
     );
 
     fireEvent.keyDown(
-      screen.getByRole("button", { name: "Projects and sections" }),
+      screen.getByRole("button", { name: "Sections and projects" }),
       { key: "Enter" },
     );
     const alpha = screen.getByRole("menuitemradio", { name: "Alpha" });
@@ -700,7 +714,7 @@ describe("ThreadFilter", () => {
     );
 
     fireEvent.keyDown(
-      screen.getByRole("button", { name: "Projects and sections" }),
+      screen.getByRole("button", { name: "Sections and projects" }),
       { key: "Enter" },
     );
     const alpha = screen.getByRole("menuitemradio", { name: "Alpha" });
@@ -732,7 +746,7 @@ describe("ThreadFilter", () => {
     );
 
     fireEvent.keyDown(
-      screen.getByRole("button", { name: "Projects and sections" }),
+      screen.getByRole("button", { name: "Sections and projects" }),
       { key: "Enter" },
     );
     expect(

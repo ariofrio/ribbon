@@ -34,7 +34,7 @@ describe("filter entity dialogs", () => {
     );
   });
 
-  it("uses BB's exact project and section removal consequences", () => {
+  it("uses BB's exact section and project removal consequences", () => {
     const onRemove = vi.fn(async () => {});
     const { rerender } = render(
       <FilterEntityRemoveDialog

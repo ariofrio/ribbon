@@ -97,19 +97,19 @@ describe("icon store", () => {
     old.close();
   });
 
-  it("defaults projects to a folder, the personal project to a chat bubble, and sections to bb's own mark", () => {
+  it("defaults sections to bb's own mark, projects to a folder, and the personal project to a chat bubble", () => {
+    expect(defaultIcon({ kind: "section", id: "sec_a" })).toBe("section");
     expect(defaultIcon({ kind: "project", id: "proj_6dp2k86nnw" })).toBe(
       "folder-01",
     );
     expect(defaultIcon({ kind: "project", id: "proj_personal" })).toBe(
       "bubble-chat",
     );
-    expect(defaultIcon({ kind: "section", id: "sec_a" })).toBe("section");
   });
 
-  it("leaves the personal project's icon fixed and every section editable", () => {
+  it("leaves every section editable and the personal project's icon fixed", () => {
+    expect(isEditable({ kind: "section", id: "proj_personal" })).toBe(true);
     expect(isEditable({ kind: "project", id: "proj_6dp2k86nnw" })).toBe(true);
     expect(isEditable({ kind: "project", id: "proj_personal" })).toBe(false);
-    expect(isEditable({ kind: "section", id: "proj_personal" })).toBe(true);
   });
 });

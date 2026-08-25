@@ -1,5 +1,49 @@
 # bb-plugin-project-breadcrumbs
 
+## 0.6.0
+
+### Minor Changes
+
+- 67b3d6b: Show a section's icon in the thread header, beside the crumb it belongs to.
+  Breadcrumbs leaves an empty marked span before each crumb and Icons fills it,
+  since bb's SDK gives one plugin no way to render another's component. Either
+  plugin without the other is unchanged.
+  
+  With no crumbs to sit beside, the header keeps one icon and chooses its owner
+  the way a sidebar row does: the project's, or the section's where that project
+  has no icon of its own.
+  
+  The picker no longer offers the glyphs bb draws by default for a project and for
+  the personal project. A row holding one of those looked like no choice at all
+  and still outranked the section's icon.
+
+### Patch Changes
+
+- 2ff5814: Seed the screenshots from one product in two repositories, filed under a section
+  of its own. The shots now picture a section icon, a section crumb, and a sidebar
+  focused on one product, none of which the previous fixture could show.
+- 67b3d6b: Resolve a thread's section the same way in every plugin: the nearest section
+  walking up, the thread's own included. Breadcrumbs took the root's section over
+  the thread's own, and Thread stages took the thread's own over any ancestor's,
+  so a chain filed at more than one level could show one section's name beside
+  another's icon.
+- 3606c83: Move everything vendored from BB into each plugin's `src/vendor/`, so a reader
+  can tell BB's code from the plugin's own by its path.
+- 3606c83: Refresh every vendored BB component to the pinned registry release, so all
+  three plugins share one vintage of BB's menus, overlays, and icons instead of
+  two. Breadcrumbs and Icons were carrying components from an older release whose
+  pin had been bumped without a re-vendor, which left their overlays a rewrite
+  behind and their icon set six icons short.
+  
+  The four local edits those copies had accumulated are now composed rather than
+  patched in, so no plugin forks BB's UI kit: menus that should stay a dropdown
+  on a narrow window use BB's own compact-viewport override, destructive context
+  items take the classes BB's app gives them, and the thread filter draws its own
+  check and submenu chevron the way its actionable rows already did — which also
+  makes its two row types finally render the same selected state.
+- 3606c83: Fail the release check when a Tailwind arbitrary variant the source uses never
+  reaches the built stylesheet.
+
 ## 0.5.1
 
 ### Patch Changes

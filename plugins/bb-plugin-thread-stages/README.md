@@ -14,18 +14,16 @@ Child threads do not have stages or positions of their own. They
 always render beneath their parent, inherit the root parent's stage, and move
 with that parent. Their thread actions therefore omit stage controls.
 
-Each row shows its project's icon, or its section's where that project has none
-of its own, when the [Icons](../bb-plugin-icons#readme) plugin is installed, so a
-stage-grouped list still tells you what a thread belongs to. An owner carries an
-icon only once someone picks one, so a row nobody has touched falls through to
-the project's default glyph. A thread takes the nearest section walking up, its
-own included. Without that plugin the rows look as they always have. Message previews remain visible by
+Each row shows its project's icon when the
+[Icons](../bb-plugin-icons#readme) plugin is installed, so a stage-grouped list
+still tells you what a thread belongs to. Without that plugin the rows look as
+they always have. Message previews remain visible by
 default and can be hidden in the plugin's settings for a denser list.
 
-Use **Projects** (or **Projects and sections** when sections exist) above the
-stages to focus the whole sidebar—including pinned and search results—on one
-project or one native thread section. Its menu retains the **All projects** or
-**All projects and sections** choice for clearing the filter. The control shows
+Use **Sections and projects** above the stages to focus the whole
+sidebar—including pinned and search results—on one project or one native thread
+section. Its menu retains the **All sections and projects** choice for clearing
+the filter. The control shows
 the selected project's Icons glyph, a folder when that plugin is absent, the
 chat glyph for the personal **Threads** project, or the section glyph for a
 selected section. A filter indicator appears beside the selected label. The
@@ -70,6 +68,29 @@ Update an installed copy with:
 ```sh
 bb plugin update thread-stages
 ```
+
+## Ribbon sidebar migration
+
+Thread stages is also the provider and compatibility source for the
+`plugin:thread-stages:stages` grouping. It exposes the versioned
+`getGroupingCatalogV1`, `getPlacementMigrationSnapshotV1`, and
+`acknowledgePlacementMigrationV1` RPCs so Ribbon sidebar can import placement
+without reaching into this plugin's database.
+
+Installing Ribbon sidebar does not transfer anything by itself. Thread stages
+continues to own its sidebar, CLI, ordering, automation, undo, and retention
+behavior until Ribbon acknowledges the same installation ID and placement
+revision it imported. That acknowledgement atomically makes the legacy
+placement tables read-only. From then on, stage actions, shortcuts, the legacy
+CLI, and lifecycle automation forward to Ribbon; retention and undo read
+Ribbon's authoritative placement. A failed dependency call reports a Ribbon
+sidebar dependency problem and schedules reconciliation without resuming writes
+to the frozen source. The legacy slot shows recovery guidance and bb's original
+thread list after the handoff.
+
+Deferred and Blocked visibility remains provider-owned, along with stage
+automation and Completed retention. Provider setting changes invalidate
+Ribbon's cached catalog.
 
 ## Keyboard shortcuts
 
