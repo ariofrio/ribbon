@@ -1,4 +1,4 @@
-import { FEATURED_THREAD, SIDE_CHAT_QUESTION } from "./fixture.mjs";
+import { AGENT, FEATURED_THREAD, SIDE_CHAT_QUESTION } from "./fixture.mjs";
 import { settleAnimations } from "./settle.mjs";
 
 // What each plugin's screenshot pictures. Every shot starts from the same
@@ -26,6 +26,20 @@ function sideChatPanel(page) {
   return page
     .locator("aside")
     .filter({ has: page.getByRole("textbox", { name: "Reply…" }) });
+}
+
+/**
+ * The main composer's model label is fixture chrome outside the shortcut this
+ * shot demonstrates. Its variable-font edge pixels can differ between two
+ * otherwise identical container captures, so leave its layout in place while
+ * keeping those unrelated glyphs out of this full-window image.
+ */
+async function hideFixtureModelLabel(page) {
+  await page.locator("span").evaluateAll((spans, modelName) => {
+    for (const span of spans) {
+      if (span.textContent === modelName) span.style.visibility = "hidden";
+    }
+  }, AGENT.modelName);
 }
 
 /**
@@ -228,6 +242,7 @@ export const SHOTS = [
       await page.keyboard.press("Enter");
       await page.getByText("Eighteen dashboard tests cover them.").waitFor();
       await settleAnimations(page);
+      await hideFixtureModelLabel(page);
     },
     highlights: (page) => [
       {
