@@ -206,6 +206,42 @@ describe("ThreadFilter", () => {
     ).toBeDefined();
   });
 
+  it("lists a section in the menu under its own icon", () => {
+    render(
+      <ThreadFilter
+        projects={projects}
+        sections={sections}
+        value={null}
+        onChange={() => {}}
+        onNewProject={() => {}}
+        onNewSection={() => {}}
+        sectionIcons={
+          new Map([
+            [
+              "section_waiting",
+              { name: "rocket", glyph: rocket, color: "rgb(4, 5, 6)" },
+            ],
+          ])
+        }
+      />,
+    );
+
+    const trigger = screen.getByRole("button", {
+      name: "Sections and projects",
+    });
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const sectionsGroup = within(screen.getByRole("menu")).getByRole("group", {
+      name: "Sections",
+    });
+
+    // The section's own icon, drawn the way the trigger draws it.
+    expect(sectionsGroup.querySelector('path[d="M1"]')).not.toBeNull();
+    // Unorganized is not a section and keeps the generic glyph.
+    expect(
+      sectionsGroup.querySelector('[data-icon="ListViewOff"]'),
+    ).not.toBeNull();
+  });
+
   it("shows the selected section or project icon in the trigger", () => {
     const sharedProps = {
       projects,
@@ -256,6 +292,28 @@ describe("ThreadFilter", () => {
       name: "Sections and projects: Threads",
     });
     expect(trigger.querySelector('[data-icon="BubbleChat"]')).not.toBeNull();
+
+    rerender(
+      <ThreadFilter
+        {...sharedProps}
+        sectionIcons={
+          new Map([
+            [
+              "section_waiting",
+              { name: "rocket", glyph: rocket, color: "rgb(4, 5, 6)" },
+            ],
+          ])
+        }
+        value={{ kind: "section", id: "section_waiting" }}
+      />,
+    );
+    trigger = screen.getByRole("button", {
+      name: "Sections and projects: Waiting",
+    });
+    // A section carries an icon the same way a project does, so the filter
+    // names the section it is on rather than sections in general.
+    expect(trigger.querySelector('path[d="M1"]')).not.toBeNull();
+    expect(trigger.querySelector("svg")?.style.color).toBe("rgb(4, 5, 6)");
 
     rerender(
       <ThreadFilter

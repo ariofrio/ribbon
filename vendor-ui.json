@@ -13,7 +13,8 @@
       "drawer",
       "icon",
       "input",
-      "popover"
+      "popover",
+      "tooltip"
     ],
     "plugins/bb-plugin-thread-stages": [
       "context-menu",

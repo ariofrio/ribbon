@@ -6,6 +6,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +16,24 @@ import { iconColor } from "./icon-colors";
 const catalog = [
   {
     name: "sparkles",
+    category: "ai",
+    tags: [],
+    glyph: CircleIcon,
+  },
+  {
+    name: "ai-search",
+    category: "ai",
+    tags: [],
+    glyph: CircleIcon,
+  },
+  {
+    name: "ai-search-01",
+    category: "ai",
+    tags: [],
+    glyph: CircleIcon,
+  },
+  {
+    name: "ai-search-02",
     category: "ai",
     tags: [],
     glyph: CircleIcon,
@@ -70,6 +89,57 @@ beforeEach(() => {
 });
 
 describe("IconPicker", () => {
+  it("shows distinct bb tooltips from pointer hover and keyboard focus", async () => {
+    render(
+      <IconPicker
+        catalog={catalog}
+        loading={false}
+        open
+        onOpenChange={vi.fn()}
+        ownerName="Example project"
+        stored
+        icon="ai-search"
+        defaultIcon="folder"
+        color={null}
+        onPick={vi.fn()}
+        onPickColor={vi.fn()}
+        onReset={vi.fn()}
+        trigger={<button type="button">Change icon</button>}
+      />,
+    );
+
+    const base = screen.getByRole("button", { name: "ai search" });
+    const firstVariant = screen.getByRole("button", {
+      name: "ai search 01",
+    });
+    const secondVariant = screen.getByRole("button", {
+      name: "ai search 02",
+    });
+    expect(base.getAttribute("title")).toBeNull();
+    expect(firstVariant.getAttribute("title")).toBeNull();
+    expect(secondVariant.getAttribute("title")).toBeNull();
+
+    fireEvent.pointerMove(firstVariant, { pointerType: "mouse" });
+    const pointerTooltip = await screen.findByRole(
+      "tooltip",
+      {},
+      { timeout: 1_500 },
+    );
+    expect(pointerTooltip.textContent).toBe("ai search 01");
+    expect(getComputedStyle(pointerTooltip).display).not.toBe("none");
+    expect(getComputedStyle(pointerTooltip).visibility).not.toBe("hidden");
+
+    fireEvent.pointerLeave(firstVariant);
+    await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
+
+    secondVariant.focus();
+    expect(document.activeElement).toBe(secondVariant);
+    const focusTooltip = await screen.findByRole("tooltip");
+    expect(focusTooltip.textContent).toBe("ai search 02");
+    expect(getComputedStyle(focusTooltip).display).not.toBe("none");
+    expect(getComputedStyle(focusTooltip).visibility).not.toBe("hidden");
+  });
+
   it("offers Remove for a stored icon even when it is the owner's default", () => {
     // Reachable before this glyph left the catalog: the row exists, outranks
     // the section's icon everywhere, and inferring "nothing chosen" from the
@@ -364,6 +434,114 @@ describe("IconPicker", () => {
     );
     expect(gridStyle.columnGap).toBe("4px");
     expect(gridStyle.rowGap).toBe("4px");
+  });
+
+  it("windows compact rows using the columns that actually fit", async () => {
+    mockMatchMedia(true);
+    const resizeObservers: Array<{
+      callback: ResizeObserverCallback;
+      targets: Element[];
+    }> = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        private readonly observer: (typeof resizeObservers)[number];
+
+        constructor(callback: ResizeObserverCallback) {
+          this.observer = { callback, targets: [] };
+          resizeObservers.push(this.observer);
+        }
+
+        observe(target: Element) {
+          this.observer.targets.push(target);
+        }
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    const compactCatalog = Array.from({ length: 200 }, (_, index) => ({
+      name: `compact-${index}`,
+      category: "shapes",
+      tags: [],
+      glyph: CircleIcon,
+    }));
+    const onPick = vi.fn();
+    render(
+      <IconPicker
+        catalog={compactCatalog}
+        loading={false}
+        open
+        onOpenChange={vi.fn()}
+        ownerName="Example project"
+        stored
+        icon="circle"
+        defaultIcon="folder"
+        color={null}
+        onPick={onPick}
+        onPickColor={vi.fn()}
+        onReset={vi.fn()}
+        trigger={<button type="button">Change icon</button>}
+      />,
+    );
+
+    const catalogRegion = await screen.findByRole("region", {
+      name: "Icon catalog",
+    });
+    const catalogContent = catalogRegion.firstElementChild as HTMLElement;
+    const shapesSection = screen.getByRole("region", { name: "Shapes" });
+    const grid = shapesSection.querySelector<HTMLElement>("h3 + div");
+    expect(grid).not.toBeNull();
+    Object.defineProperties(catalogRegion, {
+      clientHeight: { configurable: true, value: 64 },
+      scrollTop: { configurable: true, value: 0, writable: true },
+    });
+    Object.defineProperty(catalogContent, "clientWidth", {
+      configurable: true,
+      value: 124,
+    });
+    Object.defineProperty(grid!, "offsetTop", {
+      configurable: true,
+      value: 0,
+    });
+
+    act(() => {
+      const catalogObserver = resizeObservers.find(({ targets }) =>
+        targets.includes(catalogRegion),
+      );
+      if (catalogObserver === undefined) {
+        throw new Error("Catalog was not observed");
+      }
+      catalogObserver.callback(
+        [{ target: catalogRegion } as unknown as ResizeObserverEntry],
+        {} as ResizeObserver,
+      );
+    });
+
+    const drawnButtons = within(shapesSection).getAllByRole("button");
+    expect(drawnButtons).toHaveLength(28);
+    expect(getComputedStyle(grid!).height).toBe("1596px");
+    fireEvent.click(drawnButtons[0]!);
+    expect(onPick).toHaveBeenCalledWith("compact-0");
+
+    Object.defineProperty(catalogContent, "clientWidth", {
+      configurable: true,
+      value: 188,
+    });
+    act(() => {
+      const catalogObserver = resizeObservers.find(({ targets }) =>
+        targets.includes(catalogRegion),
+      );
+      if (catalogObserver === undefined) {
+        throw new Error("Catalog was not observed");
+      }
+      catalogObserver.callback(
+        [{ target: catalogRegion } as unknown as ResizeObserverEntry],
+        {} as ResizeObserver,
+      );
+    });
+
+    expect(within(shapesSection).getAllByRole("button")).toHaveLength(42);
+    expect(getComputedStyle(grid!).height).toBe("1084px");
   });
 
   it("selects the category currently at the top of the scrolling catalog", () => {

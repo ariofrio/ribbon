@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
 import type {
   PluginSidebarThread,
   PluginSidebarThreadActions,
 } from "@get-bb/plugin-sdk/app";
+import type { ProjectIconView } from "../icons";
 import { WORKFLOW_STAGES, type WorkflowStage } from "../workflow-stage";
 import { Icon, type IconName } from "./Icon";
 import { WorkflowStageIcon } from "./WorkflowStageIcon";
@@ -40,6 +42,7 @@ export interface ThreadSectionOption {
 interface CommonMenuProps {
   actions: PluginSidebarThreadActions;
   disabled: boolean;
+  sectionIcons: ReadonlyMap<string, ProjectIconView>;
   sections: readonly ThreadSectionOption[];
   onNewSection: () => void;
   onRename: () => void;
@@ -181,7 +184,7 @@ function ContextMenuItems(props: CommonMenuProps) {
                     <Icon name="Check" aria-hidden />
                   ) : null}
                 </span>
-                <Icon name="ListView" aria-hidden />
+                <SectionMenuIcon icon={props.sectionIcons.get(section.id)} />
                 {section.name}
               </ContextMenuItem>
             ))}
@@ -301,7 +304,7 @@ function DropdownMenuItems(props: CommonMenuProps) {
                     <Icon name="Check" aria-hidden />
                   ) : null}
                 </span>
-                <Icon name="ListView" aria-hidden />
+                <SectionMenuIcon icon={props.sectionIcons.get(section.id)} />
                 {section.name}
               </DropdownMenuItem>
             ))}
@@ -337,6 +340,21 @@ function DropdownMenuItems(props: CommonMenuProps) {
         Delete
       </DropdownItem>
     </>
+  );
+}
+
+function SectionMenuIcon({ icon }: { icon?: ProjectIconView }) {
+  if (!icon) {
+    return <Icon name="ListView" className="size-4 shrink-0" aria-hidden />;
+  }
+
+  return (
+    <HugeiconsIcon
+      icon={icon.glyph}
+      className="size-4 shrink-0"
+      style={icon.color === null ? undefined : { color: icon.color }}
+      aria-hidden
+    />
   );
 }
 

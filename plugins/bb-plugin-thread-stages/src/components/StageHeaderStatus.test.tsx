@@ -23,10 +23,10 @@ describe("stage header status", () => {
     expect(screen.queryByLabelText("0 threads")).toBeNull();
   });
 
-  it("shows the experimental aggregate indicator only when supplied", () => {
+  it("shows an aggregate indicator when supplied", () => {
     const activityThread = {
-      indicator: "unread-success" as const,
-      indicatorLabel: "Unread",
+      indicator: "runtime" as const,
+      indicatorLabel: "Thread working",
     };
     const { rerender } = render(
       <StageHeaderStatus collapsed count={2} activityThread={null} />,
@@ -45,6 +45,7 @@ describe("stage header status", () => {
     expect(
       document.querySelector("[data-sidebar-stage-trailing-indicator]"),
     ).not.toBeNull();
+    expect(screen.getByLabelText("Thread working")).toBeDefined();
     expect(screen.getByLabelText("2 threads")).toBeDefined();
   });
 });

@@ -30,6 +30,14 @@ describe("icon catalog", () => {
     );
   });
 
+  it("keeps every eligible numbered variant in the catalog", () => {
+    expect(
+      entries
+        .map((entry) => entry.name)
+        .filter((name) => /^ai-search(?:-\d+)?$/.test(name)),
+    ).toEqual(["ai-search", "ai-search-01", "ai-search-02"]);
+  });
+
   it("carries the fields the picker and the drift check read", () => {
     const malformed = entries.filter(
       (entry) =>
