@@ -13,7 +13,7 @@ import {
   type ThreadFilter as ThreadFilterValue,
 } from "../thread-filter";
 import { cn } from "@/vendor/lib/utils";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 import { ThreadFilterOptionsMenu } from "./SidebarOptionsMenu";
 import { CompactViewportOverrideProvider } from "@/vendor/components/ui/hooks/use-compact-viewport";
 import {
@@ -64,6 +64,7 @@ interface ThreadFilterProps {
   onRenameSection?: (section: ThreadFilterSection) => void;
   projectActionStates?: ReadonlyMap<string, { canAddLocalPath: boolean }>;
   projectIcons?: ReadonlyMap<string, ProjectIconView>;
+  sectionIcons?: ReadonlyMap<string, ProjectIconView>;
   projects: readonly ThreadFilterProject[];
   sections: readonly ThreadFilterSection[];
   value: ThreadFilterValue;
@@ -112,6 +113,7 @@ export function ThreadFilter({
   onRenameSection = () => {},
   projectActionStates = new Map(),
   projectIcons = new Map(),
+  sectionIcons = new Map(),
   projects,
   sections,
   value,
@@ -135,8 +137,8 @@ export function ThreadFilter({
       (activeUncategorized ? "Unorganized" : null));
   const personalProject = projects.find((project) => project.isPersonal);
   const regularProjects = projects.filter((project) => !project.isPersonal);
-  const scopeLabel = "Projects and sections";
-  const allLabel = "All projects and sections";
+  const scopeLabel = "Sections and projects";
+  const allLabel = "All sections and projects";
   const selectedValue = serializeThreadFilter(value) ?? "";
 
   function handleFilterChange(nextValue: string): void {
@@ -175,7 +177,10 @@ export function ThreadFilter({
                 personal={activeProject.isPersonal}
               />
             ) : activeSection ? (
-              <Icon name="ListView" className="size-4 shrink-0" aria-hidden />
+              <ProjectFilterIcon
+                icon={sectionIcons.get(activeSection.id)}
+                fallback="ListView"
+              />
             ) : activeUncategorized ? (
               <Icon
                 name="ListViewOff"
@@ -191,7 +196,13 @@ export function ThreadFilter({
             )}
             <span
               data-thread-filter-label-cluster=""
-              className="flex min-w-0 items-center gap-1"
+              // 10px, which is what a stage header leaves between its own
+              // label and its chevron: 4px of gap plus the 6px of slack a
+              // 12px glyph has inside its 24px button. This indicator is the
+              // same shape of thing one column over — a small glyph trailing
+              // a name — and its own box has no slack, so the gap carries it
+              // all.
+              className="flex min-w-0 items-center gap-2.5"
             >
               <span data-thread-filter-label="" className="truncate">
                 {activeLabel ?? scopeLabel}
@@ -230,6 +241,59 @@ export function ThreadFilter({
               />
             </ThreadFilterItem>
           </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup aria-labelledby="thread-filter-sections-label">
+            <DropdownMenuLabel
+              id="thread-filter-sections-label"
+              className={CHROME_SECTION_LABEL_CLASS}
+            >
+              Sections
+            </DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={selectedValue}
+              onValueChange={handleFilterChange}
+            >
+              {sections.map((section) => (
+                <ActionableThreadFilterItem
+                  key={section.id}
+                  label={section.name}
+                  selected={
+                    value?.kind === "section" && value.id === section.id
+                  }
+                  onSelect={() => {
+                    onChange({ kind: "section", id: section.id });
+                    setOpen(false);
+                  }}
+                >
+                  <ProjectFilterIcon
+                    icon={sectionIcons.get(section.id)}
+                    fallback="ListView"
+                  />
+                  <SectionActions
+                    onRemove={() => onRemoveSection(section)}
+                    onRename={() => onRenameSection(section)}
+                  />
+                </ActionableThreadFilterItem>
+              ))}
+              {sections.length > 0 ? (
+                <ThreadFilterItem
+                  label="Unorganized"
+                  selectedValue={selectedValue}
+                  value="uncategorized"
+                >
+                  <Icon
+                    name="ListViewOff"
+                    className="size-4 shrink-0"
+                    aria-hidden
+                  />
+                </ThreadFilterItem>
+              ) : null}
+            </DropdownMenuRadioGroup>
+            <DropdownMenuItem inset className="pl-7" onSelect={onNewSection}>
+              <Icon name="SectionAdd" className="size-4 shrink-0" aria-hidden />
+              <span>New section</span>
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup aria-labelledby="thread-filter-projects-label">
             <DropdownMenuLabel
@@ -290,60 +354,6 @@ export function ThreadFilter({
               <span>New project</span>
             </DropdownMenuItem>
           </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup aria-labelledby="thread-filter-sections-label">
-            <DropdownMenuLabel
-              id="thread-filter-sections-label"
-              className={CHROME_SECTION_LABEL_CLASS}
-            >
-              Sections
-            </DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={selectedValue}
-              onValueChange={handleFilterChange}
-            >
-              {sections.map((section) => (
-                <ActionableThreadFilterItem
-                  key={section.id}
-                  label={section.name}
-                  selected={
-                    value?.kind === "section" && value.id === section.id
-                  }
-                  onSelect={() => {
-                    onChange({ kind: "section", id: section.id });
-                    setOpen(false);
-                  }}
-                >
-                  <Icon
-                    name="ListView"
-                    className="size-4 shrink-0"
-                    aria-hidden
-                  />
-                  <SectionActions
-                    onRemove={() => onRemoveSection(section)}
-                    onRename={() => onRenameSection(section)}
-                  />
-                </ActionableThreadFilterItem>
-              ))}
-              {sections.length > 0 ? (
-                <ThreadFilterItem
-                  label="Unorganized"
-                  selectedValue={selectedValue}
-                  value="uncategorized"
-                >
-                  <Icon
-                    name="ListViewOff"
-                    className="size-4 shrink-0"
-                    aria-hidden
-                  />
-                </ThreadFilterItem>
-              ) : null}
-            </DropdownMenuRadioGroup>
-            <DropdownMenuItem inset className="pl-7" onSelect={onNewSection}>
-              <Icon name="SectionAdd" className="size-4 shrink-0" aria-hidden />
-              <span>New section</span>
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
       </CompactViewportOverrideProvider>
@@ -357,15 +367,15 @@ export function ThreadFilter({
           className="bb-sidebar-hover-actions relative z-20 flex shrink-0 items-center gap-1 opacity-0 pointer-events-none group-hover/thread-filter:opacity-100 group-hover/thread-filter:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto data-[state=open]:opacity-100 data-[state=open]:pointer-events-auto max-md:pointer-coarse:opacity-100 max-md:pointer-coarse:pointer-events-auto"
         >
           <ThreadFilterAction
+            icon="SectionAdd"
+            label="New section"
+            onClick={onNewSection}
+          />
+          <ThreadFilterAction
             disabled={newProjectDisabled}
             icon="FolderPlus"
             label="New project"
             onClick={onNewProject}
-          />
-          <ThreadFilterAction
-            icon="SectionAdd"
-            label="New section"
-            onClick={onNewSection}
           />
           <ThreadFilterOptionsMenu
             onHide={onHide}
@@ -605,14 +615,17 @@ function FilterActionItem({
 function ProjectFilterIcon({
   icon,
   personal = false,
+  fallback,
 }: {
   icon?: ProjectIconView;
   personal?: boolean;
+  /** Drawn where the owner has no icon of its own. */
+  fallback?: IconName;
 }) {
   if (!icon) {
     return (
       <Icon
-        name={personal ? "BubbleChat" : "Folder"}
+        name={fallback ?? (personal ? "BubbleChat" : "Folder")}
         className="size-4 shrink-0"
         aria-hidden
       />

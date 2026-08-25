@@ -14,18 +14,16 @@ Child threads do not have stages or positions of their own. They
 always render beneath their parent, inherit the root parent's stage, and move
 with that parent. Their thread actions therefore omit stage controls.
 
-Each row shows its project's icon, or its section's where that project has none
-of its own, when the [Icons](../bb-plugin-icons#readme) plugin is installed, so a
-stage-grouped list still tells you what a thread belongs to. An owner carries an
-icon only once someone picks one, so a row nobody has touched falls through to
-the project's default glyph. A thread takes the nearest section walking up, its
-own included. Without that plugin the rows look as they always have. Message previews remain visible by
+Each row shows its project's icon when the
+[Icons](../bb-plugin-icons#readme) plugin is installed, so a stage-grouped list
+still tells you what a thread belongs to. Without that plugin the rows look as
+they always have. Message previews remain visible by
 default and can be hidden in the plugin's settings for a denser list.
 
-Use **Projects** (or **Projects and sections** when sections exist) above the
-stages to focus the whole sidebar—including pinned and search results—on one
-project or one native thread section. Its menu retains the **All projects** or
-**All projects and sections** choice for clearing the filter. The control shows
+Use **Sections and projects** above the stages to focus the whole
+sidebar—including pinned and search results—on one project or one native thread
+section. Its menu retains the **All sections and projects** choice for clearing
+the filter. The control shows
 the selected project's Icons glyph, a folder when that plugin is absent, the
 chat glyph for the personal **Threads** project, or the section glyph for a
 selected section. A filter indicator appears beside the selected label. The
@@ -40,11 +38,11 @@ Reparenting leaves its own section unchanged so it inherits from its new
 parent.
 The adjacent actions and matching dropdown items create a project through bb's
 native host folder picker or open the New section dialog. Collapsed, nonempty stages show the number of
-filtered root threads; expanded and empty stages omit the count. An experimental
-setting can add the highest-priority aggregate activity indicator to collapsed
-stage headers, immediately to the right of the count. On a client with no saved
-collapse choices, Deferred and Completed start collapsed; Idle, Active, and
-Blocked start expanded. Saved choices from the former stage names migrate.
+filtered root threads; expanded and empty stages omit the count. Collapsed
+stages also show bb's highest-priority aggregate activity indicator immediately
+to the right of the count, except for the ordinary unread dot. On a client with
+no saved collapse choices, Deferred and Completed start collapsed; Idle,
+Active, and Blocked start expanded. Saved choices from the former stage names migrate.
 Deferred and Blocked can each be disabled in plugin settings. A disabled stage
 stays visible while it still contains threads, but no longer accepts moves;
 after it is emptied, it disappears.
@@ -193,8 +191,8 @@ so it can be.
 `qa:project-filter-hover` opens an isolated browser against `BB_SERVER_URL` and
 fails if a sticky stage shield covers the thread filter's rounded bottom edge
 or an empty project filter loses the sidebar's horizontal inset.
-`qa:sidebar-indicator-alignment` verifies that collapsed-stage activity and
-unread indicators share the same trailing alignment as thread indicators.
+`qa:sidebar-indicator-alignment` verifies that collapsed-stage activity
+indicators share the same trailing alignment as thread indicators.
 
 ## License
 

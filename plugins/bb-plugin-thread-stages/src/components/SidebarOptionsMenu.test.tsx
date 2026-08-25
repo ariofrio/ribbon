@@ -17,7 +17,7 @@ describe("sidebar options menus", () => {
     render(<ThreadFilterOptionsMenu onHide={onHide} />);
 
     const trigger = screen.getByRole("button", {
-      name: "Projects and sections options",
+      name: "Sections and projects options",
     });
     for (const className of [
       "m-1",
@@ -59,7 +59,7 @@ describe("sidebar options menus", () => {
     );
 
     const trigger = screen.getByRole("button", {
-      name: "Projects and sections options",
+      name: "Sections and projects options",
     });
     trigger.focus();
     fireEvent.keyDown(trigger, { key: "Enter" });

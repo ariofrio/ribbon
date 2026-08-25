@@ -19,7 +19,6 @@ import { IconPicker, type CatalogIcon } from "./IconPicker";
 import { Icons } from "./Icons";
 import { iconsRpc } from "./icons-client";
 import { observeCrumbAnchors, type CrumbAnchor } from "./crumb-anchors";
-import { threadIconOwner } from "./thread-owner";
 import { PLACEMENTS } from "./placements";
 import type { rpcContract } from "./server";
 import { observeSidebarIconAnchors, type SidebarAnchor } from "./sidebar-dom";
@@ -139,11 +138,10 @@ function IconHeaderAction({ threadId, projectId }: PluginThreadHeaderActionProps
   const [catalog, setCatalog] = useState<readonly CatalogIcon[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [anchors, setAnchors] = useState<readonly CrumbAnchor[]>([]);
-  const [sectionId, setSectionId] = useState<string | null>(null);
   /**
    * Set when the pointer reaches the icon, before any click.
    *
-   * The catalog is 2,530 icons and deliberately not in the bundle, so opening
+   * The catalog is 3,525 icons and deliberately not in the bundle, so opening
    * cold means the popover arrives, then its categories and grid land a beat
    * later — one movement answered by a second. Fetching on approach keeps the
    * bundle small and still has the picker whole by the time it opens.
@@ -176,25 +174,6 @@ function IconHeaderAction({ threadId, projectId }: PluginThreadHeaderActionProps
     announceIconsChanged();
   });
 
-  // The sidebar's live view can still be empty while a header is up, so this
-  // asks bb. Only the lone icon needs it; an anchor names its own owner.
-  useEffect(() => {
-    let canceled = false;
-    // The previous thread's section is not this one's. Clearing first falls
-    // back to the project for the length of the round trip, which is this
-    // thread's own answer when it has no section, rather than the last one's.
-    setSectionId(null);
-    void rpc
-      .call("sectionForThread", { threadId })
-      .then((answer) => {
-        if (!canceled) setSectionId(answer.sectionId);
-      })
-      .catch(() => undefined);
-    return () => {
-      canceled = true;
-    };
-  }, [rpc, threadId]);
-
   // Undefined while settings load: the icon has always been here, so it
   // stays until the user is known to have turned it off, rather than blinking
   // in on every thread open.
@@ -211,6 +190,14 @@ function IconHeaderAction({ threadId, projectId }: PluginThreadHeaderActionProps
   }, [showInHeader]);
 
   const lone = anchors.length === 0;
+  /**
+   * With no crumb to sit beside, the icon is the thread's project.
+   *
+   * Not the section it may be filed under: a project is what a thread belongs
+   * to, and bb's personal project — which cannot be given an icon — would
+   * otherwise be drawn as whatever section its thread happened to be in.
+   */
+  const loneOwner: IconOwner = { kind: "project", id: projectId };
   useLayoutEffect(() => {
     const marker = markerRef.current;
     if (marker === null || !showInHeader || !lone) {
@@ -320,8 +307,8 @@ function IconHeaderAction({ threadId, projectId }: PluginThreadHeaderActionProps
         ? null
         : createPortal(
             <HeaderIcon
-              owner={threadIconOwner({ sectionId, projectId }, icons)}
-              ownerName={nameOf(threadIconOwner({ sectionId, projectId }, icons))}
+              owner={loneOwner}
+              ownerName={nameOf(loneOwner)}
               {...shared}
             />,
             target,

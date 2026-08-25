@@ -1,20 +1,20 @@
 # Icons
 
-Gives every project and every thread section an icon and an optional color, and
-draws it wherever bb names a project or a section: bb's own sidebar headers, the header
+Gives every thread section and every project an icon and an optional color, and
+draws it wherever bb names a section or a project: bb's own sidebar headers, the header
 above a thread and above a project's own screens, the prompt box and the menus
 it opens, and each row of the
 [Thread stages](../bb-plugin-thread-stages#readme) sidebar.
 
 Click one on a sidebar header, in the thread header, or on the strip under an
-open thread to change it: search 2,530 icons by name or synonym, filter by
+open thread to change it: search 3,525 icons by name or synonym, filter by
 category, and pick a color. Changes save as you click and appear everywhere at
 once.
 
-Projects default to a folder and bb's personal project to a chat bubble,
-because that is what bb draws itself. Sections default to bb's own section
-mark — Hugeicons has none, so the plugin composes it, which is why it is the
-one glyph here that is not from the catalog.
+Sections default to bb's own section mark — Hugeicons has none, so the plugin
+composes it, which is why it is the one glyph here that is not from the
+catalog. Projects default to a folder and bb's personal project to a chat
+bubble, because that is what bb draws itself.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-dark.png">
@@ -57,10 +57,10 @@ render it without shipping the catalog themselves.
 
 `npm run build:catalog` regenerates `src/icon-catalog.json` and
 `src/icon-catalog.generated.ts` from Hugeicons' published index. It keeps the
-categories that describe a project rather than interface furniture, collapses
-`-01`/`-02` name variants, and drops anything the free package does not export
-— 2,532 icons across 32 categories. The result is committed, so builds and CI
-never reach the network.
+project's 32 retained Hugeicons categories, includes every numbered name
+variant, and drops anything the free package does not export — 3,527 icons
+across 32 categories. The result is committed, so builds and CI never reach
+the network.
 
 That index is unversioned and sends no `ETag` or `Last-Modified`, and no
 released package carries the tags, so regenerating silently adopts whatever
@@ -73,8 +73,8 @@ before it is adopted.
 
 **bb's sidebar.** The icon sits at the head of a group's label row, where
 Thread stages puts a stage icon, which is what lines the group name up with the
-New thread, Extensions, and Automations labels above it. bb shows project
-groups under *Organize → By project* and section groups only under *Manually*,
+New thread, Extensions, and Automations labels above it. bb shows section
+groups only under *Manually* and project groups under *Organize → By project*,
 so which headers exist depends on that setting.
 
 Under *By project* that includes the personal project, which bb labels
@@ -90,14 +90,13 @@ nothing, which errs towards no icon rather than the wrong one.
 **The header.** One icon before each crumb
 [Breadcrumbs](../bb-plugin-breadcrumbs#readme) draws above an open thread, and
 none where that crumb is turned off. With no crumbs at all the header keeps a
-single icon and picks its owner the way a sidebar row does: the project's, or
-the section's where that project has no icon of its own. Also before the
+single icon, the thread's project, the way a sidebar row does. Also before the
 project's own crumb above its settings, the one screen where bb's header names
 a project and no thread.
 
 The picker does not offer the glyphs bb already draws for a project and for the
-personal project. A row holding one of those looks like no choice at all, and
-still outranks the section's icon.
+personal project, because a row holding one of those is indistinguishable from
+having picked nothing.
 
 **The prompt box.** Its project control and every project in the menu that
 control opens, each project in the list `@` brings up, a project mentioned in

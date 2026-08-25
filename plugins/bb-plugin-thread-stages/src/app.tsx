@@ -69,8 +69,6 @@ import {
   partitionWorkflowThreads,
   withThreadAncestors,
 } from "./root-thread-ownership";
-import { rowIcon } from "./row-icon";
-import { nearestSectionId } from "./section-of";
 import {
   currentThreadId,
   workflowReorderShortcut,
@@ -192,6 +190,7 @@ interface ThreadRowProps {
   preview: string | null;
   projectIcon: ProjectIconView | null;
   reorderable: boolean;
+  sectionIcons: ReadonlyMap<string, ProjectIconView>;
   showDropAfter: boolean;
   showDropBefore: boolean;
   sections: readonly ThreadSectionOption[];
@@ -226,6 +225,7 @@ function ThreadRow({
   preview,
   projectIcon,
   reorderable,
+  sectionIcons,
   showDropAfter,
   showDropBefore,
   sections,
@@ -261,6 +261,7 @@ function ThreadRow({
   const commonMenuProps = {
     actions,
     disabled,
+    sectionIcons,
     sections,
     onNewSection: () =>
       window.setTimeout(() => {
@@ -479,7 +480,6 @@ interface SidebarSectionProps {
   onDropAtEnd: (event: DragEvent<HTMLElement>) => void;
   onDragOverEnd: (event: DragEvent<HTMLElement>) => void;
   onToggle: () => void;
-  showCollapsedIndicator?: boolean;
   label: SidebarGroup;
   threads: readonly PluginSidebarThread[];
 }
@@ -492,12 +492,11 @@ function SidebarSection({
   onDropAtEnd,
   onDragOverEnd,
   onToggle,
-  showCollapsedIndicator = false,
   label,
   threads,
 }: SidebarSectionProps) {
   const activityThread =
-    collapsed && showCollapsedIndicator ? groupIndicator(threads) : null;
+    collapsed && label !== PINNED_SECTION ? groupIndicator(threads) : null;
   const id = `thread-stages-group-${label.replace(/\s/g, "-")}`;
   return (
     <section
@@ -685,8 +684,6 @@ function WorkflowStageList({
   const [collapsedThreads, setCollapsedThreads] = usePersistentStringSet(
     COLLAPSED_THREADS_STORAGE_KEY,
   );
-  const showCollapsedStageIndicators =
-    settings.values?.showCollapsedStageIndicators === true;
   const showThreadPreviews = settings.values?.showThreadPreviews !== false;
   const enabledStages = useMemo(
     () => enabledWorkflowStages(settings.values),
@@ -859,13 +856,6 @@ function WorkflowStageList({
   const [sectionIcons, setSectionIcons] = useState<
     ReadonlyMap<string, ProjectIconView>
   >(new Map());
-  const [chosenProjectIcons, setChosenProjectIcons] = useState<
-    ReadonlyMap<string, ProjectIconView>
-  >(new Map());
-  const sectionOf = useCallback(
-    (thread: { id: string }) => nearestSectionId(thread.id, sidebar.threads),
-    [sidebar.threads],
-  );
   const [projectActionStates, setProjectActionStates] = useState<
     ReadonlyMap<string, { canAddLocalPath: boolean }>
   >(new Map());
@@ -878,7 +868,6 @@ function WorkflowStageList({
       ).then((icons) => {
         if (canceled) return;
         setProjectIcons(icons.projects);
-        setChosenProjectIcons(icons.chosenProjects);
         setSectionIcons(icons.sections);
       });
     };
@@ -1310,6 +1299,7 @@ function WorkflowStageList({
     <ThreadFilter
       newProjectDisabled={projectCreatePending}
       projectIcons={projectIcons}
+      sectionIcons={sectionIcons}
       projectActionStates={projectActionStates}
       projects={sidebar.projects}
       sections={sections}
@@ -1587,15 +1577,9 @@ function WorkflowStageList({
                           ? (previews.get(thread.id) ?? null)
                           : null
                       }
-                      projectIcon={rowIcon(
-                        { sectionId: sectionOf(thread), projectId: thread.projectId },
-                        {
-                          projects: projectIcons,
-                          chosenProjects: chosenProjectIcons,
-                          sections: sectionIcons,
-                        },
-                      )}
+                      projectIcon={projectIcons.get(thread.projectId) ?? null}
                       reorderable={isRoot && !Boolean(normalizedSearch)}
+                      sectionIcons={sectionIcons}
                       showDropAfter={
                         dropGroup === PINNED_SECTION &&
                         dropAfter === thread.id
@@ -1643,7 +1627,6 @@ function WorkflowStageList({
                 dropGroup === stage && dropBefore === null && dropAfter === null
               }
               onToggle={() => toggleCollapsed(stage)}
-              showCollapsedIndicator={showCollapsedStageIndicators}
               onDragOverEnd={(event) => {
                 if (
                   !draggingThreadId ||
@@ -1778,15 +1761,9 @@ function WorkflowStageList({
                             ? (previews.get(thread.id) ?? null)
                             : null
                         }
-                        projectIcon={rowIcon(
-                          { sectionId: sectionOf(thread), projectId: thread.projectId },
-                          {
-                          projects: projectIcons,
-                          chosenProjects: chosenProjectIcons,
-                          sections: sectionIcons,
-                        },
-                        )}
+                        projectIcon={projectIcons.get(thread.projectId) ?? null}
                         reorderable={isRoot && !Boolean(normalizedSearch)}
+                        sectionIcons={sectionIcons}
                         showDropAfter={
                           dropGroup === stage && dropAfter === thread.id
                         }
