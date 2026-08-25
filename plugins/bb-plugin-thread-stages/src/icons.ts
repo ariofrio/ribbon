@@ -84,9 +84,8 @@ export function buildProjectIconMap(
 }
 
 /**
- * Project icons come from the Icons plugin, which bb calls on this plugin's
- * behalf. The sidebar degrades to no icons when that plugin is not installed,
- * so this never throws — a missing neighbour is a normal state, not an error.
+ * Icons come from the Icons plugin, which bb calls on this plugin's behalf.
+ * Never throws: without that plugin the sidebar simply draws no icons.
  */
 export async function fetchProjectIcons(
   loadIcons: () => Promise<IconsResponse>,

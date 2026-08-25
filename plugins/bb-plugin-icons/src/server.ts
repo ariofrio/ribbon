@@ -43,10 +43,7 @@ const iconsSchema = z
         section: glyphSchema,
       })
       .strict(),
-    /**
-     * Which project bb calls personal, so a consumer draws its bubble and
-     * hides its picker without recognizing an id. Null when bb reports none.
-     */
+    /** So a consumer draws the bubble without recognizing an id. */
     personalProjectId: z.string().nullable(),
   })
   .strict();
@@ -137,10 +134,8 @@ export default function plugin(bb: BbPluginApi) {
     return personalProjectId;
   }
   /**
-   * Drawing icons used to be a local read that could not fail. Asking bb
-   * which project is personal can, so a failed ask costs the bubble on one
-   * row rather than every icon in the sidebar. The answer is not cached
-   * until it arrives, so the next call asks again.
+   * A failed ask costs the bubble on one row rather than every icon in the
+   * sidebar. Nothing is cached until it arrives, so the next call asks again.
    */
   async function personalProjectForDrawing(): Promise<string | null> {
     try {

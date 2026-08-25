@@ -129,11 +129,7 @@ const projectIconsSchema = z.object({
   }),
 });
 
-/**
- * The part of bb's keybinding table a delegate needs to replay a native
- * command. Not strict: bb owns the rest of the row, and `when` in particular
- * is bb's own availability rule, not this plugin's to interpret.
- */
+/** The part of bb's keybinding table a delegate needs to replay a command. */
 const appKeybindingSchema = z.object({
   command: z.string(),
   desktopOnly: z.boolean(),
@@ -297,7 +293,7 @@ export const rpcContract = defineRpcContract({
   },
   updateSettings: {
     // Every setting this plugin defines, so a control added later saves
-    // instead of failing validation. A test holds these two lists together.
+    // instead of failing validation. A test holds the two lists together.
     input: z
       .object({
         showSidebarFilter: z.boolean().optional(),
@@ -369,9 +365,9 @@ export default function plugin(bb: BbPluginApi) {
   bb.storage.migrate(db, THREAD_WORKFLOW_MIGRATIONS);
   const store = createThreadWorkflowStore(db);
 
-  // bb routes a personal-project thread without a project segment, and the
-  // project-scoped path would redirect to the composer instead. Which project
-  // is the personal one is bb's to say, and it never changes for a server.
+  // bb routes a personal-project thread without a project segment; the
+  // project-scoped path would land on the composer instead. Which project is
+  // personal never changes for a server, so ask once.
   let personalProjectId: string | null | undefined;
   async function routableProjectId(
     projectId: string | null,
@@ -560,9 +556,9 @@ export default function plugin(bb: BbPluginApi) {
       const stay: ChordDestination = { kind: "stay" };
       if (chord.kind === "none") return { destination: stay };
 
-      // Work out where the caller goes before moving anything. Asking bb
-      // which project is personal can fail, and a failure after the move
-      // would leave the thread filed and the caller told it was not.
+      // Resolve the destination before moving anything: asking bb which
+      // project is personal can fail, and failing after the move would file
+      // the thread and still report failure.
       const next = chord.next;
       const destination: ChordDestination =
         next.kind === "thread"
@@ -641,8 +637,8 @@ export default function plugin(bb: BbPluginApi) {
     // server, so the frontend does not reach for bb's own route.
     async listAppKeybindings() {
       const { keybindings } = await bb.sdk.system.config();
-      // A row bb has changed should cost that row and not the whole table:
-      // the delegate reading this already drops what it cannot understand.
+      // Drop only the row bb changed; the delegate reading this already
+      // ignores rows it cannot parse.
       return {
         keybindings: keybindings.flatMap((binding) => {
           const parsed = appKeybindingSchema.safeParse(binding);

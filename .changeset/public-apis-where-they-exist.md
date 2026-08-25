@@ -4,19 +4,14 @@
 "bb-plugin-thread-stages": patch
 ---
 
-Take bb's documented APIs everywhere these plugins had been reaching around
-them. Which project is the personal one now comes from bb — the SDK's
-`isPersonal` on a sidebar project, or a project's `kind` on the server —
-rather than from the id `proj_personal`, so a project whose id merely looks
-personal keeps its icon and its route. Calls into a neighbouring plugin, this
-plugin's own settings, and bb's keybinding table go through `bb.sdk` instead
-of fetched routes, and a stage chord that runs out of threads asks bb to open
-the composer instead of arranging bb's stored state and faking a keystroke.
-Asking is only possible while Thread stages' own list is mounted. Before the
-sidebar has loaded, or with bb's built-in list selected instead, emptying Idle
-still files the thread and still opens a composer, but on the project you last
-composed in rather than on no project at all. That is the one behavior this changes, and it is now written
-down beside the chords it belongs to.
+These plugins now take bb's documented APIs in place of the private paths they
+were on: which project is personal comes from bb rather than from the id
+`proj_personal`, and calls into a neighbouring plugin, into a plugin's own
+settings, and into bb's keybinding table go through `bb.sdk` instead of fetched
+routes.
 
-Otherwise nothing here changes what the plugins do; it changes how much of
-bb's insides they hold onto while doing it.
+Stage chords ask bb to open the composer instead of arranging its stored state
+and faking a keystroke. That needs Thread stages' own list mounted: before the
+sidebar has loaded, or with bb's built-in list selected, emptying Idle still
+files the thread and opens a composer, but on the project you last used rather
+than on none.

@@ -15,7 +15,6 @@ export interface IconsState {
     personal: IconSvgElement;
     section: IconSvgElement;
   };
-  /** Which project bb calls personal; null when bb reports none. */
   personalProjectId: string | null;
 }
 

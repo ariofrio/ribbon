@@ -56,16 +56,9 @@ async function removeThreadTab(
 }
 
 const SIDE_CHAT_PLUGIN_ID = "side-chat";
-/**
- * What the Side chat plugin answers `createSideChat` with. Mirrored rather
- * than imported, and not strict: that plugin owns the shape and may grow it.
- */
+/** What the Side chat plugin answers `createSideChat` with. */
 const sideChatThreadSchema = z.object({ threadId: z.string().min(1) });
-/**
- * The part of bb's keybinding table a delegate needs to replay a native
- * command. Not strict: bb owns the rest of the row, and `when` in particular
- * is bb's own availability rule, not this plugin's to interpret.
- */
+/** The part of bb's keybinding table a delegate needs to replay a command. */
 const appKeybindingSchema = z.object({
   command: z.string(),
   desktopOnly: z.boolean(),
@@ -148,15 +141,14 @@ export default function plugin(bb: BbPluginApi) {
       if (!reusable) await removeThreadTab(bb, parentThreadId, tabId);
       return { reusable };
     },
-    // Starting a side chat is the Side chat plugin's job. bb makes the call
-    // between plugins, so the shortcut does not have to know its route.
-    // Replaying a native shortcut means knowing which keys bb listens for.
-    // The SDK reads the app config on the server, so the frontend does not
-    // have to reach for bb's own route.
+    // bb makes the call between plugins, so the shortcut does not have to
+    // know the Side chat plugin's route.
+    // Replaying a native shortcut means knowing which keys bb listens for;
+    // the SDK reads that on the server, so the frontend need not fetch it.
     async listAppKeybindings() {
       const { keybindings } = await bb.sdk.system.config();
-      // A row bb has changed should cost that row and not the whole table:
-      // the delegate reading this already drops what it cannot understand.
+      // Drop only the row bb changed; the delegate reading this already
+      // ignores rows it cannot parse.
       return {
         keybindings: keybindings.flatMap((binding) => {
           const parsed = appKeybindingSchema.safeParse(binding);

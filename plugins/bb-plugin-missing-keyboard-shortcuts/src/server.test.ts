@@ -142,8 +142,8 @@ describe("createSideChat RPC", () => {
       sourceThreadId: "thr_parent",
     });
 
-    // bb rebuilds a thread's panel from its server-side tab list, so a side
-    // chat that only exists in this client's storage disappears on reload.
+    // bb rebuilds a thread's panel from its own tab list, so a side chat
+    // only in this client's storage disappears on reload.
     expect(updateTabs).toHaveBeenCalledWith({
       expectedRevision: 3,
       threadId: "thr_parent",

@@ -806,7 +806,6 @@ function WorkflowStageList({
     () => sidebar.projects.map((project) => project.id).sort().join(","),
     [sidebar.projects],
   );
-  // bb names the personal project itself; the sidebar never spells its id.
   const personalProjectId = useMemo(
     () => sidebar.projects.find((project) => project.isPersonal)?.id ?? null,
     [sidebar.projects],
@@ -877,8 +876,8 @@ function WorkflowStageList({
       });
     openPersonalCompose = lend;
     return () => {
-      // Only take back what is still ours: bb mounts one list today, but a
-      // stale instance clearing a live one would strand the chord silently.
+      // bb mounts one list today, but a stale instance clearing a live
+      // one would strand the chord for the session.
       if (openPersonalCompose === lend) openPersonalCompose = null;
     };
   }, [actions, personalProjectId]);
