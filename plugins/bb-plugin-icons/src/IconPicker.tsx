@@ -49,6 +49,13 @@ export interface IconPickerProps {
   ownerName: string;
   icon: string;
   defaultIcon: string;
+  /**
+   * Whether this owner has a stored icon at all.
+   *
+   * A row can hold the very glyph the owner draws by default, and still
+   * outranks its section's icon, so this cannot be inferred from `icon`.
+   */
+  stored: boolean;
   color: IconColor | null;
   onPick: (icon: string) => void;
   onPickColor: (color: IconColor | null) => void;
@@ -64,6 +71,7 @@ export function IconPicker({
   ownerName,
   icon,
   defaultIcon,
+  stored,
   color,
   onPick,
   onPickColor,
@@ -280,7 +288,7 @@ export function IconPicker({
               type="button"
               aria-label="Remove custom icon"
               onClick={onReset}
-              disabled={icon === defaultIcon && color === null}
+              disabled={!stored}
               className="shrink-0 cursor-pointer rounded-md px-1.5 py-1 text-xs text-destructive transition-colors hover:bg-destructive/15 hover:text-destructive active:bg-destructive/20 disabled:invisible"
             >
               Remove
@@ -499,7 +507,7 @@ function CategoryChip({
 /**
  * Draws only the rows of a category that are near the viewport.
  *
- * The catalog is 2,532 icons. Drawing every one of them put over fourteen
+ * The catalog is 2,530 icons. Drawing every one of them put over fourteen
  * thousand nodes in the popover, where bb's own menus hold about twenty-five,
  * and the cost landed where it shows most: the browser built the whole grid
  * before it could paint, so the picker arrived late, and its entrance

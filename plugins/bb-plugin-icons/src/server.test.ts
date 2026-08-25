@@ -48,7 +48,9 @@ describe("icon plugin API", () => {
     expect(names.has("bubble-chat")).toBe(false);
     // The section's default is drawn by the plugin and was never in here.
     expect(names.has("section")).toBe(false);
-    expect(icons.length).toBeGreaterThan(2000);
+    // Pinned: a filter that dropped far more than these two would still
+    // satisfy a lower bound.
+    expect(icons.length).toBe(2530);
   });
 
   it("persists a project icon through the schema-validated RPC boundary", async () => {

@@ -19,14 +19,12 @@ export interface RowIconThread {
 }
 
 /**
- * The icon a sidebar row draws: its project's, or its section's.
+ * The icon a sidebar row draws: its project's, its section's, or the project's
+ * default glyph.
  *
- * The project is asked first, because that is what a row meant before sections
- * had icons at all. A section answers only for a project nobody has picked an
- * icon for, and where neither was picked the row falls back to the project's
- * default — so an untouched sidebar looks exactly as it did, and giving a
- * section an icon marks the threads in it without overriding a project someone
- * has already chosen for.
+ * An owner reaches `chosenProjects` or `sections` only once someone picks an
+ * icon for it, so a project nobody has touched defers to the section the
+ * thread is filed under.
  */
 export function rowIcon(
   { sectionId, projectId }: RowIconThread,

@@ -42,6 +42,11 @@ function SidebarIcon({
   const { owner, name } = anchor;
   const { name: iconName, glyph, color } = iconFor(state, owner, PERSONAL_PROJECT_ID);
   const editable = isEditable(owner);
+  // A row holding the default glyph is still a choice, and still removable.
+  const stored =
+    state?.icons.some(
+      (item) => item.kind === owner.kind && item.id === owner.id,
+    ) ?? false;
 
   const glyphNode =
     glyph === undefined ? null : (
@@ -101,6 +106,7 @@ function SidebarIcon({
       ownerName={name}
       icon={iconName}
       defaultIcon={defaultIcon(owner)}
+      stored={stored}
       color={color}
       onPick={(next) => onApply(owner, { icon: next })}
       onPickColor={(next) => onApply(owner, { color: next })}

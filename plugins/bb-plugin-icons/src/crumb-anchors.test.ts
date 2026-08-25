@@ -48,6 +48,26 @@ describe("observeCrumbAnchors", () => {
     stop();
   });
 
+  it("reports an anchor whose owner is rewritten in place", async () => {
+    document.body.innerHTML = anchor("section", "sec_alpha");
+    const seen = vi.fn();
+    const stop = observeCrumbAnchors(seen);
+    expect(seen).toHaveBeenCalledTimes(1);
+
+    // React reuses the element and rewrites the attribute when the thread
+    // moves to another section, so nothing is inserted or removed.
+    document
+      .querySelector("[data-breadcrumb-icon-anchor]")!
+      .setAttribute("data-breadcrumb-icon-owner", "sec_beta");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(seen).toHaveBeenCalledTimes(2);
+    expect(seen.mock.calls[1]?.[0]).toEqual([
+      { element: expect.anything(), owner: { kind: "section", id: "sec_beta" } },
+    ]);
+    stop();
+  });
+
   it("stays quiet when the document changes around unchanged anchors", async () => {
     document.body.innerHTML = anchor("project", "proj_a");
     const seen = vi.fn();

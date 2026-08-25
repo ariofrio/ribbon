@@ -67,12 +67,11 @@ arrives first: each finds bb's title by what it holds rather than by position,
 skipping anything marked as a plugin's root.
 
 Each crumb is preceded by an empty span marked
-`data-breadcrumb-icon-anchor`, naming the section or project it belongs to.
-[Icons](../bb-plugin-icons#readme) draws that owner's icon into it, because
-bb's SDK lets no plugin render another's component and the icons belong between
-the crumbs rather than ahead of them. Nothing here checks whether that plugin is
-installed: an unfilled anchor draws nothing and takes no space. React never puts
-children in the span, so a neighbour's are safe from this tree's reconciliation.
+`data-breadcrumb-icon-anchor`, naming the section or project it belongs to, and
+[Icons](../bb-plugin-icons#readme) draws that owner's icon into it. bb's SDK
+lets no plugin render another's component, and the icons belong between the
+crumbs. Nothing here checks whether that plugin is installed: an unfilled
+anchor draws nothing and takes no space.
 
 The crumbs render in a React root of their own, on an animation frame. bb
 guards its React tree and will not put a React-owned node under a container

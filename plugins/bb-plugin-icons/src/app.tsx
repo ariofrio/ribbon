@@ -74,10 +74,8 @@ function IconGlyph({
 /**
  * One owner's icon: the button, and the picker it opens.
  *
- * Parameterized by owner rather than fixed to the thread's project, because a
- * header can now show two — a section's and a project's, one before each of
- * the Breadcrumbs plugin's crumbs. It draws no placement of its own; where it
- * lands is the caller's business.
+ * A header can hold two of these, a section's and a project's, so the owner is
+ * a prop and the caller decides where it lands.
  */
 function HeaderIcon({
   owner,
@@ -119,10 +117,9 @@ function HeaderIcon({
       // The desktop header is a window drag region, so an interactive control
       // inside it has to opt out or Electron swallows the click.
       //
-      // No color of its own, like the sidebar's: the icon then reads at the
-      // same weight as the thread title it sits beside, which is where bb puts
-      // its own header controls too. The hover and open states stay, so the
-      // icon still lifts if it ever inherits something dimmer.
+      // No color of its own, so the icon inherits the weight of the title it
+      // sits beside. The hover and open states still lift it wherever it
+      // inherits something dimmer.
       className="relative z-50 -ml-0.5 flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors duration-150 hover:duration-0 hover:bg-state-hover hover:text-foreground data-[state=open]:bg-state-active data-[state=open]:text-foreground [app-region:no-drag] [-webkit-app-region:no-drag]"
     >
       <IconGlyph name={icon} glyph={glyph} color={color} />
@@ -146,6 +143,7 @@ function HeaderIcon({
       ownerName={ownerName}
       icon={icon}
       defaultIcon={defaultIcon(owner)}
+      stored={chosen !== undefined}
       color={color}
       onPick={(next) => onApply(owner, { icon: next })}
       onPickColor={(next) => onApply(owner, { color: next })}
@@ -170,7 +168,7 @@ function IconHeaderAction({ threadId, projectId }: PluginThreadHeaderActionProps
   /**
    * Set when the pointer reaches the icon, before any click.
    *
-   * The catalog is 2,532 icons and deliberately not in the bundle, so opening
+   * The catalog is 2,530 icons and deliberately not in the bundle, so opening
    * cold means the popover arrives, then its categories and grid land a beat
    * later — one movement answered by a second. Fetching on approach keeps the
    * bundle small and still has the picker whole by the time it opens.
@@ -203,11 +201,14 @@ function IconHeaderAction({ threadId, projectId }: PluginThreadHeaderActionProps
     announceIconsChanged();
   });
 
-  // Asked of bb rather than the sidebar's live view, which can still be empty
-  // while a header is up. Only the lone icon needs it: an anchor already says
-  // whose icon belongs in it.
+  // The sidebar's live view can still be empty while a header is up, so this
+  // asks bb. Only the lone icon needs it; an anchor names its own owner.
   useEffect(() => {
     let canceled = false;
+    // The previous thread's section is not this one's. Clearing first falls
+    // back to the project for the length of the round trip, which is this
+    // thread's own answer when it has no section, rather than the last one's.
+    setSectionId(null);
     void rpc
       .call("sectionForThread", { threadId })
       .then((answer) => {
@@ -225,10 +226,9 @@ function IconHeaderAction({ threadId, projectId }: PluginThreadHeaderActionProps
   const showInHeader = settings.values?.showInThreadHeader !== false;
 
   /**
-   * The Breadcrumbs plugin leaves a marked, empty span beside each crumb it
-   * draws. Where they exist the icons belong in them, one per crumb; where
-   * they do not — that plugin absent, or every crumb turned off — the header
-   * gets a single icon of its own instead.
+   * The Breadcrumbs plugin leaves a marked, empty span beside each crumb, and
+   * the icons belong in those. With no anchors, because that plugin is absent
+   * or every crumb is off, the header gets one icon of its own.
    */
   useEffect(() => {
     if (!showInHeader) return;
@@ -259,42 +259,56 @@ function IconHeaderAction({ threadId, projectId }: PluginThreadHeaderActionProps
     [sidebar.projects],
   );
 
+  /**
+   * What the icons will be, ahead of the render that shows it.
+   *
+   * Picking an icon and then a color lands two updates in one tick, and the
+   * second has to see the first. That read cannot happen inside a state
+   * updater: React may run one more than once per update, and each extra run
+   * would repeat the write below.
+   */
+  const pendingRef = useRef<readonly IconView[]>([]);
+  useEffect(() => {
+    pendingRef.current = icons;
+  }, [icons]);
+
   const apply = useCallback(
     (owner: IconOwner, next: { icon?: string; color?: IconColor | null }) => {
-      setIcons((current) => {
-        const chosen = current.find(
-          (item) => item.kind === owner.kind && item.id === owner.id,
-        );
-        const nextIcon = next.icon ?? chosen?.icon ?? defaultIcon(owner);
-        const nextColor =
-          next.color === undefined ? (chosen?.color ?? null) : next.color;
-        const nextGlyph =
-          catalog.find((entry) => entry.name === nextIcon)?.glyph ??
-          chosen?.glyph ??
-          defaultGlyph(owner, defaults) ??
-          [];
-        void rpc
-          .call("setIcon", { ...owner, icon: nextIcon, color: nextColor })
-          .catch(() => void refresh());
-        return [
-          ...current.filter(
-            (item) => !(item.kind === owner.kind && item.id === owner.id),
-          ),
-          { ...owner, icon: nextIcon, color: nextColor, glyph: nextGlyph },
-        ];
-      });
+      const current = pendingRef.current;
+      const chosen = current.find(
+        (item) => item.kind === owner.kind && item.id === owner.id,
+      );
+      const nextIcon = next.icon ?? chosen?.icon ?? defaultIcon(owner);
+      const nextColor =
+        next.color === undefined ? (chosen?.color ?? null) : next.color;
+      const nextGlyph =
+        catalog.find((entry) => entry.name === nextIcon)?.glyph ??
+        chosen?.glyph ??
+        defaultGlyph(owner, defaults) ??
+        [];
+      const updated = [
+        ...current.filter(
+          (item) => !(item.kind === owner.kind && item.id === owner.id),
+        ),
+        { ...owner, icon: nextIcon, color: nextColor, glyph: nextGlyph },
+      ];
+      pendingRef.current = updated;
+      setIcons(updated);
       announceIconsChanged();
+      void rpc
+        .call("setIcon", { ...owner, icon: nextIcon, color: nextColor })
+        .catch(() => void refresh());
     },
     [catalog, defaults, refresh, rpc],
   );
 
   const reset = useCallback(
     (owner: IconOwner) => {
-      setIcons((current) =>
-        current.filter(
-          (item) => !(item.kind === owner.kind && item.id === owner.id),
-        ),
+      const remaining = pendingRef.current.filter(
+        (item) => !(item.kind === owner.kind && item.id === owner.id),
       );
+      pendingRef.current = remaining;
+      setIcons(remaining);
       announceIconsChanged();
       void rpc.call("clearIcon", owner).catch(() => void refresh());
     },

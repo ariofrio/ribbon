@@ -5,7 +5,9 @@ export interface CrumbAnchor {
   owner: IconOwner;
 }
 
-const SELECTOR = "[data-breadcrumb-icon-anchor][data-breadcrumb-icon-owner]";
+const KIND_ATTRIBUTE = "data-breadcrumb-icon-anchor";
+const OWNER_ATTRIBUTE = "data-breadcrumb-icon-owner";
+const SELECTOR = `[${KIND_ATTRIBUTE}][${OWNER_ATTRIBUTE}]`;
 
 /** Reads the anchors the Breadcrumbs plugin leaves beside its crumbs. */
 export function readCrumbAnchors(root: ParentNode): CrumbAnchor[] {
@@ -35,13 +37,12 @@ export function sameAnchors(
 }
 
 /**
- * Calls back with the anchors currently in the document, and again whenever
- * they change.
+ * Calls back with the anchors in the document, and again whenever they change.
  *
- * The neighbour draws them on its own schedule — its crumbs wait on their own
- * backend, and can be redrawn when a thread moves — so this watches rather
- * than reads once. Reporting only real changes keeps a header that redraws for
- * its own reasons from remounting icons that have not moved.
+ * The neighbour's crumbs wait on its own backend and are redrawn when a thread
+ * moves, so the anchors arrive late and change afterwards. Unchanged anchors
+ * are not reported, which keeps a header redrawing for its own reasons from
+ * remounting icons that have not moved.
  */
 export function observeCrumbAnchors(
   onChange: (anchors: CrumbAnchor[]) => void,
@@ -56,6 +57,14 @@ export function observeCrumbAnchors(
   };
   read();
   const observer = new MutationObserver(read);
-  observer.observe(root.body, { childList: true, subtree: true });
+  // Attributes as well as children. A thread moving to another section does
+  // not add or remove an anchor: React reuses the element and rewrites the
+  // owner on it, which childList alone never sees.
+  observer.observe(root.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: [OWNER_ATTRIBUTE, KIND_ATTRIBUTE],
+  });
   return () => observer.disconnect();
 }

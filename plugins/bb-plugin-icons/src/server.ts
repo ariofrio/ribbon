@@ -95,10 +95,8 @@ export const rpcContract = defineRpcContract({
   /**
    * The section a thread is filed under, for the header's fallback icon.
    *
-   * bb keeps a section on the root thread, so a child reports its root's. The
-   * sidebar's rule needs this and the header's does too; asking bb rather than
-   * the sidebar's live view keeps the answer available on a header that
-   * mounted before the sidebar hydrated.
+   * bb keeps a section on the root thread, so a child reports its root's. It
+   * comes from bb because a header can mount before the sidebar hydrates.
    */
   sectionForThread: {
     input: z.object({ threadId: z.string().min(1) }).strict(),
@@ -171,12 +169,11 @@ export default function plugin(bb: BbPluginApi) {
   /**
    * The glyphs an owner already draws when nobody has picked for it.
    *
-   * They are left out of the picker: choosing one stores a row that looks
-   * exactly like having chosen nothing, and a project's row outranks its
-   * section's icon on every thread in it — so the pick would quietly change
-   * what a sidebar draws while appearing to change nothing. A section's
-   * default is composed here rather than taken from the catalog, so it is
-   * absent already; these two are real entries and have to be dropped.
+   * They are left out of the picker. Choosing one stores a row that looks like
+   * having chosen nothing, and a project's row outranks its section's icon on
+   * every thread in it, so the pick changes the sidebar while appearing not to.
+   * A section's default is composed below rather than taken from the catalog,
+   * so only these two need dropping.
    */
   const defaultGlyphNames = new Set([
     DEFAULT_PROJECT_ICON,

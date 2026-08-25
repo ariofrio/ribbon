@@ -5,7 +5,7 @@ drawn on bb's own sidebar headers, in the thread header, and on each row of the
 [Thread stages](../bb-plugin-thread-stages#readme) sidebar, where a thread shows
 its project's icon and falls back to its section's.
 
-Click any of them to change it: search 2,532 icons by name or synonym, filter
+Click any of them to change it: search 2,530 icons by name or synonym, filter
 by category, and pick a color. Changes save as you click and appear everywhere
 at once.
 
@@ -77,15 +77,14 @@ so which headers exist depends on that setting; the *Unorganized* bucket is not
 a section and gets none.
 
 **The thread header.** One icon before each crumb
-[Breadcrumbs](../bb-plugin-breadcrumbs#readme) draws — the section's before the
-section, the project's before the project — and neither where that crumb is
-turned off. With no crumbs at all, the header keeps a single icon and picks its
-owner the way a sidebar row does: the project's, or the section's where that
-project has no icon of its own.
+[Breadcrumbs](../bb-plugin-breadcrumbs#readme) draws, and none where that crumb
+is turned off. With no crumbs at all, the header keeps a single icon and picks
+its owner the way a sidebar row does: the project's, or the section's where
+that project has no icon of its own.
 
-The glyphs bb already draws for a project and for the personal project are not
-offered in the picker, because choosing one would store a row indistinguishable
-from having chosen nothing while still outranking the section's icon.
+The picker does not offer the glyphs bb already draws for a project and for the
+personal project. A row holding one of those looks like no choice at all, and
+still outranks the section's icon.
 
 Either placement can be turned off on its own in the plugin's settings, and
 both are on by default. Sidebars other plugins draw are their own; Thread
@@ -94,11 +93,10 @@ stages reads these icons over this plugin's RPC.
 ## Header placement
 
 bb's SDK lets no plugin render another's component, and these icons belong
-between the crumbs rather than ahead of them, so Breadcrumbs draws an empty
-marked span before each crumb and this plugin fills it. Unfilled it occupies
-nothing, so Breadcrumbs without this plugin reads as it always did, and an
-anchor React owns is also a container bb's foreign-DOM guard admits a fresh
-node into.
+between the crumbs, so Breadcrumbs draws an empty marked span before each crumb
+and this plugin fills it. Unfilled it occupies nothing. An anchor React owns is
+also a container bb's foreign-DOM guard admits a fresh node into, which the
+header itself is not.
 
 Where there is no anchor — Breadcrumbs absent, or every crumb turned off — the
 lone icon is portaled in before the title, and `header-dom.test.ts` pins that

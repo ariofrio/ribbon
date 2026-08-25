@@ -142,17 +142,15 @@ interface CrumbsProps {
 }
 
 /**
- * An empty place for the Icons plugin to draw an owner's icon in.
+ * Where the Icons plugin draws this owner's icon.
  *
- * The two plugins cannot render each other's components — bb's SDK has no way
- * to — and the icons have to sit between the crumbs rather than before them,
- * so this leaves a marked, deliberately childless node and lets the neighbour
- * fill it. Nothing here knows whether that plugin is installed: unfilled, the
- * span occupies nothing and the crumbs read exactly as they did.
+ * bb's SDK gives one plugin no way to render another's component, and these
+ * icons belong between the crumbs, so this marks the spot and lets the
+ * neighbour fill it. Unfilled it draws nothing and adds no flex gap.
  *
- * React never puts children in it, so a neighbour's are safe from this tree's
- * reconciliation, and a container React owns is one bb's foreign-DOM guard
- * lets a fresh node into even while a plugin is attributed.
+ * It must stay childless: React reconciles children it created, and the
+ * neighbour's are not its own. Being a container React owns is also what lets
+ * bb's foreign-DOM guard admit a fresh node while a plugin is attributed.
  */
 function IconAnchor({
   kind,

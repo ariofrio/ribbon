@@ -12,15 +12,14 @@ export interface ThreadPlacement {
 }
 
 /**
- * Whose icon a thread shows: its project's, or its section's.
+ * Whose icon a thread shows: its project's, else its section's.
  *
- * The project is asked first, because that is what a thread belongs to most of
- * the time and what these icons meant before sections had any. A section only
- * answers for a project that has been left alone — the store holds a row from
- * the first pick until Remove deletes it — and where neither has been picked
- * the project answers anyway, so the icon drawn is the project's default. The
- * sidebar row and the header's single icon both read this, so they cannot
- * disagree.
+ * The store holds a row from the first pick until Remove deletes it, so a
+ * project nobody has picked for defers to the section. With neither picked the
+ * project answers anyway and draws its default glyph.
+ *
+ * The sidebar row applies the same precedence. It resolves the thread's
+ * section separately, so the two can still name different sections.
  */
 export function threadIconOwner(
   { sectionId, projectId }: ThreadPlacement,
