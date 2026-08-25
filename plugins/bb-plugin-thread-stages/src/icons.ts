@@ -100,13 +100,13 @@ export function buildSectionIconMap(
 }
 
 /**
- * Icons of one kind that someone actually picked.
+ * Sections that carry an icon of their own.
  *
- * Unlike {@link buildProjectIconMap}, nothing is seeded: the Icons plugin
- * writes a row on the first pick and deletes it on Remove, so a row's absence
- * is what sends a sidebar row on to the next owner.
+ * Nothing is seeded here: the Icons plugin writes a row on the first pick and
+ * deletes it on Remove, so a section is in this map exactly when someone chose
+ * an icon for it, and the filter falls back to its own glyph otherwise.
  */
-export function buildChosenIconMap(
+function buildChosenIconMap(
   response: IconsResponse,
   kind: "project" | "section",
 ): Map<string, ProjectIconView> {
@@ -124,7 +124,6 @@ export function buildChosenIconMap(
 
 export interface IconMaps {
   projects: Map<string, ProjectIconView>;
-  chosenProjects: Map<string, ProjectIconView>;
   sections: Map<string, ProjectIconView>;
 }
 
@@ -140,7 +139,6 @@ export async function fetchIcons(
     const response = await loadIcons();
     return {
       projects: buildProjectIconMap(response, projectIds),
-      chosenProjects: buildChosenIconMap(response, "project"),
       sections: buildSectionIconMap(response),
     };
   } catch {
@@ -149,7 +147,7 @@ export async function fetchIcons(
 }
 
 function empty(): IconMaps {
-  return { projects: new Map(), chosenProjects: new Map(), sections: new Map() };
+  return { projects: new Map(), sections: new Map() };
 }
 
 /** Calls back whenever the Icons plugin reports an edit. */
