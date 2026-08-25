@@ -3,10 +3,13 @@ import {
   loadPluginApp,
   renderSlot,
 } from "@get-bb/plugin-sdk/testing/app";
-import { cleanup } from "@testing-library/react";
+import { cleanup, fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+});
 
 const sidebarThread = {
   id: "thread-1",
@@ -150,6 +153,306 @@ describe("thread stages app registration", () => {
     );
 
     expect(await slot.findByText("Deferred")).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it("moves an existing project filter to the newly opened thread without overriding later filter changes", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.thread-stages.threadFilter",
+      "project:project-1",
+    );
+    const secondThread = {
+      ...sidebarThread,
+      id: "thread-2",
+      projectId: "project-2",
+      title: "Ship the release",
+    };
+    const baseOptions = threadListOptions(true);
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(
+      app.threadLists[0]!,
+      { ...threadListProps, activeThreadId: secondThread.id },
+      {
+        ...baseOptions,
+        rpc: {
+          ...baseOptions.rpc,
+          listState: () => ({
+            assignments: [
+              ...baseOptions.rpc.listState().assignments,
+              {
+                threadId: secondThread.id,
+                workflowStage: "Idle" as const,
+                sortKey: "b",
+                updatedAt: 1,
+              },
+            ],
+          }),
+        },
+        sidebarThreads: {
+          projects: [
+            ...baseOptions.sidebarThreads.projects,
+            { id: "project-2", name: "Second project", isPersonal: false },
+          ],
+          threads: [sidebarThread, secondThread],
+        },
+      },
+    );
+
+    const trigger = await slot.findByRole("button", {
+      name: "Sections and projects: Second project",
+    });
+    expect(slot.getByText("Ship the release")).toBeTruthy();
+    expect(slot.queryByText("Polish the release")).toBeNull();
+
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    fireEvent.click(
+      await slot.findByRole("menuitemradio", { name: "Example project" }),
+    );
+    expect(
+      await slot.findByRole("button", {
+        name: "Sections and projects: Example project",
+      }),
+    ).toBeTruthy();
+    expect(slot.getByText("Polish the release")).toBeTruthy();
+    expect(slot.queryByText("Ship the release")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("moves an existing section filter to the root section of an opened child thread", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.thread-stages.threadFilter",
+      "section:section-1",
+    );
+    const firstRoot = { ...sidebarThread, sectionId: "section-1" };
+    const secondRoot = {
+      ...sidebarThread,
+      id: "thread-2",
+      title: "Second section root",
+      sectionId: "section-2",
+    };
+    const openedChild = {
+      ...sidebarThread,
+      id: "thread-2-child",
+      title: "Opened child",
+      parentThreadId: secondRoot.id,
+      sectionId: null,
+    };
+    const baseOptions = threadListOptions(true);
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(
+      app.threadLists[0]!,
+      { ...threadListProps, activeThreadId: openedChild.id },
+      {
+        ...baseOptions,
+        rpc: {
+          ...baseOptions.rpc,
+          listState: () => ({
+            assignments: [
+              ...baseOptions.rpc.listState().assignments,
+              {
+                threadId: secondRoot.id,
+                workflowStage: "Idle" as const,
+                sortKey: "b",
+                updatedAt: 1,
+              },
+            ],
+          }),
+          listSections: () => ({
+            sections: [
+              { id: "section-1", name: "First section" },
+              { id: "section-2", name: "Second section" },
+            ],
+          }),
+        },
+        sidebarThreads: {
+          ...baseOptions.sidebarThreads,
+          threads: [firstRoot, secondRoot, openedChild],
+        },
+      },
+    );
+
+    expect(
+      await slot.findByRole("button", {
+        name: "Sections and projects: Second section",
+      }),
+    ).toBeTruthy();
+    expect(slot.getByText("Opened child")).toBeTruthy();
+    expect(slot.queryByText("Polish the release")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("shows only the opened thread as a preview inside its collapsed stage", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.workflow-stage.collapsedStatuses",
+      '["Idle"]',
+    );
+    const openedThread = {
+      ...sidebarThread,
+      id: "thread-2",
+      title: "Opened thread preview",
+    };
+    const baseOptions = threadListOptions(true);
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(
+      app.threadLists[0]!,
+      { ...threadListProps, activeThreadId: openedThread.id },
+      {
+        ...baseOptions,
+        rpc: {
+          ...baseOptions.rpc,
+          listState: () => ({
+            assignments: [
+              ...baseOptions.rpc.listState().assignments,
+              {
+                threadId: openedThread.id,
+                workflowStage: "Idle" as const,
+                sortKey: "b",
+                updatedAt: 1,
+              },
+            ],
+          }),
+        },
+        sidebarThreads: {
+          ...baseOptions.sidebarThreads,
+          threads: [sidebarThread, openedThread],
+        },
+      },
+    );
+
+    expect(
+      (
+        await slot.findByRole("button", { name: "Expand Idle section" })
+      ).getAttribute("aria-expanded"),
+    ).toBe("false");
+    expect(await slot.findByText("Opened thread preview")).toBeTruthy();
+    expect(slot.queryByText("Polish the release")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("shows only the opened pinned thread as a preview inside the collapsed pinned group", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.workflow-stage.collapsedStatuses",
+      '["Pinned"]',
+    );
+    const firstPinned = { ...sidebarThread, isPinned: true };
+    const openedPinned = {
+      ...sidebarThread,
+      id: "thread-2",
+      title: "Opened pinned preview",
+      isPinned: true,
+    };
+    const baseOptions = threadListOptions(true);
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(
+      app.threadLists[0]!,
+      { ...threadListProps, activeThreadId: openedPinned.id },
+      {
+        ...baseOptions,
+        rpc: {
+          ...baseOptions.rpc,
+          listState: () => ({
+            assignments: [
+              ...baseOptions.rpc.listState().assignments,
+              {
+                threadId: openedPinned.id,
+                workflowStage: "Idle" as const,
+                sortKey: "b",
+                updatedAt: 1,
+              },
+            ],
+          }),
+          listPinnedThreadIds: () => ({
+            threadIds: [firstPinned.id, openedPinned.id],
+          }),
+        },
+        sidebarThreads: {
+          ...baseOptions.sidebarThreads,
+          threads: [firstPinned, openedPinned],
+        },
+      },
+    );
+
+    expect(
+      (
+        await slot.findByRole("button", { name: "Expand Pinned section" })
+      ).getAttribute("aria-expanded"),
+    ).toBe("false");
+    expect(await slot.findByText("Opened pinned preview")).toBeTruthy();
+    expect(slot.queryByText("Polish the release")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("ignores the saved filter and expands matching groups while searching", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.thread-stages.threadFilter",
+      "project:project-1",
+    );
+    window.localStorage.setItem(
+      "bb.plugin.workflow-stage.collapsedStatuses",
+      '["Active"]',
+    );
+    const searchMatch = {
+      ...sidebarThread,
+      id: "thread-2",
+      projectId: "project-2",
+      title: "Ship the release",
+    };
+    const baseOptions = threadListOptions(true);
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(
+      app.threadLists[0]!,
+      { ...threadListProps, searchQuery: "ship" },
+      {
+        ...baseOptions,
+        rpc: {
+          ...baseOptions.rpc,
+          listState: () => ({
+            assignments: [
+              ...baseOptions.rpc.listState().assignments,
+              {
+                threadId: searchMatch.id,
+                workflowStage: "Active" as const,
+                sortKey: "b",
+                updatedAt: 1,
+              },
+            ],
+          }),
+          searchThreads: () => ({
+            threads: [
+              {
+                id: searchMatch.id,
+                projectId: searchMatch.projectId,
+                title: searchMatch.title,
+                titleFallback: null,
+                parentThreadId: null,
+                providerId: searchMatch.providerId,
+                isArchived: false,
+              },
+            ],
+          }),
+        },
+        sidebarThreads: {
+          projects: [
+            ...baseOptions.sidebarThreads.projects,
+            { id: "project-2", name: "Second project", isPersonal: false },
+          ],
+          threads: [sidebarThread, searchMatch],
+        },
+      },
+    );
+
+    expect(await slot.findByText("Ship the release")).toBeTruthy();
+    expect(slot.queryByText("Polish the release")).toBeNull();
+    expect(
+      (
+        await slot.findByRole("button", { name: "Collapse Active section" })
+      ).getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(
+      slot.getByRole("button", {
+        name: "Sections and projects: Example project",
+      }),
+    ).toBeTruthy();
     slot.lifecycle.unmount();
   });
 

@@ -81,3 +81,29 @@ export function filterThreads<T extends FilterableThread>(
   const sectionId = filter.kind === "uncategorized" ? null : filter.id;
   return threads.filter((thread) => rootThread(thread).sectionId === sectionId);
 }
+
+export function threadFilterForOpenedThread<T extends FilterableThread>(
+  filter: ThreadFilter,
+  threadId: string,
+  threads: readonly T[],
+): ThreadFilter {
+  if (filter === null) return null;
+  const threadById = new Map(threads.map((thread) => [thread.id, thread]));
+  const thread = threadById.get(threadId);
+  if (!thread) return filter;
+  if (filter.kind === "project") {
+    return { kind: "project", id: thread.projectId };
+  }
+
+  const seen = new Set<string>();
+  let root = thread;
+  while (root.parentThreadId && !seen.has(root.id)) {
+    seen.add(root.id);
+    const parent = threadById.get(root.parentThreadId);
+    if (!parent) break;
+    root = parent;
+  }
+  return root.sectionId === null
+    ? { kind: "uncategorized" }
+    : { kind: "section", id: root.sectionId };
+}

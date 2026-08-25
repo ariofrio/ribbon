@@ -83,6 +83,7 @@ import {
   filterThreads,
   normalizeThreadFilter,
   serializeThreadFilter,
+  threadFilterForOpenedThread,
   type ThreadFilter as ThreadFilterValue,
 } from "./thread-filter";
 import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
@@ -468,6 +469,7 @@ function ThreadRow({
 interface SidebarSectionProps {
   children: React.ReactNode;
   collapsed: boolean;
+  showCollapsedPreview?: boolean;
   count?: number;
   dropTarget: boolean;
   onDropAtEnd: (event: DragEvent<HTMLElement>) => void;
@@ -487,6 +489,7 @@ function SidebarSection({
   onDragOverEnd,
   onToggle,
   showCollapsedIndicator = false,
+  showCollapsedPreview = false,
   label,
   threads,
 }: SidebarSectionProps) {
@@ -546,7 +549,9 @@ function SidebarSection({
           count={count}
         />
       </div>
-      {collapsed ? null : <div className="mt-1">{children}</div>}
+      {collapsed && !showCollapsedPreview ? null : (
+        <div className="mt-1">{children}</div>
+      )}
     </section>
   );
 }
@@ -706,6 +711,7 @@ function WorkflowStageList({
   const [projectCreatePending, setProjectCreatePending] = useState(false);
   const wasConnected = useRef(false);
   const syncInFlight = useRef(false);
+  const filterSyncedForThreadId = useRef<string | null>(null);
 
   const saveSettings = useCallback(
     async (values: ThreadStagesSettingsUpdate) => {
@@ -846,6 +852,36 @@ function WorkflowStageList({
     window.localStorage.removeItem(PROJECT_FILTER_STORAGE_KEY);
     window.localStorage.removeItem(LEGACY_PROJECT_FILTER_STORAGE_KEY);
   }, []);
+  useEffect(() => {
+    if (activeThreadId === null) {
+      filterSyncedForThreadId.current = null;
+      return;
+    }
+    if (
+      sidebar.status !== "ready" ||
+      filterSyncedForThreadId.current === activeThreadId ||
+      !sidebar.threads.some((thread) => thread.id === activeThreadId)
+    ) {
+      return;
+    }
+    filterSyncedForThreadId.current = activeThreadId;
+    const nextFilter = threadFilterForOpenedThread(
+      threadFilter,
+      activeThreadId,
+      sidebar.threads,
+    );
+    if (
+      serializeThreadFilter(nextFilter) !== serializeThreadFilter(threadFilter)
+    ) {
+      changeThreadFilter(nextFilter);
+    }
+  }, [
+    activeThreadId,
+    changeThreadFilter,
+    sidebar.status,
+    sidebar.threads,
+    threadFilter,
+  ]);
   const [projectIcons, setProjectIcons] = useState<
     ReadonlyMap<string, ProjectIconView>
   >(new Map());
@@ -1049,8 +1085,11 @@ function WorkflowStageList({
     return withThreadAncestors(matches, allThreads);
   }, [normalizedSearch, search, sidebar.threads, rootThreads]);
   const displayThreads = useMemo(
-    () => filterThreads(unfilteredDisplayThreads, threadFilter),
-    [threadFilter, unfilteredDisplayThreads],
+    () =>
+      normalizedSearch
+        ? unfilteredDisplayThreads
+        : filterThreads(unfilteredDisplayThreads, threadFilter),
+    [normalizedSearch, threadFilter, unfilteredDisplayThreads],
   );
   const pinnedState = useMemo(
     () => buildPinnedThreadState(displayThreads, pinnedThreadIds),
@@ -1085,9 +1124,25 @@ function WorkflowStageList({
     [organization?.assignments],
   );
   const pinnedHierarchyRows = useMemo(
-    () => flattenThreadHierarchy(pinnedState.pinnedThreads, collapsedThreads),
-    [collapsedThreads, pinnedState.pinnedThreads],
+    () =>
+      flattenThreadHierarchy(
+        pinnedState.pinnedThreads,
+        normalizedSearch ? new Set<string>() : collapsedThreads,
+      ),
+    [collapsedThreads, normalizedSearch, pinnedState.pinnedThreads],
   );
+  const pinnedSectionCollapsed =
+    !normalizedSearch && collapsedSections.has(PINNED_SECTION);
+  const pinnedActivePreviewRow =
+    pinnedSectionCollapsed && activeThreadId !== null
+      ? flattenThreadHierarchy(
+          pinnedState.pinnedThreads,
+          new Set<string>(),
+        ).find(({ thread }) => thread.id === activeThreadId)
+      : undefined;
+  const renderedPinnedHierarchyRows = pinnedActivePreviewRow
+    ? [{ ...pinnedActivePreviewRow, depth: 0 }]
+    : pinnedHierarchyRows;
   const pinnedRootThreads = useMemo(
     () =>
       pinnedHierarchyRows
@@ -1452,7 +1507,8 @@ function WorkflowStageList({
           <SidebarSection
             label={PINNED_SECTION}
             threads={pinnedState.pinnedThreads}
-            collapsed={collapsedSections.has(PINNED_SECTION)}
+            collapsed={pinnedSectionCollapsed}
+            showCollapsedPreview={pinnedActivePreviewRow !== undefined}
             dropTarget={
               dropGroup === PINNED_SECTION &&
               dropBefore === null &&
@@ -1477,7 +1533,7 @@ function WorkflowStageList({
             }}
           >
             <ul>
-              {pinnedHierarchyRows.map(
+              {renderedPinnedHierarchyRows.map(
                 ({ thread, depth, hasChildren, descendants }) => {
                   const rootIndex = pinnedRootThreads.findIndex(
                     (item) => item.id === thread.id,
@@ -1609,7 +1665,17 @@ function WorkflowStageList({
           )
             .filter(({ depth }) => depth === 0)
             .map(({ thread }) => thread);
-          const isCollapsed = collapsedSections.has(stage);
+          const isCollapsed =
+            !normalizedSearch && collapsedSections.has(stage);
+          const activePreviewRow =
+            isCollapsed && activeThreadId !== null
+              ? flattenThreadHierarchy(shownThreads, new Set<string>()).find(
+                  ({ thread }) => thread.id === activeThreadId,
+                )
+              : undefined;
+          const renderedHierarchyRows = activePreviewRow
+            ? [{ ...activePreviewRow, depth: 0 }]
+            : hierarchyRows;
           if (normalizedSearch && shownThreads.length === 0) return null;
           return (
             <SidebarSection
@@ -1618,6 +1684,7 @@ function WorkflowStageList({
               count={rootThreads.length}
               threads={shownThreads}
               collapsed={isCollapsed}
+              showCollapsedPreview={activePreviewRow !== undefined}
               dropTarget={
                 dropGroup === stage && dropBefore === null && dropAfter === null
               }
@@ -1649,7 +1716,7 @@ function WorkflowStageList({
               }}
             >
               <ul>
-                {hierarchyRows.map(
+                {renderedHierarchyRows.map(
                   ({ thread, depth, hasChildren, descendants }) => {
                     const rootIndex = rootThreads.findIndex(
                       (item) => item.id === thread.id,
