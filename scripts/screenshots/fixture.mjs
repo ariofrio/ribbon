@@ -7,35 +7,38 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * Three projects a reader can place at a glance, each with the icon its own
- * work suggests rather than a color on the default folder.
+ * One product in two repositories, which is the shape a section exists for:
+ * a frontend and a backend whose threads belong together without belonging to
+ * the same project.
  */
 export const PROJECTS = [
-  { name: "Storefront", icon: "store-01", color: "blue" },
-  { name: "Payments API", icon: "api", color: "teal" },
-  { name: "Docs site", icon: "book-open-01", color: "purple" },
+  { name: "Atlas Web", icon: "browser", color: "blue" },
+  { name: "Atlas API", icon: "api", color: "teal" },
 ];
+
+/** The section both repositories' threads are filed under. */
+export const SECTION = { name: "Atlas", icon: "compass", color: "purple" };
 
 /** bb's own project for threads that belong to no repository. */
 export const PERSONAL_PROJECT_ID = "proj_personal";
 
-// Stage names match the Thread stages plugin's CLI vocabulary. One thread per
-// stage is what keeps a card's worth of sidebar legible: every stage shows what
-// it holds without any of them needing to be scrolled past.
+// Stage names match the Thread stages plugin's CLI vocabulary. The spread —
+// two deferred, one each idle, active and blocked, five completed — fills every
+// stage while keeping the collapsed ones worth collapsing.
 export const THREADS = [
   {
-    project: "Storefront",
+    project: "Atlas Web",
     title: "Polish analytics dashboard",
     // The thread the shots open, in the stage a thread sits in most of the
-    // time: bb returns a thread to To do the moment its turn ends.
-    stage: "To do",
+    // time: bb returns a thread to Idle the moment its turn ends.
+    stage: "Idle",
     prompt:
       "Polish the analytics dashboard. Improve the metric cards, add keyboard navigation, and verify the loading state.",
     reply:
       "Dashboard polish is in place.\n\n- Refined metric formatting and loading states\n- Added keyboard-focus coverage\n- Verified all 18 dashboard tests pass",
   },
   {
-    project: "Payments API",
+    project: "Atlas API",
     title: "Investigate webhook retries",
     // Its turn never ends, which is how the fixture keeps one thread running
     // and one stage occupied by a thread bb placed there itself.
@@ -46,36 +49,64 @@ export const THREADS = [
       "Reproducing the stalled retry against the events fixture, then tracing the backoff timer.",
   },
   {
-    project: "Payments API",
-    title: "Harden events API",
-    stage: "Blocked",
-    prompt: "Harden the events API against duplicate deliveries.",
-    reply: "Deliveries are now idempotent per event id, and replays are safe.",
-  },
-  {
-    project: "Docs site",
-    title: "Draft release notes",
-    stage: "Done",
-    prompt: "Draft the release notes for this milestone.",
-    reply: "Release notes drafted, grouped by feature, fix, and breaking change.",
-  },
-  {
-    project: "Docs site",
-    title: "Sketch onboarding tour",
-    stage: "Canceled",
-    prompt: "Sketch an onboarding tour for first-run users.",
-    reply:
-      "Sketched a four-step tour, though it assumes the sign-up flow that is being replaced.",
-  },
-  {
-    // Not every thread belongs to a repository; this one is bb's personal
-    // project, which the sidebar and the icons both treat differently.
+    // Not every thread belongs to a repository. This one is bb's personal
+    // project, filed under the section anyway: work on the product that is not
+    // work on either side of it.
     project: null,
     title: "Compare managed Postgres plans",
-    stage: "Backlog",
+    stage: "Blocked",
     prompt: "Compare managed Postgres plans for a small production app.",
     reply:
       "For this size, the shared tiers on Neon and Supabase both cover it, and Neon's branching is the one that pays off during migrations.",
+  },
+  {
+    project: "Atlas Web",
+    title: "Replace the legacy filter drawer",
+    stage: "Deferred",
+    prompt: "Replace the legacy filter drawer with the new panel.",
+    reply: "Sketched the swap; it waits on the panel's focus behaviour landing first.",
+  },
+  {
+    project: "Atlas API",
+    title: "Migrate export jobs to the new queue",
+    stage: "Deferred",
+    prompt: "Migrate the export jobs to the new queue.",
+    reply: "Mapped the job payloads; the cutover needs a maintenance window.",
+  },
+  {
+    project: "Atlas Web",
+    title: "Add keyboard navigation to filters",
+    stage: "Completed",
+    prompt: "Add keyboard navigation to the filter controls.",
+    reply: "Arrow keys move between filters and Escape closes the open one.",
+  },
+  {
+    project: "Atlas Web",
+    title: "Fix chart legends on locale switch",
+    stage: "Completed",
+    prompt: "Fix the chart legends when the locale changes.",
+    reply: "Legends re-render on locale change, and the number formats follow it.",
+  },
+  {
+    project: "Atlas Web",
+    title: "Ship the empty-state illustration",
+    stage: "Completed",
+    prompt: "Ship the empty-state illustration for reports.",
+    reply: "The empty report view now carries the illustration and a single call to action.",
+  },
+  {
+    project: "Atlas API",
+    title: "Make webhook delivery idempotent",
+    stage: "Completed",
+    prompt: "Make webhook delivery idempotent per event id.",
+    reply: "Deliveries are now idempotent per event id, and replays are safe.",
+  },
+  {
+    project: "Atlas API",
+    title: "Retire the v1 pricing endpoint",
+    stage: "Completed",
+    prompt: "Retire the v1 pricing endpoint.",
+    reply: "v1 is gone and its callers are on v2; the redirect stays for one release.",
   },
 ];
 
@@ -86,6 +117,11 @@ export const THREADS = [
  * is — the fixture has to know in order to leave it read.
  */
 export const FEATURED_THREAD = "Polish analytics dashboard";
+
+/** The project that thread runs in, which the shots name their locators after. */
+export const FEATURED_PROJECT = THREADS.find(
+  (thread) => thread.title === FEATURED_THREAD,
+).project;
 
 export const SIDE_CHAT_QUESTION = "What did the dashboard pass end up covering?";
 
@@ -189,6 +225,8 @@ export function seed({ stack, workspaceRoot, bb }) {
     projects.set(project.name, { ...created, root, spec: project });
   }
 
+  const section = runJson(["thread", "section", "create", SECTION.name]);
+
   const threads = new Map();
   const spawn = (spec, project) => {
     const created = runJson([
@@ -220,6 +258,12 @@ export function seed({ stack, workspaceRoot, bb }) {
 
   for (const spec of THREADS) spawn(spec, projects.get(spec.project));
 
+  // Every thread belongs to the product, whichever repository it runs in, and
+  // the one that runs in none belongs to it too.
+  for (const spec of THREADS) {
+    run(["thread", "update", threads.get(spec.title).id, "--section", section.id]);
+  }
+
   // Thread stages moves a thread itself while its turn runs, so hand-set
   // stages only stick once every answered thread has settled.
   for (const spec of THREADS) {
@@ -237,12 +281,19 @@ export function seed({ stack, workspaceRoot, bb }) {
   // taken, and the sidebar keeps the unread mark a busy bb actually carries.
   run(["thread", "read", threads.get(FEATURED_THREAD).id]);
 
-  return { projects, threads, run, runJson };
+  return { projects, section, threads, run, runJson };
 }
 
-export async function applyPluginState({ stack, projects }) {
-  for (const [name, project] of projects) {
-    const { icon, color } = project.spec;
+export async function applyPluginState({ stack, projects, section }) {
+  const owners = [
+    ...[...projects].map(([name, project]) => [
+      name,
+      { kind: "project", id: project.id, ...project.spec },
+    ]),
+    ["the section", { kind: "section", id: section.id, ...SECTION }],
+  ];
+  for (const [name, owner] of owners) {
+    const { kind, id, icon, color } = owner;
     const response = await fetch(
       new URL(
         `/api/v1/plugins/icons/rpc/setIcon`,
@@ -251,12 +302,12 @@ export async function applyPluginState({ stack, projects }) {
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ kind: "project", id: project.id, icon, color }),
+        body: JSON.stringify({ kind, id, icon, color }),
       },
     );
     if (!response.ok) {
       throw new Error(
-        `Could not set the ${name} project icon: ${response.status} ${await response.text()}`,
+        `Could not set the ${name} icon: ${response.status} ${await response.text()}`,
       );
     }
   }
