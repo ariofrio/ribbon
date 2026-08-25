@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { cleanup, fireEvent } from "@testing-library/react";
+import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => {
@@ -164,10 +164,18 @@ function options(overrides: Record<string, unknown> = {}) {
       revision: 2,
     },
   }));
+  const createProjectV1 = vi.fn(async () => ({ id: "project-new" }));
+  const createSectionV1 = vi.fn(async () => ({ id: "section-new" }));
+  const renameEntityV1 = vi.fn(async () => null);
+  const deleteEntityV1 = vi.fn(async () => null);
   return {
     synchronizeV1,
     listPlacementsV1,
     updatePlacementV1,
+    createProjectV1,
+    createSectionV1,
+    renameEntityV1,
+    deleteEntityV1,
     value: {
       settings: {
         showProjectsAndSections: true,
@@ -183,6 +191,10 @@ function options(overrides: Record<string, unknown> = {}) {
           ],
         })),
         updatePlacementV1,
+        createProjectV1,
+        createSectionV1,
+        renameEntityV1,
+        deleteEntityV1,
       },
       sidebarThreads: {
         projects: [
@@ -269,13 +281,78 @@ describe("Ribbon sidebar app", () => {
         showCollapsedGroupIndicators: true,
       },
     });
+    fixture.value.rpc.listPlacementsV1 = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        groupingKey: "plugin:thread-stages:stages",
+        revision: 1,
+        items: [
+          {
+            groupingKey: "plugin:thread-stages:stages",
+            groupId: "Removed",
+            threadId: "thread-a",
+            enteredAtMs: 1,
+            origin: "auto" as const,
+          },
+        ],
+      },
+    }));
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Design migration");
+    expect(slot.getByText("Stage: Removed (unavailable)")).toBeTruthy();
+    expect(slot.getByRole("button", { name: "Stage: Idle" })).toBeTruthy();
     expect(
       slot.queryByRole("button", { name: "Projects and sections" }),
     ).toBeNull();
     expect(slot.getByRole("button", { name: /Group by/u })).toBeTruthy();
     expect(slot.queryByText("A useful preview")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps project and section creation plus scoped entity actions", async () => {
+    const prompt = vi.spyOn(window, "prompt").mockReturnValue("Roadmap");
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+
+    const management = slot.getByRole("button", {
+      name: "Projects and sections",
+    });
+    fireEvent.keyDown(management, { key: "Enter" });
+    fireEvent.click(await slot.findByText("New project…"));
+    await waitFor(() => expect(fixture.createProjectV1).toHaveBeenCalled());
+
+    fireEvent.keyDown(management, { key: "Enter" });
+    fireEvent.click(await slot.findByText("New section…"));
+    await waitFor(() =>
+      expect(fixture.createSectionV1).toHaveBeenCalledWith({ name: "Roadmap" }),
+    );
+
+    fireEvent.keyDown(management, { key: "Enter" });
+    fireEvent.click(await slot.findByText("Release"));
+    const actions = await slot.findByRole("button", { name: "Scope actions" });
+    fireEvent.keyDown(actions, { key: "Enter" });
+    fireEvent.click(await slot.findByText("Rename…"));
+    await waitFor(() =>
+      expect(fixture.renameEntityV1).toHaveBeenCalledWith({
+        groupingKey: "builtin:sections",
+        id: "section-a",
+        name: "Roadmap",
+      }),
+    );
+
+    fireEvent.keyDown(actions, { key: "Enter" });
+    fireEvent.click(await slot.findByText("Delete…"));
+    await waitFor(() =>
+      expect(fixture.deleteEntityV1).toHaveBeenCalledWith({
+        groupingKey: "builtin:sections",
+        id: "section-a",
+      }),
+    );
+    prompt.mockRestore();
+    confirm.mockRestore();
     slot.lifecycle.unmount();
   });
 
