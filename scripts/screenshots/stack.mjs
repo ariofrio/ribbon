@@ -9,8 +9,8 @@
 //
 // From npm rather than /Applications: the bb these shots are taken against is
 // an input to every one of them, and an app bundle is whichever bb the machine
-// happens to have. Its manifest stays beside the harness while the root
-// workspace install hoists its shared copy for every plugin to build against.
+// happens to have. Its manifest stays beside the harness; the root workspace
+// installs one shared copy for every plugin to build against.
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";

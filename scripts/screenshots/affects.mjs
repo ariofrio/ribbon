@@ -10,7 +10,7 @@ const TEST_FILE = /\.test\.[cm]?[jt]sx?$/u;
 
 /** Files outside any plugin that still change what a capture draws. */
 const ROOT_FILES = new Set([
-  // The root lock holds the screenshot workspace's bb-app pin.
+  // The root manifest makes this harness a workspace.
   "package.json",
   // Pins playwright, which picks the container's Chromium.
   "package-lock.json",
