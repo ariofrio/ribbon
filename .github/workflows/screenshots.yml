@@ -131,6 +131,14 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m "Recapture the screenshots this branch moved"
           git push origin "HEAD:${HEAD_REF:-$GITHUB_REF_NAME}"
+      - name: Upload screenshot diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshot-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .scratch/screenshots/bb.log
+          if-no-files-found: error
+          include-hidden-files: true
 
   # The stable required-check name. A skipped capture is success; a failed or
   # cancelled relevance/capture job is not.
