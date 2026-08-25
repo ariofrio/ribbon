@@ -191,6 +191,55 @@ describe("placement persistence", () => {
     ).toEqual({ count: 0 });
   });
 
+  it("refuses to overwrite customized target placement during rekey", () => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    for (const migration of RIBBON_SIDEBAR_MIGRATIONS) database.exec(migration);
+    const renamed: GroupingDescriptor = {
+      ...stages,
+      groupingKey: "plugin:thread-stages:workflow",
+    };
+    const store = createPlacementStore(database, {
+      grouping: (key) =>
+        key === stages.groupingKey
+          ? stages
+          : key === renamed.groupingKey
+            ? renamed
+            : null,
+      groupings: () => [stages, renamed],
+      now: () => 100,
+    });
+    store.reconcileRoots(["thread-a"], []);
+    store.updatePlacement({
+      groupingKey: stages.groupingKey,
+      groupId: "Active",
+      threadId: "thread-a",
+      origin: "ui",
+    });
+    database
+      .prepare(
+        `UPDATE group_assignment SET origin = ?
+         WHERE grouping_key = ? AND thread_id = ?`,
+      )
+      .run("cli", renamed.groupingKey, "thread-a");
+
+    expect(() =>
+      store.rekeyGrouping(
+        stages.groupingKey as `plugin:${string}:${string}`,
+        renamed.groupingKey as `plugin:${string}:${string}`,
+      ),
+    ).toThrow(`Target grouping already has placement state: ${renamed.groupingKey}`);
+    expect(
+      store.getPlacement({
+        groupingKey: stages.groupingKey,
+        threadId: "thread-a",
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: { placement: { groupId: "Active", origin: "ui" } },
+    });
+  });
+
   it("moves, reorders, and idempotently accepts a stale satisfied update", () => {
     const database = new Database(":memory:");
     databases.push(database);
@@ -341,6 +390,63 @@ describe("placement persistence", () => {
       }),
     ).toMatchObject({ ok: false, error: { code: "ANCHOR_INELIGIBLE" } });
     expect(membership.get("thread-a")).toBe("Idle");
+  });
+
+  it("drops retained built-in order when its BB-owned group is deleted", () => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    for (const migration of RIBBON_SIDEBAR_MIGRATIONS) database.exec(migration);
+    const membership = new Map([
+      ["thread-a", "section-a"],
+      ["thread-b", "section-a"],
+    ]);
+    const sections: GroupingDescriptor = {
+      groupingKey: "builtin:sections",
+      singularLabel: "Section",
+      pluralLabel: "Sections",
+      defaultGroupId: "unsectioned",
+      groups: [
+        { id: "section-a", label: "Release", acceptsAssignments: true },
+        { id: "unsectioned", label: "No section", acceptsAssignments: true },
+      ],
+      membership: {
+        kind: "external",
+        writable: true,
+        groupIdForThread: (threadId) => membership.get(threadId) ?? null,
+        setGroupIdForThread: (threadId, groupId) => {
+          membership.set(threadId, groupId);
+        },
+      },
+    };
+    const store = createPlacementStore(database, {
+      grouping: () => sections,
+      groupings: () => [sections],
+      now: () => 100,
+    });
+    store.reconcileRoots(["thread-a", "thread-b"], []);
+    store.updatePlacement({
+      groupingKey: "builtin:sections",
+      groupId: "section-a",
+      threadId: "thread-b",
+      anchor: { kind: "start" },
+      origin: "ui",
+    });
+    expect(
+      store.listPlacements({ groupingKey: "builtin:sections" }),
+    ).toMatchObject({
+      ok: true,
+      value: { items: [{ threadId: "thread-b" }, { threadId: "thread-a" }] },
+    });
+
+    expect(
+      store.deleteGroupOrder("builtin:sections", "section-a"),
+    ).toMatchObject({ deleted: 2 });
+    expect(
+      store.listPlacements({ groupingKey: "builtin:sections" }),
+    ).toMatchObject({
+      ok: true,
+      value: { items: [{ threadId: "thread-a" }, { threadId: "thread-b" }] },
+    });
   });
 
   it("keeps nonempty removed groups recoverable without accepting them as filters", () => {

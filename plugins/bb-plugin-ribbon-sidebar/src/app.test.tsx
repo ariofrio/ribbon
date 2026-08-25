@@ -190,6 +190,13 @@ function options(overrides: Record<string, unknown> = {}) {
             { threadId: "thread-a", preview: "A useful preview" },
           ],
         })),
+        searchThreadIdsV1: vi.fn(async (raw: unknown) => ({
+          threadIds: (raw as { query: string }).query
+            .toLocaleLowerCase()
+            .includes("migration")
+            ? ["thread-a"]
+            : [],
+        })),
         updatePlacementV1,
         createProjectV1,
         createSectionV1,
@@ -244,6 +251,23 @@ describe("Ribbon sidebar app", () => {
     expect(slot.queryByText("thread-pin")).toBeNull();
     expect(slot.getByText("thread-child")).toBeTruthy();
     expect(slot.queryByText("Ship UI")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("uses bb's thread search results instead of title-only matching", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    fixture.value.rpc.searchThreadIdsV1 = vi.fn(async (_raw: unknown) => ({
+      threadIds: ["thread-b"],
+    }));
+    const slot = renderSlot(
+      app.threadLists[0]!,
+      { ...props, searchQuery: "message body keyword" },
+      fixture.value,
+    );
+
+    expect(await slot.findByText("Ship UI")).toBeTruthy();
+    expect(slot.queryByText("Design migration")).toBeNull();
     slot.lifecycle.unmount();
   });
 
@@ -389,8 +413,6 @@ describe("Ribbon sidebar app", () => {
   });
 
   it("keeps project and section creation plus scoped entity actions", async () => {
-    const prompt = vi.spyOn(window, "prompt").mockReturnValue("Roadmap");
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
@@ -405,6 +427,12 @@ describe("Ribbon sidebar app", () => {
 
     fireEvent.keyDown(management, { key: "Enter" });
     fireEvent.click(await slot.findByText("New section…"));
+    const createName = await slot.findByRole("textbox", {
+      name: "Section name",
+    });
+    expect(document.activeElement).toBe(createName);
+    fireEvent.change(createName, { target: { value: "Roadmap" } });
+    fireEvent.click(slot.getByRole("button", { name: "Create section" }));
     await waitFor(() =>
       expect(fixture.createSectionV1).toHaveBeenCalledWith({ name: "Roadmap" }),
     );
@@ -414,6 +442,9 @@ describe("Ribbon sidebar app", () => {
     const actions = await slot.findByRole("button", { name: "Scope actions" });
     fireEvent.keyDown(actions, { key: "Enter" });
     fireEvent.click(await slot.findByText("Rename…"));
+    const renameName = await slot.findByRole("textbox", { name: "New name" });
+    fireEvent.change(renameName, { target: { value: "Roadmap" } });
+    fireEvent.click(slot.getByRole("button", { name: "Rename" }));
     await waitFor(() =>
       expect(fixture.renameEntityV1).toHaveBeenCalledWith({
         groupingKey: "builtin:sections",
@@ -424,14 +455,14 @@ describe("Ribbon sidebar app", () => {
 
     fireEvent.keyDown(actions, { key: "Enter" });
     fireEvent.click(await slot.findByText("Delete…"));
+    expect(await slot.findByText("Delete Release?")).toBeTruthy();
+    fireEvent.click(slot.getByRole("button", { name: "Delete" }));
     await waitFor(() =>
       expect(fixture.deleteEntityV1).toHaveBeenCalledWith({
         groupingKey: "builtin:sections",
         id: "section-a",
       }),
     );
-    prompt.mockRestore();
-    confirm.mockRestore();
     slot.lifecycle.unmount();
   });
 
@@ -490,6 +521,20 @@ describe("Ribbon sidebar app", () => {
     fireEvent.drop(
       slot.getByRole("button", { name: "Move to end of Idle" }),
       { dataTransfer },
+    );
+    expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: "thread-b",
+        groupId: "Idle",
+        anchor: { kind: "end" },
+        origin: "ui",
+      }),
+    );
+
+    fixture.updatePlacementV1.mockClear();
+    fireEvent.click(slot.getByRole("button", { name: "Move Ship UI" }));
+    fireEvent.click(
+      slot.getByRole("button", { name: "Move to end of Idle" }),
     );
     expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
       expect.objectContaining({

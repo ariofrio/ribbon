@@ -10,7 +10,7 @@ divides the visible root threads.
   <img src="assets/screenshot-light.png" alt="Ribbon sidebar grouping a bb thread list by workflow stage">
 </picture>
 
-Thread stages v0.8.0 is the first grouping provider. On the first mounted
+Thread stages v0.9.0 is the first grouping provider. On the first mounted
 Ribbon sidebar client, its existing stages and manual order migrate through the
 provider's versioned snapshot and compare-and-swap acknowledgement. Installing
 Ribbon sidebar without selecting it under **Settings → Appearance → Sidebar**

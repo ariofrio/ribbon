@@ -16,6 +16,7 @@ import {
   useRef,
   useState,
   type DragEvent,
+  type FormEvent,
 } from "react";
 import type { z } from "zod";
 import type { rpcContract } from "./server";
@@ -28,6 +29,14 @@ import {
 } from "./view-state";
 import { Button } from "./vendor/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./vendor/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -35,11 +44,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./vendor/components/ui/dropdown-menu";
+import { Input } from "./vendor/components/ui/input";
 
 type SidebarSnapshot = z.output<
   typeof rpcContract.sidebarSnapshotV1.output
 >;
 type SnapshotGrouping = SidebarSnapshot["groupings"][number];
+type BuiltinGroupRef = {
+  groupingKey: "builtin:projects" | "builtin:sections";
+  groupId: string;
+};
+type EntityDialog =
+  | { kind: "create-section"; name: string }
+  | { kind: "rename"; scope: BuiltinGroupRef; label: string; name: string }
+  | { kind: "delete"; scope: BuiltinGroupRef; label: string };
 
 function title(thread: PluginSidebarThread) {
   return thread.title ?? thread.titleFallback ?? "Untitled thread";
@@ -62,6 +80,7 @@ function ThreadRow({
   onDragEnd,
   onDragStart,
   onDropBefore,
+  onMoveStart,
   onOpen,
   preview,
   thread,
@@ -71,6 +90,7 @@ function ThreadRow({
   onDragEnd(): void;
   onDragStart(event: DragEvent<HTMLElement>): void;
   onDropBefore(event: DragEvent<HTMLElement>): void;
+  onMoveStart?: () => void;
   onOpen(): void;
   preview: string | null;
   thread: PluginSidebarThread;
@@ -105,6 +125,16 @@ function ThreadRow({
           </span>
         ) : null}
       </button>
+      {onMoveStart ? (
+        <button
+          aria-label={`Move ${title(thread)}`}
+          className="shrink-0 rounded px-1 py-1 text-muted-foreground outline-none hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+          onClick={onMoveStart}
+          type="button"
+        >
+          <span aria-hidden="true">↕</span>
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -134,6 +164,12 @@ function RibbonSidebarList({
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
+  const [entityDialog, setEntityDialog] = useState<EntityDialog | null>(null);
+  const [entityPending, setEntityPending] = useState(false);
+  const [searchResult, setSearchResult] = useState<{
+    query: string;
+    threadIds: ReadonlySet<string>;
+  }>({ query: "", threadIds: new Set() });
   const mounted = useRef(false);
   const reconnectPending = useRef(false);
 
@@ -297,14 +333,41 @@ function RibbonSidebarList({
     return result;
   }, [liveThreadIds, liveThreads]);
   const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
+  useEffect(() => {
+    if (!normalizedSearch) {
+      setSearchResult({ query: "", threadIds: new Set() });
+      return;
+    }
+    let canceled = false;
+    setSearchResult({ query: normalizedSearch, threadIds: new Set() });
+    void rpc
+      .call("searchThreadIdsV1", { query: searchQuery.trim() })
+      .then(({ threadIds }) => {
+        if (!canceled) {
+          setSearchResult({
+            query: normalizedSearch,
+            threadIds: new Set(threadIds),
+          });
+        }
+      })
+      .catch(() => {
+        if (!canceled) {
+          setSearchResult({ query: normalizedSearch, threadIds: new Set() });
+        }
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [normalizedSearch, rpc, searchQuery]);
   const matchesSearch = useCallback(
     (root: PluginSidebarThread) => {
       if (!normalizedSearch) return true;
-      return [root, ...descendants(root.id, childrenByParent)].some((candidate) =>
-        title(candidate).toLocaleLowerCase().includes(normalizedSearch),
+      if (searchResult.query !== normalizedSearch) return false;
+      return [root, ...descendants(root.id, childrenByParent)].some(
+        ({ id }) => searchResult.threadIds.has(id),
       );
     },
-    [childrenByParent, normalizedSearch],
+    [childrenByParent, normalizedSearch, searchResult],
   );
   // Pinned membership and ordering come directly from bb; placement never
   // participates in this array.
@@ -365,6 +428,63 @@ function RibbonSidebarList({
     );
   }, [preferences, snapshot]);
 
+  const submitEntityName = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (entityDialog?.kind !== "create-section" && entityDialog?.kind !== "rename") {
+        return;
+      }
+      const name = entityDialog.name.trim();
+      if (!name) return;
+      setEntityPending(true);
+      setMutationError(null);
+      try {
+        if (entityDialog.kind === "create-section") {
+          await rpc.call("createSectionV1", { name });
+        } else {
+          await rpc.call("renameEntityV1", {
+            groupingKey: entityDialog.scope.groupingKey,
+            id: entityDialog.scope.groupId,
+            name,
+          });
+        }
+        setEntityDialog(null);
+        await synchronize();
+      } catch (error) {
+        setMutationError(
+          error instanceof Error ? error.message : "Could not save the entity",
+        );
+      } finally {
+        setEntityPending(false);
+      }
+    },
+    [entityDialog, rpc, synchronize],
+  );
+
+  const deleteEntity = useCallback(async () => {
+    if (entityDialog?.kind !== "delete") return;
+    setEntityPending(true);
+    setMutationError(null);
+    try {
+      await rpc.call("deleteEntityV1", {
+        groupingKey: entityDialog.scope.groupingKey,
+        id: entityDialog.scope.groupId,
+      });
+      setEntityDialog(null);
+      changePreferences((current) => ({
+        ...current,
+        view: { ...current.view, scope: { kind: "all" } },
+      }));
+      await synchronize();
+    } catch (error) {
+      setMutationError(
+        error instanceof Error ? error.message : "Could not delete the entity",
+      );
+    } finally {
+      setEntityPending(false);
+    }
+  }, [changePreferences, entityDialog, rpc, synchronize]);
+
   const updatePlacement = useCallback(
     async (threadId: string, groupId: string, anchor: { kind: "before"; threadId: string } | { kind: "end" }) => {
       if (!preferences) return;
@@ -413,6 +533,9 @@ function RibbonSidebarList({
             });
           }
         }}
+        onMoveStart={
+          depth === 0 ? () => setDraggingThreadId(root.id) : undefined
+        }
         onOpen={() => {
           actions.open(root.id);
           onNavigate();
@@ -501,18 +624,7 @@ function RibbonSidebarList({
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => {
-                  const name = window.prompt("Section name")?.trim();
-                  if (!name) return;
-                  void rpc
-                    .call("createSectionV1", { name })
-                    .then(() => synchronize())
-                    .catch((error: unknown) =>
-                      setMutationError(
-                        error instanceof Error
-                          ? error.message
-                          : "Could not create section",
-                      ),
-                    );
+                  setEntityDialog({ kind: "create-section", name: "" });
                 }}
               >
                 New section…
@@ -571,17 +683,12 @@ function RibbonSidebarList({
                     onSelect={() => {
                       if (preferences.view.scope.kind !== "group") return;
                       const currentScope = preferences.view.scope.group;
-                      const name = window.prompt("New name", scopeLabel)?.trim();
-                      if (!name) return;
-                      void rpc
-                        .call("renameEntityV1", {
-                          groupingKey: currentScope.groupingKey as
-                            | "builtin:projects"
-                            | "builtin:sections",
-                          id: currentScope.groupId,
-                          name,
-                        })
-                        .then(() => synchronize());
+                      setEntityDialog({
+                        kind: "rename",
+                        scope: currentScope as BuiltinGroupRef,
+                        label: scopeLabel,
+                        name: scopeLabel,
+                      });
                     }}
                   >
                     Rename…
@@ -589,27 +696,13 @@ function RibbonSidebarList({
                   <DropdownMenuItem
                     variant="destructive"
                     onSelect={() => {
-                      if (
-                        preferences.view.scope.kind !== "group" ||
-                        !window.confirm(`Delete ${scopeLabel}?`)
-                      ) {
-                        return;
-                      }
+                      if (preferences.view.scope.kind !== "group") return;
                       const currentScope = preferences.view.scope.group;
-                      void rpc
-                        .call("deleteEntityV1", {
-                          groupingKey: currentScope.groupingKey as
-                            | "builtin:projects"
-                            | "builtin:sections",
-                          id: currentScope.groupId,
-                        })
-                        .then(async () => {
-                          changePreferences((current) => ({
-                            ...current,
-                            view: { ...current.view, scope: { kind: "all" } },
-                          }));
-                          await synchronize();
-                        });
+                      setEntityDialog({
+                        kind: "delete",
+                        scope: currentScope as BuiltinGroupRef,
+                        label: scopeLabel,
+                      });
                     }}
                   >
                     Delete…
@@ -638,6 +731,68 @@ function RibbonSidebarList({
           {mutationError}
         </div>
       ) : null}
+
+      <Dialog
+        open={entityDialog !== null}
+        onOpenChange={(open) => {
+          if (!open && !entityPending) setEntityDialog(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {entityDialog?.kind === "create-section"
+                ? "New section"
+                : entityDialog?.kind === "rename"
+                  ? `Rename ${entityDialog.label}`
+                  : entityDialog?.kind === "delete"
+                    ? `Delete ${entityDialog.label}?`
+                    : "Edit entity"}
+            </DialogTitle>
+            <DialogDescription>
+              {entityDialog?.kind === "delete"
+                ? "This removes the group from bb."
+                : "Choose the name shown in the Ribbon sidebar."}
+            </DialogDescription>
+          </DialogHeader>
+          {entityDialog?.kind === "create-section" ||
+          entityDialog?.kind === "rename" ? (
+            <form className="space-y-4" onSubmit={(event) => void submitEntityName(event)}>
+              <Input
+                aria-label={
+                  entityDialog.kind === "create-section" ? "Section name" : "New name"
+                }
+                autoFocus
+                disabled={entityPending}
+                onChange={(event) =>
+                  setEntityDialog((current) =>
+                    current?.kind === "create-section" || current?.kind === "rename"
+                      ? { ...current, name: event.target.value }
+                      : current,
+                  )
+                }
+                value={entityDialog.name}
+              />
+              <DialogFooter>
+                <Button disabled={entityPending || !entityDialog.name.trim()} type="submit">
+                  {entityDialog.kind === "create-section" ? "Create section" : "Rename"}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : entityDialog?.kind === "delete" ? (
+            <DialogFooter>
+              <Button
+                disabled={entityPending}
+                onClick={() => void deleteEntity()}
+                type="button"
+                variant="destructive"
+              >
+                Delete
+              </Button>
+            </DialogFooter>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       {pinnedRoots.length > 0 ? (
         <section aria-label="Pinned threads">
@@ -705,20 +860,34 @@ function RibbonSidebarList({
             ) : null}
             {!collapsed || sameKeyScope ? roots.map((root) => renderRoot(root)) : null}
             {(sameKeyScope || !collapsed) && group.acceptsAssignments ? (
-              <div
+              <button
                 aria-label={`Move to end of ${group.label}`}
-                className="h-2 rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className={
+                  draggingThreadId
+                    ? "min-h-8 w-full rounded-sm px-2 text-left text-xs text-muted-foreground outline-none hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-ring"
+                    : "h-2 w-full rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                }
                 data-testid={sameKeyScope ? "scope-end-drop-target" : undefined}
+                onClick={() => {
+                  if (draggingThreadId) {
+                    void updatePlacement(draggingThreadId, group.id, {
+                      kind: "end",
+                    });
+                    setDraggingThreadId(null);
+                  }
+                }}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => {
                   event.preventDefault();
                   if (draggingThreadId) {
                     void updatePlacement(draggingThreadId, group.id, { kind: "end" });
+                    setDraggingThreadId(null);
                   }
                 }}
-                role="button"
-                tabIndex={0}
-              />
+                type="button"
+              >
+                {draggingThreadId ? `Move to end of ${group.label}` : null}
+              </button>
             ) : null}
           </section>
         );

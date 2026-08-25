@@ -119,6 +119,11 @@ interface OrderRow {
   sort_key: string;
 }
 
+interface MigrationOrderRow extends OrderRow {
+  group_id: string;
+  updated_at_ms: number;
+}
+
 interface PlacementStoreOptions {
   grouping(groupingKey: GroupingKey): GroupingDescriptor | null;
   groupings(): readonly GroupingDescriptor[];
@@ -131,6 +136,10 @@ export interface PlacementStore {
     childThreadIds: readonly string[],
   ): { changedGroupingKeys: GroupingKey[] };
   deleteThread(threadId: string): { changedGroupingKeys: GroupingKey[] };
+  deleteGroupOrder(
+    groupingKey: GroupingKey,
+    groupId: string,
+  ): { deleted: number; revision: number };
   importThreadStagesSnapshot(snapshot: ThreadStagesMigrationSnapshotV1): {
     imported: boolean;
   };
@@ -263,6 +272,12 @@ export function createPlacementStore(
     WHERE grouping_key = ? AND group_id = ?
     ORDER BY sort_key, thread_id
   `);
+  const listMigrationOrders = database.prepare(`
+    SELECT group_id, thread_id, sort_key, updated_at_ms
+    FROM group_order
+    WHERE grouping_key = ?
+    ORDER BY group_id, thread_id
+  `);
   const getOrder = database.prepare(`
     SELECT thread_id, sort_key
     FROM group_order
@@ -304,6 +319,9 @@ export function createPlacementStore(
   `);
   const deleteGroupingOrders = database.prepare(`
     DELETE FROM group_order WHERE grouping_key = ?
+  `);
+  const deleteGroupOrders = database.prepare(`
+    DELETE FROM group_order WHERE grouping_key = ? AND group_id = ?
   `);
   const countGroupingRows = database.prepare(`
     SELECT
@@ -496,6 +514,19 @@ export function createPlacementStore(
         })
         .immediate();
     },
+    deleteGroupOrder(groupingKey, groupId) {
+      return database
+        .transaction(() => {
+          ensureRevision.run(groupingKey);
+          const deleted = deleteGroupOrders.run(groupingKey, groupId).changes;
+          if (deleted > 0) incrementRevision.run(groupingKey);
+          const revision = (
+            getRevision.get(groupingKey) as { revision: number }
+          ).revision;
+          return { deleted, revision };
+        })
+        .immediate();
+    },
     importThreadStagesSnapshot(snapshot) {
       if (
         importedSnapshotExists.get(
@@ -564,7 +595,41 @@ export function createPlacementStore(
             const expected = snapshot.placements.filter(
               (placement) => placement.groupingId === groupingId,
             );
-            if (importedAssignments.length !== expected.length) {
+            const expectedAssignments = expected
+              .map((placement) => ({
+                grouping_key: groupingKey,
+                thread_id: placement.threadId,
+                group_id: placement.groupId,
+                entered_at_ms: placement.enteredAtMs,
+                previous_group_id: placement.previousGroupId ?? null,
+                origin: placement.origin,
+              }))
+              .sort((left, right) => left.thread_id.localeCompare(right.thread_id));
+            importedAssignments.sort((left, right) =>
+              left.thread_id.localeCompare(right.thread_id),
+            );
+            const importedOrders = listMigrationOrders.all(
+              groupingKey,
+            ) as MigrationOrderRow[];
+            const expectedOrders = expected
+              .flatMap((placement) =>
+                placement.orders.map((order) => ({
+                  group_id: order.groupId,
+                  thread_id: placement.threadId,
+                  sort_key: order.sortKey,
+                  updated_at_ms: order.updatedAtMs,
+                })),
+              )
+              .sort(
+                (left, right) =>
+                  left.group_id.localeCompare(right.group_id) ||
+                  left.thread_id.localeCompare(right.thread_id),
+              );
+            if (
+              JSON.stringify(importedAssignments) !==
+                JSON.stringify(expectedAssignments) ||
+              JSON.stringify(importedOrders) !== JSON.stringify(expectedOrders)
+            ) {
               throw new Error(`Migration verification failed for ${groupingKey}.`);
             }
             ensureRevision.run(groupingKey);

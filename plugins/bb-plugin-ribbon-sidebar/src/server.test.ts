@@ -56,12 +56,13 @@ function setup({
   includeThreadStages?: boolean;
   threads?: ReturnType<typeof makeThreadResponse>[];
 } = {}) {
+  let currentThreadStagesCatalog = threadStagesCatalog;
   const callRpc = vi.fn(async ({ pluginId, method }: {
     pluginId: string;
     method: string;
   }) => {
     if (pluginId !== "thread-stages") throw new Error("unknown provider");
-    if (method === "getGroupingCatalogV1") return threadStagesCatalog;
+    if (method === "getGroupingCatalogV1") return currentThreadStagesCatalog;
     throw new Error(`unexpected method: ${method}`);
   });
   const host = createFakePluginHost({
@@ -69,6 +70,11 @@ function setup({
     sdk: {
       threads: {
         list: async () => threads,
+        search: async () =>
+          ({
+            active: { results: [{ thread: threads[1] }] },
+            archived: { results: [] },
+          }) as never,
         update: async ({ threadId, sectionId }) =>
           makeThreadResponse({
             ...threads.find(({ id }) => id === threadId),
@@ -116,7 +122,13 @@ function setup({
       },
     },
   });
-  return { ...host, callRpc };
+  return {
+    ...host,
+    callRpc,
+    setThreadStagesCatalog(catalog: typeof threadStagesCatalog) {
+      currentThreadStagesCatalog = catalog;
+    },
+  };
 }
 
 describe("Ribbon sidebar server", () => {
@@ -132,6 +144,7 @@ describe("Ribbon sidebar server", () => {
       "invalidateGroupingCatalogV1",
       "listPlacementsV1",
       "listPreviewsV1",
+      "searchThreadIdsV1",
       "renameEntityV1",
       "sidebarSnapshotV1",
       "synchronizeV1",
@@ -188,6 +201,18 @@ describe("Ribbon sidebar server", () => {
         threadId: "thread-a",
       }),
     ).toMatchObject({ ok: false, error: { code: "GROUPING_NOT_FOUND" } });
+  });
+
+  it("delegates sidebar search to bb's indexed thread search", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+
+    await expect(
+      harness.behavior.callRpc("searchThreadIdsV1", { query: "message body" }),
+    ).resolves.toEqual({ threadIds: ["thread-child"] });
+    expect(harness.inspection.sdk.callsTo("threads.search")).toEqual([
+      [{ query: "message body", limitPerGroup: "50" }],
+    ]);
   });
 
   it("reconciles a live child as a root when its parent is not live", async () => {
@@ -335,6 +360,28 @@ describe("Ribbon sidebar server", () => {
     ]);
   });
 
+  it("rejects an ineligible Section anchor before writing bb membership", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    await harness.behavior.callRpc("synchronizeV1", {
+      migrateThreadStages: false,
+    });
+
+    expect(
+      await harness.behavior.callRpc("updatePlacementV1", {
+        groupingKey: "builtin:sections",
+        groupId: "unsectioned",
+        threadId: "thread-a",
+        anchor: { kind: "before", threadId: "thread-child" },
+        origin: "ui",
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "ANCHOR_INELIGIBLE" },
+    });
+    expect(harness.inspection.sdk.callsTo("threads.update")).toEqual([]);
+  });
+
   it("persists CLI Section placement through bb's membership adapter", async () => {
     const { bb, harness } = setup();
     await plugin(bb);
@@ -368,5 +415,29 @@ describe("Ribbon sidebar server", () => {
         payload: null,
       }),
     );
+  });
+
+  it("publishes provider catalog changes discovered by reconciliation", async () => {
+    const { bb, harness, setThreadStagesCatalog } = setup();
+    await plugin(bb);
+    await harness.behavior.callRpc("synchronizeV1", {
+      migrateThreadStages: false,
+    });
+    setThreadStagesCatalog({
+      ...threadStagesCatalog,
+      groupings: threadStagesCatalog.groupings.map((grouping) => ({
+        ...grouping,
+        groups: grouping.groups.map((group) =>
+          group.id === "Idle" ? { ...group, label: "Waiting" } : group,
+        ),
+      })),
+    });
+
+    await harness.behavior.runSchedule("catalog-reconciliation");
+
+    expect(harness.inspection.realtimeSignals).toContainEqual({
+      channel: "catalog-changed",
+      payload: null,
+    });
   });
 });

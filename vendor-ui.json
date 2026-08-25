@@ -18,7 +18,9 @@
     ],
     "plugins/bb-plugin-ribbon-sidebar": [
       "button",
+      "dialog",
       "dropdown-menu",
+      "input",
       "tooltip"
     ],
     "plugins/bb-plugin-thread-stages": [

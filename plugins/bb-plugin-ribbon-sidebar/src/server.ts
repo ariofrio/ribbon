@@ -109,6 +109,10 @@ export const rpcContract = defineRpcContract({
       })
       .strict(),
   },
+  searchThreadIdsV1: {
+    input: z.object({ query: z.string().trim().min(1).max(500) }).strict(),
+    output: z.object({ threadIds: z.array(z.string()) }).strict(),
+  },
   renameEntityV1: {
     input: z
       .object({
@@ -261,7 +265,22 @@ export default async function plugin(bb: BbPluginApi) {
     };
   }
 
+  function providerCatalogFingerprint() {
+    return JSON.stringify(
+      providers.allGroupings().map((descriptor) => ({
+        providerPluginId: descriptor.providerPluginId,
+        groupingId: descriptor.groupingId,
+        singularLabel: descriptor.singularLabel,
+        pluralLabel: descriptor.pluralLabel,
+        defaultGroupId: descriptor.defaultGroupId,
+        groups: descriptor.groups,
+        available: descriptor.available,
+      })),
+    );
+  }
+
   async function refreshCatalogsAndRoots() {
+    const catalogBefore = providerCatalogFingerprint();
     const [installed, projects, sections, threads] = await Promise.all([
       bb.sdk.plugins.list(),
       bb.sdk.projects.list({ includePersonal: true }),
@@ -340,6 +359,7 @@ export default async function plugin(bb: BbPluginApi) {
         groupingKeys: result.changedGroupingKeys,
       });
     }
+    return catalogBefore !== providerCatalogFingerprint();
   }
 
   async function migrateFromThreadStages() {
@@ -419,6 +439,27 @@ export default async function plugin(bb: BbPluginApi) {
         },
       };
     }
+    if (input.anchor?.kind === "before" || input.anchor?.kind === "after") {
+      const anchorThreadId = input.anchor.threadId;
+      const destinationPlacements = store.listPlacements({
+        groupingKey,
+        groupIds: [input.groupId],
+      });
+      if (
+        !destinationPlacements.ok ||
+        !destinationPlacements.value.items.some(
+          ({ threadId }) => threadId === anchorThreadId,
+        )
+      ) {
+        return {
+          ok: false as const,
+          error: {
+            code: "ANCHOR_INELIGIBLE" as const,
+            message: `Anchor is not eligible in ${input.groupingKey}/${input.groupId}: ${anchorThreadId}`,
+          },
+        };
+      }
+    }
 
     const originalSectionId =
       before.value.placement.groupId === "unsectioned"
@@ -480,7 +521,13 @@ export default async function plugin(bb: BbPluginApi) {
       } else {
         await bb.sdk.threadSections.delete({ id });
       }
+      const order = store.deleteGroupOrder(groupingKey, id);
       await refreshCatalogsAndRoots();
+      if (order.deleted > 0) {
+        bb.realtime.publish("placements-changed", {
+          groupingKeys: [groupingKey],
+        });
+      }
       return { ok: true as const };
     },
     getPlacementV1(input) {
@@ -536,6 +583,21 @@ export default async function plugin(bb: BbPluginApi) {
       }
       await refreshCatalogsAndRoots();
       return { ok: true as const };
+    },
+    async searchThreadIdsV1({ query }) {
+      const result = await bb.sdk.threads.search({
+        query,
+        limitPerGroup: "50",
+      });
+      const seen = new Set<string>();
+      const threadIds = [...result.active.results, ...result.archived.results]
+        .map(({ thread }) => thread.id)
+        .filter((threadId) => {
+          if (seen.has(threadId)) return false;
+          seen.add(threadId);
+          return true;
+        });
+      return { threadIds };
     },
     sidebarSnapshotV1() {
       return sidebarSnapshot();
@@ -604,7 +666,9 @@ export default async function plugin(bb: BbPluginApi) {
     });
   }
   bb.background.schedule("catalog-reconciliation", "* * * * *", async () => {
-    await refreshCatalogsAndRoots();
+    if (await refreshCatalogsAndRoots()) {
+      bb.realtime.publish("catalog-changed", null);
+    }
   });
   settings.onChange(() => {
     bb.realtime.publish("settings-changed", null);

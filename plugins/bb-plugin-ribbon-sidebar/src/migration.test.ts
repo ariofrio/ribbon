@@ -161,4 +161,48 @@ describe("Thread stages migration", () => {
       store.getPlacement({ groupingKey, threadId: "thread-a" }),
     ).toEqual(revisionAfterImport);
   });
+
+  it.each([
+    [
+      "assignment",
+      `CREATE TRIGGER corrupt_imported_assignment
+       AFTER INSERT ON group_assignment
+       WHEN NEW.thread_id = 'thread-a'
+       BEGIN
+         UPDATE group_assignment SET origin = 'auto'
+         WHERE grouping_key = NEW.grouping_key AND thread_id = NEW.thread_id;
+       END`,
+    ],
+    [
+      "order",
+      `CREATE TRIGGER corrupt_imported_order
+       AFTER INSERT ON group_order
+       WHEN NEW.thread_id = 'thread-a' AND NEW.group_id = 'Active'
+       BEGIN
+         UPDATE group_order SET sort_key = 'corrupt'
+         WHERE grouping_key = NEW.grouping_key
+           AND group_id = NEW.group_id
+           AND thread_id = NEW.thread_id;
+       END`,
+    ],
+  ])("rejects a corrupted imported %s before acknowledgement", (_kind, trigger) => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    for (const migration of RIBBON_SIDEBAR_MIGRATIONS) database.exec(migration);
+    database.exec(trigger);
+    const store = createPlacementStore(database, {
+      grouping: (key) => (key === groupingKey ? grouping : null),
+      groupings: () => [grouping],
+    });
+    store.reconcileRoots(["thread-a", "thread-b"], []);
+
+    expect(() => store.importThreadStagesSnapshot(snapshot(1, "Active"))).toThrow(
+      `Migration verification failed for ${groupingKey}.`,
+    );
+    expect(
+      database
+        .prepare("SELECT COUNT(*) AS count FROM migration_import")
+        .get(),
+    ).toEqual({ count: 0 });
+  });
 });
