@@ -96,8 +96,8 @@ function ActiveIcon({
   );
 }
 
-// bb gives plugins each computed indicator and label, but not the aggregate
-// precedence. This is bb's per-thread precedence with unread-success omitted.
+// bb-app@0.39.0 provides each computed indicator and label, but does not export
+// aggregate precedence. This follows that release, omitting unread-success.
 const INDICATOR_PRIORITY: readonly PluginSidebarThreadIndicator[] = [
   "unread-error",
   "waiting-for-input",
