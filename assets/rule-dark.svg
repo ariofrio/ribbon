@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="1" viewBox="0 0 1120 1" preserveAspectRatio="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="35" viewBox="0 0 1120 35" preserveAspectRatio="none">
   <!-- The same divider for a dark page, in the borderColor-muted it uses there. -->
-  <rect width="1120" height="1" fill="#3d444d" opacity="0.7"/>
+  <rect y="17" width="1120" height="1" fill="#3d444d" opacity="0.7"/>
 </svg>
