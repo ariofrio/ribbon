@@ -26,9 +26,7 @@ const READY_ATTRIBUTE = "data-ribbon-icons-ready";
  * Publishes every chosen icon as CSS, for any surface that marks its own box.
  *
  * A consumer draws its own element and names the owner on it; the glyph
- * arrives through the cascade. That costs nothing per row — no scan, no
- * observer, no node — so a list of any length is the same work as one row,
- * and a plugin that has never heard of this one still draws its own icon.
+ * arrives through the cascade, with no scan, observer, or node per row.
  */
 export function publishIconStylesheet({
   load,
@@ -44,8 +42,8 @@ export function publishIconStylesheet({
     if (disposed || view === null) return;
     style.textContent = `${decorationStylesheet(view.defaults)}\n${iconStylesheet(view)}`;
     if (style.parentNode === null) target.head.append(style);
-    // Only once the sheet is there: a consumer keys its affordances off this,
-    // and an early marker would offer a picker that could not open.
+    // Only once the sheet is there: a consumer keys off this to decide whether
+    // to draw at all, and an early marker would show it empty boxes.
     target.documentElement.setAttribute(READY_ATTRIBUTE, "");
   };
 

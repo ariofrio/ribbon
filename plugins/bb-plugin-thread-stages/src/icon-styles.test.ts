@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
 //
 // jsdom applies no stylesheet, so nothing here can prove a glyph is painted —
-// that is what a capture is for. What these pin is the half a capture reads
-// past: that the rules name the attributes the sidebar actually writes, that a
-// glyph survives being turned into a URL, and that the sheet leaves the
-// document as cleanly as it entered.
+// that is what a capture is for. These pin what a capture reads past: that the
+// rules name the attributes the sidebar actually writes.
 import { describe, expect, it } from "vitest";
 import {
   ICON_ATTRIBUTE,

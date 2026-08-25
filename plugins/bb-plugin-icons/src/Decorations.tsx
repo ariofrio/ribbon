@@ -18,12 +18,9 @@ const TRIGGER =
 /**
  * Puts the picker behind the icon, wherever a click there is free to open it.
  *
- * Only those spots reach React at all. Most of what this plugin draws over sits
- * inside a control bb already gave a job — a menu row that picks a project, a
- * pill that opens one — and an icon there is only to be looked at, so `paint`
- * gives it a marked box and the stylesheet fills it in. Where bb claimed
- * nothing, the icon has to answer a click, and answering one is what still
- * wants a component.
+ * Only those spots reach React. Most of what this plugin draws over sits inside
+ * a control bb already gave a job — a menu row that picks a project, a pill
+ * that opens one — and `paint` gives those a marked box instead.
  */
 export function Decorations({
   decorations,

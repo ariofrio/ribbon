@@ -130,10 +130,9 @@ and cleaning up all live there, so a new place costs an entry rather than a
 module.
 
 What goes into a place found that way is a marked, empty span, and the
-stylesheet below paints it. Only where the icon has to answer a click does
-React come into it, portaled into the same span — so the surfaces that merely
-show an icon hold plain DOM, and bb's guard against foreign nodes in its own
-containers has nothing left to refuse there.
+stylesheet below paints it. React comes into it only where the icon has to
+answer a click, portaled into that same span — so the surfaces that merely show
+an icon hold plain DOM, which bb's foreign-node guard has no reason to refuse.
 
 Where bb already draws a folder, the plugin hides bb's and stands in its place,
 wearing the classes bb had chosen so it matches that surface's size and
@@ -161,7 +160,7 @@ locally rather than dropping an icon silently.
 While this plugin is installed it publishes one stylesheet holding every icon
 anyone has chosen. Name an owner on a box you draw yourself and the glyph
 arrives through the cascade — nothing to fetch, nothing to subscribe to, and no
-work per row, so a list of any length costs what one row costs.
+work per row.
 
 Mark the box with the owner it stands for:
 
@@ -183,18 +182,16 @@ and paint it from the properties this plugin sets on that same element:
 }
 ```
 
-The box, its size, and its fallback are yours. Nothing chains one kind to
-another here: each kind carries its own pair of properties, so the `var()`
-chain you write is the whole of the precedence, and a chain you want tomorrow —
-a thread's own icon before its project's — needs nothing from this plugin.
+The box, its size, and its fallback are yours. Each kind carries its own pair of
+properties and nothing chains between them, so the `var()` chain you write is
+the only precedence there is.
 
-A color is set only where someone picked one, which is what leaves an unpicked
-icon inheriting the color of the label beside it.
+A color is set only where someone picked one, so an unpicked icon inherits the
+color of the label beside it.
 
 `document.documentElement` carries `data-ribbon-icons-ready` once the
 stylesheet is in. Key off it for anything that should not exist without this
-plugin — Thread stages collapses its row icons that way, so a sidebar without
-this plugin lays out as it did before there were icons.
+plugin; Thread stages collapses its row icons that way.
 
 These names are additive: a kind or a property may be added, and none will
 change meaning.

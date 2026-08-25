@@ -321,9 +321,7 @@ function ThreadRow({
         <span className="flex min-w-0 flex-1 items-center gap-2">
           {/*
             The project's icon, which the Icons plugin paints through the
-            cascade. Empty by design: naming the project is the whole of this
-            row's part, and without that plugin the box collapses and the row
-            lays out as it did before there were icons.
+            cascade. Empty by design; without that plugin the box collapses.
           */}
           <span
             aria-hidden
@@ -845,9 +843,8 @@ function WorkflowStageList({
   const [projectActionStates, setProjectActionStates] = useState<
     ReadonlyMap<string, { canAddLocalPath: boolean }>
   >(new Map());
-  // Inserted once, and never touched again: the icons themselves arrive
-  // through the cascade, so neither a list that moved nor an icon someone
-  // changed costs this plugin anything.
+  // Inserted once: the icons arrive through the cascade, so neither a list that
+  // moved nor an edited icon costs this plugin anything.
   useEffect(() => publishIconStyles(), []);
   useEffect(() => {
     const lend = () =>

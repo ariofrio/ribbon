@@ -104,7 +104,7 @@ interface Mounted {
   glyphClassName: string | undefined;
   /** bb's own glyph, and the inline display it had before it was hidden. */
   hidden: { node: HTMLElement; display: string } | null;
-  /** The painted box, where the icon is only to be looked at. */
+  /** The painted box, where a click here means nothing. */
   glyph: HTMLElement | null;
 }
 
@@ -148,11 +148,9 @@ function alignLike(target: HTMLElement, replaced: HTMLElement): void {
 /**
  * Draws the icon, where a click there means nothing.
  *
- * A box naming its owner is the whole of it: the stylesheet this plugin
- * publishes carries the glyph and the color, so nothing here fetches, renders,
- * or re-renders, and bb's own chrome is left holding a plain span rather than
- * a node React owns. Only the picker still needs React, because only there
- * does the icon have to answer a click.
+ * The box only names its owner; the stylesheet this plugin publishes carries
+ * the glyph and the color. So bb's chrome holds a plain span rather than a node
+ * React owns, and nothing here re-runs when an icon changes.
  */
 function paint(entry: Mounted, spot: Spot): void {
   if (spot.picker === true) {

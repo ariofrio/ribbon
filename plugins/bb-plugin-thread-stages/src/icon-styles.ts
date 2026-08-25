@@ -6,15 +6,14 @@ import {
 import type { IconSvgElement } from "@hugeicons/react";
 
 /**
- * The icons this sidebar draws for projects, taken from the Icons plugin
- * through CSS rather than fetched.
+ * The icons this sidebar draws, taken from the Icons plugin through CSS rather
+ * than fetched.
  *
  * That plugin publishes one custom property per owner someone has chosen an
- * icon for, keyed by an attribute a consumer puts on its own box, and marks
- * the document once its stylesheet is in. So a row names its project and the
- * glyph arrives through the cascade: nothing to fetch, nothing to subscribe
- * to, and no work at all per row — a list of any length costs what one row
- * costs. See that plugin's README for the names.
+ * icon for, keyed by an attribute a consumer puts on its own box, and marks the
+ * document once its stylesheet is in. So a row names its owner and the glyph
+ * arrives through the cascade, with nothing to fetch or subscribe to. See that
+ * plugin's README for the names.
  *
  * Written as one stylesheet of plain CSS rather than as classes on the spans,
  * because the rule that collapses a row's icon has to name `:root`, which is
@@ -28,19 +27,16 @@ export const ICON_ATTRIBUTE = "data-thread-stages-icon";
 /**
  * Marks a box that should not exist at all without the Icons plugin.
  *
- * A thread row's icon is the project's icon and nothing else, so with no
- * plugin to supply one the row wants its old layout back rather than the same
- * folder repeated down the list. The filter's icon is its own design and stays
- * either way.
+ * With no plugin to supply one, a row wants its old layout back rather than the
+ * same folder repeated down the list. The filter's icon is its own design and
+ * stays either way.
  */
 export const ICON_OPTIONAL_ATTRIBUTE = "data-thread-stages-icon-optional";
 
 /**
  * Whose icon a box wants, and the glyph it keeps until somebody picks one.
  *
- * The fallback is this plugin's own, not the Icons plugin's: the contract
- * leaves it to the consumer, and this filter has drawn these three since
- * before there were icons to override them.
+ * The fallback is this plugin's own: the contract leaves it to the consumer.
  */
 export type IconFallback = "project" | "personal" | "section";
 
@@ -57,8 +53,7 @@ const FALLBACKS: Record<
  * A glyph as a CSS mask.
  *
  * A mask reads shape, not color, so the drawing carries a solid stroke and the
- * box's `background-color` supplies the real one — which is what keeps an icon
- * taking the color of the row it sits in.
+ * box's `background-color` supplies the real one.
  */
 export function glyphDataUrl(glyph: IconSvgElement): string {
   const children = glyph
@@ -88,7 +83,7 @@ export function iconStyles(): string {
     rules.push(
       `[${ICON_ATTRIBUTE}="${fallback}"]{` +
         // No color of its own unless someone picked one, so the icon reads as
-        // part of the label beside it rather than a dimmer thing near it.
+        // part of the label beside it.
         `background-color:var(--ribbon-icons-${kind}-color,currentColor);` +
         `-webkit-mask:${chosen} center/contain no-repeat;` +
         `mask:${chosen} center/contain no-repeat}`,
@@ -105,9 +100,8 @@ const BOX = "display:inline-block;flex:none;inline-size:1rem;block-size:1rem";
 /**
  * Puts the stylesheet in the document, and takes it back out.
  *
- * One element for the whole plugin, inserted once: the rules key off
- * attributes, so nothing here has to be redone when the list moves, when a
- * project is added, or when someone changes an icon.
+ * One element for the whole plugin: the rules key off attributes, so nothing
+ * here is redone when the list moves or an icon changes.
  */
 export function publishIconStyles(target: Document = document): () => void {
   const style = target.createElement("style");

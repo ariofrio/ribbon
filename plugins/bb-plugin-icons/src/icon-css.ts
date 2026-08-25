@@ -5,9 +5,8 @@ import { PERSONAL_PROJECT_ID, type IconColor, type IconOwnerKind } from "./store
 /**
  * The box this plugin marks where it stands in for one of bb's own glyphs.
  *
- * The published contract is only the variables below; this attribute is how
- * this plugin consumes them on its own placeholders, the same way any other
- * plugin consumes them on its own rows.
+ * Not part of the published contract, which is only the variables below: this
+ * is how the plugin consumes them on its own placeholders.
  */
 export const GLYPH_ATTRIBUTE = "data-ribbon-icons-glyph";
 
@@ -15,8 +14,7 @@ export const GLYPH_ATTRIBUTE = "data-ribbon-icons-glyph";
  * A glyph as a CSS mask.
  *
  * A mask reads shape, not color, so the drawing carries a solid stroke and the
- * consumer's `background-color` supplies the real one — which is what keeps an
- * icon taking the color of the label it sits beside.
+ * consumer's `background-color` supplies the real one.
  */
 export function glyphDataUrl(glyph: IconSvgElement): string {
   const children = glyph
@@ -56,9 +54,8 @@ interface IconsView {
  * The sheet the plugin publishes: one rule per owner someone has picked an
  * icon for, keyed by the attribute a consumer puts on its own box.
  *
- * Nothing here decides precedence. Each kind carries its own variables, so a
- * consumer writes whatever fallback it wants — its own glyph today, another
- * kind's tomorrow — and this sheet never has to know.
+ * Nothing here decides precedence: each kind carries its own variables, so the
+ * `var()` chain a consumer writes is the only fallback there is.
  */
 export function iconStylesheet(view: IconsView): string {
   return view.icons
@@ -87,14 +84,12 @@ export interface IconDefaults {
 /**
  * How this plugin paints the placeholders it puts into bb's chrome.
  *
- * These are ordinary consumer rules — the same `var()` chain any other plugin
- * writes — kept here rather than as classes on the placeholder because those
- * nodes sit outside the scope root bb compiles this plugin's stylesheet into.
- * Drawing them this way is what takes React out of bb's own DOM everywhere the
- * icon only has to be looked at.
+ * Ordinary consumer rules, kept here rather than as classes on the placeholder
+ * because those nodes sit outside the scope root bb compiles this plugin's
+ * stylesheet into.
  *
  * A placeholder wears whatever classes bb had on the glyph it stands in for,
- * so the size below is only for the surfaces where bb drew nothing to copy;
+ * so the size below is only for surfaces where bb drew nothing to copy;
  * `:where` keeps it out of the way of any class that says otherwise.
  */
 export function decorationStylesheet(defaults: IconDefaults): string {
@@ -106,8 +101,8 @@ export function decorationStylesheet(defaults: IconDefaults): string {
       "background-color:var(--ribbon-icons-project-color,currentColor);" +
       `-webkit-mask:var(--ribbon-icons-project-glyph,${project}) center/contain no-repeat;` +
       `mask:var(--ribbon-icons-project-glyph,${project}) center/contain no-repeat}`,
-    // bb's personal project cannot be given an icon, so its fallback is the
-    // whole of what it ever shows.
+    // bb's personal project cannot be given an icon, so it only ever shows
+    // this fallback.
     `[${GLYPH_ATTRIBUTE}][data-ribbon-icons-project="${PERSONAL_PROJECT_ID}"]{` +
       `-webkit-mask-image:var(--ribbon-icons-project-glyph,${personal});` +
       `mask-image:var(--ribbon-icons-project-glyph,${personal})}`,
