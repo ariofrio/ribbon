@@ -20,6 +20,18 @@ const harnessDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(harnessDirectory, "../..");
 const scratch = join(repositoryRoot, ".scratch/screenshots");
 const bb = process.env.BB_CLI ?? BB_CLI_PATH;
+const runStartedAt = performance.now();
+
+async function timePhase(label, operation) {
+  const startedAt = performance.now();
+  try {
+    return await operation();
+  } finally {
+    console.log(
+      `  [timing] ${label}: ${((performance.now() - startedAt) / 1000).toFixed(1)}s`,
+    );
+  }
+}
 
 const options = parseArguments(process.argv.slice(2));
 const shots = SHOTS.filter(
@@ -61,7 +73,9 @@ const dataDir = join(scratch, "data");
 const workspaceRoot = join(scratch, "workspaces");
 
 console.log("Starting an isolated bb…");
-const stack = await startStack({ dataDir, logStream });
+const stack = await timePhase("start stack", () =>
+  startStack({ dataDir, logStream }),
+);
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
     void stack.stop().then(() => process.exit(1));
@@ -71,25 +85,32 @@ try {
   writeManagedConfig({ dataDir, harnessDir: harnessDirectory });
 
   console.log("Installing this repository's plugins…");
-  execFileSync(
-    process.execPath,
-    [
-      join(repositoryRoot, "scripts/install-plugins.mjs"),
-      "--skip-dependencies",
-    ],
-    {
-      cwd: repositoryRoot,
-      env: { ...stack.env, BB_CLI: bb },
-      stdio: "inherit",
-    },
+  await timePhase("install plugins", () =>
+    execFileSync(
+      process.execPath,
+      [
+        join(repositoryRoot, "scripts/install-plugins.mjs"),
+        "--skip-dependencies",
+      ],
+      {
+        cwd: repositoryRoot,
+        env: { ...stack.env, BB_CLI: bb },
+        stdio: "inherit",
+      },
+    ),
   );
 
   console.log("Seeding the fixture…");
-  const fixture = seed({ stack, workspaceRoot, bb });
-  await applyPluginState({ stack, projects: fixture.projects });
+  const fixture = await timePhase("seed fixture", async () => {
+    const seeded = seed({ stack, workspaceRoot, bb });
+    await applyPluginState({ stack, projects: seeded.projects });
+    return seeded;
+  });
 
   console.log("Capturing…");
-  const captured = await capture({ stack, fixture, shots, shotFiles, repositoryRoot });
+  const captured = await timePhase("capture", () =>
+    capture({ stack, fixture, shots, shotFiles, repositoryRoot }),
+  );
 
   console.log(
     `\nWrote ${captured.flatMap((shot) => shot.outputs).length} files:\n${captured
@@ -110,4 +131,7 @@ try {
   // trying leaks a whole bb until someone notices. Several worktrees doing that
   // is what starves the next capture's seed, which fails, which leaks another.
   if (!options.keep) await stack.stop();
+  console.log(
+    `  [timing] total: ${((performance.now() - runStartedAt) / 1000).toFixed(1)}s`,
+  );
 }
