@@ -4,7 +4,7 @@ import {
   mountPluginContentScripts,
   renderSlot,
 } from "@get-bb/plugin-sdk/testing/app";
-import { cleanup } from "@testing-library/react";
+import { cleanup, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 afterEach(() => cleanup());
@@ -103,12 +103,14 @@ describe("thread stages app registration", () => {
     10_000,
   );
 
-  it("creates UI threads in the section selected by the sidebar filter", async () => {
+  it("selects the filtered section when the New thread composer appears without intercepting navigation", async () => {
     window.localStorage.setItem(
       "bb.plugin.thread-stages.threadFilter",
       "section:section_now",
     );
     window.history.replaceState({}, "", "/threads/thread-1");
+    const originalPushState = window.history.pushState;
+    const originalReplaceState = window.history.replaceState;
     const app = await loadPluginApp(() => import("./app"));
     const contentScripts = await mountPluginContentScripts(app, {
       pluginId: "thread-stages",
@@ -120,13 +122,25 @@ describe("thread stages app registration", () => {
       "",
       "/",
     );
+    const stateBeforeComposer = window.history.state;
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      `<div data-app-composer data-app-composer-role="primary">
+        <button data-promptbox-project-control>Project</button>
+      </div>`,
+    );
 
-    expect(window.history.state.usr).toEqual({
-      focusPrompt: true,
-      sectionId: "section_now",
-    });
+    await waitFor(() =>
+      expect(window.history.state.usr?.sectionId).toBe("section_now"),
+    );
+    const interceptedNavigation =
+      window.history.pushState !== originalPushState ||
+      window.history.replaceState !== originalReplaceState;
     await contentScripts.lifecycle.dispose();
     window.localStorage.clear();
+
+    expect(stateBeforeComposer.usr).toEqual({ focusPrompt: true });
+    expect(interceptedNavigation).toBe(false);
   });
 
   it("updates an already-open composer when the section filter changes", async () => {
@@ -135,6 +149,9 @@ describe("thread stages app registration", () => {
       "",
       "/",
     );
+    document.body.innerHTML = `<div data-app-composer data-app-composer-role="primary">
+      <button data-promptbox-project-control>Project</button>
+    </div>`;
     const app = await loadPluginApp(() => import("./app"));
     const contentScripts = await mountPluginContentScripts(app, {
       pluginId: "thread-stages",
@@ -150,6 +167,42 @@ describe("thread stages app registration", () => {
     );
 
     expect(window.history.state.usr.sectionId).toBe("section_now");
+    await contentScripts.lifecycle.dispose();
+    window.localStorage.clear();
+  });
+
+  it("allows the New thread section picker to override the initial filter", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.thread-stages.threadFilter",
+      "section:section_now",
+    );
+    window.history.replaceState(
+      { idx: 1, key: "compose", usr: { focusPrompt: true } },
+      "",
+      "/",
+    );
+    document.body.innerHTML = `<div data-app-composer data-app-composer-role="primary">
+      <button data-promptbox-project-control>Project</button>
+    </div>`;
+    const app = await loadPluginApp(() => import("./app"));
+    const contentScripts = await mountPluginContentScripts(app, {
+      pluginId: "thread-stages",
+      generation: 1,
+    });
+    await waitFor(() =>
+      expect(window.history.state.usr?.sectionId).toBe("section_now"),
+    );
+
+    window.history.replaceState(
+      {
+        ...window.history.state,
+        usr: { ...window.history.state.usr, sectionId: "section_later" },
+      },
+      "",
+      window.location.href,
+    );
+
+    expect(window.history.state.usr.sectionId).toBe("section_later");
     await contentScripts.lifecycle.dispose();
     window.localStorage.clear();
   });

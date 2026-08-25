@@ -7,19 +7,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function composeDestination(
-  location: Location,
-  url: string | URL | null | undefined,
-): boolean {
-  if (url === undefined || url === null) return false;
-  const destination = new URL(String(url), location.href);
-  if (destination.origin !== location.origin) return false;
-  return (
-    destination.pathname === "/" ||
-    /^\/projects\/[^/]+\/?$/u.test(destination.pathname)
-  );
-}
-
 function selectedSectionId(storage: Storage): string | null | undefined {
   const filter = storage.getItem(THREAD_FILTER_STORAGE_KEY);
   if (filter === "uncategorized") return null;
@@ -36,71 +23,62 @@ function withSelectedSection(
   const userState = isRecord(routerState.usr) ? routerState.usr : {};
   return {
     ...routerState,
-    usr: { ...userState, sectionId },
+    usr: { ...userState, sectionId: sectionId ?? "" },
   };
+}
+
+function newThreadComposers(target: Window): HTMLElement[] {
+  return Array.from(
+    target.document.querySelectorAll<HTMLElement>(
+      '[data-app-composer][data-app-composer-role="primary"]',
+    ),
+  ).filter(
+    (composer) =>
+      composer.querySelector("[data-promptbox-project-control]") !== null,
+  );
+}
+
+function selectComposeSection(
+  target: Window,
+  sectionId: string | null,
+): void {
+  const state = withSelectedSection(target.history.state, sectionId);
+  target.history.replaceState(state, "", target.location.href);
+  target.dispatchEvent(new PopStateEvent("popstate", { state }));
 }
 
 export function mountSectionAwareComposeNavigation(
   target: Window,
 ): () => void {
-  const history = target.history;
-  const originalPushState = history.pushState;
-  const originalReplaceState = history.replaceState;
-
-  const sectionState = (
-    state: unknown,
-    url: string | URL | null | undefined,
-  ): unknown => {
-    if (!composeDestination(target.location, url)) return state;
+  const initializedComposers = new WeakSet<HTMLElement>();
+  const syncNewComposers = () => {
+    let discoveredComposer = false;
+    for (const composer of newThreadComposers(target)) {
+      if (initializedComposers.has(composer)) continue;
+      initializedComposers.add(composer);
+      discoveredComposer = true;
+    }
+    if (!discoveredComposer) return;
     const sectionId = selectedSectionId(target.localStorage);
-    return sectionId === undefined
-      ? state
-      : withSelectedSection(state, sectionId);
+    if (sectionId !== undefined) selectComposeSection(target, sectionId);
   };
-
-  const pushState: History["pushState"] = function (
-    state,
-    unused,
-    url,
-  ) {
-    return originalPushState.call(history, sectionState(state, url), unused, url);
+  const syncOpenComposers = () => {
+    const sectionId = selectedSectionId(target.localStorage);
+    if (sectionId === undefined || newThreadComposers(target).length === 0) {
+      return;
+    }
+    selectComposeSection(target, sectionId);
   };
-  const replaceState: History["replaceState"] = function (
-    state,
-    unused,
-    url,
-  ) {
-    return originalReplaceState.call(
-      history,
-      sectionState(state, url),
-      unused,
-      url,
-    );
-  };
-
-  history.pushState = pushState;
-  history.replaceState = replaceState;
-
-  const syncOpenComposer = () => {
-    if (!composeDestination(target.location, target.location.href)) return;
-    const sectionId = selectedSectionId(target.localStorage) ?? null;
-    originalReplaceState.call(
-      history,
-      withSelectedSection(history.state, sectionId),
-      "",
-      target.location.href,
-    );
-    target.dispatchEvent(
-      new PopStateEvent("popstate", { state: history.state }),
-    );
-  };
-  target.addEventListener(THREAD_FILTER_CHANGED_EVENT, syncOpenComposer);
+  const observer = new MutationObserver(syncNewComposers);
+  observer.observe(target.document.body, { childList: true, subtree: true });
+  syncNewComposers();
+  target.addEventListener(THREAD_FILTER_CHANGED_EVENT, syncOpenComposers);
 
   return () => {
-    target.removeEventListener(THREAD_FILTER_CHANGED_EVENT, syncOpenComposer);
-    if (history.pushState === pushState) history.pushState = originalPushState;
-    if (history.replaceState === replaceState) {
-      history.replaceState = originalReplaceState;
-    }
+    observer.disconnect();
+    target.removeEventListener(
+      THREAD_FILTER_CHANGED_EVENT,
+      syncOpenComposers,
+    );
   };
 }
