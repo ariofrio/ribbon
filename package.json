@@ -12,6 +12,7 @@
     "build:ui": "node scripts/vendor-ui.mjs",
     "changeset": "changeset",
     "check:heading-icons": "node scripts/heading-icons.mjs --check",
+    "check:layout": "node scripts/plugin-layout.mjs",
     "check:ui": "node scripts/vendor-ui.mjs --check",
     "install:plugins": "node scripts/install-plugins.mjs",
     "prepare": "git config --local core.hooksPath .githooks || true",

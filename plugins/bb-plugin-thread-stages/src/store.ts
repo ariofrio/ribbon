@@ -546,14 +546,26 @@ export function createThreadWorkflowStore(db: Database): ThreadWorkflowStore {
       const previous = getWorkingState.get(threadId) as
         | { is_working: number }
         | undefined;
+      const assignment = getAssignment.get(threadId) as
+        | AssignmentRow
+        | undefined;
+      const isAutomaticallyManaged =
+        assignment === undefined ||
+        assignment.status === "Idle" ||
+        assignment.status === "Active";
       let workflowStageChanged = false;
 
-      if (isWorking && previous?.is_working !== 1) {
+      if (
+        isAutomaticallyManaged &&
+        isWorking &&
+        previous?.is_working !== 1
+      ) {
         workflowStageChanged = moveToStage(threadId, "Active", "auto");
-      } else if (!isWorking && previous?.is_working !== 0) {
-        const assignment = getAssignment.get(threadId) as
-          | AssignmentRow
-          | undefined;
+      } else if (
+        isAutomaticallyManaged &&
+        !isWorking &&
+        previous?.is_working !== 0
+      ) {
         if (assignment?.status === "Active") {
           workflowStageChanged = moveToStage(threadId, "Idle", "auto");
         }
