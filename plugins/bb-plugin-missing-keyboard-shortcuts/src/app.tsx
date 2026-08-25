@@ -196,19 +196,37 @@ async function openTerminal(
   return envelope.result;
 }
 
+async function listAppKeybindings(pluginId: string): Promise<unknown> {
+  const response = await fetch(
+    `/api/v1/plugins/${encodeURIComponent(pluginId)}/rpc/listAppKeybindings`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "null",
+      credentials: "same-origin",
+    },
+  );
+  const envelope = (await response.json()) as RpcEnvelope<unknown>;
+  if (!response.ok || !envelope.ok) {
+    throw new Error(
+      !envelope.ok
+        ? rpcErrorMessage(envelope.error, "Failed to read bb's keybindings")
+        : `Keybinding request failed (${response.status})`,
+    );
+  }
+  return envelope.result;
+}
+
 async function createSideChat(
   pluginId: string,
   threadId: string,
 ): Promise<CreateSideChatResult> {
   const response = await fetch(
-    "/api/v1/plugins/side-chat/rpc/createSideChat",
+    `/api/v1/plugins/${encodeURIComponent(pluginId)}/rpc/createSideChat`,
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        sourceThreadId: threadId,
-        anchorText: "",
-      }),
+      body: JSON.stringify({ sourceThreadId: threadId }),
       credentials: "same-origin",
     },
   );
@@ -220,30 +238,7 @@ async function createSideChat(
         : `Side-chat request failed (${response.status})`,
     );
   }
-  const result = envelope.result;
-  const persistResponse = await fetch(
-    `/api/v1/plugins/${encodeURIComponent(pluginId)}/rpc/ensureSideChatTab`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        childThreadId: result.threadId,
-        parentThreadId: threadId,
-      }),
-      credentials: "same-origin",
-    },
-  );
-  const persistEnvelope = (await persistResponse.json()) as RpcEnvelope<{
-    tabId: string;
-  }>;
-  if (!persistResponse.ok || !persistEnvelope.ok) {
-    throw new Error(
-      !persistEnvelope.ok
-        ? rpcErrorMessage(persistEnvelope.error, "Failed to persist side chat")
-        : `Side-chat tab request failed (${persistResponse.status})`,
-    );
-  }
-  return result;
+  return envelope.result;
 }
 
 async function validateSideChat(
@@ -421,15 +416,7 @@ export default definePluginApp((app) => {
       const nativeThreadNewCommand = createNativeCommandDelegate({
         command: "thread.new",
         createEvent: createKeyboardEvent,
-        async fetchConfig() {
-          const response = await fetch("/api/v1/system/config", {
-            credentials: "same-origin",
-          });
-          if (!response.ok) {
-            throw new Error(`System config request failed (${response.status})`);
-          }
-          return response.json() as Promise<unknown>;
-        },
+        fetchConfig: () => listAppKeybindings(pluginId),
         isMac: /Mac|iPhone|iPad|iPod/u.test(navigator.platform),
         target: window,
       });

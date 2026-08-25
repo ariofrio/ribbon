@@ -23,6 +23,7 @@ import {
 } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { toast } from "sonner";
+import type { z } from "zod";
 import type { rpcContract } from "./server";
 import {
   DEFAULT_WORKFLOW_STAGE,
@@ -87,10 +88,10 @@ import {
   type ThreadFilter as ThreadFilterValue,
 } from "./thread-filter";
 import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
-import {
-  updateThreadStagesSettings,
-  type ThreadStagesSettingsUpdate,
-} from "./sidebar-settings";
+
+type ThreadStagesSettingsUpdate = z.infer<
+  typeof rpcContract.updateSettings.input
+>;
 
 const COLLAPSED_STATUSES_STORAGE_KEY =
   "bb.plugin.workflow-stage.collapsedStatuses";
@@ -711,7 +712,7 @@ function WorkflowStageList({
   const saveSettings = useCallback(
     async (values: ThreadStagesSettingsUpdate) => {
       try {
-        await updateThreadStagesSettings(values);
+        await rpc.call("updateSettings", values);
       } catch (cause) {
         toast.error(
           cause instanceof Error
@@ -720,7 +721,7 @@ function WorkflowStageList({
         );
       }
     },
-    [],
+    [rpc],
   );
 
   const clearDrag = useCallback(() => {
@@ -866,7 +867,10 @@ function WorkflowStageList({
   useEffect(() => {
     let canceled = false;
     const load = () => {
-      void fetchIcons(projectIds.split(",").filter(Boolean)).then((icons) => {
+      void fetchIcons(
+        () => rpc.call("listProjectIcons", null),
+        projectIds.split(",").filter(Boolean),
+      ).then((icons) => {
         if (canceled) return;
         setProjectIcons(icons.projects);
         setChosenProjectIcons(icons.chosenProjects);
@@ -879,7 +883,21 @@ function WorkflowStageList({
       canceled = true;
       unsubscribe();
     };
-  }, [projectIds]);
+  }, [projectIds, rpc]);
+  useEffect(() => {
+    const lend = () =>
+      actions.openNewThread({
+        projectId: PERSONAL_PROJECT_ID,
+        focusPrompt: true,
+      });
+    openPersonalCompose = lend;
+    return () => {
+      // bb mounts one list today, but a stale instance clearing a live
+      // one would strand the chord for the session.
+      if (openPersonalCompose === lend) openPersonalCompose = null;
+    };
+  }, [actions]);
+
   const refreshProjectActionStates = useCallback(async () => {
     try {
       const result = await rpc.call("listProjectActionStates", null);
@@ -1806,7 +1824,14 @@ function rpcErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-const ROOT_COMPOSE_PROJECT_ID_STORAGE_KEY = "bb.root-compose.project-id";
+/**
+ * The stage chords run in a content script, where the SDK's hooks do not
+ * reach. The sidebar list is mounted wherever it draws, so it lends the
+ * chords bb's own "new thread in this project" action instead of the plugin
+ * arranging the composer's project itself.
+ */
+let openPersonalCompose: (() => void) | null = null;
+/** bb keeps project-less threads in the personal project, under a reserved id. */
 const PERSONAL_PROJECT_ID = "proj_personal";
 
 type ChordDestination =
@@ -1826,8 +1851,8 @@ function goTo(
 ): void {
   if (destination.kind === "stay") return;
   if (destination.kind === "thread") {
-    // Personal-project threads route without a project segment; the
-    // project-scoped path redirects to the compose screen.
+    // bb routes a personal-project thread without a project segment; the
+    // project-scoped path would land on the composer instead.
     const projectless =
       destination.projectId === null ||
       destination.projectId === PERSONAL_PROJECT_ID;
@@ -1838,25 +1863,34 @@ function goTo(
     );
     return;
   }
-  const oldValue = window.localStorage.getItem(
-    ROOT_COMPOSE_PROJECT_ID_STORAGE_KEY,
-  );
-  window.localStorage.setItem(
-    ROOT_COMPOSE_PROJECT_ID_STORAGE_KEY,
-    PERSONAL_PROJECT_ID,
-  );
-  window.dispatchEvent(
-    new StorageEvent("storage", {
-      key: ROOT_COMPOSE_PROJECT_ID_STORAGE_KEY,
-      newValue: PERSONAL_PROJECT_ID,
-      oldValue,
-      storageArea: window.localStorage,
-      url: window.location.href,
-    }),
-  );
-  // The compose surface is a state of the root route, not a path of its own,
-  // so ask bb to open it the way its own New thread command does.
+  if (openPersonalCompose !== null) {
+    openPersonalCompose();
+    return;
+  }
+  // Without the list mounted there is nothing to ask, so fall back to bb's
+  // own New thread command, which opens the composer where it left off.
   openComposer();
+}
+
+async function listAppKeybindings(pluginId: string): Promise<unknown> {
+  const response = await fetch(
+    `/api/v1/plugins/${encodeURIComponent(pluginId)}/rpc/listAppKeybindings`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "null",
+      credentials: "same-origin",
+    },
+  );
+  const envelope = (await response.json()) as RpcEnvelope<unknown>;
+  if (!response.ok || !envelope.ok) {
+    throw new Error(
+      !envelope.ok
+        ? rpcErrorMessage(envelope.error, "Failed to read bb's keybindings")
+        : `Keybinding request failed (${response.status})`,
+    );
+  }
+  return envelope.result;
 }
 
 async function callWorkflowRpc(
@@ -1920,15 +1954,7 @@ export default definePluginApp((app) => {
       const newThreadCommand = createNativeCommandDelegate({
         command: "thread.new",
         createEvent: createKeyboardEvent,
-        async fetchConfig() {
-          const response = await fetch("/api/v1/system/config", {
-            credentials: "same-origin",
-          });
-          if (!response.ok) {
-            throw new Error(`System config request failed (${response.status})`);
-          }
-          return response.json() as Promise<unknown>;
-        },
+        fetchConfig: () => listAppKeybindings(pluginId),
         isMac: /Mac|iPhone|iPad|iPod/u.test(navigator.platform),
         target: window,
       });
