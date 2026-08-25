@@ -22,6 +22,7 @@ jobs:
       - run: npm ci --ignore-scripts --workspaces=false
       - run: npm test
       - run: npm run check:ui
+      - run: npm run check:layout
       # A workflow GitHub refuses to parse fails as a run with no jobs at all,
       # which says nothing about why.
       - name: Lint the workflows
