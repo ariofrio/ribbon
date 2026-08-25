@@ -1,5 +1,13 @@
 # bb-plugin-thread-stages
 
+## 0.9.1
+
+### Patch Changes
+
+- cec72f1: Always summarize thread activity in collapsed stage headers while omitting the ordinary unread dot, and match bb's indicator precedence and plan-mode glyph.
+- 7467810: Show each section's chosen icon in the thread context menu's Move to section
+  submenu.
+
 ## 0.9.0
 
 ### Minor Changes
