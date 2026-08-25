@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-breadcrumbs",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Show a thread's section, project, and ancestors in its header.",
   "license": "MIT",
   "repository": {

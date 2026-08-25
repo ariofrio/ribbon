@@ -103,7 +103,11 @@ try {
   console.log("Seeding the fixture…");
   const fixture = await timePhase("seed fixture", async () => {
     const seeded = seed({ stack, workspaceRoot, bb });
-    await applyPluginState({ stack, projects: seeded.projects });
+    await applyPluginState({
+      stack,
+      projects: seeded.projects,
+      section: seeded.section,
+    });
     return seeded;
   });
 

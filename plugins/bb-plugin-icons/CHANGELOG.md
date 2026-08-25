@@ -1,5 +1,82 @@
 # bb-plugin-project-icons
 
+## 0.5.0
+
+### Minor Changes
+
+- 64cec47: Draw the icon everywhere bb names a project, not only on its sidebar headers
+  and above an open thread. That adds the prompt box's project control and the
+  menu it opens, the project rows in the `@` list, a project mentioned in a
+  prompt, the strip under an open thread, and the crumb above a project's own
+  settings — the one header that names a project and no thread, which the
+  thread-only slot could never reach.
+  
+  Where bb draws its own folder the plugin now stands in its place rather than
+  adding beside it, wearing the classes bb chose so it matches each surface, and
+  handing the folder back the moment the plugin stops. Most of those rows print
+  a project's name and nothing else, so `listIcons` now carries bb's project
+  list alongside the icons; a name two projects share resolves to neither and
+  keeps bb's folder.
+  
+  A new "Show around the prompt box" setting turns the new places off on their
+  own, and the thread-header setting now covers a project's header too.
+- 64cec47: Let the icon on the strip under an open thread open the picker, as the sidebar
+  and thread header ones do. It is the only one of the new places where bb has
+  claimed the click for nothing of its own, so it is the only one that can carry
+  a second meaning. The trigger lights on hover with the background bb's own
+  controls beside it use, and draws it outside its own footprint, so the icon and
+  the words next to it stay exactly where bb put them.
+- 67b3d6b: Show a section's icon in the thread header, beside the crumb it belongs to.
+  Breadcrumbs leaves an empty marked span before each crumb and Icons fills it,
+  since bb's SDK gives one plugin no way to render another's component. Either
+  plugin without the other is unchanged.
+  
+  With no crumbs to sit beside, the header keeps one icon and chooses its owner
+  the way a sidebar row does: the project's, or the section's where that project
+  has no icon of its own.
+  
+  The picker no longer offers the glyphs bb draws by default for a project and for
+  the personal project. A row holding one of those looked like no choice at all
+  and still outranked the section's icon.
+- 64cec47: Draw the personal project's chat bubble on bb's sidebar, not only in the thread
+  header. bb renders that group through a different path than the rest — it
+  labels it "Threads" and wraps it in no id — so it was the one project the
+  sidebar half could not find. It is recognized now by what bb lets you do from
+  its header — New project and New thread are offered from that group and from
+  no other — which is also what tells it from Pinned, drawn the same way and in
+  the same list, and what keeps the bubble off the same group when bb relabels
+  it "Unorganized" and it is no longer the personal project.
+
+### Patch Changes
+
+- 2ff5814: Seed the screenshots from one product in two repositories, filed under a section
+  of its own. The shots now picture a section icon, a section crumb, and a sidebar
+  focused on one product, none of which the previous fixture could show.
+- 77f4e11: These plugins now use bb's documented APIs instead of private paths. Calls
+  into a neighbouring plugin, a plugin's own settings, and bb's keybinding table
+  go through `bb.sdk` rather than fetched routes.
+  
+  Stage chords ask bb to open the composer instead of arranging its stored state
+  and faking a keystroke. That needs Thread stages' own list mounted: with bb's
+  built-in list selected instead, emptying Idle still files the thread and opens
+  a composer, but on the project you last used rather than on none.
+- 3606c83: Move everything vendored from BB into each plugin's `src/vendor/`, so a reader
+  can tell BB's code from the plugin's own by its path.
+- 3606c83: Refresh every vendored BB component to the pinned registry release, so all
+  three plugins share one vintage of BB's menus, overlays, and icons instead of
+  two. Breadcrumbs and Icons were carrying components from an older release whose
+  pin had been bumped without a re-vendor, which left their overlays a rewrite
+  behind and their icon set six icons short.
+  
+  The four local edits those copies had accumulated are now composed rather than
+  patched in, so no plugin forks BB's UI kit: menus that should stay a dropdown
+  on a narrow window use BB's own compact-viewport override, destructive context
+  items take the classes BB's app gives them, and the thread filter draws its own
+  check and submenu chevron the way its actionable rows already did — which also
+  makes its two row types finally render the same selected state.
+- 3606c83: Fail the release check when a Tailwind arbitrary variant the source uses never
+  reaches the built stylesheet.
+
 ## 0.4.2
 
 ### Patch Changes

@@ -71,6 +71,29 @@ Update an installed copy with:
 bb plugin update thread-stages
 ```
 
+## Ribbon sidebar migration
+
+Thread stages is also the provider and compatibility source for the
+`plugin:thread-stages:stages` grouping. It exposes the versioned
+`getGroupingCatalogV1`, `getPlacementMigrationSnapshotV1`, and
+`acknowledgePlacementMigrationV1` RPCs so Ribbon sidebar can import placement
+without reaching into this plugin's database.
+
+Installing Ribbon sidebar does not transfer anything by itself. Thread stages
+continues to own its sidebar, CLI, ordering, automation, undo, and retention
+behavior until Ribbon acknowledges the same installation ID and placement
+revision it imported. That acknowledgement atomically makes the legacy
+placement tables read-only. From then on, stage actions, shortcuts, the legacy
+CLI, and lifecycle automation forward to Ribbon; retention and undo read
+Ribbon's authoritative placement. A failed dependency call reports a Ribbon
+sidebar dependency problem and schedules reconciliation without resuming writes
+to the frozen source. The legacy slot shows recovery guidance and bb's original
+thread list after the handoff.
+
+Deferred and Blocked visibility remains provider-owned, along with stage
+automation and Completed retention. Provider setting changes invalidate
+Ribbon's cached catalog.
+
 ## Keyboard shortcuts
 
 On a thread route, `.` chords set the open thread's stage and move you
@@ -98,6 +121,11 @@ place: you land on the row below the one you filed, or on the row above it
 when you file the last one. Filing a thread that was not in Idle starts you at
 the top instead. Pinned threads are skipped, and when Idle empties you land on
 a composer with no project selected.
+
+That last step asks bb to open the composer, which needs this plugin's own
+list mounted. The chords run wherever you are, so with **Settings → Sidebar**
+set to **bb (built-in)** or to another plugin, emptying Idle still files the
+thread and opens a composer, but on the project you last composed in.
 
 **⇧⌘.** brings the open thread back to Idle and leaves you there. When it is
 *already* Idle, the shortcut undoes instead: the thread you filed most recently
