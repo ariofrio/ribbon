@@ -1,4 +1,9 @@
-import { AGENT, FEATURED_THREAD, SIDE_CHAT_QUESTION } from "./fixture.mjs";
+import {
+  AGENT,
+  FEATURED_PROJECT,
+  FEATURED_THREAD,
+  SIDE_CHAT_QUESTION,
+} from "./fixture.mjs";
 import { settleAnimations } from "./settle.mjs";
 
 // What each plugin's screenshot pictures. Every shot starts from the same
@@ -102,14 +107,16 @@ async function openFeaturedThread(page) {
  * plugin installs rather than by the label alone.
  *
  * bb's own sidebar lists threads under a project heading whose menu carries
- * the same `Storefront actions` label, and it is on screen from the first
+ * the same `<project> actions` label, and it is on screen from the first
  * paint until Thread stages replaces the list — which happens just before the
  * crumb arrives. Waiting on the label alone is therefore answered immediately
  * by a control in the other half of the window, and the wait returns during
  * the one second when neither the heading nor the crumb is on screen.
  */
 function projectCrumb(page) {
-  return page.locator('[data-breadcrumbs-root] [aria-label="Storefront actions"]');
+  return page.locator(
+    `[data-breadcrumbs-root] [aria-label="${FEATURED_PROJECT} actions"]`,
+  );
 }
 
 /**
@@ -121,7 +128,7 @@ function projectCrumb(page) {
  * is of the header's.
  */
 function headerIcon(page) {
-  return page.locator('header [aria-label="Icon for Storefront"]');
+  return page.locator(`header [aria-label="Icon for ${FEATURED_PROJECT}"]`);
 }
 
 /** The collection is presented in ChatGPT's palette, including every plugin shot. */
