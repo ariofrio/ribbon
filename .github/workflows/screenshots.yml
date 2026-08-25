@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: read
 
 # A second push supersedes the first: the older run would recapture a tree
 # nobody is on, and its push would lose the race anyway.
@@ -30,15 +31,23 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # Full history so the diff below can reach the base's merge point.
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
-          fetch-depth: 0
       - id: relevant
         name: Decide whether anything can have moved a picture
+        env:
+          CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          git fetch --no-tags origin "+refs/heads/$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF"
-          git diff --name-only "origin/$GITHUB_BASE_REF...HEAD" | tee /tmp/changed
+          if [ "$CHANGED_FILES" -gt 3000 ]; then
+            echo "capture=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh api --paginate \
+            "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+            --jq '.[] | .filename, (.previous_filename // empty)' \
+            | tee /tmp/changed
           node scripts/screenshots/affects.mjs < /tmp/changed >> "$GITHUB_OUTPUT"
 
   capture:
@@ -55,11 +64,9 @@ jobs:
       - uses: actions/checkout@v7
         with:
           # A pull_request run checks out the merge commit, which is no branch;
-          # the recapture has to land on the branch. Full history so the step
-          # below can reach the base's merge point.
+          # the recapture has to land on the branch.
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
-          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
