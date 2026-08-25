@@ -478,14 +478,6 @@ function mkdirFor(output) {
  */
 const TEXT_RENDERING = ["--font-render-hinting=none", "--disable-lcd-text"];
 
-/** Runs themes together only when a shot declares that they share no state. */
-export async function mapThemes(themes, { parallel }, task) {
-  if (parallel) return await Promise.all(themes.map(task));
-  const results = [];
-  for (const theme of themes) results.push(await task(theme));
-  return results;
-}
-
 export async function capture({ stack, fixture, shots, shotFiles }) {
   const browser = await chromium.launch({ args: TEXT_RENDERING });
   const captured = [];
@@ -499,75 +491,68 @@ export async function capture({ stack, fixture, shots, shotFiles }) {
       // bb's default window, unless a shot pictures something that reads
       // better in a smaller one.
       const windowSize = shot.viewport ?? VIEWPORT;
-      const themes = shot.themes ?? THEMES;
-      const frames = { fullWindow: {}, card: {}, cardClip: {} };
-      await mapThemes(
-        themes,
-        { parallel: shot.parallelThemes === true },
-        async (theme) => {
-          const takeCard = async ({ page, focusBoxes }, viewport) => {
-            const clip = cropRectangle({
-              box: unionBox(focusBoxes),
-              padding: shot.focusPadding ?? 20,
-              width: CARD_WIDTH,
-              align: shot.focusAlign,
-              viewport,
-            });
-            return { clip, image: await page.screenshot({ clip }) };
-          };
-          const takeFullWindow = ({ page }) =>
-            page.screenshot({ clip: { x: 0, y: 0, ...windowSize } });
-          // A shot of the whole collection has no card and nothing to focus on,
-          // so it never measures one.
-          const wantsCard = outputs[CARD_FILE(theme)] !== undefined;
-          if (shot.card === undefined) {
-            const [fullWindow, card] = await render({
-              browser,
-              stack,
-              fixture,
-              shot,
-              theme,
-              viewport: windowSize,
-              async take(frame) {
-                return [
-                  await takeFullWindow(frame),
-                  wantsCard ? await takeCard(frame, windowSize) : undefined,
-                ];
-              },
-            });
-            frames.fullWindow[theme] = fullWindow;
-            frames.card[theme] = card?.image;
-            frames.cardClip[theme] = card?.clip;
-            return;
-          }
-          // A shot whose subject is dwarfed by bb's default window asks for a
-          // smaller one for its card. The crop width does not change with it, so
-          // the card still reads at the same zoom as every other card; only the
-          // window around the subject shrinks.
-          frames.fullWindow[theme] = await render({
+      const frames = { fullWindow: {}, card: {} };
+      for (const theme of shot.themes ?? THEMES) {
+        const takeCard = async ({ page, focusBoxes }, viewport) => {
+          const clip = cropRectangle({
+            box: unionBox(focusBoxes),
+            padding: shot.focusPadding ?? 20,
+            width: CARD_WIDTH,
+            align: shot.focusAlign,
+            viewport,
+          });
+          frames.card.clip = clip;
+          return await page.screenshot({ clip });
+        };
+        const takeFullWindow = ({ page }) =>
+          page.screenshot({ clip: { x: 0, y: 0, ...windowSize } });
+        // A shot of the whole collection has no card and nothing to focus on,
+        // so it never measures one.
+        const wantsCard = outputs[CARD_FILE(theme)] !== undefined;
+        if (shot.card === undefined) {
+          const [fullWindow, card] = await render({
             browser,
             stack,
             fixture,
             shot,
             theme,
             viewport: windowSize,
-            take: takeFullWindow,
+            async take(frame) {
+              return [
+                await takeFullWindow(frame),
+                wantsCard ? await takeCard(frame, windowSize) : undefined,
+              ];
+            },
           });
-          const card = await render({
-            browser,
-            stack,
-            fixture,
-            shot,
-            theme,
-            viewport: shot.card.viewport,
-            style: shot.card.style,
-            take: (frame) => takeCard(frame, shot.card.viewport),
-          });
-          frames.card[theme] = card.image;
-          frames.cardClip[theme] = card.clip;
-        },
-      );
-      for (const theme of themes) {
+          frames.fullWindow[theme] = fullWindow;
+          frames.card[theme] = card;
+          continue;
+        }
+        // A shot whose subject is dwarfed by bb's default window asks for a
+        // smaller one for its card. The crop width does not change with it, so
+        // the card still reads at the same zoom as every other card; only the
+        // window around the subject shrinks.
+        frames.fullWindow[theme] = await render({
+          browser,
+          stack,
+          fixture,
+          shot,
+          theme,
+          viewport: windowSize,
+          take: takeFullWindow,
+        });
+        frames.card[theme] = await render({
+          browser,
+          stack,
+          fixture,
+          shot,
+          theme,
+          viewport: shot.card.viewport,
+          style: shot.card.style,
+          take: (frame) => takeCard(frame, shot.card.viewport),
+        });
+      }
+      for (const theme of shot.themes ?? THEMES) {
         const other = OTHER_THEME[theme];
         for (const [name, frame, taken, size] of [
           [
@@ -576,12 +561,12 @@ export async function capture({ stack, fixture, shots, shotFiles }) {
             frames.fullWindow,
             windowSize,
           ],
-          [CARD_FILE(theme), CARD_FRAME, frames.card, frames.cardClip[theme]],
+          [CARD_FILE(theme), CARD_FRAME, frames.card, frames.card.clip],
           [
             CARD_BESIDE_FILE(theme),
             CARD_BESIDE_FRAME,
             frames.card,
-            frames.cardClip[theme],
+            frames.card.clip,
           ],
         ]) {
           if (outputs[name] === undefined) continue;
