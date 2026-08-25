@@ -145,11 +145,8 @@ export default function plugin(bb: BbPluginApi) {
       const ancestors: Array<{ id: string; title: string }> = [];
       let current = self;
       /**
-       * The nearest section walking up, the thread's own included.
-       *
-       * bb keeps a section on a root thread and leaves a child's null, so
-       * this is usually the root's. It does not require that: a thread filed
-       * somewhere of its own answers for itself, and for anything under it.
+       * The nearest section walking up, the thread's own included, which is
+       * the rule Icons and Thread stages apply to the icon beside this crumb.
        */
       let nearestSectionId =
         typeof self?.sectionId === "string" ? self.sectionId : null;
