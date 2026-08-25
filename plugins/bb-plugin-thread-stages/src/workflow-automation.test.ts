@@ -46,6 +46,9 @@ describe("task workflow", () => {
       sdk: {
         threads: {
           interactions: { list: async () => pendingInteractions },
+          list: async () => [
+            { id: "thr_a", parentThreadId: null, status: "active" },
+          ],
           timeline: async () => ({ activeBackgroundCommands: [] }),
         },
       },
@@ -71,7 +74,7 @@ describe("task workflow", () => {
     }
   });
 
-  it("removes stale task state instead of observing a child thread", async () => {
+  it("removes stale stage state from a child thread", async () => {
     const db = new Database(":memory:");
     for (const migration of THREAD_WORKFLOW_MIGRATIONS) db.exec(migration);
     const store = createThreadWorkflowStore(db);
@@ -87,7 +90,14 @@ describe("task workflow", () => {
       realtime: { publish },
       log: { warn: vi.fn() },
       sdk: {
-        threads: { interactions: { list: vi.fn() } },
+        threads: {
+          interactions: { list: vi.fn() },
+          list: async () => [
+            { id: "parent", parentThreadId: null, status: "idle" },
+            { id: "child", parentThreadId: "parent", status: "idle" },
+          ],
+          timeline: async () => ({ activeBackgroundCommands: [] }),
+        },
       },
     } as unknown as BbPluginApi;
 
@@ -96,11 +106,11 @@ describe("task workflow", () => {
       store.setStage("child", "Completed");
       registerThreadWorkflow(bb, store);
 
-      await handlers.get("thread.active")?.({
+      await handlers.get("thread.idle")?.({
         thread: {
           id: "child",
           parentThreadId: "parent",
-          status: "active",
+          status: "idle",
         },
       } as never);
 
@@ -109,6 +119,63 @@ describe("task workflow", () => {
       expect(publish).toHaveBeenCalledWith("state-changed", {
         threadId: "child",
       });
+    } finally {
+      db.close();
+    }
+  });
+
+  it("keeps a root Active while any descendant is active", async () => {
+    const db = new Database(":memory:");
+    for (const migration of THREAD_WORKFLOW_MIGRATIONS) db.exec(migration);
+    const store = createThreadWorkflowStore(db);
+    const handlers = new Map<string, (payload: never) => unknown>();
+    const publish = vi.fn();
+    const threads = [
+      { id: "root", parentThreadId: null, status: "idle" },
+      { id: "child", parentThreadId: "root", status: "idle" },
+      { id: "active-a", parentThreadId: "child", status: "active" },
+      { id: "active-b", parentThreadId: "root", status: "active" },
+    ];
+    const bb = {
+      events: {
+        on: (event: string, handler: (payload: never) => unknown) => {
+          handlers.set(event, handler);
+        },
+      },
+      background: { service: () => undefined },
+      realtime: { publish },
+      log: { warn: vi.fn() },
+      sdk: {
+        threads: {
+          interactions: { list: async () => [] },
+          list: async () => threads,
+          timeline: async () => ({ activeBackgroundCommands: [] }),
+        },
+      },
+    } as unknown as BbPluginApi;
+
+    try {
+      registerThreadWorkflow(bb, store);
+
+      await handlers.get("thread.active")?.({ thread: threads[2] } as never);
+      expect(store.get("root").workflowStage).toBe("Active");
+      expect(store.get("child").explicit).toBe(false);
+      expect(store.get("active-a").explicit).toBe(false);
+      expect(store.get("active-b").explicit).toBe(false);
+
+      store.setStage("root", "Completed");
+      await handlers.get("thread.active")?.({ thread: threads[2] } as never);
+      expect(store.get("root").workflowStage).toBe("Completed");
+      store.setStage("root", "Active");
+
+      threads[2] = { ...threads[2], status: "idle" };
+      await handlers.get("thread.idle")?.({ thread: threads[2] } as never);
+      expect(store.get("root").workflowStage).toBe("Active");
+
+      threads[3] = { ...threads[3], status: "idle" };
+      await handlers.get("thread.idle")?.({ thread: threads[3] } as never);
+      expect(store.get("root").workflowStage).toBe("Idle");
+      expect(publish).toHaveBeenCalledTimes(2);
     } finally {
       db.close();
     }
@@ -132,6 +199,9 @@ describe("task workflow", () => {
       sdk: {
         threads: {
           interactions: { list: async () => pendingInteractions },
+          list: async () => [
+            { id: "thr_a", parentThreadId: null, status: "active" },
+          ],
           timeline: async () => ({ activeBackgroundCommands: [] }),
         },
       },
@@ -180,6 +250,10 @@ describe("task workflow", () => {
           interactions: {
             list: async () => [{ status: "resolving" }, { status: "resolved" }],
           },
+          list: async () => [
+            { id: "thr_a", parentThreadId: null, status: "active" },
+          ],
+          timeline: async () => ({ activeBackgroundCommands: [] }),
         },
       },
     } as unknown as BbPluginApi;
@@ -224,11 +298,13 @@ describe("task workflow", () => {
         },
         threads: {
           interactions: { list: async () => pendingInteractions },
-          list: async () => [],
-          get: async ({ threadId }: { threadId: string }) => ({
-            id: threadId,
-            status: lifecycleStatus,
-          }),
+          list: async () => [
+            {
+              id: "thr_a",
+              parentThreadId: null,
+              status: lifecycleStatus,
+            },
+          ],
           timeline: async () => ({ activeBackgroundCommands: [] }),
         },
       },
@@ -266,7 +342,7 @@ describe("task workflow", () => {
     }
   });
 
-  it("keeps an idle thread Active while a background command is running", async () => {
+  it("keeps a hierarchy Active while a descendant background command is running", async () => {
     const db = new Database(":memory:");
     for (const migration of THREAD_WORKFLOW_MIGRATIONS) db.exec(migration);
     const store = createThreadWorkflowStore(db);
@@ -278,6 +354,10 @@ describe("task workflow", () => {
         }) => void)
       | null;
     let activeBackgroundCommands: unknown[] | null = [{}];
+    const threads = [
+      { id: "root", parentThreadId: null, status: "idle" },
+      { id: "child", parentThreadId: "root", status: "idle" },
+    ];
     let service = null as { start(signal: AbortSignal): unknown } | null;
     const warn = vi.fn();
     const bb = {
@@ -299,12 +379,9 @@ describe("task workflow", () => {
         },
         threads: {
           interactions: { list: async () => [] },
-          list: async () => [],
-          get: async ({ threadId }: { threadId: string }) => ({
-            id: threadId,
-            status: "idle",
-          }),
-          timeline: async () => {
+          list: async () => threads,
+          timeline: async ({ threadId }: { threadId: string }) => {
+            if (threadId !== "child") return { activeBackgroundCommands: [] };
             if (activeBackgroundCommands === null) {
               throw new Error("timeline unavailable");
             }
@@ -321,17 +398,17 @@ describe("task workflow", () => {
       await vi.waitFor(() => expect(changed).not.toBeNull());
 
       changed?.({
-        id: "thr_a",
+        id: "child",
         changes: ["events-appended"],
         metadata: { backgroundActivityChanged: true },
       });
       await vi.waitFor(() =>
-        expect(store.get("thr_a").workflowStage).toBe("Active"),
+        expect(store.get("root").workflowStage).toBe("Active"),
       );
 
       activeBackgroundCommands = null;
       changed?.({
-        id: "thr_a",
+        id: "child",
         changes: ["events-appended"],
         metadata: { backgroundActivityChanged: true },
       });
@@ -340,16 +417,16 @@ describe("task workflow", () => {
           expect.stringContaining("timeline unavailable"),
         ),
       );
-      expect(store.get("thr_a").workflowStage).toBe("Active");
+      expect(store.get("root").workflowStage).toBe("Active");
 
       activeBackgroundCommands = [];
       changed?.({
-        id: "thr_a",
+        id: "child",
         changes: ["events-appended"],
         metadata: { backgroundActivityChanged: true },
       });
       await vi.waitFor(() =>
-        expect(store.get("thr_a").workflowStage).toBe("Idle"),
+        expect(store.get("root").workflowStage).toBe("Idle"),
       );
 
       abort.abort();
