@@ -65,26 +65,34 @@ agent-browser --session "$qa_session" eval '(() => {
   const count = [...(label?.querySelectorAll("[aria-label]") ?? [])].find(
     (node) => /^\d+ threads?$/.test(node.getAttribute("aria-label") ?? ""),
   );
-  if (indicator) {
-    throw new Error("Collapsed stage indicators should be disabled by default.");
+  if (!(indicator instanceof HTMLElement)) {
+    throw new Error("Collapsed Active stage has no activity indicator.");
   }
   if (!(count instanceof HTMLElement)) {
     throw new Error("Collapsed nonempty Active stage has no count.");
   }
   const countRect = count.getBoundingClientRect();
   const countCenter = countRect.left + countRect.width / 2;
+  const indicatorRect = indicator.getBoundingClientRect();
+  const indicatorCenter = indicatorRect.left + indicatorRect.width / 2;
   const threadCenter = window.__threadStagesThreadIndicatorCenter;
   if (
     typeof threadCenter !== "number" ||
-    Math.abs(countCenter - threadCenter) > 0.25
+    Math.abs(indicatorCenter - threadCenter) > 0.25
   ) {
     throw new Error(
-      `Stage count center ${countCenter}px does not match thread indicator center ${threadCenter}px.`,
+      `Stage indicator center ${indicatorCenter}px does not match thread indicator center ${threadCenter}px.`,
+    );
+  }
+  if (Math.abs(indicatorCenter - countCenter - 28) > 0.25) {
+    throw new Error(
+      `Stage count center ${countCenter}px is not one indicator slot left of ${indicatorCenter}px.`,
     );
   }
   return JSON.stringify({
     countCenter,
     countWidth: countRect.width,
+    indicatorCenter,
     threadCenter,
   });
 })()'

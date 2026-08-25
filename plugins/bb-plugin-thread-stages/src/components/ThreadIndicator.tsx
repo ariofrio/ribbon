@@ -4,12 +4,6 @@ import type {
 } from "@get-bb/plugin-sdk/app";
 import { Icon } from "./Icon";
 
-export function hasIndicator(
-  indicator: PluginSidebarThreadIndicator,
-): boolean {
-  return indicator !== "none";
-}
-
 export function ThreadIndicator({
   indicator,
   label,
@@ -52,7 +46,7 @@ export function ThreadIndicator({
     case "background-command":
       return <ActiveIcon name="Terminal" label={ariaLabel} />;
     case "plan-mode":
-      return <ActiveIcon name="Progress02" label={ariaLabel} />;
+      return <ActiveIcon name="ListTodo" label={ariaLabel} />;
     case "goal":
       return <ActiveIcon name="Target" label={ariaLabel} />;
     case "draft":
@@ -90,7 +84,7 @@ function ActiveIcon({
   name,
   label,
 }: {
-  name: "Workflow" | "UserRoundPlus" | "Terminal" | "Progress02" | "Target";
+  name: "Workflow" | "UserRoundPlus" | "Terminal" | "ListTodo" | "Target";
   label: string | undefined;
 }) {
   return (
@@ -102,18 +96,19 @@ function ActiveIcon({
   );
 }
 
+// bb gives plugins each computed indicator and label, but not the aggregate
+// precedence. This is bb's per-thread precedence with unread-success omitted.
 const INDICATOR_PRIORITY: readonly PluginSidebarThreadIndicator[] = [
   "unread-error",
   "waiting-for-input",
   "working-draft",
-  "workflow",
-  "background-agent",
-  "background-command",
   "plan-mode",
   "goal",
   "runtime",
+  "workflow",
+  "background-agent",
+  "background-command",
   "draft",
-  "unread-success",
 ];
 
 export function groupIndicator(
