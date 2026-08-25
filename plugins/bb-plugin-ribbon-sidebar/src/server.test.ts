@@ -333,7 +333,10 @@ describe("Ribbon sidebar server", () => {
 
     await expect(
       harness.behavior.callRpc("searchThreadIdsV1", { query: "message body" }),
-    ).resolves.toEqual({ threadIds: ["thread-child"] });
+    ).resolves.toMatchObject({
+      threadIds: ["thread-child"],
+      threads: [{ id: "thread-child", isArchived: false }],
+    });
     expect(harness.inspection.sdk.callsTo("threads.search")).toEqual([
       [{ query: "message body", limitPerGroup: "50" }],
     ]);

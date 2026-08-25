@@ -20,6 +20,7 @@ describe("client-local sidebar preferences", () => {
     const local = storage({
       "bb.plugin.thread-stages.threadFilter": "section:release",
       "bb.plugin.workflow-stage.collapsedStatuses": JSON.stringify([
+        "Pinned",
         "Deferred",
         "Active",
       ]),
@@ -38,6 +39,7 @@ describe("client-local sidebar preferences", () => {
         groupingKey: "plugin:thread-stages:stages",
       },
       collapsed: new Set([
+        "builtin:pinned",
         "plugin:thread-stages:stages/Deferred",
         "plugin:thread-stages:stages/Active",
       ]),

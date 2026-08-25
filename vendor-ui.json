@@ -18,6 +18,7 @@
     ],
     "plugins/bb-plugin-ribbon-sidebar": [
       "button",
+      "context-menu",
       "dialog",
       "dropdown-menu",
       "input",

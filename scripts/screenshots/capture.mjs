@@ -315,7 +315,10 @@ export async function openApp({ browser, stack, fixture, theme, viewport, style 
             },
             groupingKey: "plugin:thread-stages:stages",
           },
-          collapsed: [],
+          collapsed: [
+            "plugin:thread-stages:stages/Deferred",
+            "plugin:thread-stages:stages/Completed",
+          ],
         }),
       ),
     fixture.section.id,

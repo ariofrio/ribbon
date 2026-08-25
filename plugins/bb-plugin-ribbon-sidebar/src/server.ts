@@ -1,5 +1,6 @@
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import { sidebarThreadsFromSearchResult } from "./search-results";
 import {
   acknowledgePlacementMigrationOutputSchema,
   getPlacementInputSchema,
@@ -139,7 +140,24 @@ export const rpcContract = defineRpcContract({
   },
   searchThreadIdsV1: {
     input: z.object({ query: z.string().trim().min(1).max(500) }).strict(),
-    output: z.object({ threadIds: z.array(z.string()) }).strict(),
+    output: z
+      .object({
+        threadIds: z.array(z.string()),
+        threads: z.array(
+          z
+            .object({
+              id: z.string(),
+              projectId: z.string(),
+              title: z.string().nullable(),
+              titleFallback: z.string().nullable(),
+              parentThreadId: z.string().nullable(),
+              providerId: z.string(),
+              isArchived: z.boolean(),
+            })
+            .strict(),
+        ),
+      })
+      .strict(),
   },
   renameEntityV1: {
     input: z
@@ -648,14 +666,13 @@ export default async function plugin(bb: BbPluginApi) {
         limitPerGroup: "50",
       });
       const seen = new Set<string>();
-      const threadIds = [...result.active.results, ...result.archived.results]
-        .map(({ thread }) => thread.id)
-        .filter((threadId) => {
-          if (seen.has(threadId)) return false;
-          seen.add(threadId);
-          return true;
-        });
-      return { threadIds };
+      const threads = sidebarThreadsFromSearchResult(result);
+      const threadIds = threads.map(({ id }) => id).filter((threadId) => {
+        if (seen.has(threadId)) return false;
+        seen.add(threadId);
+        return true;
+      });
+      return { threadIds, threads };
     },
     sidebarSnapshotV1() {
       return sidebarSnapshot();

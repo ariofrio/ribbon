@@ -1,87 +1,393 @@
+import type { ReactNode } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import type {
+  PluginSidebarThread,
+  PluginSidebarThreadActions,
+} from "@get-bb/plugin-sdk/app";
+import type { IconDataV1 } from "./contracts";
 import type { EntityIconView } from "./icons";
-import { Icon } from "./vendor/components/ui/icon";
+import { ProviderIcon } from "./provider-icon";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuPortal,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "./vendor/components/ui/context-menu";
+import { CompactViewportOverrideProvider } from "./vendor/components/ui/hooks/use-compact-viewport";
+import { Icon, type IconName } from "./vendor/components/ui/icon";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuPortal,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./vendor/components/ui/dropdown-menu";
 
-export function ThreadActionsMenu({
-  sectionIcons,
-  sections,
-  thread,
-  onNewSection,
-  onSetSection,
-}: {
+const MENU_LAYER_CLASS = "z-[70]";
+
+export interface AssignmentGroupOption {
+  id: string;
+  label: string;
+  icon?: IconDataV1;
+  acceptsAssignments: boolean;
+}
+
+interface CommonMenuProps {
+  actions: PluginSidebarThreadActions;
+  assignment?: {
+    currentGroupId: string;
+    groups: readonly AssignmentGroupOption[];
+    singularLabel: string;
+    onSetGroup(groupId: string): void;
+  };
+  disabled: boolean;
+  onNewSection(): void;
+  onRename(): void;
+  onSetSection(sectionId: string | null): void;
   sectionIcons: ReadonlyMap<string, EntityIconView>;
   sections: readonly { id: string; label: string }[];
+  splitAvailable: boolean;
   thread: PluginSidebarThread;
-  onNewSection(): void;
-  onSetSection(sectionId: string | null): void;
+}
+
+export function ThreadActionsContextMenu({
+  children,
+  onOpenChange,
+  ...props
+}: CommonMenuProps & {
+  children: ReactNode;
+  onOpenChange(open: boolean): void;
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          aria-label={`Thread actions for ${thread.title ?? thread.titleFallback ?? "Untitled thread"}`}
-          className="shrink-0 rounded px-1 text-muted-foreground outline-none hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
-          onClick={(event) => event.stopPropagation()}
-          type="button"
-        >
-          <Icon name="MoreHorizontal" className="size-4" aria-hidden />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="z-[70]">
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <Icon name="ListView" aria-hidden />
-            Move to section
-          </DropdownMenuSubTrigger>
-          <DropdownMenuPortal>
-            <DropdownMenuSubContent className="z-[70]">
-              {sections.map((section) => (
-                <DropdownMenuItem
-                  key={section.id}
-                  onSelect={() => {
-                    if (section.id !== thread.sectionId) onSetSection(section.id);
-                  }}
-                >
-                  <span className="w-4">
-                    {section.id === thread.sectionId ? (
-                      <Icon name="Check" aria-hidden />
-                    ) : null}
-                  </span>
-                  <SectionMenuIcon icon={sectionIcons.get(section.id)} />
-                  {section.label}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuItem
+    <ContextMenu onOpenChange={onOpenChange}>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent aria-label="Thread actions">
+        <ContextItems {...props} />
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+export function ThreadActionsDropdown({
+  onOpenChange,
+  ...props
+}: CommonMenuProps & { onOpenChange(open: boolean): void }) {
+  return (
+    <CompactViewportOverrideProvider isCompactViewport={false}>
+      <DropdownMenu onOpenChange={onOpenChange}>
+        <DropdownMenuTrigger asChild>
+          <button
+            aria-label="Thread actions"
+            className="relative m-1 flex size-5 cursor-pointer items-center justify-center rounded-md p-0 text-subtle-foreground outline-none ring-sidebar-ring after:absolute after:left-1/2 after:top-1/2 after:size-7 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] hover:text-foreground focus-visible:ring-2 data-[state=open]:bg-state-active data-[state=open]:text-foreground"
+            onClick={(event) => event.stopPropagation()}
+            onDragStart={(event) => event.preventDefault()}
+            type="button"
+          >
+            <Icon name="MoreHorizontal" className="size-4" aria-hidden />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className={MENU_LAYER_CLASS}>
+          <DropdownItems {...props} />
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </CompactViewportOverrideProvider>
+  );
+}
+
+function ContextItems(props: CommonMenuProps) {
+  const { actions, thread } = props;
+  return (
+    <>
+      {props.splitAvailable ? (
+        <>
+          <ContextItem
+            icon="Columns2"
+            onSelect={() => actions.open(thread.id, { split: true })}
+          >
+            Open in split
+          </ContextItem>
+          <ContextMenuSeparator />
+        </>
+      ) : null}
+      <ContextItem
+        icon={thread.isUnread ? "MailOpen" : "Mail"}
+        onSelect={() => void actions.setRead(thread.id, thread.isUnread)}
+      >
+        {thread.isUnread ? "Mark read" : "Mark unread"}
+      </ContextItem>
+      <ContextItem
+        icon={thread.isPinned ? "PinOff" : "Pin"}
+        onSelect={() => void actions.setPinned(thread.id, !thread.isPinned)}
+      >
+        {thread.isPinned ? "Unpin" : "Pin"}
+      </ContextItem>
+      <ContextItem icon="Edit" onSelect={props.onRename}>Rename</ContextItem>
+      <ContextMenuSeparator />
+      {props.assignment ? (
+        <ContextAssignmentMenu
+          assignment={props.assignment}
+          disabled={props.disabled}
+        />
+      ) : null}
+      <ContextSectionMenu {...props} />
+      <ContextMenuSeparator />
+      <ContextItem
+        icon="Archive"
+        onSelect={() => void actions.archive(thread.id)}
+      >
+        Archive
+      </ContextItem>
+      <ContextItem
+        destructive
+        icon="Trash2"
+        onSelect={() => actions.requestDelete(thread.id)}
+      >
+        Delete
+      </ContextItem>
+    </>
+  );
+}
+
+function DropdownItems(props: CommonMenuProps) {
+  const { actions, thread } = props;
+  return (
+    <>
+      {props.splitAvailable ? (
+        <>
+          <DropdownItem
+            icon="Columns2"
+            onSelect={() => actions.open(thread.id, { split: true })}
+          >
+            Open in split
+          </DropdownItem>
+          <DropdownMenuSeparator />
+        </>
+      ) : null}
+      <DropdownItem
+        icon={thread.isUnread ? "MailOpen" : "Mail"}
+        onSelect={() => void actions.setRead(thread.id, thread.isUnread)}
+      >
+        {thread.isUnread ? "Mark read" : "Mark unread"}
+      </DropdownItem>
+      <DropdownItem
+        icon={thread.isPinned ? "PinOff" : "Pin"}
+        onSelect={() => void actions.setPinned(thread.id, !thread.isPinned)}
+      >
+        {thread.isPinned ? "Unpin" : "Pin"}
+      </DropdownItem>
+      <DropdownItem icon="Edit" onSelect={props.onRename}>Rename</DropdownItem>
+      <DropdownMenuSeparator />
+      {props.assignment ? (
+        <DropdownAssignmentMenu
+          assignment={props.assignment}
+          disabled={props.disabled}
+        />
+      ) : null}
+      <DropdownSectionMenu {...props} />
+      <DropdownMenuSeparator />
+      <DropdownItem
+        icon="Archive"
+        onSelect={() => void actions.archive(thread.id)}
+      >
+        Archive
+      </DropdownItem>
+      <DropdownItem
+        destructive
+        icon="Trash2"
+        onSelect={() => actions.requestDelete(thread.id)}
+      >
+        Delete
+      </DropdownItem>
+    </>
+  );
+}
+
+function ContextAssignmentMenu({
+  assignment,
+  disabled,
+}: {
+  assignment: NonNullable<CommonMenuProps["assignment"]>;
+  disabled: boolean;
+}) {
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger disabled={disabled}>
+        <Icon name="Workflow" aria-hidden />
+        Move to {assignment.singularLabel.toLocaleLowerCase()}
+      </ContextMenuSubTrigger>
+      <ContextMenuPortal>
+        <ContextMenuSubContent>
+          {assignment.groups
+            .filter(({ acceptsAssignments }) => acceptsAssignments)
+            .map((group) => (
+              <ContextMenuItem
+                key={group.id}
                 onSelect={() => {
-                  if (thread.sectionId !== null) onSetSection(null);
+                  if (group.id !== assignment.currentGroupId) {
+                    assignment.onSetGroup(group.id);
+                  }
                 }}
               >
                 <span className="w-4">
-                  {thread.sectionId === null ? <Icon name="Check" aria-hidden /> : null}
+                  {group.id === assignment.currentGroupId ? (
+                    <Icon name="Check" aria-hidden />
+                  ) : null}
                 </span>
-                <Icon name="ListView" aria-hidden />
-                Unorganized
+                {group.icon ? (
+                  <ProviderIcon icon={group.icon} label={`${group.label} icon`} />
+                ) : null}
+                {group.label}
+              </ContextMenuItem>
+            ))}
+        </ContextMenuSubContent>
+      </ContextMenuPortal>
+    </ContextMenuSub>
+  );
+}
+
+function DropdownAssignmentMenu({
+  assignment,
+  disabled,
+}: {
+  assignment: NonNullable<CommonMenuProps["assignment"]>;
+  disabled: boolean;
+}) {
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger disabled={disabled}>
+        <Icon name="Workflow" aria-hidden />
+        Move to {assignment.singularLabel.toLocaleLowerCase()}
+      </DropdownMenuSubTrigger>
+      <DropdownMenuPortal>
+        <DropdownMenuSubContent className={MENU_LAYER_CLASS}>
+          {assignment.groups
+            .filter(({ acceptsAssignments }) => acceptsAssignments)
+            .map((group) => (
+              <DropdownMenuItem
+                key={group.id}
+                onSelect={() => {
+                  if (group.id !== assignment.currentGroupId) {
+                    assignment.onSetGroup(group.id);
+                  }
+                }}
+              >
+                <span className="w-4">
+                  {group.id === assignment.currentGroupId ? (
+                    <Icon name="Check" aria-hidden />
+                  ) : null}
+                </span>
+                {group.icon ? (
+                  <ProviderIcon icon={group.icon} label={`${group.label} icon`} />
+                ) : null}
+                {group.label}
               </DropdownMenuItem>
-              <DropdownMenuItem inset onSelect={onNewSection}>
-                <Icon name="SectionAdd" aria-hidden />
-                New section
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuPortal>
-        </DropdownMenuSub>
-      </DropdownMenuContent>
-    </DropdownMenu>
+            ))}
+        </DropdownMenuSubContent>
+      </DropdownMenuPortal>
+    </DropdownMenuSub>
+  );
+}
+
+function ContextSectionMenu(props: CommonMenuProps) {
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger>
+        <Icon name="ListView" aria-hidden />Move to section
+      </ContextMenuSubTrigger>
+      <ContextMenuPortal>
+        <ContextMenuSubContent>
+          {props.sections.map((section) => (
+            <ContextMenuItem
+              key={section.id}
+              onSelect={() => {
+                if (section.id !== props.thread.sectionId) {
+                  props.onSetSection(section.id);
+                }
+              }}
+            >
+              <span className="w-4">
+                {section.id === props.thread.sectionId ? (
+                  <Icon name="Check" aria-hidden />
+                ) : null}
+              </span>
+              <SectionMenuIcon icon={props.sectionIcons.get(section.id)} />
+              {section.label}
+            </ContextMenuItem>
+          ))}
+          <ContextMenuItem
+            onSelect={() => {
+              if (props.thread.sectionId !== null) props.onSetSection(null);
+            }}
+          >
+            <span className="w-4">
+              {props.thread.sectionId === null ? (
+                <Icon name="Check" aria-hidden />
+              ) : null}
+            </span>
+            <Icon name="ListView" aria-hidden />Unorganized
+          </ContextMenuItem>
+          <ContextMenuItem inset onSelect={props.onNewSection}>
+            <Icon name="SectionAdd" aria-hidden />New section
+          </ContextMenuItem>
+        </ContextMenuSubContent>
+      </ContextMenuPortal>
+    </ContextMenuSub>
+  );
+}
+
+function DropdownSectionMenu(props: CommonMenuProps) {
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <Icon name="ListView" aria-hidden />Move to section
+      </DropdownMenuSubTrigger>
+      <DropdownMenuPortal>
+        <DropdownMenuSubContent className={MENU_LAYER_CLASS}>
+          {props.sections.map((section) => (
+            <DropdownMenuItem
+              key={section.id}
+              onSelect={() => {
+                if (section.id !== props.thread.sectionId) {
+                  props.onSetSection(section.id);
+                }
+              }}
+            >
+              <span className="w-4">
+                {section.id === props.thread.sectionId ? (
+                  <Icon name="Check" aria-hidden />
+                ) : null}
+              </span>
+              <SectionMenuIcon icon={props.sectionIcons.get(section.id)} />
+              {section.label}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuItem
+            onSelect={() => {
+              if (props.thread.sectionId !== null) props.onSetSection(null);
+            }}
+          >
+            <span className="w-4">
+              {props.thread.sectionId === null ? (
+                <Icon name="Check" aria-hidden />
+              ) : null}
+            </span>
+            <Icon name="ListView" aria-hidden />Unorganized
+          </DropdownMenuItem>
+          <DropdownMenuItem inset onSelect={props.onNewSection}>
+            <Icon name="SectionAdd" aria-hidden />New section
+          </DropdownMenuItem>
+        </DropdownMenuSubContent>
+      </DropdownMenuPortal>
+    </DropdownMenuSub>
   );
 }
 
@@ -96,5 +402,51 @@ function SectionMenuIcon({ icon }: { icon?: EntityIconView }) {
       style={icon.color === null ? undefined : { color: icon.color }}
       aria-hidden
     />
+  );
+}
+
+function ContextItem({
+  children,
+  destructive = false,
+  icon,
+  onSelect,
+}: {
+  children: ReactNode;
+  destructive?: boolean;
+  icon: IconName;
+  onSelect(): void;
+}) {
+  return (
+    <ContextMenuItem
+      className={
+        destructive
+          ? "text-destructive focus:bg-destructive/15 focus:text-destructive"
+          : undefined
+      }
+      onSelect={onSelect}
+    >
+      <Icon name={icon} aria-hidden />{children}
+    </ContextMenuItem>
+  );
+}
+
+function DropdownItem({
+  children,
+  destructive = false,
+  icon,
+  onSelect,
+}: {
+  children: ReactNode;
+  destructive?: boolean;
+  icon: IconName;
+  onSelect(): void;
+}) {
+  return (
+    <DropdownMenuItem
+      variant={destructive ? "destructive" : "default"}
+      onSelect={onSelect}
+    >
+      <Icon name={icon} aria-hidden />{children}
+    </DropdownMenuItem>
   );
 }

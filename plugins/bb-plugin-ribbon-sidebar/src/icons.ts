@@ -3,6 +3,7 @@ import type { IconSvgElement } from "@hugeicons/react";
 export const ICONS_CHANNEL = "bb.icons";
 
 export interface EntityIconView {
+  name: string;
   glyph: IconSvgElement;
   color: string | null;
 }
@@ -48,11 +49,56 @@ export function buildSectionIconMap(
   for (const icon of response.icons) {
     if (icon.kind !== "section") continue;
     icons.set(icon.id, {
+      name: icon.icon,
       glyph: icon.glyph,
       color: iconColor(icon.color),
     });
   }
   return icons;
+}
+
+export function buildProjectIconMap(
+  response: IconsResponse,
+  projectIds: readonly string[],
+): Map<string, EntityIconView> {
+  const icons = new Map<string, EntityIconView>();
+  for (const projectId of projectIds) {
+    const personal = projectId === "proj_personal";
+    icons.set(projectId, {
+      name: personal ? "bubble-chat" : "folder-01",
+      glyph: personal ? response.defaults.personal : response.defaults.project,
+      color: null,
+    });
+  }
+  for (const icon of response.icons) {
+    if (icon.kind !== "project") continue;
+    icons.set(icon.id, {
+      name: icon.icon,
+      glyph: icon.glyph,
+      color: iconColor(icon.color),
+    });
+  }
+  return icons;
+}
+
+export interface EntityIconMaps {
+  projects: Map<string, EntityIconView>;
+  sections: Map<string, EntityIconView>;
+}
+
+export async function fetchEntityIcons(
+  loadIcons: () => Promise<IconsResponse>,
+  projectIds: readonly string[],
+): Promise<EntityIconMaps> {
+  try {
+    const response = await loadIcons();
+    return {
+      projects: buildProjectIconMap(response, projectIds),
+      sections: buildSectionIconMap(response),
+    };
+  } catch {
+    return { projects: new Map(), sections: new Map() };
+  }
 }
 
 export async function fetchSectionIcons(

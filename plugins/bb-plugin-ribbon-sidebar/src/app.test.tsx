@@ -105,6 +105,13 @@ const snapshot = {
         {
           id: "Idle",
           label: "Idle",
+          icon: {
+            tag: "svg",
+            attrs: { viewBox: "0 0 24 24" },
+            children: [
+              { tag: "circle", attrs: { cx: 12, cy: 12, r: 8 } },
+            ],
+          },
           visibleWhenEmpty: true,
           acceptsAssignments: true,
           defaultCollapsed: false,
@@ -112,6 +119,13 @@ const snapshot = {
         {
           id: "Active",
           label: "Active",
+          icon: {
+            tag: "svg",
+            attrs: { viewBox: "0 0 24 24" },
+            children: [
+              { tag: "path", attrs: { d: "M8 5v14l11-7z" } },
+            ],
+          },
           visibleWhenEmpty: true,
           acceptsAssignments: true,
           defaultCollapsed: false,
@@ -200,6 +214,13 @@ function options(overrides: Record<string, unknown> = {}) {
         listEntityIconsV1: vi.fn(async () => ({
           icons: [
             {
+              kind: "project" as const,
+              id: "project-a",
+              icon: "custom-project",
+              color: "blue",
+              glyph: [["path", { d: "M2 2h12v12H2z" }]],
+            },
+            {
               kind: "section" as const,
               id: "section-a",
               icon: "custom-section",
@@ -219,6 +240,7 @@ function options(overrides: Record<string, unknown> = {}) {
             .includes("migration")
             ? ["thread-a"]
             : [],
+          threads: [],
         })),
         updatePlacementV1,
         createProjectV1,
@@ -261,6 +283,101 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("preserves released Thread stages row and group interactions", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        projects: [
+          { id: "project-a", name: "Storefront", isPersonal: false },
+        ],
+        threads: [
+          thread({
+            id: "thread-a",
+            title: "Design migration",
+            indicator: "runtime",
+            indicatorLabel: "Thread working",
+          }),
+          thread({
+            id: "thread-child",
+            parentThreadId: "thread-a",
+            title: "Verify child flow",
+            indicator: "waiting-for-input",
+            indicatorLabel: "Needs input",
+          }),
+          thread({ id: "thread-b", title: "Ship UI" }),
+        ],
+      },
+      rpc: {
+        ...options().value.rpc,
+        listPreviewsV1: vi.fn(async () => ({
+          previews: [
+            { threadId: "thread-a", preview: "A useful preview" },
+            { threadId: "thread-child", preview: "Child preview" },
+          ],
+        })),
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    const open = await slot.findByRole("link", {
+      name: "Open Design migration — A useful preview",
+    });
+    expect(open).toBeTruthy();
+    expect(slot.getByLabelText("Thread working")).toBeTruthy();
+    expect(
+      open.parentElement?.querySelector('[data-project-icon="custom-project"]'),
+    ).not.toBeNull();
+
+    const collapseChildren = slot.getByRole("button", {
+      name: "Collapse Design migration threads",
+    });
+    fireEvent.click(collapseChildren);
+    expect(slot.queryByText("Verify child flow")).toBeNull();
+    expect(slot.getByLabelText("Needs input")).toBeTruthy();
+    expect(slot.queryByLabelText("Thread working")).toBeNull();
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("bb.sidebar.collapsedThreads") ?? "[]",
+      ),
+    ).toEqual(["thread-a"]);
+    fireEvent.click(
+      slot.getByRole("button", { name: "Expand Design migration threads" }),
+    );
+    expect(slot.getByText("Verify child flow")).toBeTruthy();
+    expect(slot.getByLabelText("Thread working")).toBeTruthy();
+    expect(slot.getByText("Child preview")).toBeTruthy();
+    expect(fixture.value.rpc.listPreviewsV1).toHaveBeenCalledWith({
+      threadIds: ["thread-a", "thread-child", "thread-b"],
+    });
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("bb.sidebar.collapsedThreads") ?? "[]",
+      ),
+    ).toEqual([]);
+
+    expect(slot.getByLabelText("Idle group icon")).toBeTruthy();
+    expect(
+      slot.getByRole("button", { name: "Collapse Idle section" }),
+    ).toBeTruthy();
+    expect(slot.queryByText("Stage: Idle")).toBeNull();
+
+    fireEvent.keyDown(
+      slot
+        .getByText("Design migration")
+        .closest("[data-thread-id]")!
+        .querySelector('[aria-label="Thread actions"]')!,
+      { key: "Enter" },
+    );
+    expect(await slot.findByText("Mark unread")).toBeTruthy();
+    expect(slot.getByText("Pin")).toBeTruthy();
+    expect(slot.getByText("Rename")).toBeTruthy();
+    expect(slot.getByText("Move to stage")).toBeTruthy();
+    expect(slot.getByText("Move to section")).toBeTruthy();
+    expect(slot.getByText("Archive")).toBeTruthy();
+    expect(slot.getByText("Delete")).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
   it("applies provider collapse defaults for a fresh client", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
@@ -281,7 +398,7 @@ describe("Ribbon sidebar app", () => {
     await waitFor(() =>
       expect(
         slot
-          .getByRole("button", { name: "Stage: Active" })
+          .getByRole("button", { name: "Expand Active section" })
           .getAttribute("aria-expanded"),
       ).toBe("false"),
     );
@@ -305,11 +422,30 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("preserves the released collapsed Pinned section preference", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.workflow-stage.collapsedStatuses",
+      JSON.stringify(["Pinned"]),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    await slot.findByRole("button", { name: "Expand Pinned section" });
+    expect(slot.queryByText("thread-pin")).toBeNull();
+    fireEvent.click(
+      slot.getByRole("button", { name: "Expand Pinned section" }),
+    );
+    expect(await slot.findByText("thread-pin")).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
   it("uses bb's thread search results instead of title-only matching", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     fixture.value.rpc.searchThreadIdsV1 = vi.fn(async (_raw: unknown) => ({
       threadIds: ["thread-b"],
+      threads: [],
     }));
     const slot = renderSlot(
       app.threadLists[0]!,
@@ -319,6 +455,55 @@ describe("Ribbon sidebar app", () => {
 
     expect(await slot.findByText("Ship UI")).toBeTruthy();
     expect(slot.queryByText("Design migration")).toBeNull();
+    expect(
+      slot.queryByRole("button", { name: "Move Ship UI" }),
+    ).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("preserves released archived-thread search results", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    fixture.value.rpc.searchThreadIdsV1 = vi.fn(async () => ({
+      threadIds: ["thread-archived"],
+      threads: [
+        {
+          id: "thread-archived",
+          projectId: "project-a",
+          title: "Archived migration",
+          titleFallback: null,
+          parentThreadId: null,
+          providerId: "codex",
+          isArchived: true,
+        },
+      ],
+    })) as never;
+    fixture.value.rpc.listPlacementsV1 = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        groupingKey: "plugin:thread-stages:stages",
+        revision: 1,
+        items: [
+          {
+            groupingKey: "plugin:thread-stages:stages",
+            groupId: "Idle",
+            threadId: "thread-archived",
+            enteredAtMs: 1,
+            origin: "ui" as const,
+          },
+        ],
+      },
+    }));
+    const slot = renderSlot(
+      app.threadLists[0]!,
+      { ...props, searchQuery: "archived migration" },
+      fixture.value,
+    );
+
+    expect(await slot.findByText("Archived migration")).toBeTruthy();
+    expect(
+      slot.queryByRole("button", { name: "Thread actions" }),
+    ).toBeNull();
     slot.lifecycle.unmount();
   });
 
@@ -402,7 +587,7 @@ describe("Ribbon sidebar app", () => {
     expect(await slot.findByText("Opened child")).toBeTruthy();
 
     fireEvent.keyDown(
-      slot.getByRole("button", { name: "Projects and sections" }),
+      slot.getByRole("button", { name: "Projects and sections: Roadmap" }),
       { key: "Enter" },
     );
     fireEvent.click(await slot.findByText("Release"));
@@ -448,7 +633,7 @@ describe("Ribbon sidebar app", () => {
     expect(slot.queryByText("thread-child")).toBeNull();
     expect(slot.queryByText("Ship UI")).toBeNull();
     expect(
-      slot.getByRole("button", { name: "Stage: Idle" }).getAttribute(
+      slot.getByRole("button", { name: "Expand Idle section" }).getAttribute(
         "aria-expanded",
       ),
     ).toBe("false");
@@ -476,6 +661,7 @@ describe("Ribbon sidebar app", () => {
     const fixture = options();
     fixture.value.rpc.searchThreadIdsV1 = vi.fn(async () => ({
       threadIds: ["thread-b"],
+      threads: [],
     }));
     fixture.value.rpc.listPlacementsV1 = vi.fn(async (raw: unknown) => {
       const { groupingKey, threadIds } = raw as {
@@ -515,7 +701,7 @@ describe("Ribbon sidebar app", () => {
 
     expect(await slot.findByText("Ship UI")).toBeTruthy();
     expect(
-      slot.getByRole("button", { name: "Stage: Active" }).getAttribute(
+      slot.getByRole("button", { name: "Collapse Active section" }).getAttribute(
         "aria-expanded",
       ),
     ).toBe("true");
@@ -553,11 +739,11 @@ describe("Ribbon sidebar app", () => {
 
     await slot.findByText("Design migration");
     const idleGroup = slot.getByRole("region", { name: "Idle group" });
-    const renderedRoots = Array.from(idleGroup.children)
-      .map((child) =>
-        child.querySelector<HTMLElement>("[data-thread-id]")?.dataset.threadId,
-      )
-      .filter((threadId): threadId is string => threadId !== undefined);
+    const renderedRoots = Array.from(
+      idleGroup.querySelectorAll<HTMLElement>("[data-thread-id]"),
+    )
+      .map((child) => child.dataset.threadId)
+      .filter((threadId) => threadId === "thread-a" || threadId === "thread-b");
     expect(renderedRoots).toEqual(["thread-b", "thread-a"]);
     slot.lifecycle.unmount();
   });
@@ -654,8 +840,10 @@ describe("Ribbon sidebar app", () => {
     }));
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Design migration");
-    expect(slot.getByText("Stage: Removed (unavailable)")).toBeTruthy();
-    expect(slot.getByRole("button", { name: "Stage: Idle" })).toBeTruthy();
+    expect(slot.getByText("Removed (unavailable)")).toBeTruthy();
+    expect(
+      slot.getByRole("button", { name: "Collapse Idle section" }),
+    ).toBeTruthy();
     expect(
       slot.queryByRole("button", { name: "Projects and sections" }),
     ).toBeNull();
@@ -747,9 +935,10 @@ describe("Ribbon sidebar app", () => {
     await slot.findByText("Design migration");
 
     fireEvent.keyDown(
-      slot.getByRole("button", {
-        name: "Thread actions for Design migration",
-      }),
+      slot
+        .getByText("Design migration")
+        .closest("[data-thread-id]")!
+        .querySelector('[aria-label="Thread actions"]')!,
       { key: "Enter" },
     );
     fireEvent.click(await slot.findByText("Move to section"));
@@ -770,9 +959,10 @@ describe("Ribbon sidebar app", () => {
     await slot.findByText("Design migration");
 
     fireEvent.keyDown(
-      slot.getByRole("button", {
-        name: "Thread actions for Design migration",
-      }),
+      slot
+        .getByText("Design migration")
+        .closest("[data-thread-id]")!
+        .querySelector('[aria-label="Thread actions"]')!,
       { key: "Enter" },
     );
     fireEvent.click(await slot.findByText("Move to section"));
@@ -943,10 +1133,13 @@ describe("Ribbon sidebar app", () => {
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Design migration");
 
-    const idle = slot.getByRole("button", { name: "Stage: Idle" });
-    fireEvent.click(idle);
+    fireEvent.click(
+      slot.getByRole("button", { name: "Collapse Idle section" }),
+    );
     expect(slot.queryByText("Design migration")).toBeNull();
-    fireEvent.click(idle);
+    fireEvent.click(
+      slot.getByRole("button", { name: "Expand Idle section" }),
+    );
     expect(slot.getByText("Design migration")).toBeTruthy();
 
     const dataTransfer = { setData: vi.fn(), getData: vi.fn() };

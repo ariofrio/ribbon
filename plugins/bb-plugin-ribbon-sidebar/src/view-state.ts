@@ -106,7 +106,11 @@ function legacyCollapsed(
     return new Set(
       parsed
         .filter((value): value is string => typeof value === "string")
-        .map((groupId) => `plugin:thread-stages:stages/${groupId}`),
+        .map((groupId) =>
+          groupId === "Pinned"
+            ? "builtin:pinned"
+            : `plugin:thread-stages:stages/${groupId}`,
+        ),
     );
   } catch {
     return new Set();

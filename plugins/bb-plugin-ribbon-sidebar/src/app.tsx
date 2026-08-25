@@ -1,6 +1,7 @@
 import {
   definePluginApp,
   experimental_useSidebarThreadActions,
+  experimental_useSidebarThreadSplit,
   experimental_useSidebarThreads,
   useRealtime,
   useRealtimeConnectionState,
@@ -9,6 +10,7 @@ import {
   type PluginSidebarThread,
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
   useCallback,
   useEffect,
@@ -17,7 +19,7 @@ import {
   useState,
   type DragEvent,
   type FormEvent,
-  type ReactNode,
+  type MouseEvent,
 } from "react";
 import type { z } from "zod";
 import type { rpcContract } from "./server";
@@ -49,16 +51,29 @@ import { Input } from "./vendor/components/ui/input";
 import { COARSE_POINTER_ROW_ACTION_SIZE_CLASS } from "./vendor/components/ui/coarse-pointer-sizing";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
 import {
-  fetchSectionIcons,
+  fetchEntityIcons,
   subscribeToIconChanges,
   type EntityIconView,
 } from "./icons";
-import { ThreadActionsMenu } from "./thread-actions-menu";
+import {
+  ThreadActionsContextMenu,
+  ThreadActionsDropdown,
+  type AssignmentGroupOption,
+} from "./thread-actions-menu";
+import { ProviderIcon } from "./provider-icon";
+import { Icon } from "./vendor/components/ui/icon";
+import { usePersistentStringSet } from "./persistent-string-set";
+import { SplitPaneMiniMap } from "./split-pane-mini-map";
+
+const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
 
 type SidebarSnapshot = z.output<
   typeof rpcContract.sidebarSnapshotV1.output
 >;
 type SnapshotGrouping = SidebarSnapshot["groupings"][number];
+type SearchThread = z.output<
+  typeof rpcContract.searchThreadIdsV1.output
+>["threads"][number];
 type BuiltinGroupRef = {
   groupingKey: "builtin:projects" | "builtin:sections";
   groupId: string;
@@ -101,85 +116,267 @@ function rootForThread(
   return current;
 }
 
+function archivedSearchThread(thread: SearchThread): PluginSidebarThread {
+  return {
+    ...thread,
+    sectionId: null,
+    originKind: null,
+    originPluginId: null,
+    hasPendingInteraction: false,
+    activity: {
+      workflows: 0,
+      backgroundAgents: 0,
+      backgroundCommands: 0,
+      planMode: 0,
+      goals: 0,
+    },
+    indicator: "none",
+    indicatorLabel: null,
+    isUnread: false,
+    isPinned: false,
+    environment: null,
+    host: null,
+    createdAt: 0,
+    updatedAt: 0,
+    lastReadAt: null,
+    latestAttentionAt: 0,
+  };
+}
+
 function ThreadRow({
   active,
-  actionsMenu,
+  actions,
+  assignment,
+  childrenCollapsed,
   depth,
+  hasChildren,
+  indicatorThread,
   onDragEnd,
   onDragStart,
   onDropBefore,
   onMoveBefore,
   moveBeforeLabel,
   onMoveStart,
+  onNewSection,
   onOpen,
+  onRename,
+  onSetSection,
+  onToggleChildren,
+  placementDisabled,
   preview,
+  projectIcon,
+  sectionIcons,
+  sections,
   thread,
 }: {
   active: boolean;
-  actionsMenu: ReactNode;
+  actions: ReturnType<typeof experimental_useSidebarThreadActions>;
+  assignment?: {
+    currentGroupId: string;
+    groups: readonly AssignmentGroupOption[];
+    singularLabel: string;
+    onSetGroup(groupId: string): void;
+  };
+  childrenCollapsed: boolean;
   depth: number;
+  hasChildren: boolean;
+  indicatorThread: PluginSidebarThread;
   onDragEnd(): void;
   onDragStart(event: DragEvent<HTMLElement>): void;
   onDropBefore(event: DragEvent<HTMLElement>): void;
   onMoveBefore?: () => void;
   moveBeforeLabel?: string;
   onMoveStart?: () => void;
-  onOpen(): void;
+  onNewSection(): void;
+  onOpen(split: boolean): void;
+  onRename(): void;
+  onSetSection(sectionId: string | null): void;
+  onToggleChildren(): void;
+  placementDisabled: boolean;
   preview: string | null;
+  projectIcon: EntityIconView | null;
+  sectionIcons: ReadonlyMap<string, EntityIconView>;
+  sections: readonly { id: string; label: string }[];
   thread: PluginSidebarThread;
 }) {
-  return (
-    <div
-      className="group relative flex min-h-8 min-w-0 items-center rounded-md px-1 text-sm hover:bg-state-hover"
+  const { splitProps, isAvailable: splitAvailable, layout } =
+    experimental_useSidebarThreadSplit(thread.id);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [contextOpen, setContextOpen] = useState(false);
+  const rowTitle = title(thread);
+  const accessibleTitle = preview ? `${rowTitle} — ${preview}` : rowTitle;
+  const actionsOpen = dropdownOpen || contextOpen;
+  const commonMenuProps = {
+    actions,
+    assignment,
+    disabled: placementDisabled,
+    onNewSection,
+    onRename,
+    onSetSection,
+    sectionIcons,
+    sections,
+    splitAvailable,
+    thread,
+  };
+
+  function openThread(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    onOpen(splitAvailable && (event.metaKey || event.ctrlKey));
+  }
+
+  const row = (
+    <li
+      className="relative list-none"
       data-thread-id={thread.id}
-      draggable={depth === 0}
       onDragEnd={onDragEnd}
       onDragOver={(event) => {
         if (depth === 0) event.preventDefault();
       }}
       onDragStart={onDragStart}
       onDrop={onDropBefore}
-      style={{
-        paddingLeft: `${4 + depth * 14}px`,
-        contentVisibility: "auto",
-        containIntrinsicSize: "32px",
-      }}
     >
-      <button
-        aria-current={active ? "page" : undefined}
-        className="min-w-0 flex-1 truncate rounded px-1 py-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring aria-[current=page]:bg-state-active"
-        onClick={onOpen}
-        type="button"
+      <div
+        className={`bb-sidebar-hover-actions-row group/thread-row relative flex w-full items-center gap-2 rounded-md py-1 pr-0 text-sm transition-colors max-md:pointer-coarse:py-2.5 ${
+          active
+            ? "bg-state-active text-sidebar-foreground"
+            : "cursor-pointer text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:text-sidebar-foreground"
+        } ${layout !== null && !active ? "bg-sidebar-accent/50" : ""}`}
+        draggable={depth === 0 && !thread.isArchived}
+        style={{ paddingLeft: 8 + depth * 24 }}
       >
-        <span className="block truncate">{title(thread)}</span>
-        {preview ? (
-          <span className="block truncate text-xs text-muted-foreground">
-            {preview}
+        {Array.from({ length: depth }, (_, level) => (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 z-[1] w-px bg-border-hairline opacity-70"
+            key={level}
+            style={{ left: 16 + level * 24 }}
+          />
+        ))}
+        <a
+          {...splitProps}
+          aria-current={active ? "page" : undefined}
+          aria-label={`Open ${accessibleTitle}`}
+          className="absolute inset-0 rounded-md outline-none ring-sidebar-ring focus-visible:ring-2"
+          data-sidebar-thread-id={thread.id}
+          draggable={false}
+          href={`/projects/${encodeURIComponent(thread.projectId)}/threads/${encodeURIComponent(thread.id)}`}
+          onClick={openThread}
+        />
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          {projectIcon ? (
+            <HugeiconsIcon
+              aria-hidden
+              className="size-4 shrink-0"
+              data-project-icon={projectIcon.name}
+              icon={projectIcon.glyph}
+              style={projectIcon.color === null ? undefined : { color: projectIcon.color }}
+            />
+          ) : null}
+          <span className="flex min-w-0 flex-1 flex-col justify-center leading-none">
+            <span className="truncate leading-5" title={accessibleTitle}>{rowTitle}</span>
+            {preview ? (
+              <span className="truncate text-[11px] leading-4 text-subtle-foreground/75" title={preview}>
+                {preview}
+              </span>
+            ) : null}
           </span>
+          {hasChildren ? (
+            <button
+              aria-expanded={!childrenCollapsed}
+              aria-label={childrenCollapsed ? `Expand ${rowTitle} threads` : `Collapse ${rowTitle} threads`}
+              className="bb-sidebar-hover-actions relative z-20 inline-flex size-5 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onToggleChildren();
+              }}
+              type="button"
+            >
+              <Icon name="ChevronRight" className={`size-3 transition-transform duration-150 ${childrenCollapsed ? "" : "rotate-90"}`} aria-hidden />
+            </button>
+          ) : null}
+        </span>
+        <span className="relative -my-1 flex w-7 shrink-0 self-stretch items-center justify-end max-md:pointer-coarse:-my-2.5 max-md:pointer-coarse:w-9">
+          <span
+            className="bb-sidebar-hover-actions-fade absolute inset-0 flex items-center justify-center text-subtle-foreground"
+            data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
+          >
+            {layout ? (
+              <span
+                className="inline-flex size-4 items-center justify-center"
+                data-sidebar-thread-trailing-indicator=""
+              >
+                <SplitPaneMiniMap
+                  active={[
+                    "working-draft",
+                    "workflow",
+                    "background-agent",
+                    "background-command",
+                    "plan-mode",
+                    "goal",
+                    "runtime",
+                  ].includes(indicatorThread.indicator)}
+                  label={
+                    indicatorThread.indicatorLabel
+                      ? `${rowTitle} — open in split; ${indicatorThread.indicatorLabel}`
+                      : `${rowTitle} — open in split`
+                  }
+                  layout={layout}
+                />
+              </span>
+            ) : indicatorThread.indicator !== "none" ? (
+              <span
+                className="inline-flex size-4 items-center justify-center"
+                data-sidebar-thread-trailing-indicator=""
+              >
+                <ThreadIndicator
+                  indicator={indicatorThread.indicator}
+                  label={indicatorThread.indicatorLabel}
+                />
+              </span>
+            ) : null}
+          </span>
+          {!thread.isArchived ? (
+            <span
+              className="bb-sidebar-hover-actions absolute inset-0 z-10 flex items-center justify-end max-md:pointer-coarse:hidden"
+              data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
+            >
+              <ThreadActionsDropdown
+                {...commonMenuProps}
+                onOpenChange={setDropdownOpen}
+              />
+            </span>
+          ) : null}
+        </span>
+        {onMoveBefore && moveBeforeLabel ? (
+          <button
+            aria-label={moveBeforeLabel}
+            className={`${COARSE_POINTER_ROW_ACTION_SIZE_CLASS} relative z-20 shrink-0 rounded text-muted-foreground outline-none hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring`}
+            onClick={onMoveBefore}
+            type="button"
+          >
+            <Icon name="ArrowUp" className="size-3.5" aria-hidden />
+          </button>
         ) : null}
-      </button>
-      {actionsMenu}
-      {onMoveBefore && moveBeforeLabel ? (
-        <button
-          aria-label={moveBeforeLabel}
-          className={`${COARSE_POINTER_ROW_ACTION_SIZE_CLASS} shrink-0 rounded text-muted-foreground outline-none hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring`}
-          onClick={onMoveBefore}
-          type="button"
-        >
-          <span aria-hidden="true">↑</span>
-        </button>
-      ) : null}
-      {onMoveStart ? (
-        <button
-          aria-label={`Move ${title(thread)}`}
-          className={`${COARSE_POINTER_ROW_ACTION_SIZE_CLASS} shrink-0 rounded text-muted-foreground outline-none hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring`}
-          onClick={onMoveStart}
-          type="button"
-        >
-          <span aria-hidden="true">↕</span>
-        </button>
-      ) : null}
-    </div>
+        {onMoveStart ? (
+          <button
+            aria-label={`Move ${rowTitle}`}
+            className={`${COARSE_POINTER_ROW_ACTION_SIZE_CLASS} bb-sidebar-hover-actions relative z-20 shrink-0 rounded text-muted-foreground outline-none hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring`}
+            onClick={onMoveStart}
+            type="button"
+          >
+            <Icon name="DragDropVertical" className="size-3.5" aria-hidden />
+          </button>
+        ) : null}
+      </div>
+    </li>
+  );
+
+  if (thread.isArchived) return row;
+  return (
+    <ThreadActionsContextMenu {...commonMenuProps} onOpenChange={setContextOpen}>
+      {row}
+    </ThreadActionsContextMenu>
   );
 }
 
@@ -205,9 +402,19 @@ function RibbonSidebarList({
   const [previews, setPreviews] = useState<ReadonlyMap<string, string | null>>(
     new Map(),
   );
+  const [projectIcons, setProjectIcons] = useState<
+    ReadonlyMap<string, EntityIconView>
+  >(new Map());
   const [sectionIcons, setSectionIcons] = useState<
     ReadonlyMap<string, EntityIconView>
   >(new Map());
+  const [collapsedThreadIds, setCollapsedThreadIds] =
+    usePersistentStringSet(COLLAPSED_THREADS_STORAGE_KEY);
+  const [threadRename, setThreadRename] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [threadRenamePending, setThreadRenamePending] = useState(false);
   const [placementsLoaded, setPlacementsLoaded] = useState(false);
   const [previewsLoaded, setPreviewsLoaded] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
@@ -218,7 +425,8 @@ function RibbonSidebarList({
   const [searchResult, setSearchResult] = useState<{
     query: string;
     threadIds: ReadonlySet<string>;
-  }>({ query: "", threadIds: new Set() });
+    threads: readonly SearchThread[];
+  }>({ query: "", threadIds: new Set(), threads: [] });
   const reconnectPending = useRef(false);
   const mounted = useRef(false);
   const scopeSyncedForThreadId = useRef<string | null>(null);
@@ -353,6 +561,18 @@ function RibbonSidebarList({
       ),
     [liveThreadIds, liveThreads],
   );
+  const displayRootThreads = useMemo(() => {
+    if (!normalizedSearch || searchResult.query !== normalizedSearch) {
+      return rootThreads;
+    }
+    const known = new Set(rootThreads.map(({ id }) => id));
+    const searchOnly = searchResult.threads.flatMap((thread) => {
+      if (known.has(thread.id)) return [];
+      known.add(thread.id);
+      return [archivedSearchThread(thread)];
+    });
+    return [...rootThreads, ...searchOnly];
+  }, [normalizedSearch, rootThreads, searchResult]);
   useEffect(() => {
     if (activeThreadId === null) {
       scopeSyncedForThreadId.current = null;
@@ -407,7 +627,7 @@ function RibbonSidebarList({
     let canceled = false;
     void rpc
       .call("listPreviewsV1", {
-        threadIds: rootThreads.map(({ id }) => id),
+        threadIds: liveThreads.map(({ id }) => id),
       })
       .then(({ previews: next }) => {
         if (!canceled) {
@@ -423,13 +643,18 @@ function RibbonSidebarList({
     return () => {
       canceled = true;
     };
-  }, [rootThreads, rpc, settings.values?.showMessagePreviews, sidebar.status]);
+  }, [liveThreads, rpc, settings.values?.showMessagePreviews, sidebar.status]);
   useEffect(() => {
     let canceled = false;
     const refresh = () => {
-      void fetchSectionIcons(() => rpc.call("listEntityIconsV1", null)).then(
-        (icons) => {
-          if (!canceled) setSectionIcons(icons);
+      void fetchEntityIcons(
+        () => rpc.call("listEntityIconsV1", null),
+        sidebar.projects.map(({ id }) => id),
+      ).then((icons) => {
+          if (!canceled) {
+            setProjectIcons(icons.projects);
+            setSectionIcons(icons.sections);
+          }
         },
       );
     };
@@ -439,7 +664,7 @@ function RibbonSidebarList({
       canceled = true;
       unsubscribe();
     };
-  }, [rpc]);
+  }, [rpc, sidebar.projects]);
   const childrenByParent = useMemo(() => {
     const result = new Map<string, PluginSidebarThread[]>();
     for (const child of liveThreads.filter(
@@ -453,24 +678,33 @@ function RibbonSidebarList({
   }, [liveThreadIds, liveThreads]);
   useEffect(() => {
     if (!normalizedSearch) {
-      setSearchResult({ query: "", threadIds: new Set() });
+      setSearchResult({ query: "", threadIds: new Set(), threads: [] });
       return;
     }
     let canceled = false;
-    setSearchResult({ query: normalizedSearch, threadIds: new Set() });
+    setSearchResult({
+      query: normalizedSearch,
+      threadIds: new Set(),
+      threads: [],
+    });
     void rpc
       .call("searchThreadIdsV1", { query: searchQuery.trim() })
-      .then(({ threadIds }) => {
+      .then(({ threadIds, threads }) => {
         if (!canceled) {
           setSearchResult({
             query: normalizedSearch,
             threadIds: new Set(threadIds),
+            threads,
           });
         }
       })
       .catch(() => {
         if (!canceled) {
-          setSearchResult({ query: normalizedSearch, threadIds: new Set() });
+          setSearchResult({
+            query: normalizedSearch,
+            threadIds: new Set(),
+            threads: [],
+          });
         }
       });
     return () => {
@@ -490,14 +724,17 @@ function RibbonSidebarList({
   // Pinned membership and ordering come directly from bb; placement never
   // participates in this array.
   const pinnedRoots = useMemo(
-    () => rootThreads.filter((thread) => thread.isPinned && matchesSearch(thread)),
-    [matchesSearch, rootThreads],
+    () =>
+      displayRootThreads.filter(
+        (thread) => thread.isPinned && matchesSearch(thread),
+      ),
+    [displayRootThreads, matchesSearch],
   );
   const visiblePlacementIds = new Set(placements.map(({ threadId }) => threadId));
   const placementOrder = new Map(
     placements.map(({ threadId }, index) => [threadId, index]),
   );
-  const unpinnedRoots = rootThreads.filter(
+  const unpinnedRoots = displayRootThreads.filter(
     (thread) =>
       !thread.isPinned &&
       visiblePlacementIds.has(thread.id) &&
@@ -519,6 +756,7 @@ function RibbonSidebarList({
       ...orphanIds.map((id) => ({
         id,
         label: `${id} (unavailable)`,
+        icon: undefined,
         visibleWhenEmpty: true,
         acceptsAssignments: false,
         defaultCollapsed: false,
@@ -550,6 +788,21 @@ function RibbonSidebarList({
       `${scope.groupId} (unavailable)`
     );
   }, [preferences, snapshot]);
+  const activeScope =
+    preferences?.view.scope.kind === "group"
+      ? preferences.view.scope.group
+      : null;
+  const activeScopeIcon =
+    activeScope?.groupingKey === "builtin:projects"
+      ? projectIcons.get(activeScope.groupId)
+      : activeScope?.groupingKey === "builtin:sections"
+        ? sectionIcons.get(activeScope.groupId)
+        : undefined;
+  const activeScopeProviderIcon = activeScope
+    ? snapshot?.groupings
+        .find(({ groupingKey }) => groupingKey === activeScope.groupingKey)
+        ?.groups.find(({ id }) => id === activeScope.groupId)?.icon
+    : undefined;
 
   const submitEntityName = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -669,7 +922,14 @@ function RibbonSidebarList({
     includeDescendants = true,
   ) => {
     const destination = placementByThread.get(root.id);
+    const children = childrenByParent.get(root.id) ?? [];
+    const childrenCollapsed = collapsedThreadIds.has(root.id);
+    const indicatorThread =
+      childrenCollapsed && children.length > 0
+        ? (groupIndicator([root, ...descendants(root.id, childrenByParent)]) ?? root)
+        : root;
     const canMoveBefore =
+      !normalizedSearch &&
       depth === 0 &&
       movingThread !== undefined &&
       movingThread.id !== root.id &&
@@ -678,25 +938,28 @@ function RibbonSidebarList({
       <div key={root.id}>
         <ThreadRow
           active={activeThreadId === root.id}
-          actionsMenu={
-            depth === 0 ? (
-              <ThreadActionsMenu
-              onNewSection={() =>
-                setEntityDialog({ kind: "create-section", name: "" })
-              }
-              onSetSection={(sectionId) => {
-                void updateSection(root.id, sectionId);
-              }}
-              sectionIcons={sectionIcons}
-              sections={sections}
-              thread={root}
-              />
-            ) : null
+          actions={actions}
+          assignment={
+            depth === 0 &&
+            destination &&
+            grouping.membershipWritable
+              ? {
+                  currentGroupId: destination.groupId,
+                  groups: grouping.groups,
+                  singularLabel: grouping.singularLabel,
+                  onSetGroup: (groupId) => {
+                    void updatePlacement(root.id, groupId, { kind: "end" });
+                  },
+                }
+              : undefined
           }
+          childrenCollapsed={childrenCollapsed}
           depth={depth}
+          hasChildren={children.length > 0}
+          indicatorThread={indicatorThread}
           onDragEnd={() => setDraggingThreadId(null)}
           onDragStart={(event) => {
-            if (depth !== 0) return;
+            if (depth !== 0 || normalizedSearch || root.isArchived) return;
             event.dataTransfer.setData("text/plain", root.id);
             setDraggingThreadId(root.id);
           }}
@@ -731,21 +994,42 @@ function RibbonSidebarList({
               : undefined
           }
           onMoveStart={
-            depth === 0 ? () => setDraggingThreadId(root.id) : undefined
+            depth === 0 && !normalizedSearch && !root.isArchived
+              ? () => setDraggingThreadId(root.id)
+              : undefined
           }
-          onOpen={() => {
-            actions.open(root.id);
+          onNewSection={() =>
+            setEntityDialog({ kind: "create-section", name: "" })
+          }
+          onOpen={(split) => {
+            actions.open(root.id, { split });
             onNavigate();
           }}
+          onRename={() => setThreadRename({ id: root.id, name: title(root) })}
+          onSetSection={(sectionId) => {
+            void updateSection(root.id, sectionId);
+          }}
+          onToggleChildren={() => {
+            setCollapsedThreadIds((current) => {
+              const next = new Set(current);
+              if (next.has(root.id)) next.delete(root.id);
+              else next.add(root.id);
+              return next;
+            });
+          }}
+          placementDisabled={Boolean(normalizedSearch)}
           preview={
             settings.values?.showMessagePreviews === false
               ? null
               : (previews.get(root.id) ?? null)
           }
+          projectIcon={projectIcons.get(root.projectId) ?? null}
+          sectionIcons={sectionIcons}
+          sections={sections}
           thread={root}
         />
-        {includeDescendants
-          ? (childrenByParent.get(root.id) ?? []).map((child) =>
+        {includeDescendants && !childrenCollapsed
+          ? children.map((child) =>
               renderRoot(child, depth + 1),
             )
           : null}
@@ -764,13 +1048,59 @@ function RibbonSidebarList({
         if (event.key === "Escape") setDraggingThreadId(null);
       }}
     >
-      <div className="sticky top-0 z-10 flex gap-1 bg-background/95 py-1 backdrop-blur">
+      <div className="bb-sidebar-hover-actions-row group/ribbon-filter sticky top-[var(--bb-sidebar-sticky-stack-padding-top)] z-[70] mb-4 flex min-w-0 items-center gap-1 rounded-md bg-sidebar outline-none ring-sidebar-ring has-[button:focus-visible]:ring-2 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-2 before:bg-sidebar before:content-[''] after:pointer-events-none after:inset-x-0 after:top-full after:h-4 after:bg-sidebar after:content-['']">
         {settings.values?.showProjectsAndSections !== false ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button className="min-w-0 flex-1 justify-start truncate" size="sm" variant="ghost">
-                Projects and sections
-              </Button>
+              <button
+                aria-label={
+                  scopeLabel
+                    ? `Projects and sections: ${scopeLabel}`
+                    : "Projects and sections"
+                }
+                className="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-[state=open]:bg-state-active max-md:pointer-coarse:h-9 dark:text-sidebar-foreground"
+                type="button"
+              >
+                {activeScopeIcon ? (
+                  <HugeiconsIcon
+                    aria-hidden
+                    className="size-4 shrink-0"
+                    data-scope-icon={activeScopeIcon.name}
+                    icon={activeScopeIcon.glyph}
+                    style={
+                      activeScopeIcon.color === null
+                        ? undefined
+                        : { color: activeScopeIcon.color }
+                    }
+                  />
+                ) : activeScopeProviderIcon ? (
+                  <ProviderIcon
+                    icon={activeScopeProviderIcon}
+                    label={`${scopeLabel ?? "Scope"} icon`}
+                  />
+                ) : (
+                  <Icon
+                    aria-hidden
+                    className="size-4 shrink-0"
+                    name={
+                      activeScope?.groupingKey === "builtin:sections"
+                        ? "ListView"
+                        : "Folder"
+                    }
+                  />
+                )}
+                <span className="min-w-0 truncate">
+                  {scopeLabel ?? "Projects and sections"}
+                </span>
+                {scopeLabel ? (
+                  <span
+                    aria-label="Threads are filtered"
+                    className="inline-flex size-4 shrink-0 items-center justify-center text-subtle-foreground/60"
+                  >
+                    <Icon aria-hidden className="size-3.5" name="Search" />
+                  </span>
+                ) : null}
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-56">
               <DropdownMenuItem
@@ -843,9 +1173,14 @@ function RibbonSidebarList({
         ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button aria-label={`Group by ${grouping.pluralLabel}`} size="sm" variant="ghost">
-              {grouping.pluralLabel}
-            </Button>
+            <button
+              aria-label={`Group by ${grouping.pluralLabel}`}
+              className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-subtle-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-[state=open]:bg-state-active max-md:pointer-coarse:h-9"
+              type="button"
+            >
+              <Icon aria-hidden className="size-3.5" name="Workflow" />
+              <span className="max-w-20 truncate">{grouping.pluralLabel}</span>
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {snapshot.groupings.filter(({ available }) => available).map((candidate) => (
@@ -866,12 +1201,11 @@ function RibbonSidebarList({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
-
-      {scopeLabel ? (
-        <div className="flex items-center justify-between rounded-md bg-muted px-2 py-1 text-xs">
-          <span>{scopeLabel} scope</span>
-          <div className="flex items-center gap-1">
+        {scopeLabel ? (
+          <div className="bb-sidebar-hover-actions flex shrink-0 items-center">
+            <span aria-live="polite" className="sr-only">
+              {scopeLabel} scope
+            </span>
             {preferences.view.scope.kind === "group" &&
             ["builtin:projects", "builtin:sections"].includes(
               preferences.view.scope.group.groupingKey,
@@ -881,10 +1215,10 @@ function RibbonSidebarList({
                 <DropdownMenuTrigger asChild>
                   <button
                     aria-label="Scope actions"
-                    className="rounded px-1 hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-ring"
+                    className="inline-flex size-7 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 max-md:pointer-coarse:size-9"
                     type="button"
                   >
-                    •••
+                    <Icon aria-hidden className="size-4" name="MoreHorizontal" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -921,7 +1255,7 @@ function RibbonSidebarList({
             ) : null}
             <button
               aria-label="Clear scope"
-              className="rounded px-1 hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-ring"
+              className="inline-flex size-7 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 max-md:pointer-coarse:size-9"
               onClick={() =>
                 changePreferences((current) => ({
                   ...current,
@@ -930,11 +1264,11 @@ function RibbonSidebarList({
               }
               type="button"
             >
-              Clear
+              <Icon aria-hidden className="size-4" name="X" />
             </button>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
       {mutationError ? (
         <div className="rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
           {mutationError}
@@ -1003,10 +1337,104 @@ function RibbonSidebarList({
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={threadRename !== null}
+        onOpenChange={(open) => {
+          if (!open && !threadRenamePending) setThreadRename(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename thread</DialogTitle>
+            <DialogDescription>Choose the title shown in bb.</DialogDescription>
+          </DialogHeader>
+          {threadRename ? (
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const nextTitle = threadRename.name.trim();
+                if (!nextTitle) return;
+                setThreadRenamePending(true);
+                void Promise.resolve(actions.rename(threadRename.id, nextTitle))
+                  .then(() => setThreadRename(null))
+                  .catch((error: unknown) => {
+                    setMutationError(
+                      error instanceof Error ? error.message : "Could not rename thread",
+                    );
+                  })
+                  .finally(() => setThreadRenamePending(false));
+              }}
+            >
+              <Input
+                aria-label="Thread title"
+                autoFocus
+                disabled={threadRenamePending}
+                onChange={(event) =>
+                  setThreadRename((current) =>
+                    current ? { ...current, name: event.target.value } : current,
+                  )
+                }
+                value={threadRename.name}
+              />
+              <DialogFooter>
+                <Button
+                  disabled={threadRenamePending || !threadRename.name.trim()}
+                  type="submit"
+                >
+                  Rename
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       {pinnedRoots.length > 0 ? (
-        <section aria-label="Pinned threads">
-          <h3 className="px-2 py-1 text-xs font-medium text-muted-foreground">Pinned</h3>
-          {pinnedRoots.map((root) => renderRoot(root))}
+        <section
+          aria-label="Pinned threads"
+          className="group/sidebar-section min-w-0 rounded-md transition-colors"
+        >
+          <div className="bb-sidebar-hover-actions-row flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 text-xs font-normal leading-5 text-subtle-foreground/75 max-md:pointer-coarse:h-9">
+            <span className="min-w-0 flex-1 truncate">Pinned</span>
+            <button
+              aria-expanded={
+                normalizedSearch ? true : !preferences.collapsed.has("builtin:pinned")
+              }
+              aria-label={
+                !normalizedSearch && preferences.collapsed.has("builtin:pinned")
+                  ? "Expand Pinned section"
+                  : "Collapse Pinned section"
+              }
+              className={`${
+                !normalizedSearch && preferences.collapsed.has("builtin:pinned")
+                  ? ""
+                  : "bb-sidebar-hover-actions"
+              } inline-flex size-6 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2`}
+              onClick={() =>
+                changePreferences((current) => {
+                  const collapsed = new Set(current.collapsed);
+                  if (collapsed.has("builtin:pinned")) collapsed.delete("builtin:pinned");
+                  else collapsed.add("builtin:pinned");
+                  return { ...current, collapsed };
+                })
+              }
+              type="button"
+            >
+              <Icon
+                aria-hidden
+                className={`size-3 transition-transform duration-150 ${
+                  !normalizedSearch && preferences.collapsed.has("builtin:pinned")
+                    ? ""
+                    : "rotate-90"
+                }`}
+                name="ChevronRight"
+              />
+            </button>
+          </div>
+          {normalizedSearch || !preferences.collapsed.has("builtin:pinned")
+            ? pinnedRoots.map((root) => renderRoot(root))
+            : null}
         </section>
       ) : null}
 
@@ -1036,43 +1464,21 @@ function RibbonSidebarList({
           preferences.view.scope.group.groupingKey === grouping.groupingKey &&
           preferences.view.scope.group.groupId === group.id;
         return (
-          <section aria-label={`${group.label} group`} key={group.id}>
+          <section
+            aria-label={`${group.label} group`}
+            className="group/sidebar-section min-w-0 rounded-md transition-colors"
+            data-sidebar-sticky-group=""
+            key={group.id}
+          >
             {!sameKeyScope ? (
-              <div className="relative flex items-center gap-1 px-1 py-0.5">
-                <button
-                  aria-expanded={!collapsed}
-                  className="min-w-0 flex-1 truncate rounded px-1 py-1 text-left text-xs font-medium text-muted-foreground hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-ring"
-                  onClick={() =>
-                    changePreferences((current) => {
-                      const next = new Set(current.collapsed);
-                      if (next.has(ref)) next.delete(ref);
-                      else next.add(ref);
-                      return { ...current, collapsed: next };
-                    })
-                  }
-                  type="button"
-                >
-                  {grouping.singularLabel}: {group.label}
-                </button>
-                {collapsed && roots.length > 0 ? (
-                  <span
-                    aria-label={`${roots.length} ${roots.length === 1 ? "thread" : "threads"}`}
-                    className="pointer-events-none text-xs tabular-nums text-muted-foreground/60"
-                  >
-                    {roots.length}
-                  </span>
-                ) : null}
-                {activityThread ? (
-                  <span className="pointer-events-none inline-flex size-7 items-center justify-center text-muted-foreground">
-                    <ThreadIndicator
-                      indicator={activityThread.indicator}
-                      label={activityThread.indicatorLabel}
-                    />
-                  </span>
-                ) : null}
+              <div
+                className="bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 text-xs font-normal leading-5 text-subtle-foreground/75 transition-colors max-md:pointer-coarse:h-9"
+                data-sidebar="group-label"
+                data-sidebar-sticky-tier="label"
+              >
                 <button
                   aria-label={`Filter to ${group.label}`}
-                  className="rounded px-1 text-xs hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-ring"
+                  className="relative z-10 flex min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none ring-sidebar-ring hover:text-sidebar-accent-foreground focus-visible:ring-2"
                   onClick={() =>
                     changePreferences((current) => ({
                       ...current,
@@ -1090,15 +1496,67 @@ function RibbonSidebarList({
                   }
                   type="button"
                 >
-                  Filter
+                  {group.icon ? (
+                    <ProviderIcon
+                      icon={group.icon}
+                      label={`${group.label} group icon`}
+                    />
+                  ) : null}
+                  <span className="min-w-0 truncate" title={group.label}>
+                    {group.label}
+                  </span>
                 </button>
+                <button
+                  aria-expanded={!collapsed}
+                  aria-label={
+                    collapsed
+                      ? `Expand ${group.label} section`
+                      : `Collapse ${group.label} section`
+                  }
+                  className={`${collapsed ? "" : "bb-sidebar-hover-actions"} relative z-20 inline-flex size-6 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    changePreferences((current) => {
+                      const next = new Set(current.collapsed);
+                      if (next.has(ref)) next.delete(ref);
+                      else next.add(ref);
+                      return { ...current, collapsed: next };
+                    });
+                  }}
+                  type="button"
+                >
+                  <Icon
+                    aria-hidden
+                    className={`size-3 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
+                    name="ChevronRight"
+                  />
+                </button>
+                {collapsed && roots.length > 0 ? (
+                  <span
+                    aria-label={`${roots.length} ${roots.length === 1 ? "thread" : "threads"}`}
+                    className={`pointer-events-none absolute z-20 inline-flex size-7 items-center justify-center tabular-nums text-xs text-subtle-foreground/60 ${activityThread ? "right-7" : "right-0"}`}
+                  >
+                    {roots.length}
+                  </span>
+                ) : null}
+                {activityThread ? (
+                  <span className="pointer-events-none absolute right-0 top-1/2 z-20 inline-flex size-7 -translate-y-1/2 items-center justify-center text-subtle-foreground">
+                    <ThreadIndicator
+                      indicator={activityThread.indicator}
+                      label={activityThread.indicatorLabel}
+                    />
+                  </span>
+                ) : null}
               </div>
             ) : null}
-            {!collapsed || sameKeyScope
-              ? roots.map((root) => renderRoot(root))
-              : activePreview
-                ? renderRoot(activePreview, 0, false)
-                : null}
+            <div className={!collapsed || sameKeyScope ? "mt-1" : undefined}>
+              {!collapsed || sameKeyScope
+                ? roots.map((root) => renderRoot(root))
+                : activePreview
+                  ? renderRoot(activePreview, 0, false)
+                  : null}
+            </div>
             {(sameKeyScope || !collapsed) && group.acceptsAssignments ? (
               <button
                 aria-label={`Move to end of ${group.label}`}
