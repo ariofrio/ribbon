@@ -1,4 +1,4 @@
-<h1 align="center">Ribbon Suite</h1>
+<h1 align="center"><img src="assets/icon.svg" alt="" width="64"><br>Ribbon Suite</h1>
 
 <p align="center"><strong>Grow your swarm. Don't lose the thread.</strong></p>
 
@@ -18,7 +18,7 @@
 
 ## Plugins
 
-<br clear="all">
+<p><img src="assets/spacer.svg" alt="" width="1120" height="48" align="left"></p>
 
 <a href="plugins/bb-plugin-ribbon-sidebar#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-ribbon-sidebar/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-ribbon-sidebar/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-ribbon-sidebar/assets/card-beside-dark.png"><img src="plugins/bb-plugin-ribbon-sidebar/assets/card-beside-light.png" alt="Ribbon sidebar grouping bb threads by a provider-defined workflow" align="right" width="45%"></picture></a>
 
@@ -46,9 +46,9 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install thread-stages@ribbon
 ```
 
-<a href="plugins/bb-plugin-thread-stages#readme">Read more &rarr;</a>
+<a href="plugins/bb-plugin-thread-stages#readme">Read docs &rarr;</a>
 
-<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="1"></picture><br clear="all">
+<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
 <a href="plugins/bb-plugin-icons#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-icons/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-icons/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-icons/assets/card-beside-dark.png"><img src="plugins/bb-plugin-icons/assets/card-beside-light.png" alt="The icon picker open on the Storefront project's icon in a bb thread header" align="right" width="45%"></picture></a>
 
@@ -61,9 +61,9 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install icons@ribbon
 ```
 
-<a href="plugins/bb-plugin-icons#readme">Read more &rarr;</a>
+<a href="plugins/bb-plugin-icons#readme">Read docs &rarr;</a>
 
-<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="1"></picture><br clear="all">
+<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
 <a href="plugins/bb-plugin-breadcrumbs#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-breadcrumbs/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-breadcrumbs/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-breadcrumbs/assets/card-beside-dark.png"><img src="plugins/bb-plugin-breadcrumbs/assets/card-beside-light.png" alt="The Storefront project and its actions menu in a bb thread header" align="right" width="45%"></picture></a>
 
@@ -76,9 +76,9 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install breadcrumbs@ribbon
 ```
 
-<a href="plugins/bb-plugin-breadcrumbs#readme">Read more &rarr;</a>
+<a href="plugins/bb-plugin-breadcrumbs#readme">Read docs &rarr;</a>
 
-<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="1"></picture><br clear="all">
+<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
 <a href="plugins/bb-plugin-missing-keyboard-shortcuts#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-missing-keyboard-shortcuts/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-missing-keyboard-shortcuts/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-missing-keyboard-shortcuts/assets/card-beside-dark.png"><img src="plugins/bb-plugin-missing-keyboard-shortcuts/assets/card-beside-light.png" alt="A bb side chat opened with the ⇧⌘L shortcut" align="right" width="45%"></picture></a>
 
@@ -91,9 +91,9 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install missing-keyboard-shortcuts@ribbon
 ```
 
-<a href="plugins/bb-plugin-missing-keyboard-shortcuts#readme">Read more &rarr;</a>
+<a href="plugins/bb-plugin-missing-keyboard-shortcuts#readme">Read docs &rarr;</a>
 
-<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="1"></picture><br clear="all">
+<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
 <a href="plugins/bb-plugin-chatgpt-theme#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-chatgpt-theme/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-chatgpt-theme/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-chatgpt-theme/assets/card-beside-dark.png"><img src="plugins/bb-plugin-chatgpt-theme/assets/card-beside-light.png" alt="bb wearing the ChatGPT palette, its light and dark halves meeting along the diagonal" align="right" width="45%"></picture></a>
 
@@ -106,7 +106,7 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install chatgpt-theme@ribbon
 ```
 
-<a href="plugins/bb-plugin-chatgpt-theme#readme">Read more &rarr;</a>
+<a href="plugins/bb-plugin-chatgpt-theme#readme">Read docs &rarr;</a>
 
 <br clear="all">
 
