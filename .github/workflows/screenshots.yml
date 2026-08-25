@@ -1,15 +1,16 @@
 name: Screenshots
 
-# Recaptures every shot and commits the result back to the pull request.
-# Nothing records what each was captured from, because the harness renders the
-# same bytes twice: a screenshot that did not change is a file that did not
-# change, which git already reports.
+# Nothing records what each shot was captured from: the harness renders the
+# same bytes twice, so git already reports whether a screenshot changed.
 #
-# On pull requests rather than pushes: main only accepts a pull request, and
-# GitHub raises no push event for a push this workflow makes, so a required
-# check would never report on the commit it had just written.
+# The pull request trigger is what lets the check be required; the main one
+# corrects a branch that merged without recapturing. A deploy key's push is
+# not the token's, so the commit written to main starts one more run, which
+# stops at the relevance step.
 on:
   pull_request:
+  push:
+    branches: [main]
 
 permissions:
   contents: write
@@ -31,15 +32,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
       - id: relevant
         name: Decide whether anything can have moved a picture
         env:
+          BEFORE: ${{ github.event.before }}
           CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            gh api --paginate \
+              "/repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" \
+              --jq '.files[] | .filename, (.previous_filename // empty)' \
+              | tee /tmp/changed
+            node scripts/screenshots/affects.mjs < /tmp/changed >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ "$CHANGED_FILES" -gt 3000 ]; then
             echo "capture=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -63,10 +73,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # A pull_request run checks out the merge commit, which is no branch;
-          # the recapture has to land on the branch.
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          # A pull_request run checks out the merge commit, which is no branch,
+          # and the recapture has to land on one.
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          # GitHub Actions cannot be a bypass actor on a repository a person
+          # owns, so this workflow's token cannot write to main. Protect main
+          # lets a deploy key through instead.
+          ssh-key: ${{ github.event_name == 'push' && secrets.SCREENSHOTS_DEPLOY_KEY || '' }}
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -97,7 +111,7 @@ jobs:
             exit 0
           fi
           # A fork's token is read-only, so report what moved instead.
-          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+          if [ "$GITHUB_EVENT_NAME" != "push" ] && [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
             git diff --cached --stat
             echo "::error::These screenshots moved. A maintainer has to recapture them; a fork's token cannot push."
             exit 1
@@ -105,7 +119,7 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m "Recapture the screenshots this branch moved"
-          git push origin "HEAD:$HEAD_REF"
+          git push origin "HEAD:${HEAD_REF:-$GITHUB_REF_NAME}"
 
   # The stable required-check name. A skipped capture is success; a failed or
   # cancelled relevance/capture job is not.
