@@ -1295,6 +1295,7 @@ function WorkflowStageList({
     <ThreadFilter
       newProjectDisabled={projectCreatePending}
       projectIcons={projectIcons}
+      sectionIcons={sectionIcons}
       projectActionStates={projectActionStates}
       projects={sidebar.projects}
       sections={sections}
