@@ -1,5 +1,28 @@
 # bb-plugin-thread-stages
 
+## 0.9.0
+
+### Minor Changes
+
+- 608783e: Show the thread's project where one icon stands for a thread — on a sidebar row,
+  and in a header drawing no crumbs. The icon no longer falls back to the section
+  the thread is filed under.
+  
+  A section's icon still appears where the section itself is named: beside its
+  crumb in the header, and in the thread filter. What changes is the single icon
+  that stands for a thread, which is now always its project's. bb's personal
+  project cannot be given an icon, so a personal thread filed into a section used
+  to be drawn as that section; it now keeps its own glyph.
+
+### Patch Changes
+
+- d39bf69: Draw a section's own icon in the thread filter, in the menu and in the trigger,
+  instead of the same generic glyph for every section. Sections nobody has given
+  an icon keep it. The filter indicator also sits 10px from the name rather than
+  4px, matching the gap a stage header leaves before its chevron.
+- 56c41f0: Put sections before projects in the sidebar filter menu and quick-create
+  buttons, and rename the combined filter to Sections and projects.
+
 ## 0.8.0
 
 ### Minor Changes
