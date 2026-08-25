@@ -1,4 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="24" viewBox="0 0 1120 24" preserveAspectRatio="none">
   <!-- A full-row spacer that keeps the first floated plugin card below the
-       Plugins heading while giving that boundary an exact height. -->
+       Plugins heading while controlling that boundary's responsive height. -->
 </svg>
