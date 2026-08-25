@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { layoutProblems } from "./plugin-layout.mjs";
+import { layoutProblems, sharedFileProblems } from "./plugin-layout.mjs";
 
 /** A plugin that follows every rule, for a test to break one thing in. */
 function plugin(overrides = {}) {
@@ -143,4 +143,40 @@ test("the directories a plugin is allowed to keep beside src/ are not reported",
 
 test("a plugin with no manifest bb block is reported rather than skipped", () => {
   assert.match(problems({ manifest: { files: [] } }).join(), /bb/u);
+});
+
+// npm drops a symlinked LICENSE from the tarball without a word, so each
+// package carries a real copy and the copies have to agree.
+test("a LICENSE that differs from the other plugins is reported", () => {
+  const one = { id: "a", license: "MIT\n" };
+  assert.deepEqual(sharedFileProblems([one, { id: "b", license: "MIT\n" }]), []);
+  assert.match(
+    sharedFileProblems([one, { id: "b", license: "Apache\n" }]).join(),
+    /b: LICENSE differs from a/u,
+  );
+});
+
+test("a plugin with no LICENSE at all is reported", () => {
+  assert.match(
+    sharedFileProblems([{ id: "a", license: "MIT\n" }, { id: "b", license: null }]).join(),
+    /b: has no LICENSE/u,
+  );
+});
+
+test("nothing to compare reports nothing", () => {
+  assert.deepEqual(sharedFileProblems([]), []);
+});
+
+// vitest.config.ts has to sit where vitest is installed, so it is replicated
+// too — but only the plugins that have one are compared.
+test("a vitest config that differs from the others is reported", () => {
+  const shared = (id, vitestConfig) => ({ id, license: "MIT\n", vitestConfig });
+  assert.deepEqual(
+    sharedFileProblems([shared("a", "alias\n"), shared("b", "alias\n"), shared("c", null)]),
+    [],
+  );
+  assert.match(
+    sharedFileProblems([shared("a", "alias\n"), shared("b", "other\n")]).join(),
+    /b: vitest\.config\.ts differs from a/u,
+  );
 });

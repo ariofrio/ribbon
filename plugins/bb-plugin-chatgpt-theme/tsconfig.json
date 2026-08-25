@@ -1,21 +1,4 @@
 {
-  "compilerOptions": {
-    "strict": true,
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    "lib": [
-      "ES2022",
-      "DOM"
-    ],
-    "types": [
-      "node"
-    ],
-    "noEmit": true,
-    "skipLibCheck": false
-  },
-  "include": [
-    "src"
-  ]
+  "extends": "../../tsconfig.base.json",
+  "include": ["src"]
 }
