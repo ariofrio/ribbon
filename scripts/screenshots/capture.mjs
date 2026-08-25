@@ -373,12 +373,7 @@ const CARD_FRAME = {
  */
 const CARD_BESIDE_FRAME = {
   ...CARD_FRAME,
-  // The top margin is the heading's. A float starts level with the row while
-  // the title beside it begins below its own 24px margin, so the picture rides
-  // 26px high — and GitHub strips vspace, which is the attribute that would
-  // have said so. 40 units of the picture's own width is that 26px where the
-  // column is widest, and close to it everywhere the card still floats.
-  padding: { top: 40, left: 24, right: 0, bottom: 0 },
+  padding: { top: 0, left: 24, right: 0, bottom: 0 },
 };
 
 /** Draws an image into its frame's corners, edge, and shadow. */
