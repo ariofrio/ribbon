@@ -1,4 +1,4 @@
-<h1 align="center">Ribbon Suite</h1>
+<h1 align="center"><img src="assets/icon.svg" alt="" width="38" align="absmiddle"> &nbsp;Ribbon Suite</h1>
 
 <p align="center"><strong>Grow your swarm. Don't lose the thread.</strong></p>
 
