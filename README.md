@@ -1,6 +1,4 @@
-<p align="center"><img src="assets/icon.svg" alt="" width="64"></p>
-
-<h1 align="center">Ribbon Suite</h1>
+<h1 align="center"><img src="assets/icon.svg" alt="" width="64"><br>Ribbon Suite</h1>
 
 <p align="center"><strong>Grow your swarm. Don't lose the thread.</strong></p>
 
