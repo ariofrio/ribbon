@@ -49,6 +49,21 @@ export function registerThreadWorkflow(
     }
   };
 
+  const hasRunningBackgroundCommand = async (
+    threadId: string,
+  ): Promise<boolean | null> => {
+    try {
+      const timeline = await bb.sdk.threads.timeline({ threadId });
+      return timeline.activeBackgroundCommands.length > 0;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      bb.log.warn(
+        `Could not read background commands for ${threadId}: ${message}`,
+      );
+      return null;
+    }
+  };
+
   const reconcile = async (signal?: AbortSignal) => {
     const listed = await listAllThreads(({ limit, offset }) =>
       bb.sdk.threads.list({ limit, offset, signal }),
@@ -65,14 +80,24 @@ export function registerThreadWorkflow(
       })),
     );
     const activeRootIds = new Set<string>();
+    const indeterminateRootIds = new Set<string>();
 
     for (const thread of threads) {
-      if (
-        isActiveThreadLifecycle(thread.status) &&
-        !(await isWaitingOnUser(thread.id))
-      ) {
-        const rootId = roots.get(thread.id);
-        if (rootId !== null && rootId !== undefined) activeRootIds.add(rootId);
+      const lifecycleIsActive = isActiveThreadLifecycle(thread.status);
+      const [isWaiting, hasBackgroundCommand] = await Promise.all([
+        lifecycleIsActive ? isWaitingOnUser(thread.id) : false,
+        hasRunningBackgroundCommand(thread.id),
+      ]);
+      const rootId = roots.get(thread.id);
+      if (rootId !== null && rootId !== undefined) {
+        if (
+          hasBackgroundCommand === true ||
+          (lifecycleIsActive && !isWaiting)
+        ) {
+          activeRootIds.add(rootId);
+        } else if (hasBackgroundCommand === null) {
+          indeterminateRootIds.add(rootId);
+        }
       }
       if (
         roots.get(thread.id) !== thread.id &&
@@ -84,6 +109,9 @@ export function registerThreadWorkflow(
 
     for (const root of threads) {
       if (roots.get(root.id) !== root.id) continue;
+      if (!activeRootIds.has(root.id) && indeterminateRootIds.has(root.id)) {
+        continue;
+      }
       const result = store.observeActiveState(
         root.id,
         activeRootIds.has(root.id),
@@ -121,7 +149,8 @@ export function registerThreadWorkflow(
           if (
             event.id &&
             (event.changes.includes("status-changed") ||
-              event.changes.includes("interactions-changed"))
+              event.changes.includes("interactions-changed") ||
+              event.metadata?.backgroundActivityChanged === true)
           ) {
             void enqueue(signal);
           }

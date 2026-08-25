@@ -49,6 +49,7 @@ describe("task workflow", () => {
           list: async () => [
             { id: "thr_a", parentThreadId: null, status: "active" },
           ],
+          timeline: async () => ({ activeBackgroundCommands: [] }),
         },
       },
     } as unknown as BbPluginApi;
@@ -95,6 +96,7 @@ describe("task workflow", () => {
             { id: "parent", parentThreadId: null, status: "idle" },
             { id: "child", parentThreadId: "parent", status: "idle" },
           ],
+          timeline: async () => ({ activeBackgroundCommands: [] }),
         },
       },
     } as unknown as BbPluginApi;
@@ -147,6 +149,7 @@ describe("task workflow", () => {
         threads: {
           interactions: { list: async () => [] },
           list: async () => threads,
+          timeline: async () => ({ activeBackgroundCommands: [] }),
         },
       },
     } as unknown as BbPluginApi;
@@ -199,6 +202,7 @@ describe("task workflow", () => {
           list: async () => [
             { id: "thr_a", parentThreadId: null, status: "active" },
           ],
+          timeline: async () => ({ activeBackgroundCommands: [] }),
         },
       },
     } as unknown as BbPluginApi;
@@ -249,6 +253,7 @@ describe("task workflow", () => {
           list: async () => [
             { id: "thr_a", parentThreadId: null, status: "active" },
           ],
+          timeline: async () => ({ activeBackgroundCommands: [] }),
         },
       },
     } as unknown as BbPluginApi;
@@ -300,6 +305,7 @@ describe("task workflow", () => {
               status: lifecycleStatus,
             },
           ],
+          timeline: async () => ({ activeBackgroundCommands: [] }),
         },
       },
     } as unknown as BbPluginApi;
@@ -326,6 +332,101 @@ describe("task workflow", () => {
       changed?.({ id: "thr_a", changes: ["status-changed"] });
       await vi.waitFor(() =>
         expect(store.get("thr_a").workflowStage).toBe("Idle"),
+      );
+
+      abort.abort();
+      await running;
+    } finally {
+      abort.abort();
+      db.close();
+    }
+  });
+
+  it("keeps a hierarchy Active while a descendant background command is running", async () => {
+    const db = new Database(":memory:");
+    for (const migration of THREAD_WORKFLOW_MIGRATIONS) db.exec(migration);
+    const store = createThreadWorkflowStore(db);
+    let changed = null as
+      | ((event: {
+          id?: string;
+          changes: readonly string[];
+          metadata?: { backgroundActivityChanged?: boolean };
+        }) => void)
+      | null;
+    let activeBackgroundCommands: unknown[] | null = [{}];
+    const threads = [
+      { id: "root", parentThreadId: null, status: "idle" },
+      { id: "child", parentThreadId: "root", status: "idle" },
+    ];
+    let service = null as { start(signal: AbortSignal): unknown } | null;
+    const warn = vi.fn();
+    const bb = {
+      events: { on: () => undefined },
+      background: {
+        service: (
+          _name: string,
+          registered: { start(signal: AbortSignal): unknown },
+        ) => {
+          service = registered;
+        },
+      },
+      realtime: { publish: vi.fn() },
+      log: { warn },
+      sdk: {
+        subscribe: ({ callback }: { callback: typeof changed }) => {
+          changed = callback;
+          return () => undefined;
+        },
+        threads: {
+          interactions: { list: async () => [] },
+          list: async () => threads,
+          timeline: async ({ threadId }: { threadId: string }) => {
+            if (threadId !== "child") return { activeBackgroundCommands: [] };
+            if (activeBackgroundCommands === null) {
+              throw new Error("timeline unavailable");
+            }
+            return { activeBackgroundCommands };
+          },
+        },
+      },
+    } as unknown as BbPluginApi;
+
+    const abort = new AbortController();
+    try {
+      registerThreadWorkflow(bb, store);
+      const running = Promise.resolve(service?.start(abort.signal));
+      await vi.waitFor(() => expect(changed).not.toBeNull());
+
+      changed?.({
+        id: "child",
+        changes: ["events-appended"],
+        metadata: { backgroundActivityChanged: true },
+      });
+      await vi.waitFor(() =>
+        expect(store.get("root").workflowStage).toBe("Active"),
+      );
+
+      activeBackgroundCommands = null;
+      changed?.({
+        id: "child",
+        changes: ["events-appended"],
+        metadata: { backgroundActivityChanged: true },
+      });
+      await vi.waitFor(() =>
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining("timeline unavailable"),
+        ),
+      );
+      expect(store.get("root").workflowStage).toBe("Active");
+
+      activeBackgroundCommands = [];
+      changed?.({
+        id: "child",
+        changes: ["events-appended"],
+        metadata: { backgroundActivityChanged: true },
+      });
+      await vi.waitFor(() =>
+        expect(store.get("root").workflowStage).toBe("Idle"),
       );
 
       abort.abort();
