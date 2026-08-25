@@ -62,9 +62,8 @@ jobs:
         run: |
           apt-get update -qq
           apt-get install -y -qq make g++
-      # One workspace install hoists the bb-app all five plugins share with the
-      # screenshot harness. Installing inside each plugin built node-pty six
-      # times and kept six copies of bb on disk.
+      # Install every workspace together so the screenshot harness and all
+      # five plugins share one bb-app and one node-pty build.
       - if: steps.relevant.outputs.capture == 'true'
         run: npm ci
       - if: steps.relevant.outputs.capture == 'true'

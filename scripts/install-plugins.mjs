@@ -68,9 +68,8 @@ for (const plugin of plugins) {
   }
 
   console.log(`\n=== ${plugin.name}`);
-  // The server entry runs from source, so its dependencies must be installed.
-  // A root workspace install supplies them all at once for screenshot capture.
   if (!skipDependencies) {
+    // The server entry runs from source, so its dependencies must be installed.
     run("npm", ["install", "--workspaces=false"], plugin.directory);
   }
   if (existing === undefined) {
