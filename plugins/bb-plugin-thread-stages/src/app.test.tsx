@@ -146,8 +146,8 @@ describe("thread stages app registration", () => {
     );
     expect(box).not.toBeNull();
 
-    // The rules and the boxes are written apart, in CSS and in JSX, and a
-    // rename on one side would go on rendering an empty span forever.
+    // The rules and the boxes are written apart, in CSS and in JSX; a rename
+    // on one side would render an empty span forever.
     const sheet = document.head.querySelector(
       "style[data-thread-stages-icons]",
     )?.textContent;

@@ -340,13 +340,7 @@ function DropdownMenuItems(props: CommonMenuProps) {
   );
 }
 
-/**
- * A section's icon, drawn by naming the section rather than by fetching it.
- *
- * The Icons plugin paints whatever was chosen through the cascade; with that
- * plugin absent, or with nothing chosen, the box keeps the glyph this menu has
- * always shown. See icon-styles.ts.
- */
+/** Empty by design: the box names its section, and icon-styles.ts paints it. */
 function SectionMenuIcon({ id }: { id: string }) {
   return (
     <span aria-hidden data-ribbon-icons-section={id} data-thread-stages-icon="section" />

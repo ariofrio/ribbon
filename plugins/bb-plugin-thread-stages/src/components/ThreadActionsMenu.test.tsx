@@ -51,11 +51,7 @@ function expectMenuItemIcon(label: string, iconName: string): void {
   expect(item?.querySelector(`[data-icon="${iconName}"]`)).not.toBeNull();
 }
 
-/**
- * A section row names its section and the Icons plugin paints it through the
- * cascade, so there is no glyph here to read — only the name. See
- * icon-styles.ts; a capture is what checks the drawing.
- */
+/** jsdom paints nothing, so only the name a row writes is readable here. */
 function expectSectionIcon(label: string, sectionId: string): void {
   const item = screen.getByText(label).closest('[role="menuitem"]');
   expect(

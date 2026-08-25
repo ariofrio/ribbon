@@ -598,13 +598,7 @@ function FilterActionItem({
   );
 }
 
-/**
- * An owner's icon, drawn by naming the owner rather than by fetching it.
- *
- * The Icons plugin paints whatever was chosen through the cascade; with that
- * plugin absent, or with nothing chosen for this owner, the box keeps the
- * glyph this filter has always shown. See icon-styles.ts.
- */
+/** Empty by design: the box names its owner, and icon-styles.ts paints it. */
 function FilterOwnerIcon({
   id,
   fallback,
