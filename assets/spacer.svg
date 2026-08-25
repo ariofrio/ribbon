@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="1" viewBox="0 0 1120 1" preserveAspectRatio="none">
-  <!-- A one-pixel full-row float that keeps the first plugin card below the
-       Plugins heading without introducing a paragraph-height gap. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="8" viewBox="0 0 1120 8" preserveAspectRatio="none">
+  <!-- A short full-row float that keeps the first plugin card below the
+       Plugins heading while preserving a small gap below it. -->
 </svg>
