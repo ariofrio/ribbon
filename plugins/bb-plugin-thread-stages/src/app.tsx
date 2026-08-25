@@ -808,10 +808,6 @@ function WorkflowStageList({
     () => sidebar.projects.map((project) => project.id).sort().join(","),
     [sidebar.projects],
   );
-  const personalProjectId = useMemo(
-    () => sidebar.projects.find((project) => project.isPersonal)?.id ?? null,
-    [sidebar.projects],
-  );
   const threadFilter = useMemo(
     () =>
       normalizeThreadFilter(
@@ -867,7 +863,6 @@ function WorkflowStageList({
       void fetchIcons(
         () => rpc.call("listProjectIcons", null),
         projectIds.split(",").filter(Boolean),
-        personalProjectId,
       ).then((icons) => {
         if (canceled) return;
         setProjectIcons(icons.projects);
@@ -881,12 +876,11 @@ function WorkflowStageList({
       canceled = true;
       unsubscribe();
     };
-  }, [personalProjectId, projectIds, rpc]);
+  }, [projectIds, rpc]);
   useEffect(() => {
-    if (personalProjectId === null) return;
     const lend = () =>
       actions.openNewThread({
-        projectId: personalProjectId,
+        projectId: PERSONAL_PROJECT_ID,
         focusPrompt: true,
       });
     openPersonalCompose = lend;
@@ -895,7 +889,7 @@ function WorkflowStageList({
       // one would strand the chord for the session.
       if (openPersonalCompose === lend) openPersonalCompose = null;
     };
-  }, [actions, personalProjectId]);
+  }, [actions]);
 
   const refreshProjectActionStates = useCallback(async () => {
     try {
@@ -1810,6 +1804,8 @@ function rpcErrorMessage(error: unknown, fallback: string): string {
  * arranging the composer's project itself.
  */
 let openPersonalCompose: (() => void) | null = null;
+/** bb keeps project-less threads in the personal project, under a reserved id. */
+const PERSONAL_PROJECT_ID = "proj_personal";
 
 type ChordDestination =
   | { kind: "stay" }
@@ -1828,12 +1824,15 @@ function goTo(
 ): void {
   if (destination.kind === "stay") return;
   if (destination.kind === "thread") {
-    // The server answers with a null project for a personal-project thread,
-    // which bb routes without a project segment.
+    // bb routes a personal-project thread without a project segment; the
+    // project-scoped path would land on the composer instead.
+    const projectless =
+      destination.projectId === null ||
+      destination.projectId === PERSONAL_PROJECT_ID;
     navigate(
-      destination.projectId === null
+      projectless
         ? `/threads/${encodeURIComponent(destination.threadId)}`
-        : `/projects/${encodeURIComponent(destination.projectId)}/threads/${encodeURIComponent(destination.threadId)}`,
+        : `/projects/${encodeURIComponent(destination.projectId ?? "")}/threads/${encodeURIComponent(destination.threadId)}`,
     );
     return;
   }

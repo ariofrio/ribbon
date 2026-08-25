@@ -8,18 +8,8 @@ afterEach(async () => {
   await Promise.all(disposeHosts.splice(0).map((dispose) => dispose()));
 });
 
-function createPluginHarness(personalProjectId = "proj_mine") {
-  const host = createFakePluginHost({
-    pluginId: "icons",
-    sdk: {
-      projects: {
-        list: vi.fn(async () => [
-          { id: personalProjectId, name: "Threads", kind: "personal" },
-          { id: "proj_other", name: "Other", kind: "standard" },
-        ]),
-      },
-    },
-  });
+function createPluginHarness() {
+  const host = createFakePluginHost({ pluginId: "icons" });
   plugin(host.bb);
   disposeHosts.push(() => host.harness.lifecycle.dispose());
   return host.harness;
@@ -132,7 +122,7 @@ describe("icon plugin API", () => {
     await expect(
       harness.behavior.callRpc("setIcon", {
         kind: "project",
-        id: "proj_mine",
+        id: "proj_personal",
         icon: "folder-01",
         color: null,
       }),
@@ -146,12 +136,12 @@ describe("icon plugin API", () => {
     await expect(
       harness.behavior.callRpc("setIcon", {
         kind: "section",
-        id: "proj_mine",
+        id: "proj_personal",
         icon: "rocket",
         color: null,
       }),
     ).resolves.toMatchObject({
-      icons: [{ kind: "section", id: "proj_mine", icon: "rocket" }],
+      icons: [{ kind: "section", id: "proj_personal", icon: "rocket" }],
     });
   });
 
@@ -308,85 +298,4 @@ describe("icon placements", () => {
   });
 });
 
-describe("the personal project's icon", () => {
-  it("names the personal project the way bb does", async () => {
-    // The service reads the list and then waits on project changes, so both
-    // halves need standing in for.
-    const host = createFakePluginHost({
-      pluginId: "icons",
-      sdk: {
-        projects: {
-          list: async () => [
-            { id: "proj_mine", name: "Threads", kind: "personal" },
-            { id: "proj_other", name: "Other", kind: "standard" },
-          ],
-        },
-        subscribe: () => () => {},
-      },
-    });
-    plugin(host.bb);
-    disposeHosts.push(() => host.harness.lifecycle.dispose());
-    const harness = host.harness;
 
-    // It rides along with the project list, which is read off the read path.
-    harness.behavior.runService("icon-cleanup");
-
-    await vi.waitFor(async () =>
-      expect(await harness.behavior.callRpc("listIcons", null)).toMatchObject({
-        personalProjectId: "proj_mine",
-      }),
-    );
-  });
-
-  it("lets an ordinary project keep an id that only looks personal", async () => {
-    const harness = createPluginHarness();
-
-    await expect(
-      harness.behavior.callRpc("setIcon", {
-        kind: "project",
-        id: "proj_personal",
-        icon: "rocket",
-        color: null,
-      }),
-    ).resolves.toMatchObject({ icons: [{ id: "proj_personal" }] });
-  });
-});
-
-describe("when bb cannot say which project is personal", () => {
-  function unavailableHarness() {
-    const host = createFakePluginHost({
-      pluginId: "icons",
-      sdk: {
-        projects: {
-          list: vi.fn(async () => {
-            throw new Error("projects unavailable");
-          }),
-        },
-      },
-    });
-    plugin(host.bb);
-    disposeHosts.push(() => host.harness.lifecycle.dispose());
-    return host.harness;
-  }
-
-  it("still draws the icons it has", async () => {
-    const harness = unavailableHarness();
-
-    await expect(
-      harness.behavior.callRpc("listIcons", null),
-    ).resolves.toMatchObject({ personalProjectId: null });
-  });
-
-  it("still refuses to write one, rather than guessing", async () => {
-    const harness = unavailableHarness();
-
-    await expect(
-      harness.behavior.callRpc("setIcon", {
-        kind: "project",
-        id: "proj_mine",
-        icon: "rocket",
-        color: null,
-      }),
-    ).rejects.toMatchObject({ code: "handler_error" });
-  });
-});

@@ -7,7 +7,7 @@ import {
   type IconsState,
 } from "./icons-client";
 import { projectLookup, type ProjectLookup } from "./project-lookup";
-import { type IconColor, type IconOwner } from "./store";
+import { PERSONAL_PROJECT_ID, type IconColor, type IconOwner } from "./store";
 
 export interface IconsController {
   state: IconsState | null;
@@ -90,7 +90,7 @@ export function useIcons(rpc: IconsRpc): IconsController {
 
   const apply = useCallback(
     (owner: IconOwner, next: { icon?: string; color?: IconColor | null }) => {
-      const current = iconFor(state, owner);
+      const current = iconFor(state, owner, PERSONAL_PROJECT_ID);
       const icon = next.icon ?? current.name;
       const color = next.color === undefined ? current.color : next.color;
       const glyph =

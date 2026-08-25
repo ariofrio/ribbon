@@ -46,8 +46,6 @@ const iconsSchema = z
         section: glyphSchema,
       })
       .strict(),
-    /** So a consumer draws the bubble without recognizing an id. */
-    personalProjectId: z.string().nullable(),
     /**
      * bb's projects, by id and name.
      *
@@ -165,7 +163,6 @@ export default function plugin(bb: BbPluginApi) {
       : (CATALOG_ICONS[icon] ?? CATALOG_ICONS[DEFAULT_PROJECT_ICON] ?? []);
 
   let projects: ProjectSummary[] = [];
-  let personalProjectId: string | null = null;
   let read = false;
 
   /**
@@ -177,21 +174,14 @@ export default function plugin(bb: BbPluginApi) {
    * which is the window bb refuses a plugin's renders in — and it refuses them
    * for every plugin at once, not only the one that opened it.
    */
-  const readProjectsOrThrow = async () => {
-    const listed = await bb.sdk.projects.list({ includePersonal: true });
-    const next = listed.map(({ id, name }) => ({ id, name }));
-    const moved = read && JSON.stringify(next) !== JSON.stringify(projects);
-    read = true;
-    projects = next;
-    // Which project bb calls personal rides along with the list rather than
-    // costing a call of its own.
-    personalProjectId = listed.find(({ kind }) => kind === "personal")?.id ?? null;
-    return moved;
-  };
-
   const readProjects = async () => {
     try {
-      return await readProjectsOrThrow();
+      const listed = await bb.sdk.projects.list({ includePersonal: true });
+      const next = listed.map(({ id, name }) => ({ id, name }));
+      const moved = read && JSON.stringify(next) !== JSON.stringify(projects);
+      read = true;
+      projects = next;
+      return moved;
     } catch {
       // A hiccup listing projects leaves the last list standing; the rows that
       // have only a name to go on keep bb's own folder until the next read.
@@ -206,7 +196,6 @@ export default function plugin(bb: BbPluginApi) {
       personal: glyphOf(PERSONAL_PROJECT_ICON),
       section: SECTION_GLYPH,
     },
-    personalProjectId,
     projects: [...projects],
     projectsRead: read,
   });
@@ -285,11 +274,8 @@ export default function plugin(bb: BbPluginApi) {
         await settings.get();
       return { showInThreadHeader, showInSidebar, showInComposer };
     },
-    async setIcon(input) {
-      // Refusing the personal project's icon needs bb's answer, so a write
-      // that arrives before the first read waits for it rather than guessing.
-      if (!read) await readProjectsOrThrow();
-      if (!isEditable(input, personalProjectId)) {
+    setIcon(input) {
+      if (!isEditable(input)) {
         throw new Error("The personal project's icon is fixed.");
       }
       store.set(input);

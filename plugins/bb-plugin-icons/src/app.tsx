@@ -44,11 +44,10 @@ interface IconDefaults {
 function defaultGlyph(
   owner: IconOwner,
   defaults: IconDefaults | null,
-  personalProjectId: string | null,
 ): IconSvgElement | undefined {
   if (defaults === null) return undefined;
   if (owner.kind === "section") return defaults.section;
-  return defaultIcon(owner, personalProjectId) === "bubble-chat"
+  return defaultIcon(owner) === "bubble-chat"
     ? defaults.personal
     : defaults.project;
 }
@@ -58,7 +57,6 @@ function HeaderIcon({
   ownerName,
   icons,
   defaults,
-  personalProjectId,
   catalog,
   loadingCatalog,
   onWanted,
@@ -69,7 +67,6 @@ function HeaderIcon({
   ownerName: string;
   icons: readonly IconView[];
   defaults: IconDefaults | null;
-  personalProjectId: string | null;
   catalog: readonly CatalogIcon[];
   loadingCatalog: boolean;
   onWanted(): void;
@@ -80,11 +77,10 @@ function HeaderIcon({
   const chosen = icons.find(
     (item) => item.kind === owner.kind && item.id === owner.id,
   );
-  const icon = chosen?.icon ?? defaultIcon(owner, personalProjectId);
+  const icon = chosen?.icon ?? defaultIcon(owner);
   const color = chosen?.color ?? null;
-  const glyph =
-    chosen?.glyph ?? defaultGlyph(owner, defaults, personalProjectId);
-  const editable = isEditable(owner, personalProjectId);
+  const glyph = chosen?.glyph ?? defaultGlyph(owner, defaults);
+  const editable = isEditable(owner);
 
   const control = editable ? (
     <button
@@ -121,7 +117,7 @@ function HeaderIcon({
       }}
       ownerName={ownerName}
       icon={icon}
-      defaultIcon={defaultIcon(owner, personalProjectId)}
+      defaultIcon={defaultIcon(owner)}
       stored={chosen !== undefined}
       color={color}
       onPick={(next) => onApply(owner, { icon: next })}
@@ -257,23 +253,13 @@ function IconHeaderAction({ threadId, projectId }: PluginThreadHeaderActionProps
       const chosen = current.find(
         (item) => item.kind === owner.kind && item.id === owner.id,
       );
-      const nextIcon =
-        next.icon ??
-        chosen?.icon ??
-        defaultIcon(
-          owner,
-          sidebar.projects.find(({ isPersonal }) => isPersonal)?.id ?? null,
-        );
+      const nextIcon = next.icon ?? chosen?.icon ?? defaultIcon(owner);
       const nextColor =
         next.color === undefined ? (chosen?.color ?? null) : next.color;
       const nextGlyph =
         catalog.find((entry) => entry.name === nextIcon)?.glyph ??
         chosen?.glyph ??
-        defaultGlyph(
-          owner,
-          defaults,
-          sidebar.projects.find(({ isPersonal }) => isPersonal)?.id ?? null,
-        ) ??
+        defaultGlyph(owner, defaults) ??
         [];
       const updated = [
         ...current.filter(
@@ -307,7 +293,6 @@ function IconHeaderAction({ threadId, projectId }: PluginThreadHeaderActionProps
   const shared = {
     icons,
     defaults,
-    personalProjectId: sidebar.projects.find(({ isPersonal }) => isPersonal)?.id ?? null,
     catalog,
     loadingCatalog,
     onWanted: () => setWanted(true),

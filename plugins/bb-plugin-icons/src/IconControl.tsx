@@ -2,7 +2,7 @@ import { useState, type ComponentProps } from "react";
 import { IconGlyph } from "./IconGlyph";
 import { iconFor } from "./icons-client";
 import { IconPicker } from "./IconPicker";
-import { defaultIcon, isEditable, type IconOwner } from "./store";
+import { PERSONAL_PROJECT_ID, defaultIcon, isEditable, type IconOwner } from "./store";
 import type { IconsController } from "./use-icons";
 
 /**
@@ -33,11 +33,10 @@ export function IconControl({
 }) {
   const [picking, setPicking] = useState(false);
   const { state, catalog, loadingCatalog, loadCatalog, apply, reset } = controller;
-  const drawn = iconFor(state, owner);
-  const personalProjectId = state?.personalProjectId ?? null;
+  const drawn = iconFor(state, owner, PERSONAL_PROJECT_ID);
   const glyph = <IconGlyph icon={drawn} className={glyphClassName} />;
 
-  if (!isEditable(owner, personalProjectId)) {
+  if (!isEditable(owner)) {
     return <span className={readOnlyClassName}>{glyph}</span>;
   }
 
@@ -68,7 +67,7 @@ export function IconControl({
       }}
       ownerName={name}
       icon={drawn.name}
-      defaultIcon={defaultIcon(owner, personalProjectId)}
+      defaultIcon={defaultIcon(owner)}
       // A row holding the default glyph is still a choice, and still removable.
       stored={
         state?.icons.some(

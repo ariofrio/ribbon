@@ -1,11 +1,4 @@
-import { type IconOwner } from "./store";
-
-/**
- * The one place this plugin still spells bb's id for the personal project.
- * Anchors are collected from the DOM before any state has loaded, so there is
- * nothing to ask; everywhere else the id comes from bb.
- */
-const PERSONAL_PROJECT_ID = "proj_personal";
+import { PERSONAL_PROJECT_ID, type IconOwner } from "./store";
 
 /** Stamped by `bb plugin build`; undefined in tests and registry copies. */
 declare const __BB_PLUGIN_ID__: string | undefined;

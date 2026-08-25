@@ -22,11 +22,6 @@ export interface IconsState {
     section: IconSvgElement;
   };
   /**
-   * Which project bb calls personal. Optional for the same reason as the
-   * fields below: an older backend than the app does not send it.
-   */
-  personalProjectId?: string | null;
-  /**
    * bb's projects, by id and name. Optional because an older backend than the
    * app — a client left open across a plugin update — sends the state without
    * it, and a row that resolves to nothing keeps bb's own folder.
@@ -101,6 +96,7 @@ export type IconsRpc = ReturnType<typeof iconsRpc>;
 export function iconFor(
   state: IconsState | null,
   owner: IconOwner,
+  personalProjectId: string,
 ): { name: string; glyph: IconSvgElement | undefined; color: IconColor | null } {
   const chosen = state?.icons.find(
     (item) => item.kind === owner.kind && item.id === owner.id,
@@ -111,7 +107,7 @@ export function iconFor(
   if (owner.kind === "section") {
     return { name: "section", glyph: state?.defaults.section, color: null };
   }
-  const personal = owner.id === state?.personalProjectId;
+  const personal = owner.id === personalProjectId;
   return {
     name: personal ? "bubble-chat" : "folder-01",
     glyph: personal ? state?.defaults.personal : state?.defaults.project,

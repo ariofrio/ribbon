@@ -3,6 +3,7 @@ import type { Decoration } from "./decorate";
 import { IconControl } from "./IconControl";
 import { IconGlyph } from "./IconGlyph";
 import { iconFor } from "./icons-client";
+import { PERSONAL_PROJECT_ID } from "./store";
 import type { IconsController } from "./use-icons";
 
 /**
@@ -46,7 +47,7 @@ export function Decorations({
             />
           ) : (
             <IconGlyph
-              icon={iconFor(controller.state, owner)}
+              icon={iconFor(controller.state, owner, PERSONAL_PROJECT_ID)}
               className={glyphClassName}
             />
           ),

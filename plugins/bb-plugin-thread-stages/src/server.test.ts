@@ -469,7 +469,7 @@ describe("thread stages plugin API", () => {
     ).resolves.toMatchObject({ icons: [{ id: "proj_a" }] });
   });
 
-  it("routes a personal-project thread without a project segment", async () => {
+  it("answers a chord with the next thread and the project it lives in", async () => {
     const thread = (id: string, createdAt: number) => ({
       id,
       parentThreadId: null,
@@ -485,13 +485,9 @@ describe("thread stages plugin API", () => {
         ? [thread("thr_open", 1), thread("thr_next", 2)]
         : [],
     );
-    const projects = vi.fn(async () => [
-      { id: "proj_personal", kind: "personal" },
-      { id: "proj_a", kind: "standard" },
-    ]);
     const host = createFakePluginHost({
       pluginId: "thread-stages",
-      sdk: { threads: { list }, projects: { list: projects } },
+      sdk: { threads: { list } },
     });
     plugin(host.bb);
     disposeHosts.push(() => host.harness.lifecycle.dispose());
@@ -510,62 +506,9 @@ describe("thread stages plugin API", () => {
       destination: {
         kind: "thread",
         threadId: "thr_next",
-        projectId: null,
+        projectId: "proj_personal",
       },
     });
-    expect(projects).toHaveBeenCalledWith({ includePersonal: true });
-  });
-
-  it("leaves the thread where it was when it cannot resolve the route", async () => {
-    const thread = (id: string, createdAt: number) => ({
-      id,
-      parentThreadId: null,
-      projectId: "proj_personal",
-      visibility: "visible",
-      archivedAt: null,
-      pinnedAt: null,
-      pinSortKey: null,
-      createdAt,
-    });
-    const list = vi.fn(async (args?: { offset?: number }) =>
-      (args?.offset ?? 0) === 0
-        ? [thread("thr_open", 1), thread("thr_next", 2)]
-        : [],
-    );
-    const projects = vi.fn(async () => {
-      throw new Error("projects unavailable");
-    });
-    const host = createFakePluginHost({
-      pluginId: "thread-stages",
-      sdk: { threads: { list }, projects: { list: projects } },
-    });
-    plugin(host.bb);
-    disposeHosts.push(() => host.harness.lifecycle.dispose());
-
-    await host.harness.behavior.callRpc("syncThreads", {
-      rootThreadIds: ["thr_open", "thr_next"],
-      childThreadIds: [],
-    });
-
-    const signalsBefore = host.harness.inspection.realtimeSignals.length;
-
-    await expect(
-      host.harness.behavior.callRpc("setWorkflowStage", {
-        threadId: "thr_open",
-        workflowStage: "Active",
-      }),
-    ).rejects.toThrow();
-
-    // Telling the caller it failed while the move stands would leave the
-    // sidebar and the toast saying different things.
-    const state = (await host.harness.behavior.callRpc("listState", null)) as {
-      assignments: Array<{ threadId: string; workflowStage: string }>;
-    };
-    expect(
-      state.assignments.find(({ threadId }) => threadId === "thr_open")
-        ?.workflowStage,
-    ).toBe("Idle");
-    expect(host.harness.inspection.realtimeSignals).toHaveLength(signalsBefore);
   });
 
   it("reads bb's own keybindings through the SDK", async () => {

@@ -1,5 +1,8 @@
 import type { IconSvgElement } from "@hugeicons/react";
 
+/** bb keeps project-less threads in the personal project, under a reserved id. */
+const PERSONAL_PROJECT_ID = "proj_personal";
+
 /**
  * The Icons plugin announces edits here. A plugin cannot join another
  * plugin's realtime channel, and both run in the same document, so a broadcast
@@ -60,11 +63,10 @@ function iconColor(color: string | null): string | null {
 export function buildProjectIconMap(
   response: IconsResponse,
   projectIds: readonly string[],
-  personalProjectId: string | null,
 ): Map<string, ProjectIconView> {
   const byProject = new Map<string, ProjectIconView>();
   for (const projectId of projectIds) {
-    const personal = projectId === personalProjectId;
+    const personal = projectId === PERSONAL_PROJECT_ID;
     byProject.set(projectId, {
       name: personal ? "bubble-chat" : "folder-01",
       glyph: personal ? response.defaults.personal : response.defaults.project,
@@ -133,12 +135,11 @@ export interface IconMaps {
 export async function fetchIcons(
   loadIcons: () => Promise<IconsResponse>,
   projectIds: readonly string[],
-  personalProjectId: string | null,
 ): Promise<IconMaps> {
   try {
     const response = await loadIcons();
     return {
-      projects: buildProjectIconMap(response, projectIds, personalProjectId),
+      projects: buildProjectIconMap(response, projectIds),
       chosenProjects: buildChosenIconMap(response, "project"),
       sections: buildSectionIconMap(response),
     };

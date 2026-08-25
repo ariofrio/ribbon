@@ -98,32 +98,18 @@ describe("icon store", () => {
   });
 
   it("defaults projects to a folder, the personal project to a chat bubble, and sections to bb's own mark", () => {
-    expect(defaultIcon({ kind: "project", id: "proj_other" }, "proj_mine")).toBe(
+    expect(defaultIcon({ kind: "project", id: "proj_6dp2k86nnw" })).toBe(
       "folder-01",
     );
-    expect(defaultIcon({ kind: "project", id: "proj_mine" }, "proj_mine")).toBe(
+    expect(defaultIcon({ kind: "project", id: "proj_personal" })).toBe(
       "bubble-chat",
     );
-    expect(defaultIcon({ kind: "section", id: "sec_a" }, "proj_mine")).toBe(
-      "section",
-    );
+    expect(defaultIcon({ kind: "section", id: "sec_a" })).toBe("section");
   });
 
   it("leaves the personal project's icon fixed and every section editable", () => {
-    expect(isEditable({ kind: "project", id: "proj_other" }, "proj_mine")).toBe(
-      true,
-    );
-    expect(isEditable({ kind: "project", id: "proj_mine" }, "proj_mine")).toBe(
-      false,
-    );
-    expect(isEditable({ kind: "section", id: "proj_mine" }, "proj_mine")).toBe(
-      true,
-    );
-  });
-
-  it("treats every project as editable until bb has named the personal one", () => {
-    expect(isEditable({ kind: "project", id: "proj_personal" }, null)).toBe(
-      true,
-    );
+    expect(isEditable({ kind: "project", id: "proj_6dp2k86nnw" })).toBe(true);
+    expect(isEditable({ kind: "project", id: "proj_personal" })).toBe(false);
+    expect(isEditable({ kind: "section", id: "proj_personal" })).toBe(true);
   });
 });

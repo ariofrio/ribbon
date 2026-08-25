@@ -96,14 +96,14 @@ const projectSummarySchema = z
   })
   .strict();
 
-/**
- * What the Icons plugin answers `listIcons` with. Mirrored rather than
- * imported: that plugin owns the shape, so rows are read one at a time and a
- * row this sidebar cannot draw is dropped rather than costing every icon.
- */
 const iconGlyphSchema = z.array(
   z.tuple([z.string(), z.record(z.string(), z.any())]),
 );
+const iconDefaultsSchema = z.object({
+  project: iconGlyphSchema,
+  personal: iconGlyphSchema,
+  section: iconGlyphSchema,
+});
 const projectIconSchema = z.object({
   kind: z.enum(["project", "section"]),
   id: z.string(),
@@ -111,22 +111,20 @@ const projectIconSchema = z.object({
   color: z.string().nullable(),
   glyph: iconGlyphSchema,
 });
-/** The envelope, loose enough that a grown row reaches the filter below. */
+/**
+ * What the Icons plugin answers `listIcons` with, mirrored rather than
+ * imported. `icons` is left unread here on purpose: that plugin owns the row
+ * shape, so a row it has grown is dropped one at a time by the handler
+ * instead of failing the parse and costing every icon in the sidebar.
+ */
 const iconsAnswerSchema = z.object({
   icons: z.array(z.unknown()),
-  defaults: z.object({
-    project: iconGlyphSchema,
-    personal: iconGlyphSchema,
-    section: iconGlyphSchema,
-  }),
+  defaults: iconDefaultsSchema,
 });
+/** What survives that filter, and what this plugin answers with. */
 const projectIconsSchema = z.object({
   icons: z.array(projectIconSchema),
-  defaults: z.object({
-    project: iconGlyphSchema,
-    personal: iconGlyphSchema,
-    section: iconGlyphSchema,
-  }),
+  defaults: iconDefaultsSchema,
 });
 
 /** The part of bb's keybinding table a delegate needs to replay a command. */
@@ -365,22 +363,6 @@ export default function plugin(bb: BbPluginApi) {
   bb.storage.migrate(db, THREAD_WORKFLOW_MIGRATIONS);
   const store = createThreadWorkflowStore(db);
 
-  // bb routes a personal-project thread without a project segment; the
-  // project-scoped path would land on the composer instead. Which project is
-  // personal never changes for a server, so ask once.
-  let personalProjectId: string | null | undefined;
-  async function routableProjectId(
-    projectId: string | null,
-  ): Promise<string | null> {
-    if (projectId === null) return null;
-    if (personalProjectId === undefined) {
-      const projects = await bb.sdk.projects.list({ includePersonal: true });
-      personalProjectId =
-        projects.find(({ kind }) => kind === "personal")?.id ?? null;
-    }
-    return projectId === personalProjectId ? null : projectId;
-  }
-
   function requireRootThread(
     threadId: string,
     threads: readonly WorkflowHierarchyThread[],
@@ -556,22 +538,6 @@ export default function plugin(bb: BbPluginApi) {
       const stay: ChordDestination = { kind: "stay" };
       if (chord.kind === "none") return { destination: stay };
 
-      // Resolve the destination before moving anything: asking bb which
-      // project is personal can fail, and failing after the move would file
-      // the thread and still report failure.
-      const next = chord.next;
-      const destination: ChordDestination =
-        next.kind === "thread"
-          ? {
-              kind: "thread",
-              threadId: next.threadId,
-              projectId: await routableProjectId(
-                threads.find(({ id }) => id === next.threadId)?.projectId ??
-                  null,
-              ),
-            }
-          : next;
-
       if (chord.kind === "restore") {
         store.restoreToIdle(chord.threadId, chord.sortKey);
       } else {
@@ -579,6 +545,17 @@ export default function plugin(bb: BbPluginApi) {
       }
       bb.realtime.publish("state-changed", { threadId });
 
+      const next = chord.next;
+      const destination: ChordDestination =
+        next.kind === "thread"
+          ? {
+              kind: "thread",
+              threadId: next.threadId,
+              projectId:
+                threads.find(({ id }) => id === next.threadId)?.projectId ??
+                null,
+            }
+          : next;
       return { destination };
     },
     async reorderThread({ threadId, scope, direction }) {
