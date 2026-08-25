@@ -1,0 +1,4 @@
+#!/bin/sh
+# Refuse a commit that hand-edits bb's vendored UI components. Same check CI
+# runs; it needs no network, so it stays cheap enough for every commit.
+exec npm run --silent check:ui

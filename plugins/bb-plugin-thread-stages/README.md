@@ -14,10 +14,12 @@ Child threads do not have stages or positions of their own. They
 always render beneath their parent, inherit the root parent's stage, and move
 with that parent. Their thread actions therefore omit stage controls.
 
-Each row shows its project's icon when the
-[Icons](../bb-plugin-icons#readme) plugin is installed, so a stage-grouped
-list still tells you what a thread belongs to. Without that
-plugin the rows look as they always have. Message previews remain visible by
+Each row shows its project's icon, or its section's where that project has none
+of its own, when the [Icons](../bb-plugin-icons#readme) plugin is installed, so a
+stage-grouped list still tells you what a thread belongs to. An owner carries an
+icon only once someone picks one, so a row nobody has touched falls through to
+the project's default glyph. A thread takes the nearest section walking up, its
+own included. Without that plugin the rows look as they always have. Message previews remain visible by
 default and can be hidden in the plugin's settings for a denser list.
 
 Use **Projects** (or **Projects and sections** when sections exist) above the
@@ -41,10 +43,14 @@ stays visible while it still contains threads, but no longer accepts moves;
 after it is emptied, it disappears.
 
 Drag root threads to reorder or change their stage. Ordering uses
-fractional keys, so a move updates only the moved thread. Root threads enter
-**Active** when they start and return to **Idle** when they stop, unless you
-manually move them after the transition. A thread blocked on a question or an
-approval counts as **Idle** while it waits, because the next move is yours.
+fractional keys, so a move updates only the moved thread. A root hierarchy
+moves from **Idle** to **Active** when a turn or background command starts
+anywhere in the hierarchy, and returns to **Idle** once none are working.
+These automatic changes apply only while the root is in **Idle** or **Active**.
+**Deferred**, **Blocked**, and **Completed** are not managed automatically: a
+root filed there stays there regardless of later activity. A thread blocked on
+a question or approval counts as **Idle** only when no background command is
+running anywhere in the hierarchy.
 
 ## Install
 

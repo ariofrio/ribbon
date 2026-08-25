@@ -4,12 +4,14 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { resolveBbCli } from "./bb-cli.mjs";
+
 const pluginDirectory = resolve(process.argv[2] ?? process.cwd());
 const manifest = JSON.parse(
   readFileSync(resolve(pluginDirectory, "package.json"), "utf8"),
 );
 
-execFileSync("bb", ["plugin", "types", "--check", pluginDirectory], {
+execFileSync(resolveBbCli(), ["plugin", "types", "--check", pluginDirectory], {
   stdio: "inherit",
 });
 

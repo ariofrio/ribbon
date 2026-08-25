@@ -1,11 +1,11 @@
-import { Icon } from "@/components/ui/icon";
+import { Icon } from "@/vendor/components/ui/icon";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/vendor/components/ui/dropdown-menu";
 import { useState } from "react";
 import { RemoveProjectDialog, RenameProjectDialog } from "./ProjectDialogs";
 

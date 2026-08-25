@@ -1,4 +1,11 @@
-import type { IconOwner } from "./store";
+import { type IconOwner } from "./store";
+
+/**
+ * The one place this plugin still spells bb's id for the personal project.
+ * Anchors are collected from the DOM before any state has loaded, so there is
+ * nothing to ask; everywhere else the id comes from bb.
+ */
+const PERSONAL_PROJECT_ID = "proj_personal";
 
 /** Stamped by `bb plugin build`; undefined in tests and registry copies. */
 declare const __BB_PLUGIN_ID__: string | undefined;
@@ -11,11 +18,13 @@ export interface SidebarAnchor {
   target: HTMLElement;
 }
 
+const PROJECT_ATTRIBUTE = "data-sidebar-project-id";
+
 const OWNER_ATTRIBUTES: ReadonlyArray<{
   attribute: string;
   kind: IconOwner["kind"];
 }> = [
-  { attribute: "data-sidebar-project-id", kind: "project" },
+  { attribute: PROJECT_ATTRIBUTE, kind: "project" },
   { attribute: "data-sidebar-section-id", kind: "section" },
 ];
 
@@ -52,6 +61,62 @@ function createTarget(document: Document): HTMLElement {
   return target;
 }
 
+function anchorIn(group: HTMLElement, owner: IconOwner): SidebarAnchor | null {
+  const row = labelRow(group);
+  if (row === null) return null;
+
+  const existing = row.querySelector<HTMLElement>(`:scope > [${MOUNT_ATTRIBUTE}]`);
+  const target = existing ?? createTarget(group.ownerDocument);
+  if (existing === null) row.insertBefore(target, row.firstChild);
+
+  // Only bb's own child: this plugin's control carries a title of its own, and
+  // a descendant search would read that back as the group name.
+  const title = row.querySelector<HTMLElement>(":scope > [title]");
+  return {
+    owner,
+    name: title?.getAttribute("title") ?? title?.textContent?.trim() ?? owner.id,
+    target,
+  };
+}
+
+/**
+ * bb's personal project, which the sidebar draws as a group of its own but
+ * labels "Threads" and wraps in nothing — every project group beside it
+ * carries a `data-sidebar-project-id`, and this one carries no id at all.
+ *
+ * Being unwrapped is not enough to know it by. bb draws Pinned the same way,
+ * in the same list, and puts it first, so "the unwrapped one" is Pinned the
+ * moment a thread is pinned — and then the personal project's bubble lands on
+ * a heading that is not a project at all. What separates them is what bb lets
+ * you do from each header: New project and New thread are offered from this
+ * group and from no other.
+ *
+ * It is also the same leftover group bb reuses for "no machine" under By
+ * machine and for "Unorganized" under Manually, where it holds whatever is
+ * left rather than the personal project. Only under By project does the list
+ * also hold project groups, which is why the search starts from one.
+ *
+ * A bb with no projects at all therefore gets nothing, and so does a bb whose
+ * header offers no creation. Both err towards drawing no icon rather than the
+ * wrong one.
+ */
+function personalGroup(root: ParentNode): HTMLElement | null {
+  const list = root.querySelector<HTMLElement>(`[${PROJECT_ATTRIBUTE}]`)
+    ?.parentElement;
+  if (list === null || list === undefined) return null;
+  const groups = Array.from(
+    list.querySelectorAll<HTMLElement>(":scope > [data-sidebar-sticky-group]"),
+  );
+  return (
+    groups.find(
+      (group) =>
+        group.querySelector(
+          '[data-sidebar="group-label"] button[aria-label="New project"]',
+        ) !== null,
+    ) ?? null
+  );
+}
+
 function collect(root: ParentNode): SidebarAnchor[] {
   const anchors: SidebarAnchor[] = [];
   for (const { attribute, kind } of OWNER_ATTRIBUTES) {
@@ -60,23 +125,19 @@ function collect(root: ParentNode): SidebarAnchor[] {
     );
     for (const group of groups) {
       const id = group.getAttribute(attribute);
-      const row = labelRow(group);
-      if (id === null || id === "" || row === null) continue;
-
-      const existing = row.querySelector<HTMLElement>(`:scope > [${MOUNT_ATTRIBUTE}]`);
-      const target = existing ?? createTarget(group.ownerDocument);
-      if (existing === null) row.insertBefore(target, row.firstChild);
-
-      // Only bb's own child: this plugin's control carries a title of its
-      // own, and a descendant search would read that back as the group name.
-      const title = row.querySelector<HTMLElement>(":scope > [title]");
-      anchors.push({
-        owner: { kind, id },
-        name: title?.getAttribute("title") ?? title?.textContent?.trim() ?? id,
-        target,
-      });
+      if (id === null || id === "") continue;
+      const anchor = anchorIn(group, { kind, id });
+      if (anchor !== null) anchors.push(anchor);
     }
   }
+
+  const personal = personalGroup(root);
+  const anchor =
+    personal === null
+      ? null
+      : anchorIn(personal, { kind: "project", id: PERSONAL_PROJECT_ID });
+  if (anchor !== null) anchors.push(anchor);
+
   return anchors;
 }
 
@@ -113,6 +174,13 @@ export function observeSidebarIconAnchors(
     if (disposed) return;
     const next = collect(target);
     if (sameAnchors(current, next)) return;
+    // A group that stops being an anchor while staying on screen — bb's
+    // leftover group when a thread is pinned — would otherwise keep an empty
+    // mount forever, spacing its label out with nothing drawn in it.
+    const live = new Set(next.map((anchor) => anchor.target));
+    for (const anchor of current) {
+      if (!live.has(anchor.target)) anchor.target.remove();
+    }
     current = next;
     onChange(next);
   };

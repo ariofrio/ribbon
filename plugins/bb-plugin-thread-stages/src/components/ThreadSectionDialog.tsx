@@ -1,7 +1,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useDialogCenterX } from "../lib/dialog-position";
-import { portalScopeProps } from "../lib/portal-scope";
+import { usePortalScopeProps } from "@/vendor/lib/portal-scope";
 import { Icon } from "./Icon";
 
 export function ThreadSectionDialog({
@@ -18,6 +18,7 @@ export function ThreadSectionDialog({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dialogCenterX = useDialogCenterX(open);
+  const portalScopeProps = usePortalScopeProps();
 
   useEffect(() => {
     if (!open) return;
@@ -60,11 +61,11 @@ export function ThreadSectionDialog({
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay
-          {...portalScopeProps()}
+          {...portalScopeProps}
           className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px]"
         />
         <Dialog.Content
-          {...portalScopeProps()}
+          {...portalScopeProps}
           className="fixed left-1/2 top-1/2 z-50 w-full max-w-[32rem] -translate-x-1/2 -translate-y-1/2 border bg-background shadow-sm sm:rounded-lg max-md:w-[calc(100%_-_2rem)]"
           style={{ left: dialogCenterX }}
           onOpenAutoFocus={(event) => {

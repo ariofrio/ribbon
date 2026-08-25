@@ -1,7 +1,9 @@
 name: Plugins
 
+# One push to a branch here raises both events, so `push` covers only main.
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -19,7 +21,24 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts --workspaces=false
       - run: npm test
-      - run: npm run check:screenshots
+      - run: npm run check:ui
+      - run: npm run check:layout
+      # A workflow GitHub refuses to parse fails as a run with no jobs at all,
+      # which says nothing about why.
+      - name: Lint the workflows
+        env:
+          ACTIONLINT_VERSION: "1.7.7"
+          ACTIONLINT_SHA256: "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"
+        run: |
+          command -v shellcheck > /dev/null || {
+            echo "::error::shellcheck is missing, so actionlint would skip it"
+            exit 1
+          }
+          curl -sSLo actionlint.tar.gz \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  actionlint.tar.gz" | sha256sum -c -
+          tar xzf actionlint.tar.gz actionlint
+          ./actionlint
 
   discover:
     runs-on: ubuntu-latest
@@ -58,3 +77,20 @@ jobs:
           cache-dependency-path: plugins/${{ matrix.plugin }}/package-lock.json
       - run: npm ci --workspaces=false
       - run: npm run release:check
+
+  # The one name this workflow is required by. release-check names its jobs
+  # from a matrix, so requiring those would break whenever a plugin is renamed.
+  plugins:
+    needs: [release-automation, discover, release-check]
+    # A check skipped along with its dependency never reports, which blocks the
+    # pull request requiring it.
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every check passed
+        run: |
+          results='${{ join(needs.*.result, ' ') }}'
+          echo "$results"
+          case "$results" in
+            *failure*|*cancelled*) echo "::error::a required job did not pass"; exit 1 ;;
+          esac

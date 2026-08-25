@@ -14,8 +14,8 @@ function createPluginHarness(personalProjectId = "proj_mine") {
     sdk: {
       projects: {
         list: vi.fn(async () => [
-          { id: personalProjectId, kind: "personal" },
-          { id: "proj_other", kind: "standard" },
+          { id: personalProjectId, name: "Threads", kind: "personal" },
+          { id: "proj_other", name: "Other", kind: "standard" },
         ]),
       },
     },
@@ -35,11 +35,32 @@ describe("icon plugin API", () => {
       "listPlacements",
       "setIcon",
       "clearIcon",
+      "sectionForThread",
     ]);
     expect(harness.inspection.registrations.services).toHaveLength(1);
     expect(harness.inspection.registrations.services[0]?.name).toBe(
       "icon-cleanup",
     );
+  });
+
+  it("keeps the default glyphs out of the catalog, so picking one is never a no-op", async () => {
+    const harness = createPluginHarness();
+
+    const { icons } = (await harness.behavior.callRpc(
+      "listIconCatalog",
+      null,
+    )) as { icons: Array<{ name: string }> };
+    const names = new Set(icons.map((icon) => icon.name));
+
+    // Choosing one of these would store a row indistinguishable from having
+    // chosen nothing, which then outranks the section's icon on every row.
+    expect(names.has("folder-01")).toBe(false);
+    expect(names.has("bubble-chat")).toBe(false);
+    // The section's default is drawn by the plugin and was never in here.
+    expect(names.has("section")).toBe(false);
+    // Pinned: a filter that dropped far more than these two would still
+    // satisfy a lower bound.
+    expect(icons.length).toBe(2530);
   });
 
   it("persists a project icon through the schema-validated RPC boundary", async () => {
@@ -148,13 +169,125 @@ describe("icon plugin API", () => {
   });
 });
 
+describe("the project list the drawing needs", () => {
+  /**
+   * The list is filled by the cleanup service at plugin start rather than on
+   * the read path, so a test that wants it has to start that service — which
+   * is also the order a client sees.
+   */
+  function hostWithProjects(list: () => Promise<unknown>) {
+    const host = createFakePluginHost({
+      pluginId: "icons",
+      // The service reads the list and then waits on project changes, so both
+      // halves need standing in for.
+      sdk: { projects: { list }, subscribe: () => () => {} },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+    return host.harness;
+  }
+
+  it("carries bb's projects, which some rows name and never identify", async () => {
+    const harness = hostWithProjects(async () => [
+      { id: "proj_personal", name: "Personal" },
+      { id: "proj_a", name: "Storefront" },
+    ]);
+
+    harness.behavior.runService("icon-cleanup");
+
+    await vi.waitFor(async () =>
+      expect(await harness.behavior.callRpc("listIcons", null)).toMatchObject({
+        projects: [
+          { id: "proj_personal", name: "Personal" },
+          { id: "proj_a", name: "Storefront" },
+        ],
+      }),
+    );
+  });
+
+  it("asks for the personal project, which bb leaves out by default", async () => {
+    const harness = hostWithProjects(async () => []);
+
+    harness.behavior.runService("icon-cleanup");
+
+    await vi.waitFor(() =>
+      expect(
+        harness.sdk.calls.find((call) => call.path === "projects.list")?.args,
+      ).toEqual([{ includePersonal: true }]),
+    );
+  });
+
+  it("says whether it has read the list, so a client can wait on that", async () => {
+    const harness = hostWithProjects(async () => [
+      { id: "proj_a", name: "Storefront" },
+    ]);
+
+    await expect(
+      harness.behavior.callRpc("listIcons", null),
+    ).resolves.toMatchObject({ projectsRead: false, projects: [] });
+
+    harness.behavior.runService("icon-cleanup");
+
+    await vi.waitFor(async () =>
+      expect(await harness.behavior.callRpc("listIcons", null)).toMatchObject({
+        projectsRead: true,
+        projects: [{ id: "proj_a", name: "Storefront" }],
+      }),
+    );
+  });
+
+  it("answers before that list lands rather than waiting for it", async () => {
+    const harness = hostWithProjects(
+      () => new Promise(() => {}) as Promise<unknown>,
+    );
+
+    harness.behavior.runService("icon-cleanup");
+
+    // The read never resolves; the answer still arrives, without the projects.
+    await expect(
+      harness.behavior.callRpc("listIcons", null),
+    ).resolves.toMatchObject({ projects: [] });
+  });
+
+  it("reports no projects rather than failing when bb cannot list them", async () => {
+    const harness = hostWithProjects(async () => {
+      throw new Error("offline");
+    });
+
+    harness.behavior.runService("icon-cleanup");
+
+    await expect(
+      harness.behavior.callRpc("listIcons", null),
+    ).resolves.toMatchObject({ projects: [] });
+  });
+
+  it("says nothing about the list it reads at start, which changed nothing", async () => {
+    const harness = hostWithProjects(async () => [
+      { id: "proj_a", name: "Storefront" },
+    ]);
+
+    harness.behavior.runService("icon-cleanup");
+    await vi.waitFor(() =>
+      expect(
+        harness.sdk.calls.some((call) => call.path === "projects.list"),
+      ).toBe(true),
+    );
+
+    expect(harness.inspection.realtimeSignals).toEqual([]);
+  });
+});
+
 describe("icon placements", () => {
-  it("defaults both placements on, so an update never hides an icon", async () => {
+  it("defaults every placement on, so an update never hides an icon", async () => {
     const harness = createPluginHarness();
 
     await expect(
       harness.behavior.callRpc("listPlacements", null),
-    ).resolves.toEqual({ showInThreadHeader: true, showInSidebar: true });
+    ).resolves.toEqual({
+      showInThreadHeader: true,
+      showInSidebar: true,
+      showInComposer: true,
+    });
   });
 
   it("reports a placement the user turned off", async () => {
@@ -167,7 +300,11 @@ describe("icon placements", () => {
 
     await expect(
       host.harness.behavior.callRpc("listPlacements", null),
-    ).resolves.toEqual({ showInThreadHeader: true, showInSidebar: false });
+    ).resolves.toEqual({
+      showInThreadHeader: true,
+      showInSidebar: false,
+      showInComposer: true,
+    });
   });
 });
 
@@ -175,8 +312,13 @@ describe("the personal project's icon", () => {
   it("names the personal project the way bb does", async () => {
     const harness = createPluginHarness();
 
-    await expect(harness.behavior.callRpc("listIcons", null)).resolves.toMatchObject(
-      { personalProjectId: "proj_mine" },
+    // It rides along with the project list, which is read off the read path.
+    harness.behavior.runService("icon-cleanup");
+
+    await vi.waitFor(async () =>
+      expect(await harness.behavior.callRpc("listIcons", null)).toMatchObject({
+        personalProjectId: "proj_mine",
+      }),
     );
   });
 

@@ -2,6 +2,7 @@ import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import catalogMetadata from "./icon-catalog.json";
 import { CATALOG_ICONS } from "./icon-catalog.generated";
+import type { ProjectSummary } from "./project-lookup";
 import { SECTION_GLYPH } from "./section-icon";
 import {
   DEFAULT_PROJECT_ICON,
@@ -33,6 +34,8 @@ const glyphSchema = z
   .array(z.tuple([z.string(), z.record(z.string(), z.any())]).readonly())
   .readonly();
 
+const projectSchema = z.object({ id: z.string(), name: z.string() }).strict();
+
 const iconsSchema = z
   .object({
     icons: z.array(iconSchema.extend({ glyph: glyphSchema })),
@@ -45,6 +48,23 @@ const iconsSchema = z
       .strict(),
     /** So a consumer draws the bubble without recognizing an id. */
     personalProjectId: z.string().nullable(),
+    /**
+     * bb's projects, by id and name.
+     *
+     * Several of the places bb names a project — a row of the composer's
+     * project menu, a row of the mention list — print the name and nothing
+     * else, so that is all a client has to recognize the row by. The list
+     * travels with the icons rather than through a call of its own, so a
+     * rename and an icon edit can never be read half-applied.
+     */
+    projects: z.array(projectSchema),
+    /**
+     * Whether that list has been read yet. It is filled off the read path, so
+     * a client can arrive before it exists, and an empty list is otherwise
+     * indistinguishable from a bb with no projects. Saying which lets a client
+     * wait on the answer rather than on a guess at how long it takes.
+     */
+    projectsRead: z.boolean(),
   })
   .strict();
 
@@ -83,7 +103,11 @@ export const rpcContract = defineRpcContract({
   listPlacements: {
     input: z.null(),
     output: z
-      .object({ showInThreadHeader: z.boolean(), showInSidebar: z.boolean() })
+      .object({
+        showInThreadHeader: z.boolean(),
+        showInSidebar: z.boolean(),
+        showInComposer: z.boolean(),
+      })
       .strict(),
   },
   setIcon: {
@@ -93,6 +117,16 @@ export const rpcContract = defineRpcContract({
   clearIcon: {
     input: ownerSchema,
     output: iconsSchema,
+  },
+  /**
+   * The section a thread is filed under, for the header's fallback icon.
+   *
+   * bb keeps a section on the root thread, so a child reports its root's. It
+   * comes from bb because a header can mount before the sidebar hydrates.
+   */
+  sectionForThread: {
+    input: z.object({ threadId: z.string().min(1) }).strict(),
+    output: z.object({ sectionId: z.string().nullable() }).strict(),
   },
 });
 
@@ -110,6 +144,13 @@ export const ICON_PLACEMENTS = {
       "Draw the icon on bb's own project and section headers. Sidebars other plugins draw are their own.",
     default: true,
   },
+  showInComposer: {
+    type: "boolean",
+    label: "Show around the prompt box",
+    description:
+      "Draw the icon wherever the prompt box names a project: its project control and that control's menu, the mention list, a mentioned project, and the strip under an open thread.",
+    default: true,
+  },
 } as const;
 
 export default function plugin(bb: BbPluginApi) {
@@ -123,44 +164,56 @@ export default function plugin(bb: BbPluginApi) {
       ? SECTION_GLYPH
       : (CATALOG_ICONS[icon] ?? CATALOG_ICONS[DEFAULT_PROJECT_ICON] ?? []);
 
-  // bb names its own personal project, and that never changes for a server.
-  let personalProjectId: string | null | undefined;
-  async function personalProject(): Promise<string | null> {
-    if (personalProjectId === undefined) {
-      const projects = await bb.sdk.projects.list({ includePersonal: true });
-      personalProjectId =
-        projects.find(({ kind }) => kind === "personal")?.id ?? null;
-    }
-    return personalProjectId;
-  }
-  /**
-   * A failed ask costs the bubble on one row rather than every icon in the
-   * sidebar. Nothing is cached until it arrives, so the next call asks again.
-   */
-  async function personalProjectForDrawing(): Promise<string | null> {
-    try {
-      return await personalProject();
-    } catch (error) {
-      bb.log.warn(
-        `could not read which project is personal: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      return null;
-    }
-  }
+  let projects: ProjectSummary[] = [];
+  let personalProjectId: string | null = null;
+  let read = false;
 
-  const view = async () => ({
+  /**
+   * Rereads bb's projects, and reports whether the names moved.
+   *
+   * The first read moves nothing, however different it looks from the empty
+   * list it starts at. Announcing it would have every client throw away the
+   * state it just fetched and ask again while bb is still mounting the page,
+   * which is the window bb refuses a plugin's renders in — and it refuses them
+   * for every plugin at once, not only the one that opened it.
+   */
+  const readProjectsOrThrow = async () => {
+    const listed = await bb.sdk.projects.list({ includePersonal: true });
+    const next = listed.map(({ id, name }) => ({ id, name }));
+    const moved = read && JSON.stringify(next) !== JSON.stringify(projects);
+    read = true;
+    projects = next;
+    // Which project bb calls personal rides along with the list rather than
+    // costing a call of its own.
+    personalProjectId = listed.find(({ kind }) => kind === "personal")?.id ?? null;
+    return moved;
+  };
+
+  const readProjects = async () => {
+    try {
+      return await readProjectsOrThrow();
+    } catch {
+      // A hiccup listing projects leaves the last list standing; the rows that
+      // have only a name to go on keep bb's own folder until the next read.
+      return false;
+    }
+  };
+
+  const view = () => ({
     icons: store.list().map((icon) => ({ ...icon, glyph: glyphOf(icon.icon) })),
     defaults: {
       project: glyphOf(DEFAULT_PROJECT_ICON),
       personal: glyphOf(PERSONAL_PROJECT_ICON),
       section: SECTION_GLYPH,
     },
-    personalProjectId: await personalProjectForDrawing(),
+    personalProjectId,
+    projects: [...projects],
+    projectsRead: read,
   });
 
   // Only the owner: a listener refetches anyway, and the chosen icon is nobody
   // else's business on a broadcast channel.
-  const publish = async ({ kind, id }: IconOwner) => {
+  const publish = ({ kind, id }: IconOwner) => {
     bb.realtime.publish("icons-changed", { kind, id });
     return view();
   };
@@ -184,6 +237,20 @@ export default function plugin(bb: BbPluginApi) {
     }
   };
 
+  /**
+   * The glyphs an owner already draws when nobody has picked for it.
+   *
+   * They are left out of the picker. Choosing one stores a row that looks like
+   * having chosen nothing, and a project's row outranks its section's icon on
+   * every thread in it, so the pick changes the sidebar while appearing not to.
+   * A section's default is composed below rather than taken from the catalog,
+   * so only these two need dropping.
+   */
+  const defaultGlyphNames = new Set([
+    DEFAULT_PROJECT_ICON,
+    PERSONAL_PROJECT_ICON,
+  ]);
+
   const catalog = {
     icons: (catalogMetadata as Array<{
       name: string;
@@ -191,7 +258,7 @@ export default function plugin(bb: BbPluginApi) {
       tags: string[];
     }>).flatMap((entry) => {
       const glyph = CATALOG_ICONS[entry.name];
-      return glyph === undefined
+      return glyph === undefined || defaultGlyphNames.has(entry.name)
         ? []
         : [
             {
@@ -206,17 +273,27 @@ export default function plugin(bb: BbPluginApi) {
 
   bb.rpc.register(rpcContract, {
     listIconCatalog: () => catalog,
+    // Deliberately not waiting on the read above. bb holds a plugin attributed
+    // across `await`, and this plugin's content script already awaits its own
+    // backend before it places anything — so every round-trip on this path
+    // lengthens the window in which bb refuses *any* plugin's renders, which
+    // is how the icons cost Breadcrumbs its crumb. The service below fills the
+    // list at plugin start, and a client that beats it looks again.
     listIcons: () => view(),
     async listPlacements() {
-      const { showInThreadHeader, showInSidebar } = await settings.get();
-      return { showInThreadHeader, showInSidebar };
+      const { showInThreadHeader, showInSidebar, showInComposer } =
+        await settings.get();
+      return { showInThreadHeader, showInSidebar, showInComposer };
     },
     async setIcon(input) {
-      if (!isEditable(input, await personalProject())) {
+      // Refusing the personal project's icon needs bb's answer, so a write
+      // that arrives before the first read waits for it rather than guessing.
+      if (!read) await readProjectsOrThrow();
+      if (!isEditable(input, personalProjectId)) {
         throw new Error("The personal project's icon is fixed.");
       }
       store.set(input);
-      const next = await publish(input);
+      const next = publish(input);
       if (input.kind === "section") void pruneSections();
       return next;
     },
@@ -224,23 +301,54 @@ export default function plugin(bb: BbPluginApi) {
       store.clear(owner);
       return publish(owner);
     },
+    async sectionForThread({ threadId }) {
+      const read = (id: string) =>
+        bb.sdk.threads.get({ threadId: id }).catch(() => null) as Promise<{
+          parentThreadId?: string | null;
+          sectionId?: string | null;
+        } | null>;
+
+      // Walks parents only. A fork carries a source rather than a parent and
+      // sits at the root, so it is filed on its own, exactly as bb shows it.
+      const seen = new Set<string>();
+      let current = await read(threadId);
+      while (current !== null) {
+        if (typeof current.sectionId === "string") {
+          return { sectionId: current.sectionId };
+        }
+        const parent = current.parentThreadId;
+        if (typeof parent !== "string" || seen.has(parent)) break;
+        seen.add(parent);
+        current = await read(parent);
+      }
+      return { sectionId: null };
+    },
   });
 
   // A deleted project's icon would otherwise linger forever; bb reports
   // deletions through project changes rather than a plugin lifecycle event.
+  // The same event carries renames, which move no icon but do move the names
+  // clients recognize a drawn row by.
   bb.background.service("icon-cleanup", {
     async start(signal) {
       void pruneSections();
+      void readProjects();
       const unsubscribe = bb.sdk.subscribe({
         event: "project:changed",
         callback(event) {
-          if (!event.id || !event.changes.includes("project-deleted")) return;
-          if (store.clear({ kind: "project", id: event.id })) {
+          const orphaned =
+            !!event.id &&
+            event.changes.includes("project-deleted") &&
+            store.clear({ kind: "project", id: event.id });
+          // Both endings are the same refetch, so they are announced once
+          // rather than twice for a deletion.
+          void readProjects().then((moved) => {
+            if (!orphaned && !moved) return;
             bb.realtime.publish("icons-changed", {
               kind: "project",
-              id: event.id,
+              ...(event.id ? { id: event.id } : {}),
             });
-          }
+          });
         },
       });
       try {

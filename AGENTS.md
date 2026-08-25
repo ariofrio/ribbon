@@ -1,40 +1,45 @@
 # Ribbon Instructions
 
-## Naming
+A rule a check can enforce lives in the check, not here. Read the check when
+you need the detail, and run it rather than reasoning about it:
 
-- Write plugin names in sentence case: capitalize only the first word and any proper nouns (e.g. "Missing keyboard shortcuts"). This applies everywhere the name appears, including the `bb.name` field in `package.json`, README headings, and links.
+| Check | Enforces |
+| --- | --- |
+| `npm run check:layout` — `scripts/plugin-layout.mjs` | sentence-case plugin names, entry points under `src/`, what may sit in a plugin root, the `files` exclusions for tests and screenshots, and the `@/` alias in both tsconfig and vitest |
+| `npm run check:ui` — `scripts/vendor-ui.mjs` | every file under `src/vendor/` is bb's, verbatim, and explained by `vendor-ui.json` |
+| `npm run check:heading-icons` — `scripts/heading-icons.mjs` | `assets/icons/` matches each plugin's own icon |
+| `npm test` — `scripts/screenshots/trigger.test.mjs`, `scripts/workflows.test.mjs` | which paths make CI recapture, and that every CI job runs once and is required |
 
-## Layout
-
-- Keep every TypeScript source under the plugin's `src/`, including the `bb.server` and `bb.app` entries, the vendored `components/`, `lib/`, and `hooks/` directories, generated data, and co-located `*.test.ts`. bb's own scaffold puts these in the plugin root; the manifest resolves plugin-relative paths either way, so point `bb.server` at `./src/server.ts` and set the tsconfig `@/*` alias to `./src/*`.
-- Leave only packaging and tooling configuration in the plugin root, where npm and each tool require it: `package.json`, `package-lock.json`, `tsconfig.json`, `README.md`, `CHANGELOG.md`, and `LICENSE`, plus `components.json` and `vitest.config.ts` when used. `assets/`, `skills/`, `themes/`, and build-time `scripts/` stay alongside `src/`.
-- Ship sources without their tests by ending `files` with `"src", "!src/**/*.test.ts", "!src/**/*.test.tsx"`.
-- README screenshots live in `assets/` beside the branding icon but are not worth shipping, so follow `"assets"` with `"!assets/screenshot*.png", "!assets/card*.png"`.
-- The repository's own `assets/` holds what the root README draws and no plugin ships: the hero, the dividers a narrow page needs, and `icons/`, whose files are derived from each plugin's own icon by `npm run build:heading-icons` and reported stale by `npm run check:heading-icons`.
-- A `scripts/` helper that imports plugin code reaches into `src/`, and anything it generates belongs in `src/` too.
+What follows is here because no check can decide it, or because it has to be
+decided before the work starts.
 
 ## UI components
 
-- Prefer vendoring the matching component from bb's release-pinned `@bb` shadcn registry over composing the control directly from Radix or recreating bb's chrome. Layer plugin-specific behavior onto the vendored component; use primitives or a bespoke component only when the registry component cannot support the required interaction, and preserve the native motion, focus, responsive, and portal behavior in that exception.
+- Prefer the matching component from bb's release-pinned `@bb` shadcn registry over composing the control directly from Radix or recreating bb's chrome. Use primitives or a bespoke component only when the registry component cannot support the required interaction, and preserve the native motion, focus, responsive, and portal behavior in that exception.
+- Layer plugin behavior by composing around a component rather than editing one. bb exports seams for this and its own app composes with them, so read how `apps/app/src/components/` solves the same problem first, and grep the vendored copies for what is available. A `className` from an outer component wins through `cn`, which covers most styling gaps.
+- Add or drop a component by editing the item list in `vendor-ui.json` and running `npm run build:ui`, never `npx shadcn add`.
+- A `scripts/` helper that imports plugin code reaches into `src/`, and anything it generates belongs in `src/` too.
 
 ## Workflow
 
 - After every atomic plugin change that you are confident works correctly, install or reload it in bb as applicable, verify it with the relevant tests and checks, then commit and push it before moving on.
-- Merge a pull request with squash, and let GitHub write the commit message. The repository takes the subject from the pull request title and leaves the body blank on purpose, so `gh pr merge --squash` wants no `--subject` and no `--body`; passing either overrides a deliberate setting. Title the pull request the way the commit should read, and put the reasoning in its body, which is where it stays — a commit body written locally does not survive the merge.
+- Merge a pull request with squash, and let GitHub write the commit message. `gh pr merge --squash` wants no `--subject` and no `--body`; passing either overrides a deliberate setting. Title the pull request the way the commit should read, and put the reasoning in its body — a commit body written locally does not survive the merge.
 
 ## Screenshots
 
-- Every plugin screenshot comes from `npm run screenshots`, which boots a throwaway bb, installs every plugin in this repository, seeds one shared fixture, and captures each shot in light and dark. Never edit or replace the files it writes by hand; change `scripts/screenshots/shots.mjs` and recapture.
-- Each shot is captured twice from the same arranged window, with the same shade and cutouts: `screenshot-<mode>.png` is the whole window and belongs in the plugin's own README, and `card-<mode>.png` is cropped to one fixed width and belongs in the plugin's row in the root README, where a shared crop width is what keeps the five rows at one zoom level. A shot chooses where its card sits and how large a window it is framed in, but not how large the card is drawn.
-- Both carry rounded corners and no shadow, and only the window shots carry the hairline edge that makes a window a window. Margins in an image are margins a reader sees, so they exist only where a layout needs them: a card is written twice, flush for the column that stacks it and with a left margin for the column that floats it beside a paragraph.
-- A shot of the collection rather than of a plugin writes to the repository's own `assets/`: `hero-<mode>.png` shades nothing, because it points at nothing. Every other shot names the plugin it belongs to, and lands beside that plugin's own README.
-- Whatever the capturing machine brings with it stays out of frame, and whatever the app resolves late is waited for rather than raced — the update chips report this machine's pending updates, and the composer's permission mode and the branch its workspace is on both arrive after the thread does. Two runs on one machine write the same files byte for byte; that is the bar a change to the harness has to keep.
-- Capturing needs macOS, the bb desktop app, the Node in `.nvmrc`, and `npx playwright install chromium`. `npm run check:screenshots` needs none of it, and CI runs it to report a screenshot whose plugin changed after it was captured.
-- `--only` is for looking, not for committing. Every shot runs against one seeded bb and the run changes it along the way — the shortcuts shot sends a real message and nothing puts it back — so a shot taken on its own starts from a state a full run never gives it. A file that is going to be committed comes from a full run.
+- Every plugin screenshot comes from `npm run screenshots`. Never edit or replace the files it writes by hand; change `scripts/screenshots/shots.mjs` and recapture.
+- `--only` is for looking, not for committing. Every shot runs against one seeded bb and the run changes it along the way, so a shot taken on its own starts from a state a full run never gives it. A file that is going to be committed comes from a full run.
+- Two runs must write the same files byte for byte, on one machine and on two machines running the same container. That is the bar a change to the harness has to keep.
+- Keep whatever the capturing machine brings with it out of frame, and wait for whatever the app resolves late rather than racing it.
+- Nothing records what a shot was captured from, and nothing should: two runs write the same bytes, so git already reports whether a screenshot changed.
+- The pinned container is the authoritative renderer, and its Chromium comes from the `playwright` version in `package-lock.json`. Capture locally to look sooner, but expect CI's bytes to be the ones that land.
+- CI recaptures on the pull request and never on main, which the Protect main ruleset only lets a pull request write to. Main has to arrive current, which is why the Screenshots check is required and strict.
+- Adding an input that can change a screenshot means adding it to `affects.mjs`, which decides whether a pull request captures at all. It cannot become the workflow's `paths:` filter, because a skipped workflow never reports its check and the pull request requiring it could never merge.
 
 ## Testing
 
 - For bb UI tests and experiments, never drive the user's active bb client. Instead, for client-only state, use an agent-owned web or desktop client connected to the existing bb server. When the test can modify server or host-daemon state, start an isolated client with its own server and host daemon.
 - Check a UI change by its rendered effect — `getComputedStyle`, real pointer and keyboard events — never by class names or DOM attributes. Markup that reads correctly still renders nothing when a plugin class falls outside the `@scope` root bb compiles its stylesheet into, and a dispatched `click()` passes where a real one is swallowed.
-- Wait for a condition, never for a duration. A sleep is a guess about a machine, and the machine that captures is the one that is busy; the same guess that holds at rest ships a half-drawn frame under load, and reports success. What a `waitForTimeout` was standing in for can always be named — an animation's own `finished`, focus reaching a composer, a node arriving — and naming it is the fix.
-- Wait for what a plugin drew, inside the container only that plugin installs. A label, role, or name bb also uses somewhere else is answered by bb's own control, and the wait then returns before the plugin has drawn anything — silently, and at whichever moment is worst.
+- Wait for a condition, never for a duration. A sleep is a guess about a machine, and the machine that captures is the one that is busy. What a `waitForTimeout` was standing in for can always be named — an animation's own `finished`, focus reaching a composer, a node arriving — and naming it is the fix.
+- Wait for what a plugin drew, inside the container only that plugin installs. A label, role, or name bb also uses somewhere else is answered by bb's own control, and the wait returns before the plugin has drawn anything. Ask of any wait whether something other than the thing being waited for can satisfy it; if so, it can fail by succeeding, and no timeout will tell you. Spend slack on the timeout and never on weakening the assertion.
+- A difference percentage between two captures says whether they differ, never how. Align before measuring: solve for the whole-pixel offset that minimises the difference, then measure the residual there. A residual that collapses means the picture moved. A residual that will not fall, with shifting either way making it worse, means nothing moved and the pixels were drawn differently — which separates a font laying text out differently from one merely rasterising it differently.

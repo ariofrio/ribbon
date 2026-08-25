@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@/vendor/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -6,8 +6,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@/vendor/components/ui/dialog";
+import { Input } from "@/vendor/components/ui/input";
 import { useId, useRef, useState, type FormEvent } from "react";
 
 function errorMessage(error: unknown, fallback: string): string {

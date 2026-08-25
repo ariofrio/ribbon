@@ -2,34 +2,46 @@
 // screenshots never touch the bb the developer is using and always start from
 // the same empty state.
 //
-// The app binary ships both halves, so this reuses them rather than depending
-// on a published package: the server serves the web client only when NODE_ENV
-// is production, and the daemon enrolls through the loopback-only
-// /internal/hosts/enroll-key route the desktop app uses on first run.
+// Both halves come from the `bb-app` package: the server serves the web client
+// only when NODE_ENV is production, and the daemon enrolls through the
+// loopback-only /internal/hosts/enroll-key route the desktop app uses on first
+// run.
+//
+// From npm rather than /Applications: the bb these shots are taken against is
+// an input to every one of them, and an app bundle is whichever bb the machine
+// happens to have. Its manifest stays beside the harness; the root workspace
+// installs one shared copy for every plugin to build against.
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const MACOS_APP_RESOURCES =
-  "/Applications/bb.app/Contents/Resources/app.asar.unpacked/node_modules/bb-app";
-const MACOS_ELECTRON = "/Applications/bb.app/Contents/MacOS/bb";
+const APP_DIR = fileURLToPath(
+  new URL("../../node_modules/bb-app", import.meta.url),
+);
+
+/**
+ * The `bb` that seeds the fixture and stamps the lock. The package's own: one
+ * found on PATH is the machine's, and seeding against a server running a
+ * different version shows up as a screenshot rather than as an error.
+ */
+export const BB_CLI_PATH = join(APP_DIR, "host-daemon/dist/bb");
 
 function resolveAppPaths() {
-  if (!existsSync(MACOS_APP_RESOURCES)) {
+  if (!existsSync(APP_DIR)) {
     throw new Error(
-      `bb's app resources are not at ${MACOS_APP_RESOURCES}. Screenshots need the desktop app installed.`,
+      `bb-app is not installed at ${APP_DIR}. Screenshots render from the package, not the desktop app — run npm ci.`,
     );
   }
   return {
-    appDir: MACOS_APP_RESOURCES,
-    // Electron's bundled node runs both halves, so the harness needs no node
-    // of its own that matches the app's runtime.
-    node: MACOS_ELECTRON,
-    serverEntry: join(MACOS_APP_RESOURCES, "server/dist/index.js"),
-    daemonEntry: join(MACOS_APP_RESOURCES, "host-daemon/dist/daemon-bundle.mjs"),
-    cliDir: join(MACOS_APP_RESOURCES, "host-daemon/dist"),
+    appDir: APP_DIR,
+    // The Node in .nvmrc, which require-node.mjs has already insisted on.
+    node: process.execPath,
+    serverEntry: join(APP_DIR, "server/dist/index.js"),
+    daemonEntry: join(APP_DIR, "host-daemon/dist/daemon-bundle.mjs"),
+    cliDir: join(APP_DIR, "host-daemon/dist"),
   };
 }
 
@@ -90,7 +102,6 @@ export async function startStack({ dataDir, logStream }) {
     const child = spawn(paths.node, [entry], {
       env: {
         ...process.env,
-        ELECTRON_RUN_AS_NODE: "1",
         // The server only mounts the web client's static bundle in production.
         NODE_ENV: "production",
         BB_DATA_DIR: dataDir,

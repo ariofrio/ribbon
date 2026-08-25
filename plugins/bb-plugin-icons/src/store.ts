@@ -31,6 +31,17 @@ export const ICON_MIGRATIONS = [
   `DROP TABLE project_icon;`,
 ];
 
+/**
+ * The user settings that turn a group of drawings off. One per part of bb the
+ * plugin reaches into, rather than one per surface: a reader thinks in terms
+ * of the sidebar, the header, and the composer, not the several places inside
+ * them where bb happens to name a project.
+ */
+export type PlacementSetting =
+  | "showInThreadHeader"
+  | "showInSidebar"
+  | "showInComposer";
+
 /** What an icon can belong to. A section is bb's manual sidebar grouping. */
 export const ICON_OWNER_KINDS = ["project", "section"] as const;
 

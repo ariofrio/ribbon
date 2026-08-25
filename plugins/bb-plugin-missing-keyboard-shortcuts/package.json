@@ -24,12 +24,13 @@
   "type": "module",
   "scripts": {
     "build": "bb plugin build",
-    "verify:types": "node ../../scripts/verify-types.mjs",
-    "verify:package": "node ../../scripts/verify-package.mjs",
-    "release:check": "npm test && npm run typecheck && npm run verify:types && npm run build && npm run verify:package",
     "prepublishOnly": "npm run release:check",
+    "release:check": "npm test && npm run typecheck && npm run verify:types && npm run build && npm run verify:styles && npm run verify:package",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:package": "node ../../scripts/verify-package.mjs",
+    "verify:styles": "node ../../scripts/verify-styles.mjs",
+    "verify:types": "node ../../scripts/verify-types.mjs"
   },
   "engines": {
     "bb": ">=0.35",

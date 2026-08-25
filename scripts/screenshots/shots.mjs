@@ -1,4 +1,4 @@
-import { FEATURED_THREAD, SIDE_CHAT_QUESTION } from "./fixture.mjs";
+import { AGENT, FEATURED_THREAD, SIDE_CHAT_QUESTION } from "./fixture.mjs";
 import { settleAnimations } from "./settle.mjs";
 
 // What each plugin's screenshot pictures. Every shot starts from the same
@@ -26,6 +26,20 @@ function sideChatPanel(page) {
   return page
     .locator("aside")
     .filter({ has: page.getByRole("textbox", { name: "Reply…" }) });
+}
+
+/**
+ * The main composer's model label is fixture chrome outside the shortcut this
+ * shot demonstrates. Its variable-font edge pixels can differ between two
+ * otherwise identical container captures, so leave its layout in place while
+ * keeping those unrelated glyphs out of this full-window image.
+ */
+async function hideFixtureModelLabel(page) {
+  await page.locator("span").evaluateAll((spans, modelName) => {
+    for (const span of spans) {
+      if (span.textContent === modelName) span.style.visibility = "hidden";
+    }
+  }, AGENT.modelName);
 }
 
 /**
@@ -98,6 +112,23 @@ function projectCrumb(page) {
   return page.locator('[data-breadcrumbs-root] [aria-label="Storefront actions"]');
 }
 
+/**
+ * The project icon in the thread header, named by the header it sits in.
+ *
+ * The plugin gives every icon that opens its picker the same label, and more
+ * than one is on screen at once — the strip under the composer carries one
+ * too, and bb's own sidebar a third when it is grouping by project. This shot
+ * is of the header's.
+ */
+function headerIcon(page) {
+  return page.locator('header [aria-label="Icon for Storefront"]');
+}
+
+/** The collection is presented in ChatGPT's palette, including every plugin shot. */
+export function setupScreenshots({ fixture }) {
+  fixture.run(["theme", "set", "plugin:chatgpt-theme:chatgpt"]);
+}
+
 export const SHOTS = [
   {
     // The collection, not a plugin: one window with four of the five at work —
@@ -140,20 +171,27 @@ export const SHOTS = [
     outputs: THEME_FILES,
     async prepare({ page }) {
       await openFeaturedThread(page);
-      await page.locator('[aria-label="Icon for Storefront"]').click();
+      await headerIcon(page).click();
       await page.getByRole("dialog").waitFor();
+      // bb draws this dialog before its icons arrive: the catalog is a
+      // separate request, and until it returns the picker reads "Loading
+      // icons…". Waiting on the dialog alone caught that message about half
+      // the time. An icon cannot render until the catalog has arrived and been
+      // laid out, so wait for one.
+      await page
+        .getByRole("region", { name: "Icon catalog" })
+        .getByRole("button")
+        .first()
+        .waitFor();
       await settleAnimations(page);
     },
     highlights: (page) => [
-      { locator: page.locator('[aria-label="Icon for Storefront"]') },
+      { locator: headerIcon(page) },
       { locator: page.getByRole("dialog") },
     ],
     // The picker is taller than the card, so the card frames its top: the
     // header icon it belongs to, the colors, and the search field.
-    focus: (page) => [
-      page.locator('[aria-label="Icon for Storefront"]'),
-      page.getByPlaceholder("Search icons"),
-    ],
+    focus: (page) => [headerIcon(page), page.getByPlaceholder("Search icons")],
   },
   {
     id: "thread-stages",
@@ -204,6 +242,7 @@ export const SHOTS = [
       await page.keyboard.press("Enter");
       await page.getByText("Eighteen dashboard tests cover them.").waitFor();
       await settleAnimations(page);
+      await hideFixtureModelLabel(page);
     },
     highlights: (page) => [
       {
@@ -230,14 +269,6 @@ export const SHOTS = [
     // choose between: each of its files shows both palettes, meeting along the
     // diagonal, with the mode it is named for in the top-left corner.
     split: true,
-    // The palette is server state, so it is switched on for this shot only and
-    // switched back after it, leaving every other shot on bb's own default.
-    setup({ fixture }) {
-      fixture.run(["theme", "set", "plugin:chatgpt-theme:chatgpt"]);
-    },
-    teardown({ fixture }) {
-      fixture.run(["theme", "reset"]);
-    },
     async prepare({ page }) {
       await openFeaturedThread(page);
     },

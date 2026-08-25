@@ -1,8 +1,20 @@
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 import { ASPECT_RATIO, cropRectangle, unionBox } from "./capture.mjs";
+import { KEY_GLYPHS } from "./key-glyphs.mjs";
+import { setupScreenshots, SHOTS } from "./shots.mjs";
 
 const viewport = { width: 1280, height: 720 };
+
+test("the screenshot suite uses the ChatGPT theme", () => {
+  const commands = [];
+  setupScreenshots({ fixture: { run: (command) => commands.push(command) } });
+  assert.deepEqual(commands, [
+    ["theme", "set", "plugin:chatgpt-theme:chatgpt"],
+  ]);
+});
 
 function aspectOf(rectangle) {
   return rectangle.width / rectangle.height;
@@ -72,4 +84,65 @@ test("a union covers every box", () => {
     ]),
     { x: 5, y: 20, width: 35, height: 40 },
   );
+});
+
+/**
+ * A key with no outline falls back to whatever font the capturing machine
+ * offers, which is the whole reason these outlines exist — and it does it
+ * quietly, in one chip, in one shot. Adding a chord with a modifier nobody has
+ * traced yet should fail here instead.
+ */
+test("every modifier a shot presses has an outline", () => {
+  const symbols = new Set();
+  for (const shot of SHOTS) {
+    for (const highlight of shot.highlights?.(stubPage) ?? []) {
+      for (const key of (highlight.keys ?? "").split(/\s+/u)) {
+        if (key !== "" && !/^[A-Za-z0-9]+$/u.test(key)) symbols.add(key);
+      }
+    }
+  }
+  assert.ok(symbols.size > 0, "no shot draws a key chip");
+  for (const symbol of symbols) {
+    assert.ok(
+      KEY_GLYPHS[symbol] !== undefined,
+      `${symbol} is drawn on a chip but has no outline`,
+    );
+  }
+});
+
+/** Locators are never resolved here; only the keys beside them are read. */
+const stubPage = new Proxy(
+  {},
+  {
+    get() {
+      return () => stubPage;
+    },
+  },
+);
+
+/**
+ * The outlines are Apple's and the repository's licence does not cover them;
+ * NOTICE.md says so, and this says so in a way that fails. They are here to
+ * draw a screenshot. `scripts/` is never published and no plugin can package a
+ * file from outside its own directory, so the only way they reach something a
+ * user installs is if someone copies them there.
+ */
+test("no plugin source carries the borrowed glyph outlines", () => {
+  const plugins = new URL("../../plugins/", import.meta.url).pathname;
+  const outlines = Object.values(KEY_GLYPHS).map(({ path }) => path.slice(0, 60));
+  const walk = (directory) =>
+    readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      if (entry.name === "node_modules" || entry.name === "dist") return [];
+      const child = join(directory, entry.name);
+      return entry.isDirectory() ? walk(child) : [child];
+    });
+  for (const file of walk(plugins)) {
+    const contents = readFileSync(file, "latin1");
+    for (const outline of outlines) {
+      assert.ok(
+        !contents.includes(outline),
+        `${file} carries a glyph outline that is not this project's to ship`,
+      );
+    }
+  }
 });

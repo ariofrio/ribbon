@@ -3,30 +3,35 @@
 //   npm run screenshots            capture every shot
 //   npm run screenshots -- --only icons
 //   npm run screenshots -- --keep  leave the seeded bb running for inspection
-//   npm run check:screenshots      report stale screenshots without capturing
 //
-// Capturing needs macOS, the bb desktop app installed, and Playwright's
-// Chromium (npx playwright install chromium). The check needs neither.
+// Needs the Node in .nvmrc, Playwright's Chromium (npx playwright install
+// chromium), and the bb pinned beside this file. Nothing records what a shot
+// was captured from; two runs write the same bytes, so git answers that.
 import { execFileSync } from "node:child_process";
-import { createWriteStream, mkdirSync, writeFileSync } from "node:fs";
+import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { capture } from "./capture.mjs";
 import { applyPluginState, seed, writeManagedConfig } from "./fixture.mjs";
-import { SHOTS } from "./shots.mjs";
-import {
-  LOCK_FILENAME,
-  compareLock,
-  fileDigest,
-  inputDigest,
-  readLock,
-} from "./lock.mjs";
-import { startStack } from "./stack.mjs";
+import { setupScreenshots, SHOTS } from "./shots.mjs";
+import { BB_CLI_PATH, startStack } from "./stack.mjs";
 
 const harnessDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(harnessDirectory, "../..");
-const lockPath = join(harnessDirectory, LOCK_FILENAME);
 const scratch = join(repositoryRoot, ".scratch/screenshots");
-const bb = process.env.BB_CLI ?? "bb";
+const bb = process.env.BB_CLI ?? BB_CLI_PATH;
+const runStartedAt = performance.now();
+
+async function timePhase(label, operation) {
+  const startedAt = performance.now();
+  try {
+    return await operation();
+  } finally {
+    console.log(
+      `  [timing] ${label}: ${((performance.now() - startedAt) / 1000).toFixed(1)}s`,
+    );
+  }
+}
 
 const options = parseArguments(process.argv.slice(2));
 const shots = SHOTS.filter(
@@ -37,11 +42,10 @@ if (options.only !== undefined && shots.length === 0) {
 }
 
 function parseArguments(argv) {
-  const parsed = { check: false, keep: false, only: undefined };
+  const parsed = { keep: false, only: undefined };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument === "--check") parsed.check = true;
-    else if (argument === "--keep") parsed.keep = true;
+    if (argument === "--keep") parsed.keep = true;
     else if (argument === "--only") {
       index += 1;
       parsed.only = argv[index];
@@ -63,55 +67,15 @@ function assetsDirectory(shot) {
     : join(repositoryRoot, "plugins", shot.plugin, "assets");
 }
 
-function pluginDirectoriesFor(shot) {
-  const directory = (plugin) => join(repositoryRoot, "plugins", plugin);
-  return shot.plugin === null
-    ? SHOTS.flatMap((each) => (each.plugin === null ? [] : [directory(each.plugin)]))
-    : [directory(shot.plugin)];
-}
-
-function expectedLock() {
-  const shotsEntry = {};
-  for (const shot of SHOTS) {
-    shotsEntry[shot.id] = {
-      inputs: inputDigest({
-        repositoryRoot,
-        pluginDirectories: pluginDirectoriesFor(shot),
-        harnessDirectory,
-      }),
-      files: Object.fromEntries(
-        Object.entries(shotFiles(shot)).map(([name, path]) => [
-          name,
-          fileDigest(path),
-        ]),
-      ),
-    };
-  }
-  return { shots: shotsEntry };
-}
-
-if (options.check) {
-  const problems = compareLock({
-    lock: readLock(lockPath),
-    expected: expectedLock(),
-  });
-  if (problems.length > 0) {
-    process.stderr.write(
-      `Screenshots are out of date:\n${problems.map((problem) => `  ${problem}`).join("\n")}\n\nRun npm run screenshots on macOS to recapture them.\n`,
-    );
-    process.exit(1);
-  }
-  console.log(`${SHOTS.length} screenshots are current.`);
-  process.exit(0);
-}
-
 mkdirSync(scratch, { recursive: true });
 const logStream = createWriteStream(join(scratch, "bb.log"));
 const dataDir = join(scratch, "data");
 const workspaceRoot = join(scratch, "workspaces");
 
 console.log("Starting an isolated bb…");
-const stack = await startStack({ dataDir, logStream });
+const stack = await timePhase("start stack", () =>
+  startStack({ dataDir, logStream }),
+);
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
     void stack.stop().then(() => process.exit(1));
@@ -121,38 +85,35 @@ try {
   writeManagedConfig({ dataDir, harnessDir: harnessDirectory });
 
   console.log("Installing this repository's plugins…");
-  execFileSync(process.execPath, [join(repositoryRoot, "scripts/install-plugins.mjs")], {
-    cwd: repositoryRoot,
-    env: { ...stack.env, BB_CLI: bb },
-    stdio: "inherit",
-  });
+  await timePhase("install plugins", () =>
+    execFileSync(
+      process.execPath,
+      [
+        join(repositoryRoot, "scripts/install-plugins.mjs"),
+        "--skip-dependencies",
+      ],
+      {
+        cwd: repositoryRoot,
+        env: { ...stack.env, BB_CLI: bb },
+        stdio: "inherit",
+      },
+    ),
+  );
 
   console.log("Seeding the fixture…");
-  const fixture = seed({ stack, workspaceRoot, bb });
-  await applyPluginState({ stack, projects: fixture.projects });
+  const fixture = await timePhase("seed fixture", async () => {
+    const seeded = seed({ stack, workspaceRoot, bb });
+    await applyPluginState({ stack, projects: seeded.projects });
+    return seeded;
+  });
+
+  console.log("Applying the ChatGPT theme…");
+  setupScreenshots({ fixture });
 
   console.log("Capturing…");
-  // Imported here so the drift check runs without Playwright installed.
-  const { capture } = await import("./capture.mjs");
-  const captured = await capture({ stack, fixture, shots, shotFiles, repositoryRoot });
-
-  const lock = readLock(lockPath);
-  const expected = expectedLock();
-  // A shot that no longer exists leaves an entry behind, and the check reports
-  // it forever, since only a capture can clear one. SHOTS is the whole list of
-  // shots there are, so anything else in the lock is a shot that was renamed or
-  // dropped.
-  for (const id of Object.keys(lock.shots)) {
-    if (!SHOTS.some((shot) => shot.id === id)) delete lock.shots[id];
-  }
-  for (const shot of captured) {
-    lock.shots[shot.id] = expected.shots[shot.id];
-    lock.shots[shot.id].files = Object.fromEntries(
-      Object.entries(shotFiles(shot)).map(([name, path]) => [name, fileDigest(path)]),
-    );
-  }
-  lock.bbVersion = execFileSync(bb, ["--version"], { encoding: "utf8" }).trim();
-  writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+  const captured = await timePhase("capture", () =>
+    capture({ stack, fixture, shots, shotFiles, repositoryRoot }),
+  );
 
   console.log(
     `\nWrote ${captured.flatMap((shot) => shot.outputs).length} files:\n${captured
@@ -173,5 +134,7 @@ try {
   // trying leaks a whole bb until someone notices. Several worktrees doing that
   // is what starves the next capture's seed, which fails, which leaks another.
   if (!options.keep) await stack.stop();
+  console.log(
+    `  [timing] total: ${((performance.now() - runStartedAt) / 1000).toFixed(1)}s`,
+  );
 }
-

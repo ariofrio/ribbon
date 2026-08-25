@@ -2,14 +2,23 @@
 // and reloads the ones already installed from these directories, so the same
 // command serves a fresh clone and a `git pull`.
 // Usage: npm run install:plugins
+//        node scripts/install-plugins.mjs --skip-dependencies
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { derivePluginId } from "./plugin-id.mjs";
+import { resolveBbCli } from "./bb-cli.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const bb = process.env.BB_CLI ?? "bb";
+const bb = resolveBbCli();
+const arguments_ = process.argv.slice(2);
+const skipDependencies = arguments_.includes("--skip-dependencies");
+for (const argument of arguments_) {
+  if (argument !== "--skip-dependencies") {
+    throw new Error(`Unknown option ${argument}`);
+  }
+}
 
 function run(command, args, cwd) {
   execFileSync(command, args, { cwd, stdio: "inherit" });
@@ -59,8 +68,10 @@ for (const plugin of plugins) {
   }
 
   console.log(`\n=== ${plugin.name}`);
-  // The server entry runs from source, so its dependencies must be installed.
-  run("npm", ["install", "--workspaces=false"], plugin.directory);
+  if (!skipDependencies) {
+    // The server entry runs from source, so its dependencies must be installed.
+    run("npm", ["install", "--workspaces=false"], plugin.directory);
+  }
   if (existing === undefined) {
     run(bb, ["plugin", "install", plugin.directory, "--yes"], repositoryRoot);
   }

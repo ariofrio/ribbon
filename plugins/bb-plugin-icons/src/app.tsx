@@ -1,4 +1,4 @@
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import type { IconSvgElement } from "@hugeicons/react";
 import {
   definePluginApp,
   experimental_useSidebarThreads,
@@ -11,13 +11,17 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { afterPluginFrame } from "./after-plugin-frame";
+import type { Placement } from "./decorate";
 import { announceIconsChanged } from "./broadcast";
 import { installIconPortal } from "./header-dom";
+import { IconGlyph } from "./IconGlyph";
 import { IconPicker, type CatalogIcon } from "./IconPicker";
-import { iconColorStyle } from "./icon-colors";
+import { Icons } from "./Icons";
 import { iconsRpc } from "./icons-client";
+import { observeCrumbAnchors, type CrumbAnchor } from "./crumb-anchors";
+import { threadIconOwner } from "./thread-owner";
+import { PLACEMENTS } from "./placements";
 import type { rpcContract } from "./server";
-import { SidebarIcons } from "./SidebarIcons";
 import { observeSidebarIconAnchors, type SidebarAnchor } from "./sidebar-dom";
 import {
   defaultIcon,
@@ -49,29 +53,86 @@ function defaultGlyph(
     : defaults.project;
 }
 
-function IconGlyph({
-  name,
-  glyph,
-  color,
+function HeaderIcon({
+  owner,
+  ownerName,
+  icons,
+  defaults,
+  personalProjectId,
+  catalog,
+  loadingCatalog,
+  onWanted,
+  onApply,
+  onReset,
 }: {
-  name: string;
-  glyph: IconSvgElement | undefined;
-  color: IconColor | null;
+  owner: IconOwner;
+  ownerName: string;
+  icons: readonly IconView[];
+  defaults: IconDefaults | null;
+  personalProjectId: string | null;
+  catalog: readonly CatalogIcon[];
+  loadingCatalog: boolean;
+  onWanted(): void;
+  onApply(owner: IconOwner, next: { icon?: string; color?: IconColor | null }): void;
+  onReset(owner: IconOwner): void;
 }) {
-  if (glyph === undefined) return null;
+  const [picking, setPicking] = useState(false);
+  const chosen = icons.find(
+    (item) => item.kind === owner.kind && item.id === owner.id,
+  );
+  const icon = chosen?.icon ?? defaultIcon(owner, personalProjectId);
+  const color = chosen?.color ?? null;
+  const glyph =
+    chosen?.glyph ?? defaultGlyph(owner, defaults, personalProjectId);
+  const editable = isEditable(owner, personalProjectId);
+
+  const control = editable ? (
+    <button
+      type="button"
+      aria-label={`Icon for ${ownerName}`}
+      title={owner.kind === "section" ? "Change section icon" : "Change project icon"}
+      onPointerEnter={onWanted}
+      onFocus={onWanted}
+      // The desktop header is a window drag region, so an interactive control
+      // inside it has to opt out or Electron swallows the click.
+      //
+      // No color of its own, so the icon inherits the weight of the title it
+      // sits beside. The hover and open states still lift it wherever it
+      // inherits something dimmer.
+      className="relative z-50 -ml-0.5 flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors duration-150 hover:duration-0 hover:bg-state-hover hover:text-foreground data-[state=open]:bg-state-active data-[state=open]:text-foreground [app-region:no-drag] [-webkit-app-region:no-drag]"
+    >
+      <IconGlyph icon={{ name: icon, glyph, color }} />
+    </button>
+  ) : (
+    <span className="-ml-0.5 flex size-6 items-center justify-center">
+      <IconGlyph icon={{ name: icon, glyph, color }} />
+    </span>
+  );
+
+  if (!editable) return control;
   return (
-    <HugeiconsIcon
-      icon={glyph}
-      className="size-4 shrink-0"
-      style={iconColorStyle(color)}
-      data-icon={name}
-      aria-hidden
+    <IconPicker
+      catalog={catalog}
+      loading={loadingCatalog}
+      open={picking}
+      onOpenChange={(next) => {
+        setPicking(next);
+        if (next) onWanted();
+      }}
+      ownerName={ownerName}
+      icon={icon}
+      defaultIcon={defaultIcon(owner, personalProjectId)}
+      stored={chosen !== undefined}
+      color={color}
+      onPick={(next) => onApply(owner, { icon: next })}
+      onPickColor={(next) => onApply(owner, { color: next })}
+      onReset={() => onReset(owner)}
+      trigger={control}
     />
   );
 }
 
-function IconHeaderAction({ projectId }: PluginThreadHeaderActionProps) {
-  const owner: IconOwner = { kind: "project", id: projectId };
+function IconHeaderAction({ threadId, projectId }: PluginThreadHeaderActionProps) {
   const rpc = useRpc<typeof rpcContract>();
   const settings = useSettings();
   const sidebar = experimental_useSidebarThreads();
@@ -79,13 +140,14 @@ function IconHeaderAction({ projectId }: PluginThreadHeaderActionProps) {
   const [target, setTarget] = useState<HTMLElement | null>(null);
   const [icons, setIcons] = useState<readonly IconView[]>([]);
   const [defaults, setDefaults] = useState<IconDefaults | null>(null);
-  const [picking, setPicking] = useState(false);
   const [catalog, setCatalog] = useState<readonly CatalogIcon[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [anchors, setAnchors] = useState<readonly CrumbAnchor[]>([]);
+  const [sectionId, setSectionId] = useState<string | null>(null);
   /**
    * Set when the pointer reaches the icon, before any click.
    *
-   * The catalog is 2,532 icons and deliberately not in the bundle, so opening
+   * The catalog is 2,530 icons and deliberately not in the bundle, so opening
    * cold means the popover arrives, then its categories and grid land a beat
    * later — one movement answered by a second. Fetching on approach keeps the
    * bundle small and still has the picker whole by the time it opens.
@@ -100,13 +162,13 @@ function IconHeaderAction({ projectId }: PluginThreadHeaderActionProps) {
 
   // The catalog is big, so it is fetched the first time the picker opens.
   useEffect(() => {
-    if ((!picking && !wanted) || catalog.length > 0 || loadingCatalog) return;
+    if (!wanted || catalog.length > 0 || loadingCatalog) return;
     setLoadingCatalog(true);
     void rpc
       .call("listIconCatalog", null)
       .then(({ icons: entries }) => setCatalog(entries))
       .finally(() => setLoadingCatalog(false));
-  }, [catalog.length, loadingCatalog, picking, rpc, wanted]);
+  }, [catalog.length, loadingCatalog, rpc, wanted]);
 
   useEffect(() => {
     void refresh();
@@ -118,125 +180,165 @@ function IconHeaderAction({ projectId }: PluginThreadHeaderActionProps) {
     announceIconsChanged();
   });
 
+  // The sidebar's live view can still be empty while a header is up, so this
+  // asks bb. Only the lone icon needs it; an anchor names its own owner.
+  useEffect(() => {
+    let canceled = false;
+    // The previous thread's section is not this one's. Clearing first falls
+    // back to the project for the length of the round trip, which is this
+    // thread's own answer when it has no section, rather than the last one's.
+    setSectionId(null);
+    void rpc
+      .call("sectionForThread", { threadId })
+      .then((answer) => {
+        if (!canceled) setSectionId(answer.sectionId);
+      })
+      .catch(() => undefined);
+    return () => {
+      canceled = true;
+    };
+  }, [rpc, threadId]);
+
   // Undefined while settings load: the icon has always been here, so it
   // stays until the user is known to have turned it off, rather than blinking
   // in on every thread open.
   const showInHeader = settings.values?.showInThreadHeader !== false;
 
+  /**
+   * The Breadcrumbs plugin leaves a marked, empty span beside each crumb, and
+   * the icons belong in those. With no anchors, because that plugin is absent
+   * or every crumb is off, the header gets one icon of its own.
+   */
+  useEffect(() => {
+    if (!showInHeader) return;
+    return observeCrumbAnchors(setAnchors);
+  }, [showInHeader]);
+
+  const lone = anchors.length === 0;
   useLayoutEffect(() => {
     const marker = markerRef.current;
-    if (marker === null || !showInHeader) return;
+    if (marker === null || !showInHeader || !lone) {
+      setTarget(null);
+      return;
+    }
     const mount = installIconPortal(marker);
     setTarget(mount?.target ?? null);
     return () => {
       setTarget(null);
       mount?.cleanup();
     };
-  }, [projectId, showInHeader]);
+  }, [lone, projectId, showInHeader]);
 
-  // bb marks its own personal project; the plugin does not recognize its id.
-  const personalProjectId =
-    sidebar.projects.find((project) => project.isPersonal)?.id ?? null;
-  const chosen = icons.find(
-    (item) => item.kind === owner.kind && item.id === owner.id,
+  const nameOf = useCallback(
+    (owner: IconOwner) =>
+      owner.kind === "project"
+        ? (sidebar.projects.find((project) => project.id === owner.id)?.name ??
+          "this project")
+        : "this section",
+    [sidebar.projects],
   );
-  const icon = chosen?.icon ?? defaultIcon(owner, personalProjectId);
-  const color = chosen?.color ?? null;
-  const glyph =
-    chosen?.glyph ?? defaultGlyph(owner, defaults, personalProjectId);
-  const editable = isEditable(owner, personalProjectId);
-  const ownerName =
-    sidebar.projects.find((project) => project.id === projectId)?.name ??
-    "this project";
 
-  // Picking an icon and then a color lands two updates in one tick, so the
-  // pending choice is tracked in a ref rather than read back from state.
-  const pendingRef = useRef({ icon, color });
+  /**
+   * What the icons will be, ahead of the render that shows it.
+   *
+   * Picking an icon and then a color lands two updates in one tick, and the
+   * second has to see the first. That read cannot happen inside a state
+   * updater: React may run one more than once per update, and each extra run
+   * would repeat the write below.
+   */
+  const pendingRef = useRef<readonly IconView[]>([]);
   useEffect(() => {
-    pendingRef.current = { icon, color };
-  }, [color, icon]);
+    pendingRef.current = icons;
+  }, [icons]);
 
-  const apply = (next: { icon?: string; color?: IconColor | null }) => {
-    const nextIcon = next.icon ?? pendingRef.current.icon;
-    const nextColor =
-      next.color === undefined ? pendingRef.current.color : next.color;
-    pendingRef.current = { icon: nextIcon, color: nextColor };
-    const nextGlyph =
-      catalog.find((entry) => entry.name === nextIcon)?.glyph ?? glyph;
-    setIcons((current) => [
-      ...current.filter(
-        (item) => !(item.kind === owner.kind && item.id === owner.id),
-      ),
-      { ...owner, icon: nextIcon, color: nextColor, glyph: nextGlyph ?? [] },
-    ]);
-    announceIconsChanged();
-    void rpc
-      .call("setIcon", { ...owner, icon: nextIcon, color: nextColor })
-      .catch(() => void refresh());
-  };
-
-  const reset = () => {
-    pendingRef.current = {
-      icon: defaultIcon(owner, personalProjectId),
-      color: null,
-    };
-    setIcons((current) =>
-      current.filter(
-        (item) => !(item.kind === owner.kind && item.id === owner.id),
-      ),
-    );
-    announceIconsChanged();
-    void rpc.call("clearIcon", owner).catch(() => void refresh());
-  };
-
-  const control = editable ? (
-    <button
-      type="button"
-      aria-label={`Icon for ${ownerName}`}
-      title="Change project icon"
-      onPointerEnter={() => setWanted(true)}
-      onFocus={() => setWanted(true)}
-      // The desktop header is a window drag region, so an interactive control
-      // inside it has to opt out or Electron swallows the click.
-      //
-      // No color of its own, like the sidebar's: the icon then reads at the
-      // same weight as the thread title it sits beside, which is where bb puts
-      // its own header controls too. The hover and open states stay, so the
-      // icon still lifts if it ever inherits something dimmer.
-      className="relative z-50 -ml-0.5 flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors duration-150 hover:duration-0 hover:bg-state-hover hover:text-foreground data-[state=open]:bg-state-active data-[state=open]:text-foreground [app-region:no-drag] [-webkit-app-region:no-drag]"
-    >
-      <IconGlyph name={icon} glyph={glyph} color={color} />
-    </button>
-  ) : (
-    <span className="-ml-0.5 flex size-6 items-center justify-center">
-      <IconGlyph name={icon} glyph={glyph} color={color} />
-    </span>
+  const apply = useCallback(
+    (owner: IconOwner, next: { icon?: string; color?: IconColor | null }) => {
+      const current = pendingRef.current;
+      const chosen = current.find(
+        (item) => item.kind === owner.kind && item.id === owner.id,
+      );
+      const nextIcon =
+        next.icon ??
+        chosen?.icon ??
+        defaultIcon(
+          owner,
+          sidebar.projects.find(({ isPersonal }) => isPersonal)?.id ?? null,
+        );
+      const nextColor =
+        next.color === undefined ? (chosen?.color ?? null) : next.color;
+      const nextGlyph =
+        catalog.find((entry) => entry.name === nextIcon)?.glyph ??
+        chosen?.glyph ??
+        defaultGlyph(
+          owner,
+          defaults,
+          sidebar.projects.find(({ isPersonal }) => isPersonal)?.id ?? null,
+        ) ??
+        [];
+      const updated = [
+        ...current.filter(
+          (item) => !(item.kind === owner.kind && item.id === owner.id),
+        ),
+        { ...owner, icon: nextIcon, color: nextColor, glyph: nextGlyph },
+      ];
+      pendingRef.current = updated;
+      setIcons(updated);
+      announceIconsChanged();
+      void rpc
+        .call("setIcon", { ...owner, icon: nextIcon, color: nextColor })
+        .catch(() => void refresh());
+    },
+    [catalog, defaults, refresh, rpc],
   );
+
+  const reset = useCallback(
+    (owner: IconOwner) => {
+      const remaining = pendingRef.current.filter(
+        (item) => !(item.kind === owner.kind && item.id === owner.id),
+      );
+      pendingRef.current = remaining;
+      setIcons(remaining);
+      announceIconsChanged();
+      void rpc.call("clearIcon", owner).catch(() => void refresh());
+    },
+    [refresh, rpc],
+  );
+
+  const shared = {
+    icons,
+    defaults,
+    personalProjectId: sidebar.projects.find(({ isPersonal }) => isPersonal)?.id ?? null,
+    catalog,
+    loadingCatalog,
+    onWanted: () => setWanted(true),
+    onApply: apply,
+    onReset: reset,
+  };
+
+  if (!showInHeader) return <span ref={markerRef} className="hidden" />;
 
   return (
     <>
       <span ref={markerRef} className="hidden" />
-      {target === null
+      {anchors.map((anchor) =>
+        createPortal(
+          <HeaderIcon
+            owner={anchor.owner}
+            ownerName={nameOf(anchor.owner)}
+            {...shared}
+          />,
+          anchor.element,
+          `${anchor.owner.kind}:${anchor.owner.id}`,
+        ),
+      )}
+      {target === null || !lone
         ? null
         : createPortal(
-            editable ? (
-              <IconPicker
-                catalog={catalog}
-                loading={loadingCatalog}
-                open={picking}
-                onOpenChange={setPicking}
-                ownerName={ownerName}
-                icon={icon}
-                defaultIcon={defaultIcon(owner, personalProjectId)}
-                color={color}
-                onPick={(next) => apply({ icon: next })}
-                onPickColor={(next) => apply({ color: next })}
-                onReset={reset}
-                trigger={control}
-              />
-            ) : (
-              control
-            ),
+            <HeaderIcon
+              owner={threadIconOwner({ sectionId, projectId }, icons)}
+              ownerName={nameOf(threadIconOwner({ sectionId, projectId }, icons))}
+              {...shared}
+            />,
             target,
           )}
     </>
@@ -283,7 +385,7 @@ export default definePluginApp((app) => {
       // mid-read is seen by the read rather than lost.
       signal.addEventListener("abort", dispose, { once: true });
 
-      const place = () => {
+      const place = (placements: readonly Placement[], drawSidebar: boolean) => {
         const host = document.createElement("div");
         host.style.display = "none";
         document.body.append(host);
@@ -310,18 +412,20 @@ export default definePluginApp((app) => {
           if (cancel !== undefined) return;
           cancel = afterPluginFrame(() => {
             cancel = undefined;
-            root.render(<SidebarIcons anchors={pending} rpc={rpc} />);
+            root.render(
+              <Icons anchors={pending} placements={placements} rpc={rpc} />,
+            );
           });
         };
         draw([]);
-        const stop = observeSidebarIconAnchors(draw);
+        const stop = drawSidebar ? observeSidebarIconAnchors(draw) : undefined;
 
         teardown = () => {
           cancel?.();
           // React owns nodes inside bb's sidebar, so it unmounts before the
           // anchors holding them are taken back out.
           root.unmount();
-          stop();
+          stop?.();
           host.remove();
         };
       };
@@ -333,8 +437,14 @@ export default definePluginApp((app) => {
       // reject.
       void rpc.listPlacements().then((placements) => {
         if (disposed || signal.aborted) return;
-        if (placements?.showInSidebar === false) return;
-        place();
+        const drawSidebar = placements?.showInSidebar !== false;
+        // Everything drawn over bb's own icons, minus whatever the reader
+        // turned off. Nothing left on means nothing to mount at all.
+        const enabled = PLACEMENTS.filter(
+          (placement) => placements?.[placement.setting] !== false,
+        );
+        if (!drawSidebar && enabled.length === 0) return;
+        place(enabled, drawSidebar);
       });
 
       return dispose;

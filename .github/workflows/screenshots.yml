@@ -1,0 +1,123 @@
+name: Screenshots
+
+# Recaptures every shot and commits the result back to the pull request.
+# Nothing records what each was captured from, because the harness renders the
+# same bytes twice: a screenshot that did not change is a file that did not
+# change, which git already reports.
+#
+# On pull requests rather than pushes: main only accepts a pull request, and
+# GitHub raises no push event for a push this workflow makes, so a required
+# check would never report on the commit it had just written.
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+# A second push supersedes the first: the older run would recapture a tree
+# nobody is on, and its push would lose the race anyway.
+concurrency:
+  group: screenshots-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Keep the relevance decision on the hosted runner. Starting the renderer
+  # container is most of the cost of a pull request that needs no capture.
+  relevant:
+    runs-on: ubuntu-latest
+    outputs:
+      capture: ${{ steps.relevant.outputs.capture }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+      - id: relevant
+        name: Decide whether anything can have moved a picture
+        env:
+          CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ "$CHANGED_FILES" -gt 3000 ]; then
+            echo "capture=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh api --paginate \
+            "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+            --jq '.[] | .filename, (.previous_filename // empty)' \
+            | tee /tmp/changed
+          node scripts/screenshots/affects.mjs < /tmp/changed >> "$GITHUB_OUTPUT"
+
+  capture:
+    needs: relevant
+    if: needs.relevant.outputs.capture == 'true'
+    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest: the runner image's fonts and libraries
+    # move between releases, and every glyph a capture rasterises comes from
+    # them. The tag tracks the playwright version in package-lock.json, which
+    # decides the Chromium on disk.
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # A pull_request run checks out the merge commit, which is no branch;
+          # the recapture has to land on the branch.
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      # node-pty is the only package without a Linux prebuild. The image
+      # already carries Python, so only its compiler is missing.
+      - name: Prepare the container
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq make g++
+      # Install every workspace together so the screenshot harness and all
+      # five plugins share one bb-app and one node-pty build.
+      - run: npm ci
+      - run: npm run screenshots
+      - name: Commit what changed
+        # Whoever opened the pull request chose these. Interpolating them with
+        # ${{ }} would paste them into the script for bash to parse; read from
+        # the environment they are values, not code.
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git add -A assets plugins/*/assets
+          if git diff --cached --quiet; then
+            echo "The capture reproduced what is committed; nothing to push."
+            exit 0
+          fi
+          # A fork's token is read-only, so report what moved instead.
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            git diff --cached --stat
+            echo "::error::These screenshots moved. A maintainer has to recapture them; a fork's token cannot push."
+            exit 1
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "Recapture the screenshots this branch moved"
+          git push origin "HEAD:$HEAD_REF"
+
+  # The stable required-check name. A skipped capture is success; a failed or
+  # cancelled relevance/capture job is not.
+  recapture:
+    needs: [relevant, capture]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: The screenshot check passed
+        run: |
+          results='${{ join(needs.*.result, ' ') }}'
+          echo "$results"
+          case "$results" in
+            *failure*|*cancelled*) echo "::error::the screenshot check did not pass"; exit 1 ;;
+          esac

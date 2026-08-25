@@ -1,5 +1,11 @@
 import type { IconSvgElement } from "@hugeicons/react";
-import type { IconColor, IconOwner, StoredIcon } from "./store";
+import type { ProjectSummary } from "./project-lookup";
+import type {
+  IconColor,
+  IconOwner,
+  PlacementSetting,
+  StoredIcon,
+} from "./store";
 
 /** Stamped by `bb plugin build`; undefined in tests and registry copies. */
 declare const __BB_PLUGIN_ID__: string | undefined;
@@ -15,8 +21,26 @@ export interface IconsState {
     personal: IconSvgElement;
     section: IconSvgElement;
   };
-  personalProjectId: string | null;
+  /**
+   * Which project bb calls personal. Optional for the same reason as the
+   * fields below: an older backend than the app does not send it.
+   */
+  personalProjectId?: string | null;
+  /**
+   * bb's projects, by id and name. Optional because an older backend than the
+   * app — a client left open across a plugin update — sends the state without
+   * it, and a row that resolves to nothing keeps bb's own folder.
+   */
+  projects?: ProjectSummary[];
+  /**
+   * Whether the backend has read that list yet. Absent from a backend older
+   * than the app, where an empty list is taken at its word.
+   */
+  projectsRead?: boolean;
 }
+
+/** Which of the plugin's drawings the user has left on. */
+export type PlacementFlags = Record<PlacementSetting, boolean>;
 
 export interface CatalogEntryView {
   name: string;
@@ -63,11 +87,7 @@ export function iconsRpc(pluginId?: string) {
 
   return {
     list: () => call<IconsState>("listIcons", null),
-    listPlacements: () =>
-      call<{ showInThreadHeader: boolean; showInSidebar: boolean }>(
-        "listPlacements",
-        null,
-      ),
+    listPlacements: () => call<PlacementFlags>("listPlacements", null),
     listCatalog: () => call<{ icons: CatalogEntryView[] }>("listIconCatalog", null),
     set: (icon: IconOwner & { icon: string; color: IconColor | null }) =>
       call<IconsState>("setIcon", icon),

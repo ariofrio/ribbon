@@ -32,6 +32,11 @@ import {
   type NewThreadHost,
 } from "./new-thread-navigation";
 import { createNativeCommandDelegate } from "./native-command-delegation";
+import {
+  focusVisibleTerminal,
+  isTerminalFocused,
+  isWithinTerminal,
+} from "./terminal-dom";
 import { notifyNativeShortcutHandled } from "./native-command-hints";
 import {
   activateExistingSideChatPanel,
@@ -277,13 +282,6 @@ function notifyPanelStateChanged(change: PanelStorageChange): void {
   );
 }
 
-function isTerminalFocused(): boolean {
-  return (
-    document.activeElement instanceof Element &&
-    document.activeElement.closest("[data-app-terminal]") !== null
-  );
-}
-
 function activateAndFocusTerminal(
   signal: AbortSignal,
   threadId: string,
@@ -308,15 +306,7 @@ function activateAndFocusTerminal(
     });
   }
 
-  const visibleTerminal = Array.from(
-    document.querySelectorAll<HTMLElement>("[data-app-terminal]"),
-  ).find((terminal) => {
-    const bounds = terminal.getBoundingClientRect();
-    return bounds.width > 0 && bounds.height > 0;
-  });
-  visibleTerminal
-    ?.querySelector<HTMLElement>(".xterm-helper-textarea, textarea")
-    ?.focus({ preventScroll: true });
+  focusVisibleTerminal(document);
   return () => {};
 }
 
@@ -506,7 +496,7 @@ export default definePluginApp((app) => {
           if (!(event.target instanceof Element)) return;
           const threadId = currentThreadId(window.location.pathname);
           if (threadId === null) return;
-          if (event.target.closest("[data-app-terminal]") !== null) {
+          if (isWithinTerminal(event.target)) {
             const { activeTerminalId } = readTerminalPanelSnapshot(
               window.localStorage,
               threadId,
@@ -658,7 +648,7 @@ export default definePluginApp((app) => {
               window.localStorage,
               threadId,
             );
-            if (shouldCloseTerminalPanel(panel, isTerminalFocused())) {
+            if (shouldCloseTerminalPanel(panel, isTerminalFocused(document))) {
               notifyPanelStateChanged(
                 closePanel(window.localStorage, threadId),
               );

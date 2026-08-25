@@ -84,19 +84,71 @@ export function buildProjectIconMap(
 }
 
 /**
+ * Sections that carry an icon of their own.
+ *
+ * Unlike projects, nothing is seeded here: the Icons plugin writes a row on
+ * the first pick and deletes it on Remove, so a section is in this map exactly
+ * when someone chose an icon for it. A row's absence is what sends a row back
+ * to its project's icon.
+ */
+export function buildSectionIconMap(
+  response: IconsResponse,
+): Map<string, ProjectIconView> {
+  return buildChosenIconMap(response, "section");
+}
+
+/**
+ * Icons of one kind that someone actually picked.
+ *
+ * Unlike {@link buildProjectIconMap}, nothing is seeded: the Icons plugin
+ * writes a row on the first pick and deletes it on Remove, so a row's absence
+ * is what sends a sidebar row on to the next owner.
+ */
+export function buildChosenIconMap(
+  response: IconsResponse,
+  kind: "project" | "section",
+): Map<string, ProjectIconView> {
+  const chosen = new Map<string, ProjectIconView>();
+  for (const icon of response.icons) {
+    if (icon.kind !== kind) continue;
+    chosen.set(icon.id, {
+      name: icon.icon,
+      glyph: icon.glyph,
+      color: iconColor(icon.color),
+    });
+  }
+  return chosen;
+}
+
+export interface IconMaps {
+  projects: Map<string, ProjectIconView>;
+  chosenProjects: Map<string, ProjectIconView>;
+  sections: Map<string, ProjectIconView>;
+}
+
+/**
  * Icons come from the Icons plugin, which bb calls on this plugin's behalf.
  * Never throws: without that plugin the sidebar draws no icons.
  */
-export async function fetchProjectIcons(
+export async function fetchIcons(
   loadIcons: () => Promise<IconsResponse>,
   projectIds: readonly string[],
   personalProjectId: string | null,
-): Promise<Map<string, ProjectIconView>> {
+): Promise<IconMaps> {
   try {
-    return buildProjectIconMap(await loadIcons(), projectIds, personalProjectId);
+    const response = await loadIcons();
+    return {
+      projects: buildProjectIconMap(response, projectIds, personalProjectId),
+      chosenProjects: buildChosenIconMap(response, "project"),
+      sections: buildSectionIconMap(response),
+    };
   } catch {
-    return new Map();
+    return empty();
   }
+}
+
+function empty(): IconMaps {
+  return { projects: new Map(), chosenProjects: new Map(), sections: new Map() };
 }
 
 /** Calls back whenever the Icons plugin reports an edit. */

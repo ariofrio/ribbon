@@ -70,6 +70,60 @@ beforeEach(() => {
 });
 
 describe("IconPicker", () => {
+  it("offers Remove for a stored icon even when it is the owner's default", () => {
+    // Reachable before this glyph left the catalog: the row exists, outranks
+    // the section's icon everywhere, and inferring "nothing chosen" from the
+    // glyph left the only way back disabled and invisible.
+    render(
+      <IconPicker
+        catalog={catalog}
+        loading={false}
+        open
+        onOpenChange={vi.fn()}
+        ownerName="Example project"
+        stored
+        icon="folder-01"
+        defaultIcon="folder-01"
+        color={null}
+        onPick={vi.fn()}
+        onPickColor={vi.fn()}
+        onReset={vi.fn()}
+        trigger={<button type="button">Icon</button>}
+      />,
+    );
+
+    const remove = screen.getByRole("button", {
+      name: "Remove custom icon",
+    }) as HTMLButtonElement;
+    expect(remove.disabled).toBe(false);
+    expect(getComputedStyle(remove).visibility).not.toBe("hidden");
+  });
+
+  it("offers no Remove for an owner that has never been given an icon", () => {
+    render(
+      <IconPicker
+        catalog={catalog}
+        loading={false}
+        open
+        onOpenChange={vi.fn()}
+        ownerName="Example project"
+        stored={false}
+        icon="folder-01"
+        defaultIcon="folder-01"
+        color={null}
+        onPick={vi.fn()}
+        onPickColor={vi.fn()}
+        onReset={vi.fn()}
+        trigger={<button type="button">Icon</button>}
+      />,
+    );
+
+    expect(
+      (screen.getByRole("button", { name: "Remove custom icon" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+
   it("offers theme color first without duplicating the selected header icon", () => {
     render(
       <IconPicker
@@ -78,6 +132,7 @@ describe("IconPicker", () => {
         open
         onOpenChange={vi.fn()}
         ownerName="Example project"
+        stored
         icon="circle"
         defaultIcon="folder"
         color="red"
@@ -108,6 +163,7 @@ describe("IconPicker", () => {
         open
         onOpenChange={vi.fn()}
         ownerName="Example project"
+        stored
         icon="folder"
         defaultIcon="folder"
         color="red"
@@ -139,6 +195,7 @@ describe("IconPicker", () => {
         open
         onOpenChange={vi.fn()}
         ownerName="Example project"
+        stored
         icon="circle"
         defaultIcon="folder"
         color={null}
@@ -197,6 +254,7 @@ describe("IconPicker", () => {
         open
         onOpenChange={vi.fn()}
         ownerName="Example project"
+        stored
         icon="circle"
         defaultIcon="folder"
         color={null}
@@ -230,6 +288,7 @@ describe("IconPicker", () => {
         open
         onOpenChange={vi.fn()}
         ownerName="Example project"
+        stored
         icon="circle"
         defaultIcon="folder"
         color="red"
@@ -270,6 +329,7 @@ describe("IconPicker", () => {
         open
         onOpenChange={vi.fn()}
         ownerName="Example project"
+        stored
         icon="circle"
         defaultIcon="folder"
         color={null}
@@ -319,6 +379,7 @@ describe("IconPicker", () => {
         open
         onOpenChange={vi.fn()}
         ownerName="Example project"
+        stored
         icon="circle"
         defaultIcon="folder"
         color={null}
@@ -403,6 +464,7 @@ describe("IconPicker", () => {
         open
         onOpenChange={vi.fn()}
         ownerName="Example project"
+        stored
         icon="circle"
         defaultIcon="folder"
         color={null}
@@ -461,6 +523,7 @@ describe("IconPicker", () => {
         open
         onOpenChange={vi.fn()}
         ownerName="Example project"
+        stored
         icon="Folder"
         defaultIcon="Folder"
         color={null}
@@ -484,6 +547,7 @@ describe("IconPicker", () => {
         open
         onOpenChange={vi.fn()}
         ownerName="Example project"
+        stored
         icon="Folder"
         defaultIcon="Folder"
         color={null}
