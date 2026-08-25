@@ -92,21 +92,43 @@ test("the trigger filters no paths, so the check always reports", () => {
   assert.match(trigger, /pull_request:/u);
 });
 
-test("the relevance gate runs before capture-only setup", () => {
+test("the relevance gate runs outside the renderer container", () => {
   const workflow = readFileSync(
     join(repositoryRoot, ".github/workflows/screenshots.yml"),
     "utf8",
   );
-  const gate = workflow.indexOf(
-    "name: Decide whether anything can have moved a picture",
+  const relevanceJob = workflow.slice(
+    workflow.indexOf("\n  relevant:"),
+    workflow.indexOf("\n  capture:"),
   );
-  const setupNode = workflow.indexOf("uses: actions/setup-node@v7");
-  const prepare = workflow.indexOf("name: Prepare the container");
-  const install = workflow.indexOf("run: npm ci");
+  const captureJob = workflow.slice(
+    workflow.indexOf("\n  capture:"),
+    workflow.indexOf("\n  recapture:"),
+  );
 
-  assert.ok(gate >= 0);
-  assert.ok(gate < setupNode, "setup-node belongs after the relevance gate");
-  assert.ok(gate < prepare, "apt belongs after the relevance gate");
-  assert.ok(gate < install, "dependencies belong after the relevance gate");
+  assert.match(relevanceJob, /name: Decide whether anything can have moved/u);
+  assert.doesNotMatch(relevanceJob, /container:/u);
+  assert.match(relevanceJob, /outputs:\n      capture:/u);
+  assert.match(captureJob, /needs: relevant/u);
+  assert.match(
+    captureJob,
+    /if: needs\.relevant\.outputs\.capture == 'true'/u,
+  );
+  assert.match(captureJob, /container:/u);
+  assert.match(captureJob, /uses: actions\/setup-node@v7/u);
+  assert.match(captureJob, /name: Prepare the container/u);
+  assert.match(captureJob, /run: npm ci/u);
   assert.doesNotMatch(workflow, /npm ci --prefix scripts\/screenshots/u);
+});
+
+test("the required recapture job reports skipped captures as success", () => {
+  const workflow = readFileSync(
+    join(repositoryRoot, ".github/workflows/screenshots.yml"),
+    "utf8",
+  );
+  const requiredJob = workflow.slice(workflow.indexOf("\n  recapture:"));
+
+  assert.match(requiredJob, /needs: \[relevant, capture\]/u);
+  assert.match(requiredJob, /if: always\(\)/u);
+  assert.match(requiredJob, /\*failure\*\|\*cancelled\*/u);
 });

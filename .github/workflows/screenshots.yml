@@ -21,7 +21,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  recapture:
+  # Keep the relevance decision on the hosted runner. Starting the renderer
+  # container is most of the cost of a pull request that needs no capture.
+  relevant:
+    runs-on: ubuntu-latest
+    outputs:
+      capture: ${{ steps.relevant.outputs.capture }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history so the diff below can reach the base's merge point.
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          fetch-depth: 0
+      - id: relevant
+        name: Decide whether anything can have moved a picture
+        run: |
+          git fetch --no-tags origin "+refs/heads/$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF"
+          git diff --name-only "origin/$GITHUB_BASE_REF...HEAD" | tee /tmp/changed
+          node scripts/screenshots/affects.mjs < /tmp/changed >> "$GITHUB_OUTPUT"
+
+  capture:
+    needs: relevant
+    if: needs.relevant.outputs.capture == 'true'
     runs-on: ubuntu-latest
     # Pinned rather than ubuntu-latest: the runner image's fonts and libraries
     # move between releases, and every glyph a capture rasterises comes from
@@ -38,38 +60,22 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           fetch-depth: 0
-      # Takes seconds and needs no bb. Only a change that can have moved a
-      # screenshot is worth setting up the renderer below. The image's Node is
-      # enough for this dependency-free script; the pinned Node follows only
-      # when the capture needs it.
-      - id: relevant
-        name: Decide whether anything can have moved a picture
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git fetch --no-tags origin "+refs/heads/$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF"
-          git diff --name-only "origin/$GITHUB_BASE_REF...HEAD" | tee /tmp/changed
-          node scripts/screenshots/affects.mjs < /tmp/changed >> "$GITHUB_OUTPUT"
-      - if: steps.relevant.outputs.capture == 'true'
-        uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: package-lock.json
       # node-pty is the only package without a Linux prebuild. The image
       # already carries Python, so only its compiler is missing.
-      - if: steps.relevant.outputs.capture == 'true'
-        name: Prepare the container
+      - name: Prepare the container
         run: |
           apt-get update -qq
           apt-get install -y -qq make g++
       # Install every workspace together so the screenshot harness and all
       # five plugins share one bb-app and one node-pty build.
-      - if: steps.relevant.outputs.capture == 'true'
-        run: npm ci
-      - if: steps.relevant.outputs.capture == 'true'
-        run: npm run screenshots
-      - if: steps.relevant.outputs.capture == 'true'
-        name: Commit what changed
+      - run: npm ci
+      - run: npm run screenshots
+      - name: Commit what changed
         # Whoever opened the pull request chose these. Interpolating them with
         # ${{ }} would paste them into the script for bash to parse; read from
         # the environment they are values, not code.
@@ -92,3 +98,18 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m "Recapture the screenshots this branch moved"
           git push origin "HEAD:$HEAD_REF"
+
+  # The stable required-check name. A skipped capture is success; a failed or
+  # cancelled relevance/capture job is not.
+  recapture:
+    needs: [relevant, capture]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: The screenshot check passed
+        run: |
+          results='${{ join(needs.*.result, ' ') }}'
+          echo "$results"
+          case "$results" in
+            *failure*|*cancelled*) echo "::error::the screenshot check did not pass"; exit 1 ;;
+          esac
