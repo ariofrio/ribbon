@@ -18,7 +18,7 @@
 
 ## Plugins
 
-<div><img src="assets/blank.svg" alt="" width="24" align="top"></div>
+<div><img src="assets/spacer.svg" alt="" width="1120" height="24" align="top"></div>
 
 <a href="plugins/bb-plugin-thread-stages#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-thread-stages/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-thread-stages/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-thread-stages/assets/card-beside-dark.png"><img src="plugins/bb-plugin-thread-stages/assets/card-beside-light.png" alt="Thread stages grouping the bb sidebar into Backlog, To do, Working, Blocked, and Done" align="right" width="45%"></picture></a>
 
