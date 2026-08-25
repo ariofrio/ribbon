@@ -160,6 +160,11 @@ describe("task workflow", () => {
       expect(store.get("active-a").explicit).toBe(false);
       expect(store.get("active-b").explicit).toBe(false);
 
+      store.setStage("root", "Completed");
+      await handlers.get("thread.active")?.({ thread: threads[2] } as never);
+      expect(store.get("root").workflowStage).toBe("Completed");
+      store.setStage("root", "Active");
+
       threads[2] = { ...threads[2], status: "idle" };
       await handlers.get("thread.idle")?.({ thread: threads[2] } as never);
       expect(store.get("root").workflowStage).toBe("Active");

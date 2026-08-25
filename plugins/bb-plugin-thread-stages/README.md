@@ -43,9 +43,11 @@ after it is emptied, it disappears.
 Drag root threads to reorder or change their stage. Ordering uses
 fractional keys, so a move updates only the moved thread. A root hierarchy
 enters **Active** when its root or any descendant starts, and returns to
-**Idle** when every thread in the hierarchy stops, unless you manually move
-the root after the transition. A thread blocked on a question or an approval
-does not count as active while it waits, because the next move is yours.
+**Idle** when every thread in the hierarchy stops, while the root is in either
+of those two stages. **Deferred**, **Blocked**, and **Completed** are not
+managed automatically: a root filed there stays there regardless of later
+lifecycle status changes. A thread blocked on a question or an approval does
+not count as active while it waits, because the next move is yours.
 
 ## Install
 

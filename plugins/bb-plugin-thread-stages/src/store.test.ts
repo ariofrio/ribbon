@@ -285,6 +285,22 @@ describe("thread status store", () => {
     expect(store.get("thr_overridden").workflowStage).toBe("Deferred");
   });
 
+  it.each(["Deferred", "Blocked", "Completed"] as const)(
+    "leaves a thread in %s across later lifecycle changes",
+    (stage) => {
+      store.setStage("thr_a", stage);
+
+      store.observeActiveState("thr_a", true);
+      expect(store.get("thr_a").workflowStage).toBe(stage);
+
+      store.observeActiveState("thr_a", false);
+      expect(store.get("thr_a").workflowStage).toBe(stage);
+
+      store.observeActiveState("thr_a", true);
+      expect(store.get("thr_a").workflowStage).toBe(stage);
+    },
+  );
+
   it("persists the lifecycle edge across store recreation", () => {
     store.observeActiveState("thr_a", true);
     store.setStage("thr_a", "Completed");

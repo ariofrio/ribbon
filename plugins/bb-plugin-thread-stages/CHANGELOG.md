@@ -34,9 +34,9 @@
 
 ### Minor Changes
 
-- Derive a root thread's Active stage from its entire hierarchy. Starting any
-  descendant now activates the root, which returns to Idle only after the root
-  and every descendant are inactive.
+- Derive a root thread's managed Active state from its entire hierarchy.
+  Starting any descendant now activates a root in Idle or Active, which returns
+  to Idle only after the root and every descendant are inactive.
 - Add a setting to hide thread message previews while preserving the compact
   title-only row layout. Rows now grow from native-height title-only geometry
   only when the preview adds a second line.
