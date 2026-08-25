@@ -149,7 +149,7 @@
     {
       "id": "thread-stages",
       "displayName": "Thread stages",
-      "description": "Group threads in the sidebar into stages from Deferred to Completed, updating as they run.",
+      "description": "Provide workflow stages, automation, and shortcuts to Ribbon sidebar.",
       "icon": {
         "url": "./plugins/bb-plugin-thread-stages/assets/icon.svg"
       },

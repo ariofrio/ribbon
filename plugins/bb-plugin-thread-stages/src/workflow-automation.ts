@@ -1,7 +1,6 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { listAllThreads } from "./list-all-threads";
 import { rootThreadIdByThreadId } from "./root-thread-ownership";
-import type { ThreadWorkflowStore } from "./store";
 import type { WorkflowStage } from "./workflow-stage";
 
 export type ThreadLifecycleStatus =
@@ -14,15 +13,7 @@ export type ThreadLifecycleStatus =
 export function isActiveThreadLifecycle(
   status: ThreadLifecycleStatus,
 ): boolean {
-  switch (status) {
-    case "active":
-    case "starting":
-    case "stopping":
-      return true;
-    case "idle":
-    case "error":
-      return false;
-  }
+  return status === "active" || status === "starting" || status === "stopping";
 }
 
 interface WorkflowThread {
@@ -33,25 +24,20 @@ interface WorkflowThread {
 
 export function registerThreadWorkflow(
   bb: BbPluginApi,
-  store: ThreadWorkflowStore,
-  forwarding: {
-    placementOwnership: ThreadWorkflowStore["placementOwnership"];
-    forwardStage: (
-      threadId: string,
-      stage: Extract<WorkflowStage, "Active" | "Idle">,
-    ) => Promise<void>;
-  } | null = null,
+  updateStage: (
+    threadId: string,
+    stage: Extract<WorkflowStage, "Active" | "Idle">,
+  ) => Promise<void>,
 ): void {
-  // A thread blocked on a question or an approval stays `active`, but it is
-  // waiting on the user rather than working.
+  const observedWorking = new Map<string, boolean>();
+
   const isWaitingOnUser = async (threadId: string): Promise<boolean> => {
     try {
       const interactions = await bb.sdk.threads.interactions.list({ threadId });
       return interactions.some(({ status }) => status === "pending");
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
       bb.log.warn(
-        `Could not read pending interactions for ${threadId}: ${message}`,
+        `Could not read pending interactions for ${threadId}: ${error instanceof Error ? error.message : String(error)}`,
       );
       return false;
     }
@@ -64,9 +50,8 @@ export function registerThreadWorkflow(
       const timeline = await bb.sdk.threads.timeline({ threadId });
       return timeline.activeBackgroundCommands.length > 0;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
       bb.log.warn(
-        `Could not read background commands for ${threadId}: ${message}`,
+        `Could not read background commands for ${threadId}: ${error instanceof Error ? error.message : String(error)}`,
       );
       return null;
     }
@@ -82,9 +67,9 @@ export function registerThreadWorkflow(
       status: thread.status,
     }));
     const roots = rootThreadIdByThreadId(
-      threads.map((thread) => ({
-        id: thread.id,
-        parentThreadId: thread.parentThreadId ?? null,
+      threads.map(({ id, parentThreadId }) => ({
+        id,
+        parentThreadId: parentThreadId ?? null,
       })),
     );
     const activeRootIds = new Set<string>();
@@ -97,56 +82,41 @@ export function registerThreadWorkflow(
         hasRunningBackgroundCommand(thread.id),
       ]);
       const rootId = roots.get(thread.id);
-      if (rootId !== null && rootId !== undefined) {
-        if (
-          hasBackgroundCommand === true ||
-          (lifecycleIsActive && !isWaiting)
-        ) {
-          activeRootIds.add(rootId);
-        } else if (hasBackgroundCommand === null) {
-          indeterminateRootIds.add(rootId);
-        }
-      }
-      if (
-        roots.get(thread.id) !== thread.id &&
-        forwarding?.placementOwnership() !== "ribbon-sidebar" &&
-        store.removeRootThread(thread.id)
-      ) {
-        bb.realtime.publish("state-changed", { threadId: thread.id });
+      if (rootId === null || rootId === undefined) continue;
+      if (hasBackgroundCommand === true || (lifecycleIsActive && !isWaiting)) {
+        activeRootIds.add(rootId);
+      } else if (hasBackgroundCommand === null) {
+        indeterminateRootIds.add(rootId);
       }
     }
 
+    const currentRootIds = new Set<string>();
     for (const root of threads) {
       if (roots.get(root.id) !== root.id) continue;
+      currentRootIds.add(root.id);
       if (!activeRootIds.has(root.id) && indeterminateRootIds.has(root.id)) {
         continue;
       }
-      const isActive = activeRootIds.has(root.id);
-      if (forwarding?.placementOwnership() === "ribbon-sidebar") {
-        const edge = store.observeForwardedActiveState(root.id, isActive);
-        if (edge.enteredWorking) {
-          await forwarding.forwardStage(root.id, "Active");
-        } else if (edge.leftWorking) {
-          await forwarding.forwardStage(root.id, "Idle");
-        }
-      } else {
-        const result = store.observeActiveState(root.id, isActive);
-        if (result.workflowStageChanged) {
-          bb.realtime.publish("state-changed", { threadId: root.id });
-        }
-      }
+      const isWorking = activeRootIds.has(root.id);
+      if (observedWorking.get(root.id) === isWorking) continue;
+      await updateStage(root.id, isWorking ? "Active" : "Idle");
+      observedWorking.set(root.id, isWorking);
+    }
+    for (const threadId of observedWorking.keys()) {
+      if (!currentRootIds.has(threadId)) observedWorking.delete(threadId);
     }
   };
 
-  let reconciliationQueue = Promise.resolve();
+  let queue = Promise.resolve();
   const enqueue = (signal?: AbortSignal) => {
-    const pending = reconciliationQueue.then(async () => {
+    const pending = queue.then(async () => {
       if (!signal?.aborted) await reconcile(signal);
     });
-    reconciliationQueue = pending.catch((error: unknown) => {
+    queue = pending.catch((error: unknown) => {
       if (!signal?.aborted) {
-        const message = error instanceof Error ? error.message : String(error);
-        bb.log.warn(`Could not reconcile thread stages: ${message}`);
+        bb.log.warn(
+          `Could not reconcile thread stages: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     });
     return pending;
@@ -172,19 +142,22 @@ export function registerThreadWorkflow(
           }
         },
       });
-
       try {
         void enqueue(signal);
-
-        if (!signal.aborted) {
-          await new Promise<void>((resolve) => {
-            signal.addEventListener("abort", () => resolve(), { once: true });
-          });
-        }
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) resolve();
+          else signal.addEventListener("abort", () => resolve(), { once: true });
+        });
       } finally {
         unsubscribe();
-        await reconciliationQueue;
+        await queue;
       }
     },
   });
+
+  bb.background.schedule(
+    "stage-automation-reconciliation",
+    "* * * * *",
+    () => enqueue(),
+  );
 }

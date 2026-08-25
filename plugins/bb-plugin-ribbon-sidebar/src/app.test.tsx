@@ -243,7 +243,7 @@ function options(overrides: Record<string, unknown> = {}) {
 }
 
 describe("Ribbon sidebar app", () => {
-  it("registers the exclusive list and starts migration only when mounted", async () => {
+  it("registers and synchronizes the exclusive list when mounted", async () => {
     const app = await loadPluginApp(() => import("./app"));
     expect(app.threadLists).toHaveLength(1);
     expect(app.threadLists[0]).toMatchObject({
@@ -255,9 +255,7 @@ describe("Ribbon sidebar app", () => {
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     expect(await slot.findByText("Design migration")).toBeTruthy();
     expect(await slot.findByText("A useful preview")).toBeTruthy();
-    expect(fixture.synchronizeV1).toHaveBeenCalledWith({
-      migrateThreadStages: true,
-    });
+    expect(fixture.synchronizeV1).toHaveBeenCalledWith(null);
     slot.lifecycle.unmount();
   });
 
@@ -370,8 +368,8 @@ describe("Ribbon sidebar app", () => {
     );
 
     expect(await slot.findByText("Roadmap scope")).toBeTruthy();
-    expect(slot.getByText("Ship UI")).toBeTruthy();
-    expect(slot.getByText("Opened child")).toBeTruthy();
+    expect(await slot.findByText("Ship UI")).toBeTruthy();
+    expect(await slot.findByText("Opened child")).toBeTruthy();
 
     fireEvent.keyDown(
       slot.getByRole("button", { name: "Projects and sections" }),
@@ -379,7 +377,7 @@ describe("Ribbon sidebar app", () => {
     );
     fireEvent.click(await slot.findByText("Release"));
     expect(await slot.findByText("Release scope")).toBeTruthy();
-    expect(slot.getByText("Design migration")).toBeTruthy();
+    expect(await slot.findByText("Design migration")).toBeTruthy();
     slot.lifecycle.unmount();
   });
 
@@ -901,7 +899,7 @@ describe("Ribbon sidebar app", () => {
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
 
     expect(await slot.findByText("Removed (unavailable) scope")).toBeTruthy();
-    expect(slot.getByText("Design migration")).toBeTruthy();
+    expect(await slot.findByText("Design migration")).toBeTruthy();
     expect(slot.queryByText("BB original list")).toBeNull();
     expect(fixture.value.rpc.listPlacementsV1).toHaveBeenCalledWith({
       groupingKey: "plugin:thread-stages:stages",

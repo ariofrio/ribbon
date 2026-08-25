@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  acknowledgePlacementMigrationInputSchema,
-  createGroupingCatalog,
-  groupingCatalogSchema,
-  placementMigrationSnapshotSchema,
-} from "./contracts";
+import { createGroupingCatalog, groupingCatalogSchema } from "./contracts";
 
 describe("Thread stages provider contracts", () => {
   it("publishes the complete ordered stages catalog", () => {
@@ -117,53 +112,4 @@ describe("Thread stages provider contracts", () => {
     }
   });
 
-  it("strictly validates migration identity, provenance, placement, and order", () => {
-    const snapshot = {
-      sourcePluginId: "thread-stages" as const,
-      sourceSchema: 1 as const,
-      installationId: "a".repeat(32),
-      revision: 3,
-      placements: [
-        {
-          groupingId: "stages",
-          threadId: "thr_1",
-          groupId: "Completed",
-          enteredAtMs: 100,
-          updatedAtMs: 100,
-          previousGroupId: "Idle",
-          origin: "ui" as const,
-          orders: [
-            { groupId: "Idle", sortKey: "a0", updatedAtMs: 50 },
-            { groupId: "Completed", sortKey: "b0", updatedAtMs: 100 },
-          ],
-        },
-      ],
-    };
-    expect(() => placementMigrationSnapshotSchema.parse(snapshot)).not.toThrow();
-
-    const duplicatePlacement = structuredClone(snapshot);
-    duplicatePlacement.placements.push(structuredClone(snapshot.placements[0]!));
-    expect(() =>
-      placementMigrationSnapshotSchema.parse(duplicatePlacement),
-    ).toThrow();
-
-    const duplicateOrder = structuredClone(snapshot);
-    duplicateOrder.placements[0]!.orders.push({
-      groupId: "Idle",
-      sortKey: "a1",
-      updatedAtMs: 75,
-    });
-    expect(() => placementMigrationSnapshotSchema.parse(duplicateOrder)).toThrow();
-
-    expect(() =>
-      placementMigrationSnapshotSchema.parse({ ...snapshot, extra: true }),
-    ).toThrow();
-    expect(() =>
-      acknowledgePlacementMigrationInputSchema.parse({
-        installationId: snapshot.installationId,
-        revision: snapshot.revision,
-        extra: true,
-      }),
-    ).toThrow();
-  });
 });

@@ -1,6 +1,5 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { createOrderKeyBetween } from "./order-keys";
-import type { ThreadStagesMigrationSnapshotV1 } from "./contracts";
 
 export type GroupingKey =
   | "builtin:projects"
@@ -90,13 +89,6 @@ export const RIBBON_SIDEBAR_MIGRATIONS = [
       catalog_json TEXT NOT NULL,
       available INTEGER NOT NULL CHECK (available IN (0, 1))
     );
-    CREATE TABLE IF NOT EXISTS migration_import (
-      source_plugin_id TEXT NOT NULL,
-      installation_id TEXT NOT NULL,
-      source_revision INTEGER NOT NULL CHECK (source_revision >= 0),
-      snapshot_json TEXT NOT NULL,
-      PRIMARY KEY (source_plugin_id, installation_id, source_revision)
-    );
   `,
 ];
 
@@ -119,11 +111,6 @@ interface OrderRow {
   sort_key: string;
 }
 
-interface MigrationOrderRow extends OrderRow {
-  group_id: string;
-  updated_at_ms: number;
-}
-
 interface PlacementStoreOptions {
   grouping(groupingKey: GroupingKey): GroupingDescriptor | null;
   groupings(): readonly GroupingDescriptor[];
@@ -140,9 +127,6 @@ export interface PlacementStore {
     groupingKey: GroupingKey,
     groupId: string,
   ): { deleted: number; revision: number };
-  importThreadStagesSnapshot(snapshot: ThreadStagesMigrationSnapshotV1): {
-    imported: boolean;
-  };
   rekeyGrouping(
     from: `plugin:${string}:${string}`,
     to: `plugin:${string}:${string}`,
@@ -272,12 +256,6 @@ export function createPlacementStore(
     WHERE grouping_key = ? AND group_id = ?
     ORDER BY sort_key, thread_id
   `);
-  const listMigrationOrders = database.prepare(`
-    SELECT group_id, thread_id, sort_key, updated_at_ms
-    FROM group_order
-    WHERE grouping_key = ?
-    ORDER BY group_id, thread_id
-  `);
   const getOrder = database.prepare(`
     SELECT thread_id, sort_key
     FROM group_order
@@ -304,15 +282,6 @@ export function createPlacementStore(
       entered_at_ms = excluded.entered_at_ms,
       previous_group_id = excluded.previous_group_id,
       origin = excluded.origin
-  `);
-  const importedSnapshotExists = database.prepare(`
-    SELECT 1 FROM migration_import
-    WHERE source_plugin_id = ? AND installation_id = ? AND source_revision = ?
-  `);
-  const saveImportedSnapshot = database.prepare(`
-    INSERT INTO migration_import(
-      source_plugin_id, installation_id, source_revision, snapshot_json
-    ) VALUES (?, ?, ?, ?)
   `);
   const deleteGroupingAssignments = database.prepare(`
     DELETE FROM group_assignment WHERE grouping_key = ?
@@ -524,124 +493,6 @@ export function createPlacementStore(
             getRevision.get(groupingKey) as { revision: number }
           ).revision;
           return { deleted, revision };
-        })
-        .immediate();
-    },
-    importThreadStagesSnapshot(snapshot) {
-      if (
-        importedSnapshotExists.get(
-          snapshot.sourcePluginId,
-          snapshot.installationId,
-          snapshot.revision,
-        )
-      ) {
-        return { imported: false };
-      }
-      return database
-        .transaction(() => {
-          const groupingIds = new Set(
-            snapshot.placements.map(({ groupingId }) => groupingId),
-          );
-          for (const groupingId of groupingIds) {
-            const groupingKey =
-              `plugin:${snapshot.sourcePluginId}:${groupingId}` as GroupingKey;
-            const grouping = options.grouping(groupingKey);
-            if (grouping === null || grouping.membership.kind !== "ribbon") {
-              throw new Error(`Migration grouping is unavailable: ${groupingKey}`);
-            }
-            deleteGroupingAssignments.run(groupingKey);
-            deleteGroupingOrders.run(groupingKey);
-          }
-
-          for (const placement of snapshot.placements) {
-            const groupingKey =
-              `plugin:${snapshot.sourcePluginId}:${placement.groupingId}` as GroupingKey;
-            const grouping = options.grouping(groupingKey);
-            if (grouping === null) {
-              throw new Error(`Migration grouping is unavailable: ${groupingKey}`);
-            }
-            const groups = new Set(grouping.groups.map(({ id }) => id));
-            if (
-              !groups.has(placement.groupId) ||
-              placement.orders.some(({ groupId }) => !groups.has(groupId))
-            ) {
-              throw new Error(`Migration names an unknown group in ${groupingKey}.`);
-            }
-            upsertAssignment.run(
-              groupingKey,
-              placement.threadId,
-              placement.groupId,
-              placement.enteredAtMs,
-              placement.previousGroupId ?? null,
-              placement.origin,
-            );
-            for (const order of placement.orders) {
-              upsertOrder.run(
-                groupingKey,
-                order.groupId,
-                placement.threadId,
-                order.sortKey,
-                order.updatedAtMs,
-              );
-            }
-          }
-
-          for (const groupingId of groupingIds) {
-            const groupingKey =
-              `plugin:${snapshot.sourcePluginId}:${groupingId}` as GroupingKey;
-            const importedAssignments = listAssignments.all(
-              groupingKey,
-            ) as AssignmentRow[];
-            const expected = snapshot.placements.filter(
-              (placement) => placement.groupingId === groupingId,
-            );
-            const expectedAssignments = expected
-              .map((placement) => ({
-                grouping_key: groupingKey,
-                thread_id: placement.threadId,
-                group_id: placement.groupId,
-                entered_at_ms: placement.enteredAtMs,
-                previous_group_id: placement.previousGroupId ?? null,
-                origin: placement.origin,
-              }))
-              .sort((left, right) => left.thread_id.localeCompare(right.thread_id));
-            importedAssignments.sort((left, right) =>
-              left.thread_id.localeCompare(right.thread_id),
-            );
-            const importedOrders = listMigrationOrders.all(
-              groupingKey,
-            ) as MigrationOrderRow[];
-            const expectedOrders = expected
-              .flatMap((placement) =>
-                placement.orders.map((order) => ({
-                  group_id: order.groupId,
-                  thread_id: placement.threadId,
-                  sort_key: order.sortKey,
-                  updated_at_ms: order.updatedAtMs,
-                })),
-              )
-              .sort(
-                (left, right) =>
-                  left.group_id.localeCompare(right.group_id) ||
-                  left.thread_id.localeCompare(right.thread_id),
-              );
-            if (
-              JSON.stringify(importedAssignments) !==
-                JSON.stringify(expectedAssignments) ||
-              JSON.stringify(importedOrders) !== JSON.stringify(expectedOrders)
-            ) {
-              throw new Error(`Migration verification failed for ${groupingKey}.`);
-            }
-            ensureRevision.run(groupingKey);
-            incrementRevision.run(groupingKey);
-          }
-          saveImportedSnapshot.run(
-            snapshot.sourcePluginId,
-            snapshot.installationId,
-            snapshot.revision,
-            JSON.stringify(snapshot),
-          );
-          return { imported: true };
         })
         .immediate();
     },

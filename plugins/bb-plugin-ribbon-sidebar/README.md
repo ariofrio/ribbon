@@ -10,13 +10,10 @@ divides the visible root threads.
   <img src="assets/screenshot-light.png" alt="Ribbon sidebar grouping a bb thread list by workflow stage">
 </picture>
 
-Thread stages v0.9.0 is the first grouping provider. On the first mounted
-Ribbon sidebar client, its existing stages and manual order migrate through the
-provider's versioned snapshot and compare-and-swap acknowledgement. Migration
-starts when bb mounts Ribbon sidebar, not merely when the plugin loads. Because
-bb's **Automatic** Appearance choice can select and mount a newly installed
-sidebar, explicitly select bb's original thread list before installation if
-you need to install Ribbon sidebar without transferring placement.
+Thread stages is the first grouping provider. Install it alongside Ribbon to
+add workflow stages, automation, shortcuts, and Completed retention. Ribbon is
+the sole owner of provider placement and manual order; no legacy Thread stages
+placement is imported.
 
 ## Install
 
@@ -63,13 +60,12 @@ bb ribbon-sidebar groups <grouping>
 bb ribbon-sidebar list [--scope <group-ref>] [--group-by <grouping>]
 bb ribbon-sidebar show [thread] [--self]
 bb ribbon-sidebar place [thread] --to <group-ref> [--before <thread>|--after <thread>]
-bb ribbon-sidebar migrate thread-stages
 bb ribbon-sidebar rekey --from <plugin-key> --to <plugin-key>
 ```
 
-Add `--json` to any data command for machine-readable output. `migrate` is the
-explicit alternative to mounting Ribbon sidebar. `rekey` atomically moves
-placement when a provider intentionally changes a plugin grouping key.
+Add `--json` to any data command for machine-readable output. `rekey`
+atomically moves placement when a provider intentionally changes a plugin
+grouping key.
 
 ## Settings
 

@@ -35,14 +35,15 @@ bb plugin install ribbon-sidebar@ribbon
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="1"></picture><br clear="all">
 
-<a href="plugins/bb-plugin-thread-stages#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-thread-stages/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-thread-stages/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-thread-stages/assets/card-beside-dark.png"><img src="plugins/bb-plugin-thread-stages/assets/card-beside-light.png" alt="Thread stages grouping the bb sidebar into Backlog, To do, Working, Blocked, and Done" align="right" width="45%"></picture></a>
+<a href="plugins/bb-plugin-thread-stages#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-thread-stages/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-thread-stages/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-thread-stages/assets/card-beside-dark.png"><img src="plugins/bb-plugin-thread-stages/assets/card-beside-light.png" alt="Thread stages rendered by Ribbon sidebar" align="right" width="45%"></picture></a>
 
 ### <img src="assets/icons/thread-stages.svg" alt="" width="26" align="absmiddle"> &nbsp;Thread stages
 
-Group threads in the sidebar into stages from Deferred to Completed, updating as they run.
+Provide workflow stages, automation, and shortcuts to Ribbon sidebar.
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon
+bb plugin install ribbon-sidebar@ribbon
 bb plugin install thread-stages@ribbon
 ```
 

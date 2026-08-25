@@ -239,24 +239,21 @@ export const SHOTS = [
     outputs: THEME_FILES,
     async prepare({ page }) {
       await openFeaturedThread(page);
-      // The plugin mounts its sidebar after bb's own, so the shot waits for the
-      // element it is about rather than for the thread alone. A freshly seeded
-      // bb is still settling while the first shots are taken, and the plugin
-      // bundle can load well past Playwright's default minute, so the wait is
-      // given room rather than being allowed to fail the run.
+      // Thread stages is provider-only; its card shows its catalog rendered by
+      // the required Ribbon sidebar.
       await page
-        .locator("[data-thread-stages-sidebar-root]")
+        .locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]")
         .waitFor({ timeout: 120000 });
     },
     // The plugin owns the whole thread list rather than one control inside it,
     // so the shade lifts its entire sidebar out of the window.
     highlights: (page) => [
-      { locator: page.locator("[data-thread-stages-sidebar-root]"), padding: 6 },
+      { locator: page.locator("[data-ribbon-sidebar-root]"), padding: 6 },
     ],
     // A sidebar is read from its top, so the card starts at the top of the one
     // the plugin manages, with bb's own rows just above it left in frame,
     // shaded, marking where bb stops and the plugin starts.
-    focus: (page) => [page.locator("[data-thread-stages-sidebar-root]")],
+    focus: (page) => [page.locator("[data-ribbon-sidebar-root]")],
     focusAlign: "start",
   },
   {

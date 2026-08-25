@@ -37,17 +37,14 @@ function setup() {
     now: () => 100,
   });
   store.reconcileRoots(["thread-a", "thread-b"], []);
-  const migrate = vi.fn(async () => ({ imported: true, transferred: true }));
   return {
     database,
     store,
-    migrate,
     context: {
       store,
       groupings: () => [stages],
       updatePlacement: (input: Parameters<typeof store.updatePlacement>[0]) =>
         store.updatePlacement(input),
-      migrateThreadStages: migrate,
     },
   };
 }
@@ -137,18 +134,9 @@ describe("Ribbon sidebar CLI", () => {
     ).resolves.toMatchObject({ exitCode: 0 });
   });
 
-  it("migrates and rekeys with strict syntax", async () => {
+  it("rekeys with strict syntax", async () => {
     const fixture = setup();
     databases.push(fixture.database);
-    expect(
-      await runRibbonSidebarCli(fixture.context, [
-        "migrate",
-        "thread-stages",
-        "--json",
-      ]),
-    ).toMatchObject({ exitCode: 0 });
-    expect(fixture.migrate).toHaveBeenCalledOnce();
-
     const rekeyed = await runRibbonSidebarCli(fixture.context, [
       "rekey",
       "--from",

@@ -301,25 +301,31 @@ export async function openApp({ browser, stack, fixture, theme, viewport, style 
   );
   // The sidebar opens focused on the product rather than on everything bb
   // knows about, which is what a section is for and what the shots are of.
-  // Thread stages keeps this choice per client, so it is set here rather than
-  // seeded on the server.
+  // Ribbon keeps this choice per client, so it is set here rather than seeded
+  // on the server.
   await context.addInitScript(
     (id) =>
       window.localStorage.setItem(
-        "bb.plugin.thread-stages.threadFilter",
-        `section:${id}`,
+        "bb.plugin.ribbon-sidebar.preferences.v1",
+        JSON.stringify({
+          view: {
+            scope: {
+              kind: "group",
+              group: { groupingKey: "builtin:sections", groupId: id },
+            },
+            groupingKey: "plugin:thread-stages:stages",
+          },
+          collapsed: [],
+        }),
       ),
     fixture.section.id,
   );
-  // Ribbon is installed alongside Thread stages. Pin the released provider
-  // before first paint so existing shots do not mount Ribbon and transfer
-  // ownership before they explicitly opt into the new sidebar. Ribbon's own
-  // shot switches through Appearance and proves that cutover separately.
+  // Thread stages no longer registers a list, so every shot starts on Ribbon.
   await context.addInitScript(() => {
     if (window.localStorage.getItem("bb.sidebar.threadListProvider") === null) {
       window.localStorage.setItem(
         "bb.sidebar.threadListProvider",
-        JSON.stringify("thread-stages/workflow-stage"),
+        JSON.stringify("ribbon-sidebar/ribbon-sidebar"),
       );
     }
   });

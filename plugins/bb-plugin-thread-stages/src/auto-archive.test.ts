@@ -1,14 +1,9 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import Database from "better-sqlite3";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   archiveEligibleCompletedThreads,
   autoArchiveDelayMs,
 } from "./auto-archive";
-import {
-  THREAD_WORKFLOW_MIGRATIONS,
-  createThreadWorkflowStore,
-} from "./store";
 
 const DAY = 24 * 60 * 60 * 1_000;
 
@@ -49,23 +44,14 @@ describe("completed auto-archive", () => {
   });
 
   it("archives unpinned Completed hierarchies bottom-up with archiveAll", async () => {
-    const db = new Database(":memory:");
-    for (const migration of THREAD_WORKFLOW_MIGRATIONS) db.exec(migration);
-    const store = createThreadWorkflowStore(db);
-    vi.useFakeTimers();
     const now = 10 * DAY;
-    vi.setSystemTime(now - 2 * DAY);
-    for (const id of [
-      "active-root",
-      "pinned-root",
-      "pinned-tree",
-      "recent",
-    ]) {
-      store.setStage(id, "Completed");
-    }
-    vi.setSystemTime(now);
-    store.setStage("recent", "Idle");
-    store.setStage("recent", "Completed");
+    const source = {
+      listCompletedBefore: vi.fn(async () => [
+        { threadId: "active-root", enteredAt: now - 2 * DAY },
+        { threadId: "pinned-root", enteredAt: now - 2 * DAY },
+        { threadId: "pinned-tree", enteredAt: now - 2 * DAY },
+      ]),
+    };
 
     const threads = [
       thread("active-root", {
@@ -104,31 +90,24 @@ describe("completed auto-archive", () => {
       log: { warn: vi.fn(), info: vi.fn() },
     } as unknown as BbPluginApi;
 
-    try {
-      await expect(
-        archiveEligibleCompletedThreads(bb, store, DAY, now),
-      ).resolves.toEqual(["active-root"]);
-      expect(archiveAll.mock.calls.map(([call]) => call.threadId)).toEqual([
-        "active-grandchild",
-        "active-child",
-        "active-root",
-      ]);
-      expect(store.get("active-root").workflowStage).toBe("Completed");
-    } finally {
-      db.close();
-    }
+    await expect(
+      archiveEligibleCompletedThreads(bb, source, DAY, now),
+    ).resolves.toEqual(["active-root"]);
+    expect(archiveAll.mock.calls.map(([call]) => call.threadId)).toEqual([
+      "active-grandchild",
+      "active-child",
+      "active-root",
+    ]);
   });
 
   it("does not archive an ancestor after a descendant fails", async () => {
-    const db = new Database(":memory:");
-    for (const migration of THREAD_WORKFLOW_MIGRATIONS) db.exec(migration);
-    const store = createThreadWorkflowStore(db);
-    vi.useFakeTimers();
     const now = 10 * DAY;
-    vi.setSystemTime(now - 2 * DAY);
-    store.setStage("root-a", "Completed");
-    store.setStage("root-b", "Completed");
-    vi.setSystemTime(now);
+    const source = {
+      listCompletedBefore: vi.fn(async () => [
+        { threadId: "root-a", enteredAt: now - 2 * DAY },
+        { threadId: "root-b", enteredAt: now - 2 * DAY },
+      ]),
+    };
 
     const threads = [
       thread("root-a"),
@@ -150,20 +129,16 @@ describe("completed auto-archive", () => {
       log: { warn, info: vi.fn() },
     } as unknown as BbPluginApi;
 
-    try {
-      await expect(
-        archiveEligibleCompletedThreads(bb, store, DAY, now),
-      ).resolves.toEqual(["root-b"]);
-      expect(archiveAll.mock.calls.map(([call]) => call.threadId)).toEqual([
-        "child-a",
-        "root-b",
-      ]);
-      expect(warn).toHaveBeenCalledWith(
-        "Could not auto-archive root-a: archive failed",
-      );
-    } finally {
-      db.close();
-    }
+    await expect(
+      archiveEligibleCompletedThreads(bb, source, DAY, now),
+    ).resolves.toEqual(["root-b"]);
+    expect(archiveAll.mock.calls.map(([call]) => call.threadId)).toEqual([
+      "child-a",
+      "root-b",
+    ]);
+    expect(warn).toHaveBeenCalledWith(
+      "Could not auto-archive root-a: archive failed",
+    );
   });
 
   it("accepts authoritative Completed candidates from Ribbon sidebar", async () => {

@@ -219,16 +219,12 @@ function RibbonSidebarList({
     query: string;
     threadIds: ReadonlySet<string>;
   }>({ query: "", threadIds: new Set() });
-  const mounted = useRef(false);
   const reconnectPending = useRef(false);
   const scopeSyncedForThreadId = useRef<string | null>(null);
   const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
 
   const synchronize = useCallback(async () => {
-    const next = await rpc.call("synchronizeV1", {
-      migrateThreadStages: !mounted.current,
-    });
-    mounted.current = true;
+    const next = await rpc.call("synchronizeV1", null);
     setSnapshot(next);
     setFatalError(null);
     setPreferences((current) => {
