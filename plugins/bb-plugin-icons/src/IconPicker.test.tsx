@@ -366,6 +366,114 @@ describe("IconPicker", () => {
     expect(gridStyle.rowGap).toBe("4px");
   });
 
+  it("windows compact rows using the columns that actually fit", async () => {
+    mockMatchMedia(true);
+    const resizeObservers: Array<{
+      callback: ResizeObserverCallback;
+      targets: Element[];
+    }> = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        private readonly observer: (typeof resizeObservers)[number];
+
+        constructor(callback: ResizeObserverCallback) {
+          this.observer = { callback, targets: [] };
+          resizeObservers.push(this.observer);
+        }
+
+        observe(target: Element) {
+          this.observer.targets.push(target);
+        }
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    const compactCatalog = Array.from({ length: 200 }, (_, index) => ({
+      name: `compact-${index}`,
+      category: "shapes",
+      tags: [],
+      glyph: CircleIcon,
+    }));
+    const onPick = vi.fn();
+    render(
+      <IconPicker
+        catalog={compactCatalog}
+        loading={false}
+        open
+        onOpenChange={vi.fn()}
+        ownerName="Example project"
+        stored
+        icon="circle"
+        defaultIcon="folder"
+        color={null}
+        onPick={onPick}
+        onPickColor={vi.fn()}
+        onReset={vi.fn()}
+        trigger={<button type="button">Change icon</button>}
+      />,
+    );
+
+    const catalogRegion = await screen.findByRole("region", {
+      name: "Icon catalog",
+    });
+    const catalogContent = catalogRegion.firstElementChild as HTMLElement;
+    const shapesSection = screen.getByRole("region", { name: "Shapes" });
+    const grid = shapesSection.querySelector<HTMLElement>("h3 + div");
+    expect(grid).not.toBeNull();
+    Object.defineProperties(catalogRegion, {
+      clientHeight: { configurable: true, value: 64 },
+      scrollTop: { configurable: true, value: 0, writable: true },
+    });
+    Object.defineProperty(catalogContent, "clientWidth", {
+      configurable: true,
+      value: 124,
+    });
+    Object.defineProperty(grid!, "offsetTop", {
+      configurable: true,
+      value: 0,
+    });
+
+    act(() => {
+      const catalogObserver = resizeObservers.find(({ targets }) =>
+        targets.includes(catalogRegion),
+      );
+      if (catalogObserver === undefined) {
+        throw new Error("Catalog was not observed");
+      }
+      catalogObserver.callback(
+        [{ target: catalogRegion } as unknown as ResizeObserverEntry],
+        {} as ResizeObserver,
+      );
+    });
+
+    const drawnButtons = within(shapesSection).getAllByRole("button");
+    expect(drawnButtons).toHaveLength(28);
+    expect(getComputedStyle(grid!).height).toBe("1596px");
+    fireEvent.click(drawnButtons[0]!);
+    expect(onPick).toHaveBeenCalledWith("compact-0");
+
+    Object.defineProperty(catalogContent, "clientWidth", {
+      configurable: true,
+      value: 188,
+    });
+    act(() => {
+      const catalogObserver = resizeObservers.find(({ targets }) =>
+        targets.includes(catalogRegion),
+      );
+      if (catalogObserver === undefined) {
+        throw new Error("Catalog was not observed");
+      }
+      catalogObserver.callback(
+        [{ target: catalogRegion } as unknown as ResizeObserverEntry],
+        {} as ResizeObserver,
+      );
+    });
+
+    expect(within(shapesSection).getAllByRole("button")).toHaveLength(42);
+    expect(getComputedStyle(grid!).height).toBe("1084px");
+  });
+
   it("selects the category currently at the top of the scrolling catalog", () => {
     const scrollIntoView = vi.fn();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
