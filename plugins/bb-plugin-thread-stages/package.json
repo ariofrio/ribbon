@@ -20,7 +20,6 @@
     "src",
     "!src/**/*.test.ts",
     "!src/**/*.test.tsx",
-    "scripts",
     "skills"
   ],
   "type": "module",
@@ -58,14 +57,10 @@
   "devDependencies": {
     "@get-bb/plugin-sdk": "0.4.8",
     "@testing-library/react": "^16.3.2",
-    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "bb-app": "0.39.0",
-    "better-sqlite3": "^12.0.0",
-    "cron-parser": "^5.10.0",
-    "hono": "^4.11.9",
     "jsdom": "^29.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
