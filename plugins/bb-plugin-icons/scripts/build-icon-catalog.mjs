@@ -1,6 +1,6 @@
 // Regenerates the picker's icon catalog from Hugeicons' published index,
-// keeping the project's 32 retained Hugeicons categories and every icon the
-// free package actually exports, including numbered variants.
+// keeping every icon the free package actually exports, including numbered
+// variants.
 // The output is committed so builds and CI never touch the network.
 // Usage: npm run build:catalog  (npm run check:catalog reports drift without writing)
 import { readFileSync, writeFileSync } from "node:fs";
@@ -10,42 +10,14 @@ import * as freeIcons from "@hugeicons/core-free-icons";
 
 const INDEX_URL = "https://hugeicons.com/api/icons";
 
-// The 32 Hugeicons categories this picker retains. Changing the allowlist is a
-// separate policy decision from refreshing or expanding the icons within it.
-const PROJECT_CATEGORIES = [
-  "ai",
-  "buildings",
-  "business",
-  "clothing",
-  "communications",
-  "crypto",
-  "date-time",
-  "devices",
-  "e-commerce",
-  "education",
-  "energy",
-  "files-folders",
-  "foods",
-  "furnitures",
-  "games",
-  "git",
-  "gym",
-  "home",
-  "image-camera",
-  "kitchen",
-  "logistics",
-  "logos",
-  "maps",
-  "medical",
-  "notes-tasks",
-  "programming",
-  "science-technology",
-  "security",
-  "shapes",
-  "space",
-  "users",
-  "weather",
-];
+// These malformed index names resolve to the same package exports as the
+// canonical arrow-down-01 and arrow-up-01 records. They are duplicate metadata
+// rows, not additional glyphs; Hugeicons' source tree contains only the
+// canonical filenames.
+const DUPLICATE_INDEX_ALIASES = new Set([
+  "arrow-down-0-1",
+  "arrow-up-0-1",
+]);
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -62,11 +34,11 @@ if (!response.ok) {
 }
 const { icons } = await response.json();
 
-const categories = new Set(PROJECT_CATEGORIES);
 const catalog = icons
   .filter(
     (icon) =>
-      categories.has(icon.category) && exportName(icon.name) in freeIcons,
+      !DUPLICATE_INDEX_ALIASES.has(icon.name) &&
+      exportName(icon.name) in freeIcons,
   )
   .map((icon) => ({
     name: icon.name,
