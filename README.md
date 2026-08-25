@@ -31,7 +31,7 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install thread-stages@ribbon
 ```
 
-<a href="plugins/bb-plugin-thread-stages#readme">Read more &rarr;</a>
+<a href="plugins/bb-plugin-thread-stages#readme">Read docs &rarr;</a>
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
@@ -46,7 +46,7 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install icons@ribbon
 ```
 
-<a href="plugins/bb-plugin-icons#readme">Read more &rarr;</a>
+<a href="plugins/bb-plugin-icons#readme">Read docs &rarr;</a>
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
@@ -61,7 +61,7 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install breadcrumbs@ribbon
 ```
 
-<a href="plugins/bb-plugin-breadcrumbs#readme">Read more &rarr;</a>
+<a href="plugins/bb-plugin-breadcrumbs#readme">Read docs &rarr;</a>
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
@@ -76,7 +76,7 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install missing-keyboard-shortcuts@ribbon
 ```
 
-<a href="plugins/bb-plugin-missing-keyboard-shortcuts#readme">Read more &rarr;</a>
+<a href="plugins/bb-plugin-missing-keyboard-shortcuts#readme">Read docs &rarr;</a>
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
@@ -91,7 +91,7 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install chatgpt-theme@ribbon
 ```
 
-<a href="plugins/bb-plugin-chatgpt-theme#readme">Read more &rarr;</a>
+<a href="plugins/bb-plugin-chatgpt-theme#readme">Read docs &rarr;</a>
 
 <br clear="all">
 
