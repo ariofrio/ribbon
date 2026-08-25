@@ -1,5 +1,10 @@
 import { WORKFLOW_STAGES, parseWorkflowStage } from "./workflow-stage";
 import type { ThreadWorkflowStore } from "./store";
+import {
+  RibbonSidebarDependencyError,
+  THREAD_STAGES_GROUPING_KEY,
+  type RibbonSidebarClient,
+} from "./ribbon-sidebar-client";
 
 interface CliResult {
   exitCode: number;
@@ -52,7 +57,12 @@ function json(value: unknown): string {
 }
 
 function workflowAssignmentJson(
-  assignment: ReturnType<ThreadWorkflowStore["listState"]>["assignments"][number],
+  assignment: {
+    threadId: string;
+    workflowStage: (typeof WORKFLOW_STAGES)[number];
+    sortKey?: string | null;
+    updatedAt: number | null;
+  },
 ) {
   const { threadId, workflowStage, sortKey: _sortKey, ...workflow } = assignment;
   return { id: threadId, workflowStage, ...workflow };
@@ -130,7 +140,10 @@ function humanWorkflow(value: ReturnType<ThreadWorkflowStore["get"]>): string {
 }
 
 function humanWorkflowList(
-  assignments: ReturnType<ThreadWorkflowStore["listState"]>["assignments"],
+  assignments: ReadonlyArray<{
+    threadId: string;
+    workflowStage: (typeof WORKFLOW_STAGES)[number];
+  }>,
 ): string {
   if (assignments.length === 0) return "No threads found\n";
   const rows = [
@@ -301,6 +314,216 @@ export function runThreadWorkflowCli(
         store.setStage(threadId, stage, "cli");
       }
       const workflow = store.get(threadId);
+      return {
+        exitCode: 0,
+        stdout: wantsJson
+          ? json(workflowLookupJson(workflow))
+          : `Thread ${threadId} updated\n${humanWorkflow(workflow)}`,
+        ...(warnings.length > 0 ? { stderr: `${warnings.join("\n")}\n` } : {}),
+      };
+    }
+
+    return { exitCode: 2, stderr: `Unknown command: ${command}\n\n${HELP}` };
+  } catch (error) {
+    return {
+      exitCode: 1,
+      stderr: `${error instanceof Error ? error.message : String(error)}\n`,
+    };
+  }
+}
+
+function forwardedLookup(
+  placement: {
+    threadId: string;
+    groupId: string;
+    enteredAtMs: number | null;
+  },
+) {
+  const workflowStage = parseWorkflowStage(placement.groupId);
+  if (workflowStage === null) {
+    throw new RibbonSidebarDependencyError(
+      `Ribbon sidebar returned unknown stage ${placement.groupId}.`,
+    );
+  }
+  return {
+    threadId: placement.threadId,
+    workflowStage,
+    sortKey: null,
+    updatedAt: placement.enteredAtMs,
+    explicit: true,
+  };
+}
+
+function forwardedValue<Value>(
+  result:
+    | { ok: true; value: Value }
+    | { ok: false; error: { code: string; message: string } },
+): Value {
+  if (!result.ok) {
+    throw new RibbonSidebarDependencyError(
+      `Ribbon sidebar rejected the request (${result.error.code}): ${result.error.message}`,
+    );
+  }
+  return result.value;
+}
+
+export async function runForwardedThreadWorkflowCli(
+  ribbonSidebar: RibbonSidebarClient,
+  argv: readonly string[],
+  context: ThreadWorkflowCliContext = {},
+): Promise<CliResult> {
+  const wantsJson = argv.includes("--json");
+  const args = argv.filter((arg) => arg !== "--json");
+  const command = args[0];
+
+  try {
+    if (!command || command === "--help" || command === "-h") {
+      return { exitCode: 0, stdout: HELP };
+    }
+    if (command === "help" || args[1] === "--help" || args[1] === "-h") {
+      const help = commandHelp(command === "help" ? args[1] : command);
+      return help
+        ? { exitCode: 0, stdout: help }
+        : { exitCode: 2, stderr: `Unknown command: ${args[1] ?? command}\n\n${HELP}` };
+    }
+
+    if (command === "list") {
+      const { options, positionals } = parseArguments(args.slice(1), ["--stage"]);
+      if (positionals.length > 0) return { exitCode: 2, stderr: USAGE.list };
+      const rawStage = options.get("--stage");
+      const stage =
+        typeof rawStage === "string" ? parseWorkflowStage(rawStage) : null;
+      if (rawStage && !stage) {
+        throw new Error(`Unknown stage. Expected one of: ${STAGE_LABELS}`);
+      }
+      const result = forwardedValue(
+        await ribbonSidebar.listPlacementsV1({
+          groupingKey: THREAD_STAGES_GROUPING_KEY,
+          ...(context.listThreadIds
+            ? { threadIds: [...context.listThreadIds] }
+            : {}),
+          ...(stage ? { groupIds: [stage] } : {}),
+        }),
+      );
+      const assignments = result.items.map(forwardedLookup);
+      return {
+        exitCode: 0,
+        stdout: wantsJson
+          ? json(assignments.map(workflowAssignmentJson))
+          : humanWorkflowList(assignments),
+      };
+    }
+
+    if (command === "show") {
+      const { options, positionals } = parseArguments(args.slice(1), [], ["--self"]);
+      if (positionals.length > 1) return { exitCode: 2, stderr: USAGE.show };
+      const threadId = resolveRootThreadId(
+        positionals[0],
+        options.get("--self") === true,
+        context,
+      );
+      const result = forwardedValue(
+        await ribbonSidebar.getPlacementV1({
+          groupingKey: THREAD_STAGES_GROUPING_KEY,
+          threadId,
+        }),
+      );
+      const workflow = forwardedLookup(result.placement);
+      return {
+        exitCode: 0,
+        stdout: wantsJson
+          ? json(workflowLookupJson(workflow))
+          : humanWorkflow(workflow),
+      };
+    }
+
+    if (command === "update") {
+      const { options, positionals } = parseArguments(
+        args.slice(1),
+        ["--stage", "--after", "--before"],
+        ["--self"],
+      );
+      if (positionals.length > 1) return { exitCode: 2, stderr: USAGE.update };
+      const rawStage = options.get("--stage");
+      const rawAfter = options.get("--after");
+      const rawBefore = options.get("--before");
+      if (
+        typeof rawStage !== "string" &&
+        typeof rawAfter !== "string" &&
+        typeof rawBefore !== "string"
+      ) {
+        throw new Error(
+          "No changes requested. Provide --stage, --after, or --before.",
+        );
+      }
+      const threadId = resolveRootThreadId(
+        positionals[0],
+        options.get("--self") === true,
+        context,
+      );
+      const current = forwardedValue(
+        await ribbonSidebar.getPlacementV1({
+          groupingKey: THREAD_STAGES_GROUPING_KEY,
+          threadId,
+        }),
+      );
+      const currentStage = parseWorkflowStage(current.placement.groupId);
+      const stage =
+        typeof rawStage === "string"
+          ? parseWorkflowStage(rawStage)
+          : currentStage;
+      if (stage === null) {
+        throw new Error(`Unknown stage. Expected one of: ${STAGE_LABELS}`);
+      }
+      if (
+        typeof rawStage === "string" &&
+        context.enabledStages &&
+        !context.enabledStages.includes(stage)
+      ) {
+        throw new Error(`Stage ${stage} is disabled in Thread stages settings.`);
+      }
+
+      const warnings: string[] = [];
+      async function validNeighbor(
+        flag: "--after" | "--before",
+        raw: string | true | undefined,
+      ): Promise<string | null> {
+        if (typeof raw !== "string") return null;
+        const neighbor = forwardedValue(
+          await ribbonSidebar.getPlacementV1({
+            groupingKey: THREAD_STAGES_GROUPING_KEY,
+            threadId: raw,
+          }),
+        );
+        if (neighbor.placement.groupId !== stage) {
+          warnings.push(
+            `Warning: ${flag} thread ${raw} is not in stage ${stage}; ignoring ${flag}.`,
+          );
+          return null;
+        }
+        return raw;
+      }
+      const after = await validNeighbor("--after", rawAfter);
+      const before = await validNeighbor("--before", rawBefore);
+      const anchor =
+        before !== null
+          ? { kind: "before" as const, threadId: before }
+          : after !== null
+            ? { kind: "after" as const, threadId: after }
+            : currentStage === stage
+              ? { kind: "preserve" as const }
+              : { kind: "end" as const };
+      const updated = forwardedValue(
+        await ribbonSidebar.updatePlacementV1({
+          groupingKey: THREAD_STAGES_GROUPING_KEY,
+          groupId: stage,
+          threadId,
+          anchor,
+          expectedRevision: current.revision,
+          origin: "cli",
+        }),
+      );
+      const workflow = forwardedLookup(updated.placement);
       return {
         exitCode: 0,
         stdout: wantsJson

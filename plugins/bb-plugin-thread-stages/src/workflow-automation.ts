@@ -2,6 +2,7 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { listAllThreads } from "./list-all-threads";
 import { rootThreadIdByThreadId } from "./root-thread-ownership";
 import type { ThreadWorkflowStore } from "./store";
+import type { WorkflowStage } from "./workflow-stage";
 
 export type ThreadLifecycleStatus =
   | "idle"
@@ -33,6 +34,13 @@ interface WorkflowThread {
 export function registerThreadWorkflow(
   bb: BbPluginApi,
   store: ThreadWorkflowStore,
+  forwarding: {
+    placementOwnership: ThreadWorkflowStore["placementOwnership"];
+    forwardStage: (
+      threadId: string,
+      stage: Extract<WorkflowStage, "Active" | "Idle">,
+    ) => Promise<void>;
+  } | null = null,
 ): void {
   // A thread blocked on a question or an approval stays `active`, but it is
   // waiting on the user rather than working.
@@ -101,6 +109,7 @@ export function registerThreadWorkflow(
       }
       if (
         roots.get(thread.id) !== thread.id &&
+        forwarding?.placementOwnership() !== "ribbon-sidebar" &&
         store.removeRootThread(thread.id)
       ) {
         bb.realtime.publish("state-changed", { threadId: thread.id });
@@ -112,12 +121,19 @@ export function registerThreadWorkflow(
       if (!activeRootIds.has(root.id) && indeterminateRootIds.has(root.id)) {
         continue;
       }
-      const result = store.observeActiveState(
-        root.id,
-        activeRootIds.has(root.id),
-      );
-      if (result.workflowStageChanged) {
-        bb.realtime.publish("state-changed", { threadId: root.id });
+      const isActive = activeRootIds.has(root.id);
+      if (forwarding?.placementOwnership() === "ribbon-sidebar") {
+        const edge = store.observeForwardedActiveState(root.id, isActive);
+        if (edge.enteredWorking) {
+          await forwarding.forwardStage(root.id, "Active");
+        } else if (edge.leftWorking) {
+          await forwarding.forwardStage(root.id, "Idle");
+        }
+      } else {
+        const result = store.observeActiveState(root.id, isActive);
+        if (result.workflowStageChanged) {
+          bb.realtime.publish("state-changed", { threadId: root.id });
+        }
       }
     }
   };

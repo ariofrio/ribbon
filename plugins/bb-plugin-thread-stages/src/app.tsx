@@ -100,6 +100,7 @@ const THREAD_FILTER_STORAGE_KEY = "bb.plugin.thread-stages.threadFilter";
 const PROJECT_FILTER_STORAGE_KEY = "bb.plugin.thread-stages.projectFilter";
 const LEGACY_PROJECT_FILTER_STORAGE_KEY =
   "bb.plugin.thread-workflow.projectFilter";
+const OWNERSHIP_TRANSFER_ERROR = "placement ownership has transferred";
 const PINNED_SECTION = "Pinned" as const;
 type SidebarGroup = WorkflowStage | typeof PINNED_SECTION;
 const COLLAPSIBLE_SECTION_SET: ReadonlySet<string> = new Set([
@@ -642,6 +643,7 @@ function SidebarStageLayout({
 
 function WorkflowStageList({
   activeThreadId,
+  experimental_Original: OriginalThreadList,
   onNavigate,
   searchQuery,
 }: PluginThreadListProps) {
@@ -739,7 +741,12 @@ function WorkflowStageList({
     } catch (cause) {
       const message =
         cause instanceof Error ? cause.message : "Could not load stages.";
-      if (organizationLoaded.current) setError(message);
+      if (message.includes(OWNERSHIP_TRANSFER_ERROR)) {
+        organizationLoaded.current = false;
+        setOrganization(null);
+        setLoadError(message);
+        setError(null);
+      } else if (organizationLoaded.current) setError(message);
       else setLoadError(message);
     }
   }, [rpc]);
@@ -973,9 +980,18 @@ function WorkflowStageList({
         setError(null);
       })
       .catch((cause) => {
-        setError(
-          cause instanceof Error ? cause.message : "Could not save stage order.",
-        );
+        const message =
+          cause instanceof Error
+            ? cause.message
+            : "Could not save stage order.";
+        if (message.includes(OWNERSHIP_TRANSFER_ERROR)) {
+          organizationLoaded.current = false;
+          setOrganization(null);
+          setLoadError(message);
+          setError(null);
+        } else {
+          setError(message);
+        }
       })
       .finally(() => {
         syncInFlight.current = false;
@@ -1373,6 +1389,17 @@ function WorkflowStageList({
     );
   }
   if (organization === null) {
+    if (loadError?.includes(OWNERSHIP_TRANSFER_ERROR)) {
+      return (
+        <div className="flex min-w-0 flex-col gap-1">
+          <SidebarMessage icon="CircleQuestion">
+            Ribbon sidebar now owns stage placement. The original thread list is
+            available below while Ribbon recovers.
+          </SidebarMessage>
+          <OriginalThreadList />
+        </div>
+      );
+    }
     return (
       <SidebarMessage
         icon="AlertCircle"
