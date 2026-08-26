@@ -167,6 +167,7 @@ export function ScopeFilter({
 
   return (
     <div className="bb-sidebar-hover-actions-row group/thread-filter sticky top-[var(--bb-sidebar-sticky-stack-padding-top)] z-[70] mb-4 flex min-w-0 items-center gap-1 rounded-md bg-sidebar outline-none ring-sidebar-ring has-[.thread-filter-trigger:focus-visible]:ring-2 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-2 before:bg-sidebar before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-sidebar after:content-['']">
+      <div className="relative flex min-w-0 flex-1 items-center">
       <CompactViewportOverrideProvider isCompactViewport={false}>
       <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
@@ -376,7 +377,7 @@ export function ScopeFilter({
           data-state={actionsOpen ? "open" : "closed"}
           data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
           data-sidebar-hover-actions-mobile="always"
-          className="bb-sidebar-hover-actions relative z-20 flex shrink-0 items-center gap-1 opacity-0 pointer-events-none group-hover/thread-filter:opacity-100 group-hover/thread-filter:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto data-[state=open]:opacity-100 data-[state=open]:pointer-events-auto max-md:pointer-coarse:opacity-100 max-md:pointer-coarse:pointer-events-auto"
+          className="bb-sidebar-hover-actions absolute inset-y-0 right-0 z-20 flex shrink-0 items-center gap-1 bg-sidebar pl-1 opacity-0 pointer-events-none group-hover/thread-filter:opacity-100 group-hover/thread-filter:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto data-[state=open]:opacity-100 data-[state=open]:pointer-events-auto max-md:pointer-coarse:static max-md:pointer-coarse:opacity-100 max-md:pointer-coarse:pointer-events-auto"
         >
           <ThreadFilterAction
             icon="SectionAdd"
@@ -395,6 +396,7 @@ export function ScopeFilter({
           />
         </span>
       </TooltipProvider>
+      </div>
       {trailing}
     </div>
   );
