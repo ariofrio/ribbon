@@ -10,7 +10,6 @@ import {
 import {
   FilterMailCircleIcon,
   FolderLibraryIcon,
-  ListTreeIcon,
 } from "@hugeicons/core-free-icons";
 import type { IconDataV1 } from "./contracts";
 import type { EntityIconView } from "./icons";
@@ -72,11 +71,10 @@ export interface GroupsMenuGrouping {
 }
 
 interface ThreadFilterProps {
-  activeGroupingKey: string | null;
+  filterGroupingKey: string;
   groupings: readonly GroupsMenuGrouping[];
   newProjectDisabled?: boolean;
   onChange: (filter: ScopeFilterValue) => void;
-  onGroupingChange: (groupingKey: string | null) => void;
   onHide?: () => void;
   onNewProject: () => void;
   onNewSection: () => void;
@@ -135,11 +133,10 @@ function ProjectsAndSectionsIcon() {
 }
 
 export function ScopeFilter({
-  activeGroupingKey,
+  filterGroupingKey,
   groupings,
   newProjectDisabled = false,
   onChange,
-  onGroupingChange,
   onHide = () => {},
   onNewProject,
   onNewSection,
@@ -162,6 +159,13 @@ export function ScopeFilter({
   const activeGrouping = value
     ? groupings.find(({ groupingKey }) => groupingKey === value.groupingKey)
     : undefined;
+  const expandedGrouping =
+    groupings.find(
+      ({ groupingKey }) =>
+        groupingKey === (value?.groupingKey ?? filterGroupingKey),
+    ) ??
+    groupings.find(({ groupingKey }) => groupingKey === "builtin:sections") ??
+    groupings[0];
   const activeGroup = activeGrouping?.groups.find(
     ({ id }) => id === value?.groupId,
   );
@@ -233,11 +237,7 @@ export function ScopeFilter({
     );
   }
 
-  function groupingContents(
-    grouping: GroupsMenuGrouping,
-    allowGroupBy = true,
-  ) {
-    const canGroupBy = allowGroupBy;
+  function groupingContents(grouping: GroupsMenuGrouping) {
     const selectGroup = (groupId: string) => {
       onChange({
         groupingKey: grouping.groupingKey as GroupingKey,
@@ -354,39 +354,7 @@ export function ScopeFilter({
         >
           {rows}
         </DropdownMenuRadioGroup>
-        {newEntityAction !== null || canGroupBy ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              {newEntityAction}
-              {canGroupBy ? (
-                <DropdownMenuItem
-                  className="pl-7"
-                  role="menuitemcheckbox"
-                  aria-checked={activeGroupingKey === grouping.groupingKey}
-                  onSelect={() =>
-                    onGroupingChange(
-                      activeGroupingKey === grouping.groupingKey
-                        ? null
-                        : grouping.groupingKey,
-                    )
-                  }
-                >
-                  {activeGroupingKey === grouping.groupingKey ? (
-                    <FilterRowCheck />
-                  ) : null}
-                  <HugeiconsIcon
-                    icon={ListTreeIcon}
-                    size={16}
-                    className="size-4 shrink-0"
-                    aria-hidden
-                  />
-                  Group by {grouping.singularLabel.toLocaleLowerCase()}
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuGroup>
-          </>
-        ) : null}
+        {newEntityAction}
       </>
     );
   }
@@ -466,24 +434,27 @@ export function ScopeFilter({
               <ProjectsAndSectionsIcon />
             </ThreadFilterItem>
           </DropdownMenuRadioGroup>
-          {activeGrouping ? (
+          {expandedGrouping ? (
             <>
-              {groupings
-                .filter(({ groupingKey }) => groupingKey !== activeGrouping.groupingKey)
-                .map(groupingSubmenu)}
-              {groupings.some(
-                ({ groupingKey }) => groupingKey !== activeGrouping.groupingKey,
-              ) ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuSeparator />
               <DropdownMenuGroup>
                 <DropdownMenuLabel>
-                  {activeGrouping.pluralLabel}
+                  {expandedGrouping.pluralLabel}
                 </DropdownMenuLabel>
-                {groupingContents(activeGrouping, false)}
+                {groupingContents(expandedGrouping)}
               </DropdownMenuGroup>
+              {groupings.some(
+                ({ groupingKey }) =>
+                  groupingKey !== expandedGrouping.groupingKey,
+              ) ? <DropdownMenuSeparator /> : null}
+              {groupings
+                .filter(
+                  ({ groupingKey }) =>
+                    groupingKey !== expandedGrouping.groupingKey,
+                )
+                .map(groupingSubmenu)}
             </>
-          ) : (
-            groupings.map(groupingSubmenu)
-          )}
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
       </CompactViewportOverrideProvider>
@@ -669,25 +640,12 @@ function ProjectActions({
         sideOffset={2}
         onPointerEnter={onSubmenuPointerEnter}
       >
-        <FilterActionItem
-          icon="Settings"
-          label="Project settings"
-          onSelect={onOpenSettings}
-        />
-        <DropdownMenuSeparator />
-        <FilterActionItem icon="Edit" label="Rename" onSelect={onRename} />
-        {canAddLocalPath ? (
-          <FilterActionItem
-            icon="FolderPlus"
-            label="Add local path"
-            onSelect={onAddLocalPath}
-          />
-        ) : null}
-        <FilterActionItem
-          destructive
-          icon="Trash2"
-          label="Remove"
-          onSelect={onRemove}
+        <ProjectGroupActionItems
+          canAddLocalPath={canAddLocalPath}
+          onAddLocalPath={onAddLocalPath}
+          onOpenSettings={onOpenSettings}
+          onRemove={onRemove}
+          onRename={onRename}
         />
       </DropdownMenuSubContent>
     </DropdownMenuPortal>
@@ -709,15 +667,68 @@ function SectionActions({
         sideOffset={2}
         onPointerEnter={onSubmenuPointerEnter}
       >
-        <FilterActionItem icon="Edit" label="Rename" onSelect={onRename} />
-        <FilterActionItem
-          destructive
-          icon="Trash2"
-          label="Remove"
-          onSelect={onRemove}
-        />
+        <SectionGroupActionItems onRemove={onRemove} onRename={onRename} />
       </DropdownMenuSubContent>
     </DropdownMenuPortal>
+  );
+}
+
+export function ProjectGroupActionItems({
+  canAddLocalPath,
+  onAddLocalPath,
+  onOpenSettings,
+  onRemove,
+  onRename,
+}: {
+  canAddLocalPath: boolean;
+  onAddLocalPath: () => void;
+  onOpenSettings: () => void;
+  onRemove: () => void;
+  onRename: () => void;
+}) {
+  return (
+    <>
+      <FilterActionItem
+        icon="Settings"
+        label="Project settings"
+        onSelect={onOpenSettings}
+      />
+      <DropdownMenuSeparator />
+      <FilterActionItem icon="Edit" label="Rename" onSelect={onRename} />
+      {canAddLocalPath ? (
+        <FilterActionItem
+          icon="FolderPlus"
+          label="Add local path"
+          onSelect={onAddLocalPath}
+        />
+      ) : null}
+      <FilterActionItem
+        destructive
+        icon="Trash2"
+        label="Remove"
+        onSelect={onRemove}
+      />
+    </>
+  );
+}
+
+export function SectionGroupActionItems({
+  onRemove,
+  onRename,
+}: {
+  onRemove: () => void;
+  onRename: () => void;
+}) {
+  return (
+    <>
+      <FilterActionItem icon="Edit" label="Rename" onSelect={onRename} />
+      <FilterActionItem
+        destructive
+        icon="Trash2"
+        label="Remove"
+        onSelect={onRemove}
+      />
+    </>
   );
 }
 

@@ -66,6 +66,10 @@ import { ScopeFilter } from "./scope-filter";
 import type { ScopeFilterValue } from "./scope-filter-value";
 import { orderedGroupings } from "./grouping-order";
 import { UnorganizedIcon } from "./unorganized-icon";
+import {
+  GroupHeaderMenu,
+  type HeaderGroupActions,
+} from "./group-header-menu";
 
 const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
 
@@ -879,7 +883,7 @@ function RibbonSidebarList({
       return [
         {
           id: "ungrouped",
-          label: "All groups",
+          label: "Threads",
           icon: undefined,
           visibleWhenEmpty: true,
           acceptsAssignments: false,
@@ -1353,7 +1357,7 @@ function RibbonSidebarList({
     >
       {settings.values?.showProjectsAndSections !== false ? (
         <ScopeFilter
-          activeGroupingKey={grouping?.groupingKey ?? null}
+          filterGroupingKey={preferences.view.filterGroupingKey}
           groupings={orderedGroupings(
             snapshot.groupings.filter(({ available }) => available),
           )}
@@ -1377,15 +1381,6 @@ function RibbonSidebarList({
                 next === null
                   ? { kind: "all" }
                   : { kind: "group", group: next },
-              ),
-            }))
-          }
-          onGroupingChange={(groupingKey) =>
-            changePreferences((current) => ({
-              ...current,
-              view: changeSidebarGrouping(
-                current.view,
-                groupingKey as GroupingKey | null,
               ),
             }))
           }
@@ -1628,41 +1623,68 @@ function RibbonSidebarList({
             data-sidebar="group-label"
             data-sidebar-sticky-tier="label"
           >
-            <span className="min-w-0 flex-1 truncate">Pinned</span>
-            <button
-              aria-expanded={
-                normalizedSearch ? true : !preferences.collapsed.has("builtin:pinned")
-              }
-              aria-label={
-                !normalizedSearch && preferences.collapsed.has("builtin:pinned")
-                  ? "Expand Pinned section"
-                  : "Collapse Pinned section"
-              }
-              className={`${
-                !normalizedSearch && preferences.collapsed.has("builtin:pinned")
-                  ? ""
-                  : "bb-sidebar-hover-actions"
-              } inline-flex size-6 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2`}
-              onClick={() =>
-                changePreferences((current) => {
-                  const collapsed = new Set(current.collapsed);
-                  if (collapsed.has("builtin:pinned")) collapsed.delete("builtin:pinned");
-                  else collapsed.add("builtin:pinned");
-                  return { ...current, collapsed };
-                })
-              }
-              type="button"
-            >
-              <Icon
-                aria-hidden
-                className={`size-3 transition-transform duration-150 ${
-                  !normalizedSearch && preferences.collapsed.has("builtin:pinned")
+            <span className="flex min-w-0 flex-1 items-center">
+              <span className="min-w-0 flex-1 truncate">Pinned</span>
+              <button
+                aria-expanded={
+                  normalizedSearch
+                    ? true
+                    : !preferences.collapsed.has("builtin:pinned")
+                }
+                aria-label={
+                  !normalizedSearch &&
+                  preferences.collapsed.has("builtin:pinned")
+                    ? "Expand Pinned section"
+                    : "Collapse Pinned section"
+                }
+                className={`${
+                  !normalizedSearch &&
+                  preferences.collapsed.has("builtin:pinned")
                     ? ""
-                    : "rotate-90"
-                }`}
-                name="ChevronRight"
-              />
-            </button>
+                    : "bb-sidebar-hover-actions"
+                } inline-flex size-6 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2`}
+                onClick={() =>
+                  changePreferences((current) => {
+                    const collapsed = new Set(current.collapsed);
+                    if (collapsed.has("builtin:pinned")) {
+                      collapsed.delete("builtin:pinned");
+                    } else {
+                      collapsed.add("builtin:pinned");
+                    }
+                    return { ...current, collapsed };
+                  })
+                }
+                type="button"
+              >
+                <Icon
+                  aria-hidden
+                  className={`size-3 transition-transform duration-150 ${
+                    !normalizedSearch &&
+                    preferences.collapsed.has("builtin:pinned")
+                      ? ""
+                      : "rotate-90"
+                  }`}
+                  name="ChevronRight"
+                />
+              </button>
+            </span>
+            <GroupHeaderMenu
+              actions={null}
+              activeGroupingKey={grouping?.groupingKey ?? null}
+              groupings={orderedGroupings(
+                snapshot.groupings.filter(({ available }) => available),
+              )}
+              label="Pinned"
+              onGroupingChange={(groupingKey) =>
+                changePreferences((current) => ({
+                  ...current,
+                  view: changeSidebarGrouping(
+                    current.view,
+                    groupingKey as GroupingKey | null,
+                  ),
+                }))
+              }
+            />
           </div>
           {normalizedSearch || !preferences.collapsed.has("builtin:pinned") ? (
             <ul>
@@ -1723,9 +1745,84 @@ function RibbonSidebarList({
         const unorganizedGroup =
           grouping?.groupingKey === "builtin:sections" &&
           group.id === "unsectioned";
+        const section =
+          grouping?.groupingKey === "builtin:sections" && !unorganizedGroup
+            ? sections.find(({ id }) => id === group.id)
+            : undefined;
+        const project =
+          grouping?.groupingKey === "builtin:projects"
+            ? sidebar.projects.find(({ id }) => id === group.id)
+            : undefined;
+        const headerActions: HeaderGroupActions | null = section
+          ? {
+              kind: "section",
+              onRemove: () =>
+                setEntityDialog({
+                  kind: "delete",
+                  scope: {
+                    groupingKey: "builtin:sections",
+                    groupId: section.id,
+                  },
+                  label: section.label,
+                }),
+              onRename: () =>
+                setEntityDialog({
+                  kind: "rename",
+                  scope: {
+                    groupingKey: "builtin:sections",
+                    groupId: section.id,
+                  },
+                  label: section.label,
+                  name: section.label,
+                }),
+            }
+          : project && !project.isPersonal
+            ? {
+                kind: "project",
+                canAddLocalPath:
+                  projectActionStates.get(project.id)?.canAddLocalPath ?? false,
+                onAddLocalPath: () => {
+                  void rpc
+                    .call("addProjectLocalPathV1", { projectId: project.id })
+                    .then(() => synchronize())
+                    .catch((error: unknown) =>
+                      setMutationError(
+                        error instanceof Error
+                          ? error.message
+                          : "Could not add local path",
+                      ),
+                    );
+                },
+                onOpenSettings: () => {
+                  window.location.assign(
+                    `/projects/${encodeURIComponent(project.id)}/settings`,
+                  );
+                  onNavigate();
+                },
+                onRemove: () =>
+                  setEntityDialog({
+                    kind: "delete",
+                    scope: {
+                      groupingKey: "builtin:projects",
+                      groupId: project.id,
+                    },
+                    label: project.name,
+                  }),
+                onRename: () =>
+                  setEntityDialog({
+                    kind: "rename",
+                    scope: {
+                      groupingKey: "builtin:projects",
+                      groupId: project.id,
+                    },
+                    label: project.name,
+                    name: project.name,
+                  }),
+              }
+            : null;
         return (
           <section
-            aria-label={grouping ? `${group.label} group` : undefined}
+            aria-label={`${group.label} group`}
             className={`group/sidebar-section min-w-0 rounded-md transition-colors ${
               dragDestination?.kind === "placement" &&
               dragDestination.groupId === group.id &&
@@ -1757,15 +1854,9 @@ function RibbonSidebarList({
               clearDrag();
             }}
           >
-            {grouping && !sameKeyScope ? (
+            {!sameKeyScope ? (
               <div
-                className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 text-xs font-normal leading-5 text-subtle-foreground/75 transition-colors max-md:pointer-coarse:h-9 ${
-                  collapsed && roots.length > 0
-                    ? activityThread
-                      ? "pr-14"
-                      : "pr-7"
-                    : "pr-0"
-                }`}
+                className="bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 text-xs font-normal leading-5 text-subtle-foreground/75 transition-colors max-md:pointer-coarse:h-9"
                 data-sidebar="group-label"
                 data-sidebar-sticky-tier="label"
               >
@@ -1804,7 +1895,7 @@ function RibbonSidebarList({
                       {group.label}
                     </span>
                   </span>
-                  <button
+                  {grouping ? <button
                     aria-expanded={!collapsed}
                     aria-label={
                       collapsed
@@ -1829,24 +1920,40 @@ function RibbonSidebarList({
                       className={`size-3 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
                       name="ChevronRight"
                     />
-                  </button>
+                  </button> : null}
                 </span>
-                {collapsed && roots.length > 0 ? (
-                  <span
-                    aria-label={`${roots.length} ${roots.length === 1 ? "thread" : "threads"}`}
-                    className={`pointer-events-none absolute z-20 inline-flex size-7 items-center justify-center tabular-nums text-xs text-subtle-foreground/60 ${activityThread ? "right-7" : "right-0"}`}
-                  >
-                    {roots.length}
-                  </span>
-                ) : null}
-                {activityThread ? (
-                  <span className="pointer-events-none absolute right-0 top-1/2 z-20 inline-flex size-7 -translate-y-1/2 items-center justify-center text-subtle-foreground">
-                    <ThreadIndicator
-                      indicator={activityThread.indicator}
-                      label={activityThread.indicatorLabel}
-                    />
-                  </span>
-                ) : null}
+                <GroupHeaderMenu
+                  actions={headerActions}
+                  activeGroupingKey={grouping?.groupingKey ?? null}
+                  groupings={orderedGroupings(
+                    snapshot.groupings.filter(({ available }) => available),
+                  )}
+                  label={group.label}
+                  onGroupingChange={(groupingKey) =>
+                    changePreferences((current) => ({
+                      ...current,
+                      view: changeSidebarGrouping(
+                        current.view,
+                        groupingKey as GroupingKey | null,
+                      ),
+                    }))
+                  }
+                  trailing={
+                    activityThread ? (
+                      <ThreadIndicator
+                        indicator={activityThread.indicator}
+                        label={activityThread.indicatorLabel}
+                      />
+                    ) : collapsed && roots.length > 0 ? (
+                      <span
+                        aria-label={`${roots.length} ${roots.length === 1 ? "thread" : "threads"}`}
+                        className="tabular-nums text-xs text-subtle-foreground/60"
+                      >
+                        {roots.length}
+                      </span>
+                    ) : null
+                  }
+                />
               </div>
             ) : null}
             <div className={grouping && !collapsed ? "mt-1" : undefined}>

@@ -20,10 +20,28 @@ function storage(entries: Record<string, string> = {}): Storage {
 }
 
 describe("client-local sidebar preferences", () => {
+  it("defaults a never-selected filter grouping to Sections", () => {
+    const local = storage({
+      "bb.plugin.ribbon-sidebar.preferences.v1": JSON.stringify({
+        view: { scope: { kind: "all" }, groupingKey: null },
+        collapsed: [],
+      }),
+    });
+
+    expect(
+      loadSidebarPreferences(local, [
+        "builtin:projects",
+        "builtin:sections",
+        "plugin:thread-stages:stages",
+      ]).view.filterGroupingKey,
+    ).toBe("builtin:sections");
+  });
+
   it("keeps filter and display grouping dimensions distinct", () => {
     const groupedBySections = {
       scope: { kind: "all" as const },
       groupingKey: "builtin:sections" as const,
+      filterGroupingKey: "builtin:sections" as const,
     };
 
     expect(
@@ -37,6 +55,7 @@ describe("client-local sidebar preferences", () => {
         group: { groupingKey: "builtin:sections", groupId: "release" },
       },
       groupingKey: null,
+      filterGroupingKey: "builtin:sections",
     });
     expect(
       changeSidebarGrouping(
@@ -46,16 +65,32 @@ describe("client-local sidebar preferences", () => {
             group: { groupingKey: "builtin:sections", groupId: "release" },
           },
           groupingKey: "plugin:thread-stages:stages",
+          filterGroupingKey: "builtin:sections",
         },
         "builtin:sections",
       ),
     ).toEqual({
       scope: { kind: "all" },
       groupingKey: "builtin:sections",
+      filterGroupingKey: "builtin:sections",
     });
     expect(
       changeSidebarGrouping(groupedBySections, "builtin:sections"),
-    ).toEqual({ scope: { kind: "all" }, groupingKey: null });
+    ).toEqual({
+      scope: { kind: "all" },
+      groupingKey: null,
+      filterGroupingKey: "builtin:sections",
+    });
+
+    const filteredByProject = changeSidebarScope(groupedBySections, {
+      kind: "group",
+      group: { groupingKey: "builtin:projects", groupId: "storefront" },
+    });
+    expect(filteredByProject.filterGroupingKey).toBe("builtin:projects");
+    expect(
+      changeSidebarScope(filteredByProject, { kind: "all" })
+        .filterGroupingKey,
+    ).toBe("builtin:projects");
   });
 
   it("normalizes a previously stored matching filter and grouping to flat", () => {
@@ -83,6 +118,7 @@ describe("client-local sidebar preferences", () => {
         group: { groupingKey: "builtin:sections", groupId: "release" },
       },
       groupingKey: null,
+      filterGroupingKey: "builtin:sections",
     });
   });
 
@@ -107,6 +143,7 @@ describe("client-local sidebar preferences", () => {
           group: { groupingKey: "builtin:sections", groupId: "release" },
         },
         groupingKey: "plugin:thread-stages:stages",
+        filterGroupingKey: "builtin:sections",
       },
       collapsed: new Set([
         "builtin:pinned",
@@ -150,6 +187,7 @@ describe("client-local sidebar preferences", () => {
           },
         },
         groupingKey: "builtin:projects",
+        filterGroupingKey: "builtin:projects",
       },
       collapsed: new Set(["plugin:removed:status/Waiting"]),
     });

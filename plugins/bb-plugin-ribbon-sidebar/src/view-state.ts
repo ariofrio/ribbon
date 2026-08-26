@@ -2,9 +2,19 @@ import type { GroupingKey } from "./placement-store";
 
 export type GroupRef = { groupingKey: GroupingKey; groupId: string };
 export type Scope = { kind: "all" } | { kind: "group"; group: GroupRef };
-export type SidebarView = { scope: Scope; groupingKey: GroupingKey | null };
+export type SidebarView = {
+  scope: Scope;
+  groupingKey: GroupingKey | null;
+  filterGroupingKey: GroupingKey;
+};
 export interface SidebarPreferences {
   view: SidebarView;
+  collapsed: Set<string>;
+}
+interface StoredSidebarPreferences {
+  view: Omit<SidebarView, "filterGroupingKey"> & {
+    filterGroupingKey: GroupingKey | null;
+  };
   collapsed: Set<string>;
 }
 
@@ -23,7 +33,7 @@ function isGroupingKey(value: unknown): value is GroupingKey {
   return typeof value === "string" && GROUPING_KEY.test(value);
 }
 
-function storedPreferences(raw: string | null): SidebarPreferences | null {
+function storedPreferences(raw: string | null): StoredSidebarPreferences | null {
   if (raw === null) return null;
   try {
     const value: unknown = JSON.parse(raw);
@@ -61,7 +71,13 @@ function storedPreferences(raw: string | null): SidebarPreferences | null {
         )
       : [];
     return {
-      view: { scope, groupingKey: view.groupingKey },
+      view: {
+        scope,
+        groupingKey: view.groupingKey,
+        filterGroupingKey: isGroupingKey(view.filterGroupingKey)
+          ? view.filterGroupingKey
+          : null,
+      },
       collapsed: new Set(collapsed),
     };
   } catch {
@@ -84,7 +100,12 @@ export function changeSidebarScope(
   view: SidebarView,
   scope: Scope,
 ): SidebarView {
-  return normalizeSidebarView({ ...view, scope });
+  return normalizeSidebarView({
+    ...view,
+    scope,
+    filterGroupingKey:
+      scope.kind === "group" ? scope.group.groupingKey : view.filterGroupingKey,
+  });
 }
 
 export function changeSidebarGrouping(
@@ -97,6 +118,7 @@ export function changeSidebarGrouping(
       : groupingKey;
   return {
     groupingKey: nextGroupingKey,
+    filterGroupingKey: view.filterGroupingKey,
     scope:
       nextGroupingKey !== null &&
       view.scope.kind === "group" &&
@@ -178,18 +200,26 @@ export function loadSidebarPreferences(
   availableGroupingKeys: readonly GroupingKey[],
   defaultCollapsed: readonly string[] = [],
 ): SidebarPreferences {
+  const filterFallback =
+    availableGroupingKeys.find((key) => key === "builtin:sections") ??
+    availableGroupingKeys[0] ??
+    "builtin:sections";
   const fallback =
     availableGroupingKeys.find(
       (key) => key === "plugin:thread-stages:stages",
     ) ??
     availableGroupingKeys[0] ??
     "builtin:projects";
-  let stored: SidebarPreferences | null = null;
+  let stored: StoredSidebarPreferences | null = null;
   try {
     stored = storedPreferences(storage.getItem(SIDEBAR_PREFERENCES_KEY));
   } catch {
     return {
-      view: { scope: { kind: "all" }, groupingKey: fallback },
+      view: {
+        scope: { kind: "all" },
+        groupingKey: fallback,
+        filterGroupingKey: filterFallback,
+      },
       collapsed: new Set(),
     };
   }
@@ -201,18 +231,30 @@ export function loadSidebarPreferences(
         : fallback;
     return {
       ...stored,
-      view: normalizeSidebarView({ ...stored.view, groupingKey }),
+      view: normalizeSidebarView({
+        ...stored.view,
+        groupingKey,
+        filterGroupingKey: stored.view.filterGroupingKey ?? filterFallback,
+      }),
     };
   }
   let migrated: SidebarPreferences;
   try {
     migrated = {
-      view: { scope: legacyScope(storage), groupingKey: fallback },
+      view: {
+        scope: legacyScope(storage),
+        groupingKey: fallback,
+        filterGroupingKey: filterFallback,
+      },
       collapsed: legacyCollapsed(storage, defaultCollapsed),
     };
   } catch {
     migrated = {
-      view: { scope: { kind: "all" }, groupingKey: fallback },
+      view: {
+        scope: { kind: "all" },
+        groupingKey: fallback,
+        filterGroupingKey: filterFallback,
+      },
       collapsed: new Set(),
     };
   }

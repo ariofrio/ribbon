@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { IconDataV1 } from "./contracts";
 import type { GroupingKey } from "./placement-store";
@@ -479,6 +479,15 @@ describe("Ribbon sidebar app", () => {
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
 
     await slot.findByRole("button", { name: "Expand Pinned section" });
+    fireEvent.keyDown(
+      slot.getByRole("button", { name: "Pinned options" }),
+      { key: "Enter" },
+    );
+    expect(await slot.findByRole("menuitem", { name: "Group by" })).toBeTruthy();
+    expect(slot.queryByRole("separator")).toBeNull();
+    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Group by" }), {
+      key: "Escape",
+    });
     expect(slot.queryByText("thread-pin")).toBeNull();
     fireEvent.click(
       slot.getByRole("button", { name: "Expand Pinned section" }),
@@ -833,9 +842,6 @@ describe("Ribbon sidebar app", () => {
       { key: "Enter" },
     );
     expect(await slot.findByText("All groups")).toBeTruthy();
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Sections" }), {
-      key: "ArrowRight",
-    });
     fireEvent.click(await slot.findByRole("menuitemradio", { name: /Release/u }));
     expect(await slot.findByRole("button", { name: "Release, filtered" }))
       .toBeTruthy();
@@ -852,20 +858,24 @@ describe("Ribbon sidebar app", () => {
     const stages = slot.getByRole("menuitem", { name: "Stages" });
     const sectionHeader = slot.getByText("Sections");
     expect(
-      allGroups.compareDocumentPosition(projects) & Node.DOCUMENT_POSITION_FOLLOWING,
+      allGroups.compareDocumentPosition(sectionHeader) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      projects.compareDocumentPosition(stages) & Node.DOCUMENT_POSITION_FOLLOWING,
+      sectionHeader.compareDocumentPosition(projects) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      stages.compareDocumentPosition(sectionHeader) & Node.DOCUMENT_POSITION_FOLLOWING,
+      projects.compareDocumentPosition(stages) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(allGroups.parentElement?.nextElementSibling).toBe(projects);
+    expect(allGroups.parentElement?.nextElementSibling?.getAttribute("role"))
+      .toBe("separator");
     expect(slot.getByRole("menuitemradio", { name: /Release/u })).toBeTruthy();
     slot.lifecycle.unmount();
   });
 
-  it("checks and toggles the active display grouping", async () => {
+  it("expands the remembered filter grouping when All groups is selected", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
@@ -874,24 +884,113 @@ describe("Ribbon sidebar app", () => {
     fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
       key: "Enter",
     });
-    expect(slot.queryAllByRole("separator")).toHaveLength(0);
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Stages" }), {
+
+    const allGroups = await slot.findByRole("menuitemradio", {
+      name: "All groups",
+    });
+    const release = slot.getByRole("menuitemradio", { name: /Release/u });
+    const unorganized = slot.getByRole("menuitemradio", {
+      name: "Unorganized",
+    });
+    const newSection = slot.getByRole("menuitem", { name: "New section" });
+    const projects = slot.getByRole("menuitem", { name: "Projects" });
+    const stages = slot.getByRole("menuitem", { name: "Stages" });
+    expect(allGroups.getAttribute("aria-checked")).toBe("true");
+    expect(release.parentElement).toBe(unorganized.parentElement);
+    expect(release.parentElement?.nextElementSibling).toBe(newSection);
+    expect(
+      newSection.compareDocumentPosition(projects) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      projects.compareDocumentPosition(stages) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(slot.queryByText(/Group by/u)).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("remembers a different filter grouping after returning to All groups", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+
+    fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
+      key: "Enter",
+    });
+    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Projects" }), {
+      key: "ArrowRight",
+    });
+    fireEvent.click(
+      await slot.findByRole("menuitemradio", { name: /Storefront/u }),
+    );
+    fireEvent.keyDown(
+      await slot.findByRole("button", { name: "Storefront, filtered" }),
+      { key: "Enter" },
+    );
+    fireEvent.click(
+      await slot.findByRole("menuitemradio", { name: "All groups" }),
+    );
+    fireEvent.keyDown(await slot.findByRole("button", { name: "Groups" }), {
+      key: "Enter",
+    });
+
+    const storefront = await slot.findByRole("menuitemradio", {
+      name: /Storefront/u,
+    });
+    const newProject = slot.getByRole("menuitem", { name: "New project" });
+    expect(storefront.parentElement?.nextElementSibling).toBe(newProject);
+    expect(slot.getByRole("menuitem", { name: "Sections" })).toBeTruthy();
+    expect(slot.getByRole("menuitem", { name: "Stages" })).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps the selected display grouping until No grouping is chosen", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+
+    const idle = slot.getByRole("region", { name: "Idle group" });
+    fireEvent.keyDown(within(idle).getByRole("button", { name: "Idle options" }), {
+      key: "Enter",
+    });
+    const groupBy = slot.getByRole("menuitem", { name: "Group by" });
+    expect(slot.queryByRole("separator")).toBeNull();
+    groupBy.focus();
+    fireEvent.pointerMove(groupBy);
+    fireEvent.keyDown(groupBy, {
       key: "ArrowRight",
     });
     const checked = await slot.findByRole("menuitemcheckbox", {
-      name: "Group by stage",
+      name: "Stages",
     });
     expect(checked.getAttribute("aria-checked")).toBe("true");
-    expect(
-      checked.querySelector(
-        'path[d="M3 4V11C3 12.8692 3 13.8038 3.40192 14.5C3.66523 14.9561 4.04394 15.3348 4.5 15.5981C5.19615 16 6.13077 16 8 16"]',
-      ),
-    ).toBeTruthy();
     fireEvent.click(checked);
 
-    await waitFor(() =>
-      expect(slot.queryByRole("region", { name: "Idle group" })).toBeNull(),
-    );
+    expect(
+      await slot.findByRole("region", { name: "Idle group" }),
+    ).toBeTruthy();
+    expect(
+      slot.queryByRole("region", { name: "Threads group" }),
+    ).toBeNull();
+
+    fireEvent.keyDown(within(idle).getByRole("button", { name: "Idle options" }), {
+      key: "Enter",
+    });
+    const reopenedGroupBy = slot.getByRole("menuitem", { name: "Group by" });
+    reopenedGroupBy.focus();
+    fireEvent.keyDown(reopenedGroupBy, { key: "ArrowRight" });
+    const noGrouping = await slot.findByRole("menuitemcheckbox", {
+      name: "No grouping",
+    });
+    expect(noGrouping.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(noGrouping);
+
+    const threads = await slot.findByRole("region", {
+      name: "Threads group",
+    });
     expect(slot.getByText("Design migration")).toBeTruthy();
     expect(
       (
@@ -900,58 +999,138 @@ describe("Ribbon sidebar app", () => {
           .closest("[data-thread-id]") as HTMLElement
       ).draggable,
     ).toBe(false);
-    fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
-      key: "Enter",
-    });
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Stages" }), {
+    fireEvent.keyDown(
+      within(threads).getByRole("button", { name: "Threads options" }),
+      { key: "Enter" },
+    );
+    const flatGroupBy = slot.getByRole("menuitem", { name: "Group by" });
+    flatGroupBy.focus();
+    fireEvent.keyDown(flatGroupBy, {
       key: "ArrowRight",
     });
     expect(
-      (await slot.findByRole("menuitemcheckbox", { name: "Group by stage" }))
+      (await slot.findByRole("menuitemcheckbox", { name: "Stages" }))
         .getAttribute("aria-checked"),
     ).toBe("false");
+    expect(
+      (await slot.findByRole("menuitemcheckbox", { name: "No grouping" }))
+        .getAttribute("aria-checked"),
+    ).toBe("true");
     slot.lifecycle.unmount();
   });
 
-  it.each([
-    ["Sections", "New section", "Group by section"],
-    ["Projects", "New project", "Group by project"],
-    ["Stages", null, "Group by stage"],
-  ] as const)(
-    "puts the %s grouping toggle at the end of its submenu",
-    async (groupingLabel, creationLabel, groupByLabel) => {
-      const app = await loadPluginApp(() => import("./app"));
-      const fixture = options();
-      const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-      await slot.findByText("Design migration");
+  it("shows Threads and changes grouping from the group header menu", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.ribbon-sidebar.preferences.v1",
+      JSON.stringify({
+        view: {
+          scope: { kind: "all" },
+          groupingKey: null,
+          filterGroupingKey: "builtin:sections",
+        },
+        collapsed: [],
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
 
-      fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
-        key: "Enter",
-      });
-      fireEvent.keyDown(slot.getByRole("menuitem", { name: groupingLabel }), {
-        key: "ArrowRight",
-      });
+    const threads = await slot.findByRole("region", {
+      name: "Threads group",
+    });
+    fireEvent.keyDown(
+      within(threads).getByRole("button", { name: "Threads options" }),
+      { key: "Enter" },
+    );
+    const groupBy = await slot.findByRole("menuitem", { name: "Group by" });
+    groupBy.focus();
+    fireEvent.keyDown(groupBy, {
+      key: "ArrowRight",
+    });
+    const sections = await slot.findByRole("menuitemcheckbox", {
+      name: "Sections",
+    });
+    expect(sections.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(sections);
 
-      const groupBy = await slot.findByRole("menuitemcheckbox", {
-        name: groupByLabel,
-      });
-      const footer = groupBy.parentElement;
-      expect(footer?.getAttribute("role")).toBe("group");
-      expect(footer?.lastElementChild).toBe(groupBy);
-      expect(footer?.previousElementSibling?.getAttribute("role")).toBe(
-        "separator",
-      );
-      if (creationLabel !== null) {
-        const creation = slot.getByRole("menuitem", { name: creationLabel });
-        expect(creation.parentElement).toBe(footer);
-        expect(creation.nextElementSibling).toBe(groupBy);
-      } else {
-        expect(footer?.firstElementChild).toBe(groupBy);
-      }
+    expect(
+      await slot.findByRole("region", { name: "Release group" }),
+    ).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
 
-      slot.lifecycle.unmount();
-    },
-  );
+  it("inlines entity actions after Group by only for actionable groups", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.ribbon-sidebar.preferences.v1",
+      JSON.stringify({
+        view: {
+          scope: { kind: "all" },
+          groupingKey: "builtin:sections",
+          filterGroupingKey: "builtin:sections",
+        },
+        collapsed: [],
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+
+    const release = await slot.findByRole("region", { name: "Release group" });
+    fireEvent.keyDown(
+      within(release).getByRole("button", { name: "Release options" }),
+      { key: "Enter" },
+    );
+    const groupBy = await slot.findByRole("menuitem", { name: "Group by" });
+    const rename = slot.getByRole("menuitem", { name: "Rename" });
+    const remove = slot.getByRole("menuitem", { name: "Remove" });
+    expect(groupBy.nextElementSibling?.getAttribute("role")).toBe("separator");
+    expect(groupBy.nextElementSibling?.nextElementSibling).toBe(rename);
+    expect(rename.nextElementSibling).toBe(remove);
+    fireEvent.keyDown(groupBy, { key: "Escape" });
+
+    const unorganized = slot.getByRole("region", {
+      name: "Unorganized group",
+    });
+    fireEvent.keyDown(
+      within(unorganized).getByRole("button", { name: "Unorganized options" }),
+      { key: "Enter" },
+    );
+    expect(await slot.findByRole("menuitem", { name: "Group by" })).toBeTruthy();
+    expect(slot.queryByRole("menuitem", { name: "Rename" })).toBeNull();
+    expect(slot.queryByRole("separator")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps Group by out of Groups and places New directly after its rows", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+
+    fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
+      key: "Enter",
+    });
+    const sectionRows = slot.getByRole("menuitemradio", { name: /Release/u })
+      .parentElement;
+    expect(sectionRows?.nextElementSibling).toBe(
+      slot.getByRole("menuitem", { name: "New section" }),
+    );
+    expect(slot.queryByText("Group by")).toBeNull();
+
+    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Projects" }), {
+      key: "ArrowRight",
+    });
+    const projectRows = (await slot.findByRole("menuitemradio", {
+      name: /Storefront/u,
+    })).parentElement;
+    expect(projectRows?.nextElementSibling).toBe(
+      slot.getByRole("menuitem", { name: "New project" }),
+    );
+    expect(slot.queryByText("Group by")).toBeNull();
+    slot.lifecycle.unmount();
+  });
 
   it("clears grouping when a filter selects the same dimension", async () => {
     window.localStorage.setItem(
@@ -969,13 +1148,6 @@ describe("Ribbon sidebar app", () => {
     fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
       key: "Enter",
     });
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Sections" }), {
-      key: "ArrowRight",
-    });
-    expect(
-      (await slot.findByRole("menuitemcheckbox", { name: "Group by section" }))
-        .getAttribute("aria-checked"),
-    ).toBe("true");
     fireEvent.click(slot.getByRole("menuitemradio", { name: /Release/u }));
 
     await waitFor(() =>
@@ -993,25 +1165,21 @@ describe("Ribbon sidebar app", () => {
         group: { groupingKey: "builtin:sections", groupId: "section-a" },
       },
       groupingKey: null,
+      filterGroupingKey: "builtin:sections",
     });
     fireEvent.keyDown(
       slot.getByRole("button", { name: "Release, filtered" }),
       { key: "Enter" },
     );
-    expect(slot.queryByRole("menuitemcheckbox", { name: "Group by section" }))
-      .toBeNull();
+    expect(slot.queryByText("Group by")).toBeNull();
     const newSection = slot.getByRole("menuitem", { name: "New section" });
-    expect(newSection.parentElement?.getAttribute("role")).toBe("group");
-    expect(newSection.parentElement?.parentElement?.getAttribute("role")).toBe(
+    expect(newSection.previousElementSibling?.getAttribute("role")).toBe(
       "group",
     );
-    expect(
-      newSection.parentElement?.previousElementSibling?.getAttribute("role"),
-    ).toBe("separator");
     slot.lifecycle.unmount();
   });
 
-  it("puts Threads last in project groups before the action footer", async () => {
+  it("puts Chats last in project groups directly before New project", async () => {
     window.localStorage.setItem(
       "bb.plugin.ribbon-sidebar.preferences.v1",
       JSON.stringify({
@@ -1046,7 +1214,7 @@ describe("Ribbon sidebar app", () => {
                 ...grouping.groups,
                 {
                   id: "project-personal",
-                  label: "Threads",
+                  label: "Chats",
                   visibleWhenEmpty: true,
                   acceptsAssignments: true,
                   defaultCollapsed: false,
@@ -1078,25 +1246,58 @@ describe("Ribbon sidebar app", () => {
     );
     expect(regions.map((region) => region.getAttribute("aria-label"))).toEqual([
       "Storefront group",
-      "Threads group",
+      "Chats group",
     ]);
+
+    fireEvent.keyDown(
+      within(regions[0]!).getByRole("button", { name: "Storefront options" }),
+      { key: "Enter" },
+    );
+    const projectGroupBy = await slot.findByRole("menuitem", {
+      name: "Group by",
+    });
+    expect(slot.getByRole("menuitem", { name: "Project settings" })).toBeTruthy();
+    expect(slot.getByRole("menuitem", { name: "Rename" })).toBeTruthy();
+    expect(slot.getByRole("menuitem", { name: "Remove" })).toBeTruthy();
+    expect(projectGroupBy.nextElementSibling?.getAttribute("role")).toBe(
+      "separator",
+    );
+    fireEvent.keyDown(projectGroupBy, { key: "Escape" });
+    await waitFor(() =>
+      expect(slot.queryByRole("menuitem", { name: "Group by" })).toBeNull(),
+    );
+
+    fireEvent.keyDown(
+      within(regions[1]!).getByRole("button", { name: "Chats options" }),
+      { key: "Enter" },
+    );
+    const threadsGroupBy = await slot.findByRole("menuitem", {
+      name: "Group by",
+    });
+    expect(slot.queryByRole("menuitem", { name: "Project settings" })).toBeNull();
+    expect(slot.queryByRole("menuitem", { name: "Rename" })).toBeNull();
+    expect(slot.queryByRole("separator")).toBeNull();
+    fireEvent.keyDown(threadsGroupBy, { key: "Escape" });
+    await waitFor(() =>
+      expect(slot.queryByRole("menuitem", { name: "Group by" })).toBeNull(),
+    );
+
     fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
       key: "Enter",
     });
     fireEvent.keyDown(slot.getByRole("menuitem", { name: "Projects" }), {
       key: "ArrowRight",
     });
-    const threads = await slot.findByRole("menuitemradio", { name: "Threads" });
-    const newProject = slot.getByRole("menuitem", { name: "New project" });
-    expect(threads.parentElement?.lastElementChild).toBe(threads);
-    const separator = threads.parentElement?.nextElementSibling;
-    expect(separator?.getAttribute("role")).toBe("separator");
-    expect(separator?.nextElementSibling).toBe(newProject.parentElement);
-    expect(newProject.parentElement?.firstElementChild).toBe(newProject);
+    const chats = await slot.findByRole("menuitemradio", { name: "Chats" });
+    const newProject = await slot.findByRole("menuitem", {
+      name: "New project",
+    });
+    expect(chats.parentElement?.lastElementChild).toBe(chats);
+    expect(chats.parentElement?.nextElementSibling).toBe(newProject);
     slot.lifecycle.unmount();
   });
 
-  it("filters and changes grouping only from the Groups menu", async () => {
+  it("filters from Groups and changes grouping from a group header", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
@@ -1114,9 +1315,6 @@ describe("Ribbon sidebar app", () => {
     expect(await slot.findByRole("menuitemradio", { name: "All groups" }))
       .toBeTruthy();
     expect(
-      slot.getByRole("menuitem", { name: "Sections" }).querySelectorAll("svg"),
-    ).toHaveLength(2);
-    expect(
       slot.getByRole("menuitem", { name: "Projects" }).querySelectorAll("svg"),
     ).toHaveLength(2);
     expect(
@@ -1124,16 +1322,25 @@ describe("Ribbon sidebar app", () => {
         .getByRole("menuitem", { name: "Stages" })
         .querySelector('path[d="M8 5v14l11-7z"]'),
     ).toBeTruthy();
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Sections" }), {
-      key: "ArrowRight",
-    });
     expect(
       (await slot.findByRole("menuitemradio", { name: "Unorganized" }))
         .querySelector('[data-icon="ListViewOff"]'),
     ).toBeTruthy();
-    expect(await slot.findByRole("menuitemcheckbox", { name: "Group by section" }))
-      .toBeTruthy();
-    fireEvent.click(slot.getByRole("menuitemcheckbox", { name: "Group by section" }));
+    expect(slot.queryByText("Group by")).toBeNull();
+    fireEvent.keyDown(slot.getByRole("menuitemradio", { name: "All groups" }), {
+      key: "Escape",
+    });
+
+    const idle = slot.getByRole("region", { name: "Idle group" });
+    fireEvent.keyDown(within(idle).getByRole("button", { name: "Idle options" }), {
+      key: "Enter",
+    });
+    const groupBy = await slot.findByRole("menuitem", { name: "Group by" });
+    groupBy.focus();
+    fireEvent.keyDown(groupBy, {
+      key: "ArrowRight",
+    });
+    fireEvent.click(await slot.findByRole("menuitemcheckbox", { name: "Sections" }));
 
     expect(
       await slot.findByRole("region", { name: "Release group" }),
@@ -1169,9 +1376,6 @@ describe("Ribbon sidebar app", () => {
         name: "All groups",
       }),
     ).toBeTruthy();
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Sections" }), {
-      key: "ArrowRight",
-    });
     const section = await slot.findByRole("menuitemradio", { name: /Release/u });
     expect(section.querySelector("svg")).toBeTruthy();
     fireEvent.click(section);
@@ -1339,14 +1543,15 @@ describe("Ribbon sidebar app", () => {
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Design migration");
 
-    fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
+    const idle = slot.getByRole("region", { name: "Idle group" });
+    fireEvent.keyDown(within(idle).getByRole("button", { name: "Idle options" }), {
       key: "Enter",
     });
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Sections" }), {
+    fireEvent.keyDown(await slot.findByRole("menuitem", { name: "Group by" }), {
       key: "ArrowRight",
     });
     fireEvent.click(
-      await slot.findByRole("menuitemcheckbox", { name: "Group by section" }),
+      await slot.findByRole("menuitemcheckbox", { name: "Sections" }),
     );
 
     const releaseHeader = (await slot.findByRole("region", {
@@ -1489,9 +1694,6 @@ describe("Ribbon sidebar app", () => {
     );
 
     fireEvent.keyDown(management, { key: "Enter" });
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Sections" }), {
-      key: "ArrowRight",
-    });
     fireEvent.contextMenu(
       await slot.findByRole("menuitemradio", { name: /Release/u }),
     );
@@ -1508,9 +1710,6 @@ describe("Ribbon sidebar app", () => {
     );
 
     fireEvent.keyDown(management, { key: "Enter" });
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Sections" }), {
-      key: "ArrowRight",
-    });
     fireEvent.contextMenu(
       await slot.findByRole("menuitemradio", { name: /Release/u }),
     );
