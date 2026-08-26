@@ -35,6 +35,23 @@ function sideChatPanel(page) {
     .filter({ has: page.getByRole("textbox", { name: "Reply…" }) });
 }
 
+async function openSideChatByShortcut(page) {
+  const reply = page.getByRole("textbox", { name: "Reply…" });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.keyboard.press("Shift+Meta+KeyL");
+    try {
+      await reply.waitFor({ timeout: 10000 });
+      return reply;
+    } catch {
+      // A full navigation remounts the shortcut plugin. Its RPC can finish
+      // just before the listener lands, so a key sent in that interval is
+      // lost; retry only after the composer itself proves it did not open.
+    }
+  }
+  await reply.waitFor({ timeout: 120000 });
+  return reply;
+}
+
 /**
  * The main composer's model label is fixture chrome outside the shortcut this
  * shot demonstrates. Its variable-font edge pixels can differ between two
@@ -276,9 +293,7 @@ export const SHOTS = [
       ]);
       // ⇧⌘L opens a side chat and puts the cursor in its composer, so the
       // question can be typed without clicking anything.
-      await page.keyboard.press("Shift+Meta+KeyL");
-      const reply = page.getByRole("textbox", { name: "Reply…" });
-      await reply.waitFor();
+      const reply = await openSideChatByShortcut(page);
       // The next line types blind, so focus has to have arrived: the shortcut
       // moves it into this composer as the panel opens, and a keystroke sent
       // before that lands in whatever still holds it.
