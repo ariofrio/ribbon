@@ -8,7 +8,10 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
-import { FilterMailCircleIcon } from "@hugeicons/core-free-icons";
+import {
+  FilterMailCircleIcon,
+  FolderLibraryIcon,
+} from "@hugeicons/core-free-icons";
 import type { EntityIconView } from "./icons";
 import {
   serializeScopeFilter,
@@ -103,6 +106,17 @@ const ACTION_TOOLTIP_DELAY_MS = 350;
 const SubmenuPointerEnterContext = createContext<(() => void) | undefined>(
   undefined,
 );
+
+function ProjectsAndSectionsIcon() {
+  return (
+    <HugeiconsIcon
+      icon={FolderLibraryIcon}
+      size={16}
+      className="size-4 shrink-0"
+      aria-hidden
+    />
+  );
+}
 
 export function ScopeFilter({
   activeOverride,
@@ -200,11 +214,7 @@ export function ScopeFilter({
                 aria-hidden
               />
             ) : (
-              <Icon
-                name="FolderOpen"
-                className="size-4 shrink-0"
-                aria-hidden
-              />
+              <ProjectsAndSectionsIcon />
             )}
             <span
               data-thread-filter-label-cluster=""
@@ -247,11 +257,7 @@ export function ScopeFilter({
               selectedValue={selectedValue}
               value=""
             >
-              <Icon
-                name="FolderOpen"
-                className="size-4 shrink-0"
-                aria-hidden
-              />
+              <ProjectsAndSectionsIcon />
             </ThreadFilterItem>
           </DropdownMenuRadioGroup>
           <DropdownMenuSeparator />

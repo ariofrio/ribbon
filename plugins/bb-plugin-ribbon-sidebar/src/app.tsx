@@ -71,6 +71,7 @@ import { ScopeFilter } from "./scope-filter";
 import type { ScopeFilterValue } from "./scope-filter-value";
 
 const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
+const THREAD_STAGES_GROUPING_KEY = "plugin:thread-stages:stages";
 
 type SidebarSnapshot = z.output<
   typeof rpcContract.sidebarSnapshotV1.output
@@ -101,6 +102,19 @@ type DragDestination =
       indicatorBefore: string | null;
       indicatorAfter: string | null;
     };
+
+function GroupingActionIcon({ grouping }: { grouping: SnapshotGrouping }) {
+  const activeStageIcon =
+    grouping.groupingKey === THREAD_STAGES_GROUPING_KEY
+      ? grouping.groups.find(({ id }) => id === "Active")?.icon
+      : undefined;
+
+  return activeStageIcon ? (
+    <ProviderIcon icon={activeStageIcon} label="Active stage" />
+  ) : (
+    <Icon aria-hidden className="size-3.5" name="Workflow" />
+  );
+}
 
 function title(thread: PluginSidebarThread) {
   return thread.title ?? thread.titleFallback ?? "Untitled thread";
@@ -1394,7 +1408,7 @@ function RibbonSidebarList({
                     className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-subtle-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-[state=open]:bg-state-active max-md:pointer-coarse:h-9"
                     type="button"
                   >
-                    <Icon aria-hidden className="size-3.5" name="Workflow" />
+                    <GroupingActionIcon grouping={grouping} />
                     <span className="max-w-20 truncate">
                       {grouping.pluralLabel}
                     </span>
@@ -1494,7 +1508,7 @@ function RibbonSidebarList({
                 className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-subtle-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-[state=open]:bg-state-active max-md:pointer-coarse:h-9"
                 type="button"
               >
-                <Icon aria-hidden className="size-3.5" name="Workflow" />
+                <GroupingActionIcon grouping={grouping} />
                 <span className="max-w-20 truncate">{grouping.pluralLabel}</span>
               </button>
             </DropdownMenuTrigger>
