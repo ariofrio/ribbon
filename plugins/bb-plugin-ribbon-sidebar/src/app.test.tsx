@@ -913,6 +913,45 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it.each([
+    ["Sections", "New section", "Group by section"],
+    ["Projects", "New project", "Group by project"],
+    ["Stages", null, "Group by stage"],
+  ] as const)(
+    "puts the %s grouping toggle at the end of its submenu",
+    async (groupingLabel, creationLabel, groupByLabel) => {
+      const app = await loadPluginApp(() => import("./app"));
+      const fixture = options();
+      const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+      await slot.findByText("Design migration");
+
+      fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
+        key: "Enter",
+      });
+      fireEvent.keyDown(slot.getByRole("menuitem", { name: groupingLabel }), {
+        key: "ArrowRight",
+      });
+
+      const groupBy = await slot.findByRole("menuitemcheckbox", {
+        name: groupByLabel,
+      });
+      const menu = groupBy.parentElement;
+      expect(menu?.lastElementChild).toBe(groupBy);
+      expect(groupBy.previousElementSibling?.getAttribute("role")).toBe(
+        "separator",
+      );
+      if (creationLabel !== null) {
+        const creation = slot.getByRole("menuitem", { name: creationLabel });
+        expect(
+          creation.compareDocumentPosition(groupBy) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+      }
+
+      slot.lifecycle.unmount();
+    },
+  );
+
   it("clears grouping when a filter selects the same dimension", async () => {
     window.localStorage.setItem(
       "bb.plugin.ribbon-sidebar.preferences.v1",

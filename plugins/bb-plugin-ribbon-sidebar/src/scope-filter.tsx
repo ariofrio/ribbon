@@ -328,8 +328,31 @@ export function ScopeFilter({
 
     return (
       <>
+        <DropdownMenuRadioGroup
+          value={selectedValue}
+          onValueChange={handleFilterChange}
+        >
+          {rows}
+        </DropdownMenuRadioGroup>
+        {grouping.groupingKey === "builtin:sections" ? (
+          <DropdownMenuItem inset className="pl-7" onSelect={onNewSection}>
+            <Icon name="SectionAdd" className="size-4 shrink-0" aria-hidden />
+            <span>New section</span>
+          </DropdownMenuItem>
+        ) : grouping.groupingKey === "builtin:projects" ? (
+          <DropdownMenuItem
+            inset
+            className="pl-7"
+            disabled={newProjectDisabled}
+            onSelect={onNewProject}
+          >
+            <Icon name="FolderPlus" className="size-4 shrink-0" aria-hidden />
+            <span>New project</span>
+          </DropdownMenuItem>
+        ) : null}
         {canGroupBy ? (
           <>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               className="pl-7"
               role="menuitemcheckbox"
@@ -353,30 +376,7 @@ export function ScopeFilter({
               />
               Group by {grouping.singularLabel.toLocaleLowerCase()}
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
           </>
-        ) : null}
-        <DropdownMenuRadioGroup
-          value={selectedValue}
-          onValueChange={handleFilterChange}
-        >
-          {rows}
-        </DropdownMenuRadioGroup>
-        {grouping.groupingKey === "builtin:sections" ? (
-          <DropdownMenuItem inset className="pl-7" onSelect={onNewSection}>
-            <Icon name="SectionAdd" className="size-4 shrink-0" aria-hidden />
-            <span>New section</span>
-          </DropdownMenuItem>
-        ) : grouping.groupingKey === "builtin:projects" ? (
-          <DropdownMenuItem
-            inset
-            className="pl-7"
-            disabled={newProjectDisabled}
-            onSelect={onNewProject}
-          >
-            <Icon name="FolderPlus" className="size-4 shrink-0" aria-hidden />
-            <span>New project</span>
-          </DropdownMenuItem>
         ) : null}
       </>
     );
