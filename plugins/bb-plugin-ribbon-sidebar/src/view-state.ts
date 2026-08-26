@@ -2,7 +2,7 @@ import type { GroupingKey } from "./placement-store";
 
 export type GroupRef = { groupingKey: GroupingKey; groupId: string };
 export type Scope = { kind: "all" } | { kind: "group"; group: GroupRef };
-export type SidebarView = { scope: Scope; groupingKey: GroupingKey };
+export type SidebarView = { scope: Scope; groupingKey: GroupingKey | null };
 export interface SidebarPreferences {
   view: SidebarView;
   collapsed: Set<string>;
@@ -30,7 +30,9 @@ function storedPreferences(raw: string | null): SidebarPreferences | null {
     if (typeof value !== "object" || value === null) return null;
     const record = value as Record<string, unknown>;
     const view = record.view as Record<string, unknown> | undefined;
-    if (!view || !isGroupingKey(view.groupingKey)) return null;
+    if (!view || (view.groupingKey !== null && !isGroupingKey(view.groupingKey))) {
+      return null;
+    }
     const rawScope = view.scope as Record<string, unknown> | undefined;
     let scope: Scope;
     if (rawScope?.kind === "all") scope = { kind: "all" };
@@ -65,6 +67,43 @@ function storedPreferences(raw: string | null): SidebarPreferences | null {
   } catch {
     return null;
   }
+}
+
+export function normalizeSidebarView(view: SidebarView): SidebarView {
+  if (
+    view.groupingKey !== null &&
+    view.scope.kind === "group" &&
+    view.scope.group.groupingKey === view.groupingKey
+  ) {
+    return { ...view, groupingKey: null };
+  }
+  return view;
+}
+
+export function changeSidebarScope(
+  view: SidebarView,
+  scope: Scope,
+): SidebarView {
+  return normalizeSidebarView({ ...view, scope });
+}
+
+export function changeSidebarGrouping(
+  view: SidebarView,
+  groupingKey: GroupingKey | null,
+): SidebarView {
+  const nextGroupingKey =
+    groupingKey !== null && view.groupingKey === groupingKey
+      ? null
+      : groupingKey;
+  return {
+    groupingKey: nextGroupingKey,
+    scope:
+      nextGroupingKey !== null &&
+      view.scope.kind === "group" &&
+      view.scope.group.groupingKey === nextGroupingKey
+        ? { kind: "all" }
+        : view.scope,
+  };
 }
 
 function legacyScope(storage: Storage): Scope {
@@ -155,14 +194,14 @@ export function loadSidebarPreferences(
     };
   }
   if (stored !== null) {
+    const groupingKey =
+      stored.view.groupingKey === null ||
+      availableGroupingKeys.includes(stored.view.groupingKey)
+        ? stored.view.groupingKey
+        : fallback;
     return {
       ...stored,
-      view: {
-        ...stored.view,
-        groupingKey: availableGroupingKeys.includes(stored.view.groupingKey)
-          ? stored.view.groupingKey
-          : fallback,
-      },
+      view: normalizeSidebarView({ ...stored.view, groupingKey }),
     };
   }
   let migrated: SidebarPreferences;

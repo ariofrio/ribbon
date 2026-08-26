@@ -292,6 +292,7 @@ export default async function plugin(bb: BbPluginApi) {
   bb.storage.migrate(database, RIBBON_SIDEBAR_MIGRATIONS);
 
   let projectGroups: GroupingDescriptor["groups"] = [];
+  let personalProjectId: string | null = null;
   let sectionGroups: GroupingDescriptor["groups"] = [];
   const projectByThread = new Map<string, string>();
   const sectionByThread = new Map<string, string>();
@@ -299,7 +300,7 @@ export default async function plugin(bb: BbPluginApi) {
     groupingKey: "builtin:projects",
     singularLabel: "Project",
     pluralLabel: "Projects",
-    defaultGroupId: projectGroups[0]?.id ?? "personal",
+    defaultGroupId: personalProjectId ?? projectGroups[0]?.id ?? "personal",
     groups: projectGroups,
     membership: {
       kind: "external",
@@ -397,13 +398,19 @@ export default async function plugin(bb: BbPluginApi) {
     );
     await providers.refresh(providerPluginIds);
 
-    projectGroups = projects.map((project) => ({
-      id: project.id,
-      label: project.kind === "personal" ? "Threads" : project.name,
-      acceptsAssignments: true,
-      visibleWhenEmpty: true,
-      defaultCollapsed: false,
-    }));
+    personalProjectId =
+      projects.find(({ kind }) => kind === "personal")?.id ?? null;
+    projectGroups = [...projects]
+      .sort((left, right) =>
+        left.kind === right.kind ? 0 : left.kind === "personal" ? 1 : -1,
+      )
+      .map((project) => ({
+        id: project.id,
+        label: project.kind === "personal" ? "Threads" : project.name,
+        acceptsAssignments: true,
+        visibleWhenEmpty: true,
+        defaultCollapsed: false,
+      }));
     sectionGroups = [
       ...sections.map((section) => ({
         id: section.id,

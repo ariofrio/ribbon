@@ -28,6 +28,8 @@ import type { z } from "zod";
 import type { rpcContract } from "./server";
 import type { GroupingKey, PlacementRecordV1 } from "./placement-store";
 import {
+  changeSidebarGrouping,
+  changeSidebarScope,
   loadSidebarPreferences,
   saveSidebarPreferences,
   type GroupRef,
@@ -538,13 +540,17 @@ function RibbonSidebarList({
 
   const loadPlacements = useCallback(async () => {
     if (!preferences) return;
+    const placementGroupingKey =
+      preferences.view.groupingKey ??
+      snapshot?.groupings.find(({ available }) => available)?.groupingKey;
+    if (!placementGroupingKey) return;
     setPlacementsLoaded(false);
     let threadIds: string[] | undefined;
     if (
       !normalizedSearch &&
       preferences.view.scope.kind === "group" &&
       preferences.view.scope.group.groupingKey !==
-        preferences.view.groupingKey
+        placementGroupingKey
     ) {
       const scope = preferences.view.scope.group;
       const scoped = await rpc.call("listPlacementsV1", {
@@ -556,14 +562,14 @@ function RibbonSidebarList({
         .map(({ threadId }) => threadId);
     }
     const result = await rpc.call("listPlacementsV1", {
-      groupingKey: preferences.view.groupingKey,
+      groupingKey: placementGroupingKey,
       ...(threadIds === undefined ? {} : { threadIds }),
     });
     if (!result.ok) throw new Error(result.error.message);
     setPlacements(result.value.items as PlacementRecordV1[]);
     setRevision(result.value.revision);
     setPlacementsLoaded(true);
-  }, [normalizedSearch, preferences, rpc]);
+  }, [normalizedSearch, preferences, rpc, snapshot]);
 
   const loadAssignmentPlacements = useCallback(async () => {
     if (!snapshot) return;
@@ -844,24 +850,40 @@ function RibbonSidebarList({
     placements.map(({ threadId }, index) => [threadId, index]),
   );
   const displayGroupId = (thread: PluginSidebarThread) =>
-    placementByThread.get(thread.id)?.groupId ??
-    (normalizedSearch && thread.isArchived
-      ? grouping?.defaultGroupId
-      : undefined);
+    grouping
+      ? placementByThread.get(thread.id)?.groupId ??
+        (normalizedSearch && thread.isArchived
+          ? grouping.defaultGroupId
+          : undefined)
+      : "ungrouped";
   const unpinnedRoots = displayRootThreads.filter(
     (thread) =>
       !thread.isPinned &&
       (visiblePlacementIds.has(thread.id) ||
         (Boolean(normalizedSearch) && thread.isArchived)) &&
       matchesSearch(thread),
-  ).sort(
-    (left, right) =>
-      (placementOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
-      (placementOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER),
   );
+  if (grouping) {
+    unpinnedRoots.sort(
+      (left, right) =>
+        (placementOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+        (placementOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER),
+    );
+  }
 
   const groupDefinitions = useMemo(() => {
-    if (!grouping) return [];
+    if (!grouping) {
+      return [
+        {
+          id: "ungrouped",
+          label: "All groups",
+          icon: undefined,
+          visibleWhenEmpty: true,
+          acceptsAssignments: false,
+          defaultCollapsed: false,
+        },
+      ];
+    }
     const known = new Set(grouping.groups.map(({ id }) => id));
     const orphanIds = placements
       .map(({ groupId }) => groupId)
@@ -960,7 +982,7 @@ function RibbonSidebarList({
       groupId: string,
       anchor: { kind: "before"; threadId: string } | { kind: "end" },
     ) => {
-      if (!preferences) return;
+      if (!preferences?.view.groupingKey) return;
       setMutationError(null);
       const result = await rpc.call("updatePlacementV1", {
         groupingKey: preferences.view.groupingKey,
@@ -1053,7 +1075,7 @@ function RibbonSidebarList({
       </div>
     );
   }
-  if (!snapshot || !preferences || !grouping) {
+  if (!snapshot || !preferences) {
     return (
       <div aria-label="Loading Ribbon sidebar" className="space-y-1.5 px-2 pt-1">
         {["w-2/3", "w-1/2"].map((width) => (
@@ -1073,7 +1095,9 @@ function RibbonSidebarList({
     ? placementByThread.get(movingThread.id)
     : undefined;
   const canDropPlacementInto = (groupId: string) => {
-    if (!movingThread || movingThread.isPinned || !movingPlacement) return false;
+    if (!grouping || !movingThread || movingThread.isPinned || !movingPlacement) {
+      return false;
+    }
     if (movingPlacement.groupId === groupId) return true;
     const destination = groupDefinitions.find(({ id }) => id === groupId);
     return grouping.membershipWritable && destination?.acceptsAssignments === true;
@@ -1325,7 +1349,7 @@ function RibbonSidebarList({
     >
       {settings.values?.showProjectsAndSections !== false ? (
         <ScopeFilter
-          activeGroupingKey={grouping.groupingKey}
+          activeGroupingKey={grouping?.groupingKey ?? null}
           groupings={orderedGroupings(
             snapshot.groupings.filter(({ available }) => available),
           )}
@@ -1344,25 +1368,21 @@ function RibbonSidebarList({
           onChange={(next) =>
             changePreferences((current) => ({
               ...current,
-              view: {
-                ...current.view,
-                scope:
-                  next === null
-                    ? { kind: "all" }
-                    : {
-                        kind: "group",
-                        group: next,
-                      },
-              },
+              view: changeSidebarScope(
+                current.view,
+                next === null
+                  ? { kind: "all" }
+                  : { kind: "group", group: next },
+              ),
             }))
           }
           onGroupingChange={(groupingKey) =>
             changePreferences((current) => ({
               ...current,
-              view: {
-                ...current.view,
-                groupingKey: groupingKey as GroupingKey,
-              },
+              view: changeSidebarGrouping(
+                current.view,
+                groupingKey as GroupingKey | null,
+              ),
             }))
           }
           onHide={() => {
@@ -1455,7 +1475,9 @@ function RibbonSidebarList({
             <DialogDescription>
               {entityDialog?.kind === "delete"
                 ? "This removes the group from bb."
-                : "Choose the name shown in the Ribbon sidebar."}
+                : entityDialog?.kind === "create-section"
+                  ? "Create a section for threads."
+                  : "Choose a new name for this section."}
             </DialogDescription>
           </DialogHeader>
           {entityDialog?.kind === "create-section" ||
@@ -1657,15 +1679,18 @@ function RibbonSidebarList({
         );
         if (normalizedSearch && roots.length === 0) return null;
         if (roots.length === 0 && !group.visibleWhenEmpty) return null;
-        const ref = `${grouping.groupingKey}/${group.id}`;
-        const collapsed = !normalizedSearch && preferences.collapsed.has(ref);
+        const ref = `${grouping?.groupingKey ?? "ungrouped"}/${group.id}`;
+        const collapsed =
+          grouping !== undefined &&
+          !normalizedSearch &&
+          preferences.collapsed.has(ref);
         const groupThreads = roots.flatMap((root) => [
           root,
           ...descendants(root.id, childrenByParent),
         ]);
         const activityThread =
           collapsed &&
-          (grouping.groupingKey === "plugin:thread-stages:stages" ||
+          (grouping?.groupingKey === "plugin:thread-stages:stages" ||
             settings.values?.showCollapsedGroupIndicators === true)
             ? groupIndicator(groupThreads)
             : null;
@@ -1675,25 +1700,25 @@ function RibbonSidebarList({
             : undefined;
         const sameKeyScope =
           preferences.view.scope.kind === "group" &&
-          preferences.view.scope.group.groupingKey === grouping.groupingKey &&
+          preferences.view.scope.group.groupingKey === grouping?.groupingKey &&
           preferences.view.scope.group.groupId === group.id;
         const entityGroupIcon =
-          grouping.groupingKey === "builtin:projects"
+          grouping?.groupingKey === "builtin:projects"
             ? projectIcons.get(group.id)
-            : grouping.groupingKey === "builtin:sections"
+            : grouping?.groupingKey === "builtin:sections"
               ? sectionIcons.get(group.id)
               : undefined;
         const builtinGroupIcon =
-          grouping.groupingKey === "builtin:projects"
+          grouping?.groupingKey === "builtin:projects"
             ? sidebar.projects.find(({ id }) => id === group.id)?.isPersonal
               ? "MessageSquare"
               : "Folder"
-            : grouping.groupingKey === "builtin:sections"
+            : grouping?.groupingKey === "builtin:sections"
               ? "ListView"
               : undefined;
         return (
           <section
-            aria-label={`${group.label} group`}
+            aria-label={grouping ? `${group.label} group` : undefined}
             className={`group/sidebar-section min-w-0 rounded-md transition-colors ${
               dragDestination?.kind === "placement" &&
               dragDestination.groupId === group.id &&
@@ -1725,7 +1750,7 @@ function RibbonSidebarList({
               clearDrag();
             }}
           >
-            {!sameKeyScope ? (
+            {grouping && !sameKeyScope ? (
               <div
                 className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 text-xs font-normal leading-5 text-subtle-foreground/75 transition-colors max-md:pointer-coarse:h-9 ${
                   collapsed && roots.length > 0
@@ -1814,16 +1839,23 @@ function RibbonSidebarList({
                 ) : null}
               </div>
             ) : null}
-            <div className={!collapsed ? "mt-1" : undefined}>
+            <div className={grouping && !collapsed ? "mt-1" : undefined}>
               {!collapsed
                 ? (
                     <ul>
                       {roots.map((root) =>
-                        renderRoot(root, 0, true, {
-                          kind: "placement",
-                          roots,
-                          groupId: group.id,
-                        }),
+                        renderRoot(
+                          root,
+                          0,
+                          true,
+                          grouping
+                            ? {
+                                kind: "placement",
+                                roots,
+                                groupId: group.id,
+                              }
+                            : undefined,
+                        ),
                       )}
                     </ul>
                   )

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { loadSidebarPreferences } from "./view-state";
+import {
+  changeSidebarGrouping,
+  changeSidebarScope,
+  loadSidebarPreferences,
+} from "./view-state";
 
 function storage(entries: Record<string, string> = {}): Storage {
   const values = new Map(Object.entries(entries));
@@ -16,6 +20,72 @@ function storage(entries: Record<string, string> = {}): Storage {
 }
 
 describe("client-local sidebar preferences", () => {
+  it("keeps filter and display grouping dimensions distinct", () => {
+    const groupedBySections = {
+      scope: { kind: "all" as const },
+      groupingKey: "builtin:sections" as const,
+    };
+
+    expect(
+      changeSidebarScope(groupedBySections, {
+        kind: "group",
+        group: { groupingKey: "builtin:sections", groupId: "release" },
+      }),
+    ).toEqual({
+      scope: {
+        kind: "group",
+        group: { groupingKey: "builtin:sections", groupId: "release" },
+      },
+      groupingKey: null,
+    });
+    expect(
+      changeSidebarGrouping(
+        {
+          scope: {
+            kind: "group",
+            group: { groupingKey: "builtin:sections", groupId: "release" },
+          },
+          groupingKey: "plugin:thread-stages:stages",
+        },
+        "builtin:sections",
+      ),
+    ).toEqual({
+      scope: { kind: "all" },
+      groupingKey: "builtin:sections",
+    });
+    expect(
+      changeSidebarGrouping(groupedBySections, "builtin:sections"),
+    ).toEqual({ scope: { kind: "all" }, groupingKey: null });
+  });
+
+  it("normalizes a previously stored matching filter and grouping to flat", () => {
+    const local = storage({
+      "bb.plugin.ribbon-sidebar.preferences.v1": JSON.stringify({
+        view: {
+          scope: {
+            kind: "group",
+            group: { groupingKey: "builtin:sections", groupId: "release" },
+          },
+          groupingKey: "builtin:sections",
+        },
+        collapsed: [],
+      }),
+    });
+
+    expect(
+      loadSidebarPreferences(local, [
+        "builtin:sections",
+        "plugin:thread-stages:stages",
+      ]).view,
+    ).toEqual({
+      scope: {
+        kind: "group",
+        group: { groupingKey: "builtin:sections", groupId: "release" },
+      },
+      groupingKey: null,
+    });
+  });
+
   it("migrates Thread stages scope, grouping, and collapsed stages once", () => {
     const local = storage({
       "bb.plugin.thread-stages.threadFilter": "section:release",

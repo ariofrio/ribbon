@@ -45,12 +45,14 @@ not yet expose project movement.
 Drag a root before another row or onto a group's end target. For keyboard or
 touch input, start from a row's Move control, then choose a row's move-before
 control or a group's end target; Escape cancels the move. Group headers can be
-collapsed or used as a scope filter. Scope, grouping, and collapsed groups are
-local to the current client. Opening a thread moves an existing Project or
-Section scope to that thread's root, and a collapsed group previews only the
-opened thread. Search temporarily ignores scope and collapse state. The
-Projects and sections menu retains project and section creation plus entity
-actions. If the Ribbon UI cannot load, it delegates to bb's original list.
+collapsed, while the Groups menu controls filtering and display grouping.
+Filtering and grouping are local to the current client and cannot use the same
+dimension at once; choosing one clears the other when necessary. Opening a
+thread moves an existing Project or Section scope to that thread's root, and a
+collapsed group previews only the opened thread. Search temporarily ignores
+scope and collapse state. The Groups menu retains project and section creation
+plus entity actions. If the Ribbon UI cannot load, it delegates to bb's
+original list.
 
 ## CLI
 

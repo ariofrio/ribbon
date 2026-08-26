@@ -297,6 +297,7 @@ describe("Ribbon sidebar server", () => {
     )) as {
       groupings: {
         groupingKey: string;
+        defaultGroupId: string;
         groups: { id: string; label: string }[];
       }[];
     };
@@ -315,6 +316,16 @@ describe("Ribbon sidebar server", () => {
         .find(({ groupingKey }) => groupingKey === "builtin:projects")
         ?.groups.find(({ id }) => id === "project-personal")?.label,
     ).toBe("Threads");
+    expect(
+      result.groupings
+        .find(({ groupingKey }) => groupingKey === "builtin:projects")
+        ?.groups.map(({ label }) => label),
+    ).toEqual(["Storefront", "Back office", "Threads"]);
+    expect(
+      result.groupings.find(
+        ({ groupingKey }) => groupingKey === "builtin:projects",
+      )?.defaultGroupId,
+    ).toBe("project-personal");
   });
 
   it("registers the exact public placement RPC and generic CLI", async () => {

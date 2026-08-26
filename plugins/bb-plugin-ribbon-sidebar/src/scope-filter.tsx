@@ -70,11 +70,11 @@ export interface GroupsMenuGrouping {
 }
 
 interface ThreadFilterProps {
-  activeGroupingKey: string;
+  activeGroupingKey: string | null;
   groupings: readonly GroupsMenuGrouping[];
   newProjectDisabled?: boolean;
   onChange: (filter: ScopeFilterValue) => void;
-  onGroupingChange: (groupingKey: string) => void;
+  onGroupingChange: (groupingKey: string | null) => void;
   onHide?: () => void;
   onNewProject: () => void;
   onNewSection: () => void;
@@ -92,8 +92,6 @@ interface ThreadFilterProps {
   value: ScopeFilterValue;
 }
 
-const CHROME_SECTION_LABEL_CLASS =
-  "text-xs font-normal leading-5 text-subtle-foreground/75";
 const CONTENT_CLASS = "min-w-[var(--radix-dropdown-menu-trigger-width)]";
 const FILTER_ITEM_CLASS = "gap-2 pl-7";
 // Hides the circle bb hardcodes in DropdownMenuRadioItem's indicator slot; the
@@ -223,7 +221,10 @@ export function ScopeFilter({
         ? grouping.groups.find(({ id }) => id === "Active")?.icon
         : undefined;
     return activeStageIcon ? (
-      <span aria-hidden>
+      <span
+        aria-hidden
+        className="inline-flex size-4 shrink-0 items-center justify-center leading-none"
+      >
         <ProviderIcon icon={activeStageIcon} label="Active stage" />
       </span>
     ) : (
@@ -235,8 +236,7 @@ export function ScopeFilter({
     grouping: GroupsMenuGrouping,
     allowGroupBy = true,
   ) {
-    const canGroupBy =
-      allowGroupBy && activeGroupingKey !== grouping.groupingKey;
+    const canGroupBy = allowGroupBy;
     const selectGroup = (groupId: string) => {
       onChange({
         groupingKey: grouping.groupingKey as GroupingKey,
@@ -244,7 +244,15 @@ export function ScopeFilter({
       });
       setOpen(false);
     };
-    const rows = grouping.groups.map((group) => {
+    const groups =
+      grouping.groupingKey === "builtin:projects"
+        ? [...grouping.groups].sort((left, right) => {
+            const leftPersonal = projects.find(({ id }) => id === left.id)?.isPersonal;
+            const rightPersonal = projects.find(({ id }) => id === right.id)?.isPersonal;
+            return leftPersonal === rightPersonal ? 0 : leftPersonal ? 1 : -1;
+          })
+        : grouping.groups;
+    const rows = groups.map((group) => {
       const selected =
         value?.groupingKey === grouping.groupingKey &&
         value.groupId === group.id;
@@ -325,8 +333,19 @@ export function ScopeFilter({
           <>
             <DropdownMenuItem
               className="pl-7"
-              onSelect={() => onGroupingChange(grouping.groupingKey)}
+              role="menuitemcheckbox"
+              aria-checked={activeGroupingKey === grouping.groupingKey}
+              onSelect={() =>
+                onGroupingChange(
+                  activeGroupingKey === grouping.groupingKey
+                    ? null
+                    : grouping.groupingKey,
+                )
+              }
             >
+              {activeGroupingKey === grouping.groupingKey ? (
+                <FilterRowCheck />
+              ) : null}
               <HugeiconsIcon
                 icon={Group01Icon}
                 size={16}
@@ -439,21 +458,20 @@ export function ScopeFilter({
               <ProjectsAndSectionsIcon />
             </ThreadFilterItem>
           </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
           {activeGrouping ? (
             <>
+              {groupings
+                .filter(({ groupingKey }) => groupingKey !== activeGrouping.groupingKey)
+                .map(groupingSubmenu)}
+              {groupings.some(
+                ({ groupingKey }) => groupingKey !== activeGrouping.groupingKey,
+              ) ? <DropdownMenuSeparator /> : null}
               <DropdownMenuGroup>
-                <DropdownMenuLabel className={CHROME_SECTION_LABEL_CLASS}>
+                <DropdownMenuLabel>
                   {activeGrouping.pluralLabel}
                 </DropdownMenuLabel>
                 {groupingContents(activeGrouping, false)}
               </DropdownMenuGroup>
-              {groupings.some(
-                ({ groupingKey }) => groupingKey !== activeGrouping.groupingKey,
-              ) ? <DropdownMenuSeparator /> : null}
-              {groupings
-                .filter(({ groupingKey }) => groupingKey !== activeGrouping.groupingKey)
-                .map(groupingSubmenu)}
             </>
           ) : (
             groupings.map(groupingSubmenu)
