@@ -126,6 +126,7 @@ function setup({
             id: threadId,
             sectionId: sectionId ?? null,
           }),
+        reorderPinned: async () => ({}) as never,
       },
       projects: {
         list: async () => [
@@ -188,16 +189,21 @@ describe("Ribbon sidebar server", () => {
       showProjectsAndSections: {
         type: "boolean",
         label: "Show Projects and sections",
+        description:
+          "Show the Projects and sections filter and management controls in the sidebar.",
         default: true,
       },
       showMessagePreviews: {
         type: "boolean",
         label: "Show message previews",
+        description: "Show the latest message preview below each thread title.",
         default: true,
       },
       showCollapsedGroupIndicators: {
         type: "boolean",
         label: "Show collapsed-group indicators (experimental)",
+        description:
+          "Show live activity indicators on collapsed groups outside Thread stages.",
         default: false,
       },
     });
@@ -262,6 +268,7 @@ describe("Ribbon sidebar server", () => {
     await plugin(bb);
 
     expect(harness.inspection.registrations.rpcMethods).toEqual([
+      "addProjectLocalPathV1",
       "createProjectV1",
       "createSectionV1",
       "deleteEntityV1",
@@ -269,9 +276,11 @@ describe("Ribbon sidebar server", () => {
       "invalidateGroupingCatalogV1",
       "listPlacementsV1",
       "listPreviewsV1",
+      "listProjectActionStatesV1",
       "listEntityIconsV1",
       "searchThreadIdsV1",
       "renameEntityV1",
+      "reorderPinnedV1",
       "sidebarSnapshotV1",
       "synchronizeV1",
       "updatePlacementV1",
@@ -282,6 +291,70 @@ describe("Ribbon sidebar server", () => {
     await expect(
       harness.behavior.runCli(["groupings", "--json"]),
     ).resolves.toMatchObject({ exitCode: 0 });
+  });
+
+  it("retains the released project local-path action", async () => {
+    const { bb, harness } = setup();
+    harness.sdk.stub("system.config", async () =>
+      ({ primaryHostId: "host-a" }) as never,
+    );
+    harness.sdk.stub("projects.get", async ({ projectId }) =>
+      ({
+        id: projectId,
+        name: "Storefront",
+        kind: "standard",
+        sources: [],
+      }) as never,
+    );
+    harness.sdk.stub("hosts.pickFolder", async () => ({ path: "/work/storefront" }));
+    harness.sdk.stub("projects.sources.add", async () => ({}) as never);
+    await plugin(bb);
+
+    await expect(
+      harness.behavior.callRpc("listProjectActionStatesV1", null),
+    ).resolves.toEqual({
+      projects: [
+        { id: "project-a", canAddLocalPath: true },
+        { id: "project-b", canAddLocalPath: true },
+      ],
+    });
+    await expect(
+      harness.behavior.callRpc("addProjectLocalPathV1", {
+        projectId: "project-a",
+      }),
+    ).resolves.toEqual({ added: true });
+    expect(harness.inspection.sdk.callsTo("projects.sources.add")).toEqual([
+      [
+        {
+          projectId: "project-a",
+          type: "local_path",
+          hostId: "host-a",
+          path: "/work/storefront",
+        },
+      ],
+    ]);
+  });
+
+  it("keeps pinned order in bb's native store", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+
+    await expect(
+      harness.behavior.callRpc("reorderPinnedV1", {
+        threadId: "thread-a",
+        previousThreadId: null,
+        nextThreadId: "thread-b",
+      }),
+    ).resolves.toEqual({ reordered: true });
+    expect(harness.inspection.sdk.callsTo("threads.reorderPinned")).toEqual([
+      [
+        {
+          threadId: "thread-a",
+          previousThreadId: null,
+          nextThreadId: "thread-b",
+        },
+      ],
+    ]);
   });
 
   it("discovers providers, reconciles roots, and serves schema-validated placements", async () => {

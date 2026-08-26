@@ -189,6 +189,11 @@ function options(overrides: Record<string, unknown> = {}) {
   const createSectionV1 = vi.fn(async () => ({ id: "section-new" }));
   const renameEntityV1 = vi.fn(async () => null);
   const deleteEntityV1 = vi.fn(async () => null);
+  const addProjectLocalPathV1 = vi.fn(async () => ({ added: true }));
+  const reorderPinnedV1 = vi.fn(async () => ({ reordered: true }));
+  const listProjectActionStatesV1 = vi.fn(async () => ({
+    projects: [{ id: "project-a", canAddLocalPath: true }],
+  }));
   return {
     synchronizeV1,
     listPlacementsV1,
@@ -197,6 +202,9 @@ function options(overrides: Record<string, unknown> = {}) {
     createSectionV1,
     renameEntityV1,
     deleteEntityV1,
+    addProjectLocalPathV1,
+    reorderPinnedV1,
+    listProjectActionStatesV1,
     value: {
       settings: {
         showProjectsAndSections: true,
@@ -234,6 +242,7 @@ function options(overrides: Record<string, unknown> = {}) {
             section: [],
           },
         })),
+        listProjectActionStatesV1,
         searchThreadIdsV1: vi.fn(async (raw: unknown) => ({
           threadIds: (raw as { query: string }).query
             .toLocaleLowerCase()
@@ -243,6 +252,8 @@ function options(overrides: Record<string, unknown> = {}) {
           threads: [],
         })),
         updatePlacementV1,
+        addProjectLocalPathV1,
+        reorderPinnedV1,
         createProjectV1,
         createSectionV1,
         renameEntityV1,
@@ -478,9 +489,10 @@ describe("Ribbon sidebar app", () => {
         },
       ],
     })) as never;
+    const onNavigate = vi.fn();
     const slot = renderSlot(
       app.threadLists[0]!,
-      { ...props, searchQuery: "archived migration" },
+      { ...props, onNavigate, searchQuery: "archived migration" },
       fixture.value,
     );
 
@@ -488,6 +500,11 @@ describe("Ribbon sidebar app", () => {
     expect(
       slot.queryByRole("button", { name: "Thread actions" }),
     ).toBeNull();
+    fireEvent.click(slot.getByRole("link", { name: "Open Archived migration" }));
+    expect(slot.inspection.sidebarActionCalls).not.toContainEqual(
+      expect.objectContaining({ method: "open", threadId: "thread-archived" }),
+    );
+    expect(onNavigate).toHaveBeenCalledOnce();
     slot.lifecycle.unmount();
   });
 
@@ -1018,6 +1035,29 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("retains project settings and local-path actions for a scoped project", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+
+    const management = slot.getByRole("button", {
+      name: "Projects and sections",
+    });
+    fireEvent.keyDown(management, { key: "Enter" });
+    fireEvent.click(await slot.findByText("Storefront"));
+    const actions = await slot.findByRole("button", { name: "Scope actions" });
+    fireEvent.keyDown(actions, { key: "Enter" });
+    expect(await slot.findByText("Project settings")).toBeTruthy();
+    fireEvent.click(slot.getByText("Add local path…"));
+    await waitFor(() =>
+      expect(fixture.addProjectLocalPathV1).toHaveBeenCalledWith({
+        projectId: "project-a",
+      }),
+    );
+    slot.lifecycle.unmount();
+  });
+
   it("keeps a cached unavailable provider selected for recovery", async () => {
     window.localStorage.setItem(
       "bb.plugin.ribbon-sidebar.preferences.v1",
@@ -1182,6 +1222,106 @@ describe("Ribbon sidebar app", () => {
         origin: "ui",
       }),
     );
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps pinned reorder bb-owned and exposes drag feedback", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        projects: [
+          { id: "project-a", name: "Storefront", isPersonal: false },
+        ],
+        threads: [
+          thread({ id: "thread-pin-a", title: "Pinned A", isPinned: true }),
+          thread({ id: "thread-pin-b", title: "Pinned B", isPinned: true }),
+          thread({ id: "thread-a", title: "Design migration" }),
+          thread({ id: "thread-b", title: "Ship UI" }),
+        ],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Pinned A");
+
+    const source = slot.getByText("Pinned A").closest("[data-thread-id]")!;
+    const target = slot.getByText("Pinned B").closest("[data-thread-id]")!;
+    const dataTransfer = { setData: vi.fn(), effectAllowed: "none" };
+    fireEvent.dragStart(source, { dataTransfer });
+    expect(dataTransfer.effectAllowed).toBe("move");
+    expect(source.querySelector("[aria-grabbed='true']")).toBeTruthy();
+    fireEvent.dragOver(target, { clientY: 0, dataTransfer });
+    fireEvent.drop(target, { clientY: 0, dataTransfer });
+    await waitFor(() =>
+      expect(fixture.reorderPinnedV1).toHaveBeenCalledWith({
+        threadId: "thread-pin-a",
+        previousThreadId: null,
+        nextThreadId: "thread-pin-b",
+      }),
+    );
+    expect(fixture.updatePlacementV1).not.toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "thread-pin-a" }),
+    );
+    slot.lifecycle.unmount();
+  });
+
+  it("renders search progress, failure, retry, and empty-result states", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    let rejectSearch: ((error: Error) => void) | undefined;
+    fixture.value.rpc.searchThreadIdsV1 = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectSearch = reject;
+          }),
+      )
+      .mockResolvedValue({ threadIds: [], threads: [] });
+    const slot = renderSlot(
+      app.threadLists[0]!,
+      { ...props, searchQuery: "missing" },
+      fixture.value,
+    );
+
+    expect(await slot.findByText("Searching threads…")).toBeTruthy();
+    rejectSearch?.(new Error("offline"));
+    expect(await slot.findByText("Search failed.")).toBeTruthy();
+    fireEvent.click(slot.getByRole("button", { name: "Retry" }));
+    expect(await slot.findByText("No matching threads")).toBeTruthy();
+    expect(slot.queryByRole("region", { name: "Idle group" })).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps list semantics and same-key scope actions", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.ribbon-sidebar.preferences.v1",
+      JSON.stringify({
+        view: {
+          scope: {
+            kind: "group",
+            group: {
+              groupingKey: "plugin:thread-stages:stages",
+              groupId: "Idle",
+            },
+          },
+          groupingKey: "plugin:thread-stages:stages",
+        },
+        collapsed: [],
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+
+    expect(
+      slot.getByRole("button", { name: "Collapse Idle section" }),
+    ).toBeTruthy();
+    expect(slot.getByTestId("scope-end-drop-target")).toBeTruthy();
+    for (const item of Array.from(slot.container.querySelectorAll("li"))) {
+      expect(item.closest("ul")).toBeTruthy();
+    }
+    expect(slot.getByRole("button", { name: "Clear scope" })).toBeTruthy();
     slot.lifecycle.unmount();
   });
 

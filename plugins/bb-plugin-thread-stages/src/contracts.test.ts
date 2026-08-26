@@ -84,6 +84,30 @@ describe("Thread stages provider contracts", () => {
     });
   });
 
+  it("preserves the released progress-ring stage glyph family", () => {
+    const groups = createGroupingCatalog({}).groupings[0]!.groups;
+    const iconByStage = new Map(groups.map((group) => [group.id, group.icon]));
+
+    expect(iconByStage.get("Idle")?.children).toEqual([
+      expect.objectContaining({
+        tag: "circle",
+        attrs: expect.objectContaining({ cx: 12, cy: 12, r: 10 }),
+      }),
+    ]);
+    expect(iconByStage.get("Active")?.children?.[1]).toMatchObject({
+      tag: "path",
+      attrs: { fill: "currentColor" },
+    });
+    expect(iconByStage.get("Blocked")?.children?.[1]).toMatchObject({
+      tag: "path",
+      attrs: { transform: "rotate(-45 12 12)" },
+    });
+    expect(iconByStage.get("Completed")?.children?.[1]).toMatchObject({
+      tag: "circle",
+      attrs: { cx: 12, cy: 12, r: 7.5, fill: "currentColor" },
+    });
+  });
+
   it("rejects duplicate and invalid local IDs", () => {
     const catalog = createGroupingCatalog({});
     const duplicateGroups = structuredClone(catalog);

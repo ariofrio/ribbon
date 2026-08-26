@@ -81,6 +81,10 @@ const sidebarSnapshotSchema = z
   .strict();
 
 export const rpcContract = defineRpcContract({
+  addProjectLocalPathV1: {
+    input: z.object({ projectId: z.string().min(1).max(256) }).strict(),
+    output: z.object({ added: z.boolean() }).strict(),
+  },
   createProjectV1: {
     input: z.null(),
     output: z
@@ -134,6 +138,21 @@ export const rpcContract = defineRpcContract({
       })
       .strict(),
   },
+  listProjectActionStatesV1: {
+    input: z.null(),
+    output: z
+      .object({
+        projects: z.array(
+          z
+            .object({
+              id: z.string(),
+              canAddLocalPath: z.boolean(),
+            })
+            .strict(),
+        ),
+      })
+      .strict(),
+  },
   listEntityIconsV1: {
     input: z.null(),
     output: entityIconsSchema,
@@ -168,6 +187,16 @@ export const rpcContract = defineRpcContract({
       })
       .strict(),
     output: z.object({ ok: z.literal(true) }).strict(),
+  },
+  reorderPinnedV1: {
+    input: z
+      .object({
+        threadId: z.string().min(1).max(256),
+        previousThreadId: z.string().min(1).max(256).nullable(),
+        nextThreadId: z.string().min(1).max(256).nullable(),
+      })
+      .strict(),
+    output: z.object({ reordered: z.literal(true) }).strict(),
   },
   sidebarSnapshotV1: {
     input: z.null(),
@@ -224,16 +253,21 @@ export default async function plugin(bb: BbPluginApi) {
     showProjectsAndSections: {
       type: "boolean",
       label: "Show Projects and sections",
+      description:
+        "Show the Projects and sections filter and management controls in the sidebar.",
       default: true,
     },
     showMessagePreviews: {
       type: "boolean",
       label: "Show message previews",
+      description: "Show the latest message preview below each thread title.",
       default: true,
     },
     showCollapsedGroupIndicators: {
       type: "boolean",
       label: "Show collapsed-group indicators (experimental)",
+      description:
+        "Show live activity indicators on collapsed groups outside Thread stages.",
       default: false,
     },
   });
@@ -553,6 +587,32 @@ export default async function plugin(bb: BbPluginApi) {
   }
 
   bb.rpc.register(rpcContract, {
+    async addProjectLocalPathV1({ projectId }) {
+      const { primaryHostId } = await bb.sdk.system.config();
+      if (!primaryHostId) throw new Error("No primary host is available.");
+      const project = await bb.sdk.projects.get({ projectId });
+      if (
+        project.kind === "personal" ||
+        project.sources.some(
+          (source) =>
+            source.type === "local_path" && source.hostId === primaryHostId,
+        )
+      ) {
+        return { added: false };
+      }
+      const { path } = await bb.sdk.hosts.pickFolder({
+        hostId: primaryHostId,
+        clientHostId: primaryHostId,
+      });
+      if (path === null) return { added: false };
+      await bb.sdk.projects.sources.add({
+        projectId,
+        type: "local_path",
+        hostId: primaryHostId,
+        path,
+      });
+      return { added: true };
+    },
     async createProjectV1() {
       const { primaryHostId } = await bb.sdk.system.config();
       if (!primaryHostId) throw new Error("No primary host is available.");
@@ -636,6 +696,26 @@ export default async function plugin(bb: BbPluginApi) {
       );
       return { previews };
     },
+    async listProjectActionStatesV1() {
+      const [{ primaryHostId }, projects] = await Promise.all([
+        bb.sdk.system.config(),
+        bb.sdk.projects.list(),
+      ]);
+      return {
+        projects: projects
+          .filter((project) => project.kind === "standard")
+          .map((project) => ({
+            id: project.id,
+            canAddLocalPath:
+              primaryHostId !== null &&
+              !project.sources.some(
+                (source) =>
+                  source.type === "local_path" &&
+                  source.hostId === primaryHostId,
+              ),
+          })),
+      };
+    },
     async listEntityIconsV1() {
       const answer = await bb.sdk.plugins.callRpc({
         pluginId: ICONS_PLUGIN_ID,
@@ -659,6 +739,14 @@ export default async function plugin(bb: BbPluginApi) {
       }
       await refreshCatalogsAndRoots();
       return { ok: true as const };
+    },
+    async reorderPinnedV1({ threadId, previousThreadId, nextThreadId }) {
+      await bb.sdk.threads.reorderPinned({
+        threadId,
+        previousThreadId,
+        nextThreadId,
+      });
+      return { reordered: true as const };
     },
     async searchThreadIdsV1({ query }) {
       const result = await bb.sdk.threads.search({

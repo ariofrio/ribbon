@@ -11,15 +11,19 @@ import {
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { FilterMailCircleIcon } from "@hugeicons/core-free-icons";
 import {
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  Fragment,
   type DragEvent,
   type FormEvent,
   type MouseEvent,
+  type CSSProperties,
+  type ReactNode,
 } from "react";
 import type { z } from "zod";
 import type { rpcContract } from "./server";
@@ -64,6 +68,7 @@ import { ProviderIcon } from "./provider-icon";
 import { Icon } from "./vendor/components/ui/icon";
 import { usePersistentStringSet } from "./persistent-string-set";
 import { SplitPaneMiniMap } from "./split-pane-mini-map";
+import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
 
 const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
 
@@ -82,6 +87,20 @@ type EntityDialog =
   | { kind: "create-section"; name: string }
   | { kind: "rename"; scope: BuiltinGroupRef; label: string; name: string }
   | { kind: "delete"; scope: BuiltinGroupRef; label: string };
+type DragDestination =
+  | {
+      kind: "pinned";
+      beforeThreadId: string | null;
+      indicatorBefore: string | null;
+      indicatorAfter: string | null;
+    }
+  | {
+      kind: "placement";
+      groupId: string;
+      beforeThreadId: string | null;
+      indicatorBefore: string | null;
+      indicatorAfter: string | null;
+    };
 
 function title(thread: PluginSidebarThread) {
   return thread.title ?? thread.titleFallback ?? "Untitled thread";
@@ -151,7 +170,9 @@ function ThreadRow({
   depth,
   hasChildren,
   indicatorThread,
+  dragging,
   onDragEnd,
+  onDragOver,
   onDragStart,
   onDropBefore,
   onMoveBefore,
@@ -165,8 +186,11 @@ function ThreadRow({
   placementDisabled,
   preview,
   projectIcon,
+  reorderable,
   sectionIcons,
   sections,
+  showDropAfter,
+  showDropBefore,
   thread,
 }: {
   active: boolean;
@@ -181,7 +205,9 @@ function ThreadRow({
   depth: number;
   hasChildren: boolean;
   indicatorThread: PluginSidebarThread;
+  dragging: boolean;
   onDragEnd(): void;
+  onDragOver(event: DragEvent<HTMLElement>): void;
   onDragStart(event: DragEvent<HTMLElement>): void;
   onDropBefore(event: DragEvent<HTMLElement>): void;
   onMoveBefore?: () => void;
@@ -195,8 +221,11 @@ function ThreadRow({
   placementDisabled: boolean;
   preview: string | null;
   projectIcon: EntityIconView | null;
+  reorderable: boolean;
   sectionIcons: ReadonlyMap<string, EntityIconView>;
   sections: readonly { id: string; label: string }[];
+  showDropAfter: boolean;
+  showDropBefore: boolean;
   thread: PluginSidebarThread;
 }) {
   const { splitProps, isAvailable: splitAvailable, layout } =
@@ -229,19 +258,34 @@ function ThreadRow({
       className="relative list-none"
       data-thread-id={thread.id}
       onDragEnd={onDragEnd}
-      onDragOver={(event) => {
-        if (depth === 0) event.preventDefault();
-      }}
+      onDragOver={onDragOver}
       onDragStart={onDragStart}
       onDrop={onDropBefore}
     >
+      {showDropBefore ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-px left-2 right-2 z-20 h-0.5 rounded-full bg-primary"
+          data-sidebar-drop-indicator=""
+        />
+      ) : null}
+      {showDropAfter ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-px left-2 right-2 z-20 h-0.5 rounded-full bg-primary"
+          data-sidebar-drop-indicator=""
+        />
+      ) : null}
       <div
         className={`bb-sidebar-hover-actions-row group/thread-row relative flex w-full items-center gap-2 rounded-md py-1 pr-0 text-sm transition-colors max-md:pointer-coarse:py-2.5 ${
           active
             ? "bg-state-active text-sidebar-foreground"
             : "cursor-pointer text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:text-sidebar-foreground"
-        } ${layout !== null && !active ? "bg-sidebar-accent/50" : ""}`}
-        draggable={depth === 0 && !thread.isArchived}
+        } ${layout !== null && !active ? "bg-sidebar-accent/50" : ""} ${
+          dragging ? "opacity-40" : ""
+        } ${reorderable ? "select-none" : ""}`}
+        aria-grabbed={dragging ? "true" : undefined}
+        draggable={reorderable}
         style={{ paddingLeft: 8 + depth * 24 }}
       >
         {Array.from({ length: depth }, (_, level) => (
@@ -258,6 +302,7 @@ function ThreadRow({
           aria-label={`Open ${accessibleTitle}`}
           className="absolute inset-0 rounded-md outline-none ring-sidebar-ring focus-visible:ring-2"
           data-sidebar-thread-id={thread.id}
+          data-sidebar-thread-shortcut-target=""
           draggable={false}
           href={`/projects/${encodeURIComponent(thread.projectId)}/threads/${encodeURIComponent(thread.id)}`}
           onClick={openThread}
@@ -380,6 +425,36 @@ function ThreadRow({
   );
 }
 
+function SidebarMessage({
+  action,
+  children,
+  icon,
+  loading = false,
+}: {
+  action?: { label: string; onClick(): void };
+  children: ReactNode;
+  icon: "AlertCircle" | "CircleQuestion" | "Loading";
+  loading?: boolean;
+}) {
+  return (
+    <div className="flex min-h-20 items-center justify-center px-3 py-6 text-center text-xs text-muted-foreground">
+      <div className="flex max-w-52 flex-col items-center gap-2">
+        <Icon
+          aria-hidden
+          className={`size-4 ${loading ? "animate-spin" : ""}`}
+          name={icon}
+        />
+        <span>{children}</span>
+        {action ? (
+          <Button onClick={action.onClick} size="sm" type="button" variant="outline">
+            {action.label}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function RibbonSidebarList({
   activeThreadId,
   experimental_Original: OriginalThreadList,
@@ -408,6 +483,9 @@ function RibbonSidebarList({
   const [sectionIcons, setSectionIcons] = useState<
     ReadonlyMap<string, EntityIconView>
   >(new Map());
+  const [projectActionStates, setProjectActionStates] = useState<
+    ReadonlyMap<string, { canAddLocalPath: boolean }>
+  >(new Map());
   const [collapsedThreadIds, setCollapsedThreadIds] =
     usePersistentStringSet(COLLAPSED_THREADS_STORAGE_KEY);
   const [threadRename, setThreadRename] = useState<{
@@ -420,24 +498,34 @@ function RibbonSidebarList({
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
+  const [dragDestination, setDragDestination] =
+    useState<DragDestination | null>(null);
   const [entityDialog, setEntityDialog] = useState<EntityDialog | null>(null);
   const [entityPending, setEntityPending] = useState(false);
   const [searchResult, setSearchResult] = useState<{
     query: string;
+    status: "idle" | "loading" | "ready" | "error";
     threadIds: ReadonlySet<string>;
     threads: readonly SearchThread[];
-  }>({ query: "", threadIds: new Set(), threads: [] });
+  }>({ query: "", status: "idle", threadIds: new Set(), threads: [] });
+  const [searchAttempt, setSearchAttempt] = useState(0);
   const reconnectPending = useRef(false);
   const mounted = useRef(false);
   const scopeSyncedForThreadId = useRef<string | null>(null);
   const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
 
   const synchronize = useCallback(async () => {
-    const next = await rpc.call("synchronizeV1", {
-      migrateThreadStages: !mounted.current,
-    });
+    const [next, actionStates] = await Promise.all([
+      rpc.call("synchronizeV1", {
+        migrateThreadStages: !mounted.current,
+      }),
+      rpc.call("listProjectActionStatesV1", null).catch(() => ({ projects: [] })),
+    ]);
     mounted.current = true;
     setSnapshot(next);
+    setProjectActionStates(
+      new Map(actionStates.projects.map((project) => [project.id, project])),
+    );
     setFatalError(null);
     setPreferences((current) => {
       if (current !== null) return current;
@@ -678,12 +766,18 @@ function RibbonSidebarList({
   }, [liveThreadIds, liveThreads]);
   useEffect(() => {
     if (!normalizedSearch) {
-      setSearchResult({ query: "", threadIds: new Set(), threads: [] });
+      setSearchResult({
+        query: "",
+        status: "idle",
+        threadIds: new Set(),
+        threads: [],
+      });
       return;
     }
     let canceled = false;
     setSearchResult({
       query: normalizedSearch,
+      status: "loading",
       threadIds: new Set(),
       threads: [],
     });
@@ -693,6 +787,7 @@ function RibbonSidebarList({
         if (!canceled) {
           setSearchResult({
             query: normalizedSearch,
+            status: "ready",
             threadIds: new Set(threadIds),
             threads,
           });
@@ -702,6 +797,7 @@ function RibbonSidebarList({
         if (!canceled) {
           setSearchResult({
             query: normalizedSearch,
+            status: "error",
             threadIds: new Set(),
             threads: [],
           });
@@ -710,7 +806,7 @@ function RibbonSidebarList({
     return () => {
       canceled = true;
     };
-  }, [normalizedSearch, rpc, searchQuery]);
+  }, [normalizedSearch, rpc, searchAttempt, searchQuery]);
   const matchesSearch = useCallback(
     (root: PluginSidebarThread) => {
       if (!normalizedSearch) return true;
@@ -913,19 +1009,99 @@ function RibbonSidebarList({
     [loadPlacements, rpc, synchronize],
   );
 
-  if (fatalError) return <OriginalThreadList />;
+  const clearDrag = useCallback(() => {
+    setDraggingThreadId(null);
+    setDragDestination(null);
+  }, []);
+
+  if (fatalError) {
+    return (
+      <div>
+        <SidebarMessage
+          action={{
+            label: "Retry",
+            onClick: () => {
+              setFatalError(null);
+              void synchronize().catch((error: unknown) =>
+                setFatalError(
+                  error instanceof Error
+                    ? error.message
+                    : "Ribbon sidebar unavailable",
+                ),
+              );
+            },
+          }}
+          icon="AlertCircle"
+        >
+          Ribbon sidebar unavailable: {fatalError}
+        </SidebarMessage>
+        <OriginalThreadList />
+      </div>
+    );
+  }
   if (!snapshot || !preferences || !grouping) {
-    return <div className="px-2 py-3 text-xs text-muted-foreground">Loading Ribbon sidebar…</div>;
+    return (
+      <div aria-label="Loading Ribbon sidebar" className="space-y-1.5 px-2 pt-1">
+        {["w-2/3", "w-1/2"].map((width) => (
+          <div className="flex h-7 animate-pulse items-center gap-2 rounded-md" key={width}>
+            <span className="size-4 shrink-0 rounded-md bg-sidebar-border/60" />
+            <span className={`h-3 ${width} rounded-sm bg-sidebar-border/50`} />
+          </div>
+        ))}
+      </div>
+    );
   }
 
   const movingThread = draggingThreadId
     ? rootThreads.find(({ id }) => id === draggingThreadId)
     : undefined;
+  const hasDisplayedThreads = pinnedRoots.length + unpinnedRoots.length > 0;
+  const emptyMessage =
+    normalizedSearch !== ""
+      ? "No matching threads"
+      : preferences.view.scope.kind === "group" &&
+          preferences.view.scope.group.groupingKey === "builtin:projects"
+        ? "No threads in this project"
+        : preferences.view.scope.kind === "group" &&
+            preferences.view.scope.group.groupingKey === "builtin:sections"
+          ? "No threads in this section"
+          : "No threads yet";
+
+  async function updatePinnedOrder(
+    threadId: string,
+    beforeThreadId: string | null,
+  ) {
+    const remaining = pinnedRoots.filter(({ id }) => id !== threadId);
+    const insertionIndex =
+      beforeThreadId === null
+        ? remaining.length
+        : remaining.findIndex(({ id }) => id === beforeThreadId);
+    if (insertionIndex < 0) return;
+    setMutationError(null);
+    try {
+      await rpc.call("reorderPinnedV1", {
+        threadId,
+        previousThreadId: remaining[insertionIndex - 1]?.id ?? null,
+        nextThreadId: remaining[insertionIndex]?.id ?? null,
+      });
+    } catch (error) {
+      setMutationError(
+        error instanceof Error ? error.message : "Could not reorder pinned thread",
+      );
+    } finally {
+      clearDrag();
+    }
+  }
 
   const renderRoot = (
     root: PluginSidebarThread,
     depth = 0,
     includeDescendants = true,
+    rowContext?: {
+      kind: "pinned" | "placement";
+      roots: readonly PluginSidebarThread[];
+      groupId?: string;
+    },
   ) => {
     const destination = placementByThread.get(root.id);
     const children = childrenByParent.get(root.id) ?? [];
@@ -939,9 +1115,13 @@ function RibbonSidebarList({
       depth === 0 &&
       movingThread !== undefined &&
       movingThread.id !== root.id &&
-      destination !== undefined;
+      rowContext !== undefined &&
+      (rowContext.kind === "pinned") === movingThread.isPinned &&
+      (rowContext.kind === "pinned" || destination !== undefined);
+    const reorderable =
+      depth === 0 && !normalizedSearch && !root.isArchived && rowContext !== undefined;
     return (
-      <div key={root.id}>
+      <Fragment key={root.id}>
         <ThreadRow
           active={activeThreadId === root.id}
           actions={actions}
@@ -963,24 +1143,74 @@ function RibbonSidebarList({
           depth={depth}
           hasChildren={children.length > 0}
           indicatorThread={indicatorThread}
-          onDragEnd={() => setDraggingThreadId(null)}
+          dragging={draggingThreadId === root.id}
+          onDragEnd={clearDrag}
+          onDragOver={(event) => {
+            if (
+              !reorderable ||
+              !draggingThreadId ||
+              !movingThread ||
+              (rowContext.kind === "pinned") !== movingThread.isPinned
+            ) {
+              return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            const bounds = event.currentTarget.getBoundingClientRect();
+            const after = event.clientY > bounds.top + bounds.height / 2;
+            const index = rowContext.roots.findIndex(({ id }) => id === root.id);
+            const beforeThreadId = after
+              ? (rowContext.roots[index + 1]?.id ?? null)
+              : root.id;
+            setDragDestination(
+              rowContext.kind === "pinned"
+                ? {
+                    kind: "pinned",
+                    beforeThreadId,
+                    indicatorBefore: after ? null : root.id,
+                    indicatorAfter: after ? root.id : null,
+                  }
+                : {
+                    kind: "placement",
+                    groupId: rowContext.groupId!,
+                    beforeThreadId,
+                    indicatorBefore: after ? null : root.id,
+                    indicatorAfter: after ? root.id : null,
+                  },
+            );
+          }}
           onDragStart={(event) => {
-            if (depth !== 0 || normalizedSearch || root.isArchived) return;
+            if (!reorderable) return;
+            event.stopPropagation();
+            event.dataTransfer.effectAllowed = "move";
             event.dataTransfer.setData("text/plain", root.id);
             setDraggingThreadId(root.id);
           }}
           onDropBefore={(event) => {
-            if (depth !== 0 || !draggingThreadId) return;
+            if (!reorderable || !draggingThreadId || !dragDestination) return;
             event.preventDefault();
+            event.stopPropagation();
             if (draggingThreadId === root.id) {
-              setDraggingThreadId(null);
+              clearDrag();
               return;
             }
-            if (destination) {
-              void updatePlacement(draggingThreadId, destination.groupId, {
-                kind: "before",
-                threadId: root.id,
-              });
+            if (dragDestination.kind === "pinned") {
+              void updatePinnedOrder(
+                draggingThreadId,
+                dragDestination.beforeThreadId,
+              );
+            } else {
+              void updatePlacement(
+                draggingThreadId,
+                dragDestination.groupId,
+                dragDestination.beforeThreadId === null
+                  ? { kind: "end" }
+                  : {
+                      kind: "before",
+                      threadId: dragDestination.beforeThreadId,
+                    },
+              );
+              clearDrag();
             }
           }}
           moveBeforeLabel={
@@ -991,24 +1221,37 @@ function RibbonSidebarList({
           onMoveBefore={
             canMoveBefore
               ? () => {
-                  void updatePlacement(movingThread.id, destination.groupId, {
-                    kind: "before",
-                    threadId: root.id,
-                  });
-                  setDraggingThreadId(null);
+                  if (rowContext.kind === "pinned") {
+                    void updatePinnedOrder(movingThread.id, root.id);
+                  } else {
+                    void updatePlacement(movingThread.id, destination!.groupId, {
+                      kind: "before",
+                      threadId: root.id,
+                    });
+                    clearDrag();
+                  }
                 }
               : undefined
           }
           onMoveStart={
             depth === 0 && !normalizedSearch && !root.isArchived
-              ? () => setDraggingThreadId(root.id)
+              ? () => {
+                  setDraggingThreadId(root.id);
+                  setDragDestination(null);
+                }
               : undefined
           }
           onNewSection={() =>
             setEntityDialog({ kind: "create-section", name: "" })
           }
           onOpen={(split) => {
-            actions.open(root.id, { split });
+            if (root.isArchived) {
+              window.location.assign(
+                `/projects/${encodeURIComponent(root.projectId)}/threads/${encodeURIComponent(root.id)}`,
+              );
+            } else {
+              actions.open(root.id, { split });
+            }
             onNavigate();
           }}
           onRename={() => setThreadRename({ id: root.id, name: title(root) })}
@@ -1030,8 +1273,11 @@ function RibbonSidebarList({
               : (previews.get(root.id) ?? null)
           }
           projectIcon={projectIcons.get(root.projectId) ?? null}
+          reorderable={reorderable}
           sectionIcons={sectionIcons}
           sections={sections}
+          showDropAfter={dragDestination?.indicatorAfter === root.id}
+          showDropBefore={dragDestination?.indicatorBefore === root.id}
           thread={root}
         />
         {includeDescendants && !childrenCollapsed
@@ -1039,22 +1285,31 @@ function RibbonSidebarList({
               renderRoot(child, depth + 1),
             )
           : null}
-      </div>
+      </Fragment>
     );
   };
 
   return (
     <div
-      className="relative flex w-full min-w-0 flex-col gap-1 px-1"
+      className="relative flex w-full min-w-0 flex-col"
+      data-sidebar="group"
+      data-sidebar-sticky-density="compact-actions"
+      data-sidebar-sticky-stack=""
       data-ribbon-sidebar-ready={
         placementsLoaded && previewsLoaded ? "" : undefined
       }
       data-ribbon-sidebar-root=""
       onKeyDown={(event) => {
-        if (event.key === "Escape") setDraggingThreadId(null);
+        if (event.key === "Escape") clearDrag();
       }}
+      style={
+        {
+          "--bb-sidebar-sticky-label-top":
+            "calc(var(--bb-sidebar-sticky-stack-padding-top) + 2.75rem)",
+        } as CSSProperties
+      }
     >
-      <div className="bb-sidebar-hover-actions-row group/ribbon-filter sticky top-[var(--bb-sidebar-sticky-stack-padding-top)] z-[70] mb-4 flex min-w-0 items-center gap-1 rounded-md bg-sidebar outline-none ring-sidebar-ring has-[button:focus-visible]:ring-2 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-2 before:bg-sidebar before:content-[''] after:pointer-events-none after:inset-x-0 after:top-full after:h-4 after:bg-sidebar after:content-['']">
+      <div className="bb-sidebar-hover-actions-row group/ribbon-filter sticky top-[var(--bb-sidebar-sticky-stack-padding-top)] z-[70] mb-4 flex min-w-0 items-center gap-1 rounded-md bg-sidebar outline-none ring-sidebar-ring has-[button:focus-visible]:ring-2 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-2 before:bg-sidebar before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-sidebar after:content-['']">
         {settings.values?.showProjectsAndSections !== false ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1103,7 +1358,11 @@ function RibbonSidebarList({
                     aria-label="Threads are filtered"
                     className="inline-flex size-4 shrink-0 items-center justify-center text-subtle-foreground/60"
                   >
-                    <Icon aria-hidden className="size-3.5" name="Search" />
+                    <HugeiconsIcon
+                      aria-hidden
+                      className="size-3.5"
+                      icon={FilterMailCircleIcon}
+                    />
                   </span>
                 ) : null}
               </button>
@@ -1208,10 +1467,52 @@ function RibbonSidebarList({
           </DropdownMenuContent>
         </DropdownMenu>
         {scopeLabel ? (
-          <div className="bb-sidebar-hover-actions flex shrink-0 items-center">
+          <div
+            className="bb-sidebar-hover-actions flex shrink-0 items-center"
+            data-sidebar-hover-actions-mobile="always"
+          >
             <span aria-live="polite" className="sr-only">
               {scopeLabel} scope
             </span>
+            {matchingScope ? (
+              <button
+                aria-expanded={
+                  !preferences.collapsed.has(
+                    `${matchingScope.groupingKey}/${matchingScope.groupId}`,
+                  )
+                }
+                aria-label={
+                  preferences.collapsed.has(
+                    `${matchingScope.groupingKey}/${matchingScope.groupId}`,
+                  )
+                    ? `Expand ${scopeLabel} section`
+                    : `Collapse ${scopeLabel} section`
+                }
+                className="inline-flex size-7 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 max-md:pointer-coarse:size-9"
+                onClick={() =>
+                  changePreferences((current) => {
+                    const collapsed = new Set(current.collapsed);
+                    const ref = `${matchingScope.groupingKey}/${matchingScope.groupId}`;
+                    if (collapsed.has(ref)) collapsed.delete(ref);
+                    else collapsed.add(ref);
+                    return { ...current, collapsed };
+                  })
+                }
+                type="button"
+              >
+                <Icon
+                  aria-hidden
+                  className={`size-3 transition-transform duration-150 ${
+                    preferences.collapsed.has(
+                      `${matchingScope.groupingKey}/${matchingScope.groupId}`,
+                    )
+                      ? ""
+                      : "rotate-90"
+                  }`}
+                  name="ChevronRight"
+                />
+              </button>
+            ) : null}
             {preferences.view.scope.kind === "group" &&
             ["builtin:projects", "builtin:sections"].includes(
               preferences.view.scope.group.groupingKey,
@@ -1228,6 +1529,51 @@ function RibbonSidebarList({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {preferences.view.scope.kind === "group" &&
+                  preferences.view.scope.group.groupingKey ===
+                    "builtin:projects" ? (
+                    <>
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          const projectId =
+                            preferences.view.scope.kind === "group"
+                              ? preferences.view.scope.group.groupId
+                              : "";
+                          window.location.assign(
+                            `/projects/${encodeURIComponent(projectId)}/settings`,
+                          );
+                          onNavigate();
+                        }}
+                      >
+                        Project settings
+                      </DropdownMenuItem>
+                      {projectActionStates.get(
+                        preferences.view.scope.group.groupId,
+                      )?.canAddLocalPath ? (
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            const projectId =
+                              preferences.view.scope.kind === "group"
+                                ? preferences.view.scope.group.groupId
+                                : "";
+                            void rpc
+                              .call("addProjectLocalPathV1", { projectId })
+                              .then(() => synchronize())
+                              .catch((error: unknown) =>
+                                setMutationError(
+                                  error instanceof Error
+                                    ? error.message
+                                    : "Could not add local path",
+                                ),
+                              );
+                          }}
+                        >
+                          Add local path…
+                        </DropdownMenuItem>
+                      ) : null}
+                      <DropdownMenuSeparator />
+                    </>
+                  ) : null}
                   <DropdownMenuItem
                     onSelect={() => {
                       if (preferences.view.scope.kind !== "group") return;
@@ -1396,12 +1742,40 @@ function RibbonSidebarList({
         </DialogContent>
       </Dialog>
 
+      {normalizedSearch && searchResult.status === "loading" ? (
+        <SidebarMessage icon="Loading" loading>
+          Searching threads…
+        </SidebarMessage>
+      ) : normalizedSearch && searchResult.status === "error" ? (
+        <SidebarMessage
+          action={{
+            label: "Retry",
+            onClick: () => setSearchAttempt((current) => current + 1),
+          }}
+          icon="AlertCircle"
+        >
+          Search failed.
+        </SidebarMessage>
+      ) : !hasDisplayedThreads ? (
+        <SidebarMessage icon="CircleQuestion">{emptyMessage}</SidebarMessage>
+      ) : (
+        <div className="space-y-4">
       {pinnedRoots.length > 0 ? (
         <section
           aria-label="Pinned threads"
-          className="group/sidebar-section min-w-0 rounded-md transition-colors"
+          className={`group/sidebar-section min-w-0 rounded-md transition-colors ${
+            dragDestination?.kind === "pinned" &&
+            dragDestination.beforeThreadId === null
+              ? "bg-sidebar-accent/60"
+              : ""
+          }`}
+          data-sidebar-sticky-group=""
         >
-          <div className="bb-sidebar-hover-actions-row flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 text-xs font-normal leading-5 text-subtle-foreground/75 max-md:pointer-coarse:h-9">
+          <div
+            className="bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 text-xs font-normal leading-5 text-subtle-foreground/75 max-md:pointer-coarse:h-9"
+            data-sidebar="group-label"
+            data-sidebar-sticky-tier="label"
+          >
             <span className="min-w-0 flex-1 truncate">Pinned</span>
             <button
               aria-expanded={
@@ -1438,9 +1812,53 @@ function RibbonSidebarList({
               />
             </button>
           </div>
-          {normalizedSearch || !preferences.collapsed.has("builtin:pinned")
-            ? pinnedRoots.map((root) => renderRoot(root))
-            : null}
+          {normalizedSearch || !preferences.collapsed.has("builtin:pinned") ? (
+            <>
+              <ul>
+                {pinnedRoots.map((root) =>
+                  renderRoot(root, 0, true, {
+                    kind: "pinned",
+                    roots: pinnedRoots,
+                  }),
+                )}
+              </ul>
+              {!normalizedSearch ? (
+                <button
+                  aria-label="Move to end of Pinned"
+                  className={
+                    draggingThreadId && movingThread?.isPinned
+                      ? "min-h-8 w-full rounded-sm px-2 text-left text-xs text-muted-foreground outline-none hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-ring"
+                      : "hidden"
+                  }
+                  onClick={() => {
+                    if (draggingThreadId && movingThread?.isPinned) {
+                      void updatePinnedOrder(draggingThreadId, null);
+                    }
+                  }}
+                  onDragOver={(event) => {
+                    if (!draggingThreadId || !movingThread?.isPinned) return;
+                    event.preventDefault();
+                    setDragDestination({
+                      kind: "pinned",
+                      beforeThreadId: null,
+                      indicatorBefore: null,
+                      indicatorAfter: null,
+                    });
+                  }}
+                  onDrop={(event) => {
+                    if (!draggingThreadId || !movingThread?.isPinned) return;
+                    event.preventDefault();
+                    void updatePinnedOrder(draggingThreadId, null);
+                  }}
+                  type="button"
+                >
+                  {draggingThreadId && movingThread?.isPinned
+                    ? "Move to end of Pinned"
+                    : null}
+                </button>
+              ) : null}
+            </>
+          ) : null}
         </section>
       ) : null}
 
@@ -1448,6 +1866,7 @@ function RibbonSidebarList({
         const roots = unpinnedRoots.filter(
           (thread) => displayGroupId(thread) === group.id,
         );
+        if (normalizedSearch && roots.length === 0) return null;
         if (roots.length === 0 && !group.visibleWhenEmpty) return null;
         const ref = `${grouping.groupingKey}/${group.id}`;
         const collapsed = !normalizedSearch && preferences.collapsed.has(ref);
@@ -1472,72 +1891,86 @@ function RibbonSidebarList({
         return (
           <section
             aria-label={`${group.label} group`}
-            className="group/sidebar-section min-w-0 rounded-md transition-colors"
+            className={`group/sidebar-section min-w-0 rounded-md transition-colors ${
+              dragDestination?.kind === "placement" &&
+              dragDestination.groupId === group.id &&
+              dragDestination.beforeThreadId === null
+                ? "bg-sidebar-accent/60"
+                : ""
+            }`}
             data-sidebar-sticky-group=""
             key={group.id}
           >
             {!sameKeyScope ? (
               <div
-                className="bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 text-xs font-normal leading-5 text-subtle-foreground/75 transition-colors max-md:pointer-coarse:h-9"
+                className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 text-xs font-normal leading-5 text-subtle-foreground/75 transition-colors max-md:pointer-coarse:h-9 ${
+                  collapsed && roots.length > 0
+                    ? activityThread
+                      ? "pr-14"
+                      : "pr-7"
+                    : "pr-0"
+                }`}
                 data-sidebar="group-label"
                 data-sidebar-sticky-tier="label"
               >
-                <button
-                  aria-label={`Filter to ${group.label}`}
-                  className="relative z-10 flex min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none ring-sidebar-ring hover:text-sidebar-accent-foreground focus-visible:ring-2"
-                  onClick={() =>
-                    changePreferences((current) => ({
-                      ...current,
-                      view: {
-                        ...current.view,
-                        scope: {
-                          kind: "group",
-                          group: {
-                            groupingKey: grouping.groupingKey as GroupingKey,
-                            groupId: group.id,
+                <span className="relative z-10 flex min-w-0 flex-1 items-center gap-1 text-left">
+                  <button
+                    aria-label={`Filter to ${group.label}`}
+                    className="flex min-w-0 items-center gap-2 rounded-md text-left outline-none ring-sidebar-ring hover:text-sidebar-accent-foreground focus-visible:ring-2"
+                    onClick={() =>
+                      changePreferences((current) => ({
+                        ...current,
+                        view: {
+                          ...current.view,
+                          scope: {
+                            kind: "group",
+                            group: {
+                              groupingKey: grouping.groupingKey as GroupingKey,
+                              groupId: group.id,
+                            },
                           },
                         },
-                      },
-                    }))
-                  }
-                  type="button"
-                >
-                  {group.icon ? (
-                    <ProviderIcon
-                      icon={group.icon}
-                      label={`${group.label} group icon`}
+                      }))
+                    }
+                    type="button"
+                  >
+                    {group.icon ? (
+                      <ProviderIcon
+                        icon={group.icon}
+                        label={`${group.label} group icon`}
+                      />
+                    ) : null}
+                    <span className="min-w-0 truncate" title={group.label}>
+                      {group.label}
+                    </span>
+                  </button>
+                  <button
+                    aria-expanded={!collapsed}
+                    aria-label={
+                      collapsed
+                        ? `Expand ${group.label} section`
+                        : `Collapse ${group.label} section`
+                    }
+                    className={`${collapsed ? "" : "bb-sidebar-hover-actions"} relative z-20 inline-flex size-6 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      changePreferences((current) => {
+                        const next = new Set(current.collapsed);
+                        if (next.has(ref)) next.delete(ref);
+                        else next.add(ref);
+                        return { ...current, collapsed: next };
+                      });
+                    }}
+                    type="button"
+                  >
+                    <Icon
+                      aria-hidden
+                      className={`size-3 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
+                      name="ChevronRight"
                     />
-                  ) : null}
-                  <span className="min-w-0 truncate" title={group.label}>
-                    {group.label}
-                  </span>
-                </button>
-                <button
-                  aria-expanded={!collapsed}
-                  aria-label={
-                    collapsed
-                      ? `Expand ${group.label} section`
-                      : `Collapse ${group.label} section`
-                  }
-                  className={`${collapsed ? "" : "bb-sidebar-hover-actions"} relative z-20 inline-flex size-6 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2`}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    changePreferences((current) => {
-                      const next = new Set(current.collapsed);
-                      if (next.has(ref)) next.delete(ref);
-                      else next.add(ref);
-                      return { ...current, collapsed: next };
-                    });
-                  }}
-                  type="button"
-                >
-                  <Icon
-                    aria-hidden
-                    className={`size-3 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
-                    name="ChevronRight"
-                  />
-                </button>
+                  </button>
+                </span>
                 {collapsed && roots.length > 0 ? (
                   <span
                     aria-label={`${roots.length} ${roots.length === 1 ? "thread" : "threads"}`}
@@ -1556,11 +1989,29 @@ function RibbonSidebarList({
                 ) : null}
               </div>
             ) : null}
-            <div className={!collapsed || sameKeyScope ? "mt-1" : undefined}>
-              {!collapsed || sameKeyScope
-                ? roots.map((root) => renderRoot(root))
+            <div className={!collapsed ? "mt-1" : undefined}>
+              {!collapsed
+                ? (
+                    <ul>
+                      {roots.map((root) =>
+                        renderRoot(root, 0, true, {
+                          kind: "placement",
+                          roots,
+                          groupId: group.id,
+                        }),
+                      )}
+                    </ul>
+                  )
                 : activePreview
-                  ? renderRoot(activePreview, 0, false)
+                  ? (
+                      <ul>
+                        {renderRoot(activePreview, 0, false, {
+                          kind: "placement",
+                          roots,
+                          groupId: group.id,
+                        })}
+                      </ul>
+                    )
                   : null}
             </div>
             {(sameKeyScope || !collapsed) && group.acceptsAssignments ? (
@@ -1569,23 +2020,35 @@ function RibbonSidebarList({
                 className={
                   draggingThreadId
                     ? "min-h-8 w-full rounded-sm px-2 text-left text-xs text-muted-foreground outline-none hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-ring"
-                    : "h-2 w-full rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    : "hidden"
                 }
                 data-testid={sameKeyScope ? "scope-end-drop-target" : undefined}
                 onClick={() => {
-                  if (draggingThreadId) {
+                  if (draggingThreadId && movingThread && !movingThread.isPinned) {
                     void updatePlacement(draggingThreadId, group.id, {
                       kind: "end",
                     });
-                    setDraggingThreadId(null);
+                    clearDrag();
                   }
                 }}
-                onDragOver={(event) => event.preventDefault()}
+                onDragOver={(event) => {
+                  if (!draggingThreadId || !movingThread || movingThread.isPinned) {
+                    return;
+                  }
+                  event.preventDefault();
+                  setDragDestination({
+                    kind: "placement",
+                    groupId: group.id,
+                    beforeThreadId: null,
+                    indicatorBefore: null,
+                    indicatorAfter: null,
+                  });
+                }}
                 onDrop={(event) => {
                   event.preventDefault();
-                  if (draggingThreadId) {
+                  if (draggingThreadId && movingThread && !movingThread.isPinned) {
                     void updatePlacement(draggingThreadId, group.id, { kind: "end" });
-                    setDraggingThreadId(null);
+                    clearDrag();
                   }
                 }}
                 type="button"
@@ -1596,6 +2059,8 @@ function RibbonSidebarList({
           </section>
         );
       })}
+        </div>
+      )}
     </div>
   );
 }
@@ -1606,5 +2071,11 @@ export default definePluginApp((app) => {
     title: "Ribbon sidebar",
     description: "Organize every thread grouping through one Ribbon sidebar.",
     component: RibbonSidebarList,
+  });
+  app.contentScripts.register({
+    id: "sidebar-content-spacing",
+    mount({ signal }) {
+      return mountSidebarContentSpacing(signal);
+    },
   });
 });
