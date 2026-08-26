@@ -734,10 +734,16 @@ function RibbonSidebarList({
   const placementOrder = new Map(
     placements.map(({ threadId }, index) => [threadId, index]),
   );
+  const displayGroupId = (thread: PluginSidebarThread) =>
+    placementByThread.get(thread.id)?.groupId ??
+    (normalizedSearch && thread.isArchived
+      ? grouping?.defaultGroupId
+      : undefined);
   const unpinnedRoots = displayRootThreads.filter(
     (thread) =>
       !thread.isPinned &&
-      visiblePlacementIds.has(thread.id) &&
+      (visiblePlacementIds.has(thread.id) ||
+        (Boolean(normalizedSearch) && thread.isArchived)) &&
       matchesSearch(thread),
   ).sort(
     (left, right) =>
@@ -1440,7 +1446,7 @@ function RibbonSidebarList({
 
       {displayedGroupDefinitions.map((group) => {
         const roots = unpinnedRoots.filter(
-          ({ id }) => placementByThread.get(id)?.groupId === group.id,
+          (thread) => displayGroupId(thread) === group.id,
         );
         if (roots.length === 0 && !group.visibleWhenEmpty) return null;
         const ref = `${grouping.groupingKey}/${group.id}`;

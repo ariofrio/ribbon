@@ -478,22 +478,6 @@ describe("Ribbon sidebar app", () => {
         },
       ],
     })) as never;
-    fixture.value.rpc.listPlacementsV1 = vi.fn(async () => ({
-      ok: true as const,
-      value: {
-        groupingKey: "plugin:thread-stages:stages",
-        revision: 1,
-        items: [
-          {
-            groupingKey: "plugin:thread-stages:stages",
-            groupId: "Idle",
-            threadId: "thread-archived",
-            enteredAtMs: 1,
-            origin: "ui" as const,
-          },
-        ],
-      },
-    }));
     const slot = renderSlot(
       app.threadLists[0]!,
       { ...props, searchQuery: "archived migration" },
