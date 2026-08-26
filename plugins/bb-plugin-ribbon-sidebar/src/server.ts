@@ -210,6 +210,16 @@ export const rpcContract = defineRpcContract({
     input: updatePlacementInputSchema,
     output: updatePlacementOutputSchema,
   },
+  updateSettingsV1: {
+    input: z
+      .object({
+        showProjectsAndSections: z.boolean().optional(),
+        showMessagePreviews: z.boolean().optional(),
+        showCollapsedGroupIndicators: z.boolean().optional(),
+      })
+      .strict(),
+    output: z.object({ ok: z.literal(true) }).strict(),
+  },
 });
 
 interface ThreadSummary {
@@ -772,6 +782,13 @@ export default async function plugin(bb: BbPluginApi) {
       return sidebarSnapshot();
     },
     updatePlacementV1: updatePlacement,
+    async updateSettingsV1(values) {
+      await bb.sdk.plugins.updateSettings({
+        pluginId: bb.pluginId,
+        values,
+      });
+      return { ok: true as const };
+    },
   });
 
   bb.cli.register({

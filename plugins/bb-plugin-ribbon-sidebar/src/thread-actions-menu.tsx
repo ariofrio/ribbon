@@ -19,7 +19,11 @@ import {
   ContextMenuTrigger,
 } from "./vendor/components/ui/context-menu";
 import { CompactViewportOverrideProvider } from "./vendor/components/ui/hooks/use-compact-viewport";
-import { Icon, type IconName } from "./vendor/components/ui/icon";
+import {
+  Icon as VendorIcon,
+  type IconName,
+  type IconProps,
+} from "./vendor/components/ui/icon";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +37,15 @@ import {
 } from "./vendor/components/ui/dropdown-menu";
 
 const MENU_LAYER_CLASS = "z-[70]";
+
+function Icon({ className, ...props }: IconProps) {
+  return (
+    <VendorIcon
+      {...props}
+      className={`size-4 shrink-0${className ? ` ${className}` : ""}`}
+    />
+  );
+}
 
 export interface AssignmentGroupOption {
   id: string;

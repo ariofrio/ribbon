@@ -60,6 +60,7 @@ function setup({
 } = {}) {
   let currentThreadStagesCatalog = threadStagesCatalog;
   let currentMigrationSnapshotFails = migrationSnapshotFails;
+  const updateSettings = vi.fn(async () => ({ values: {} }));
   const callRpc = vi.fn(async ({ pluginId, method }: {
     pluginId: string;
     method: string;
@@ -165,12 +166,14 @@ function setup({
           ],
         }),
         callRpc,
+        updateSettings,
       },
     },
   });
   return {
     ...host,
     callRpc,
+    updateSettings,
     setThreadStagesCatalog(catalog: typeof threadStagesCatalog) {
       currentThreadStagesCatalog = catalog;
     },
@@ -284,6 +287,7 @@ describe("Ribbon sidebar server", () => {
       "sidebarSnapshotV1",
       "synchronizeV1",
       "updatePlacementV1",
+      "updateSettingsV1",
     ]);
     expect(harness.inspection.registrations.cli).toMatchObject({
       name: "ribbon-sidebar",
@@ -291,6 +295,27 @@ describe("Ribbon sidebar server", () => {
     await expect(
       harness.behavior.runCli(["groupings", "--json"]),
     ).resolves.toMatchObject({ exitCode: 0 });
+  });
+
+  it("saves every Ribbon setting through the bb SDK", async () => {
+    const { bb, harness, updateSettings } = setup();
+    await plugin(bb);
+
+    await expect(
+      harness.behavior.callRpc("updateSettingsV1", {
+        showProjectsAndSections: false,
+        showMessagePreviews: false,
+        showCollapsedGroupIndicators: true,
+      }),
+    ).resolves.toEqual({ ok: true });
+    expect(updateSettings).toHaveBeenCalledWith({
+      pluginId: "ribbon-sidebar",
+      values: {
+        showProjectsAndSections: false,
+        showMessagePreviews: false,
+        showCollapsedGroupIndicators: true,
+      },
+    });
   });
 
   it("retains the released project local-path action", async () => {

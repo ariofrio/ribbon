@@ -11,7 +11,6 @@ import {
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { FilterMailCircleIcon } from "@hugeicons/core-free-icons";
 import {
   useCallback,
   useEffect,
@@ -52,7 +51,6 @@ import {
   DropdownMenuTrigger,
 } from "./vendor/components/ui/dropdown-menu";
 import { Input } from "./vendor/components/ui/input";
-import { COARSE_POINTER_ROW_ACTION_SIZE_CLASS } from "./vendor/components/ui/coarse-pointer-sizing";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
 import {
   fetchEntityIcons,
@@ -69,6 +67,8 @@ import { Icon } from "./vendor/components/ui/icon";
 import { usePersistentStringSet } from "./persistent-string-set";
 import { SplitPaneMiniMap } from "./split-pane-mini-map";
 import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
+import { ScopeFilter } from "./scope-filter";
+import type { ScopeFilterValue } from "./scope-filter-value";
 
 const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
 
@@ -175,9 +175,6 @@ function ThreadRow({
   onDragOver,
   onDragStart,
   onDropBefore,
-  onMoveBefore,
-  moveBeforeLabel,
-  onMoveStart,
   onNewSection,
   onOpen,
   onRename,
@@ -210,9 +207,6 @@ function ThreadRow({
   onDragOver(event: DragEvent<HTMLElement>): void;
   onDragStart(event: DragEvent<HTMLElement>): void;
   onDropBefore(event: DragEvent<HTMLElement>): void;
-  onMoveBefore?: () => void;
-  moveBeforeLabel?: string;
-  onMoveStart?: () => void;
   onNewSection(): void;
   onOpen(split: boolean): void;
   onRename(): void;
@@ -393,26 +387,6 @@ function ThreadRow({
             </span>
           ) : null}
         </span>
-        {onMoveBefore && moveBeforeLabel ? (
-          <button
-            aria-label={moveBeforeLabel}
-            className={`${COARSE_POINTER_ROW_ACTION_SIZE_CLASS} relative z-20 shrink-0 rounded text-muted-foreground outline-none hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring`}
-            onClick={onMoveBefore}
-            type="button"
-          >
-            <Icon name="ArrowUp" className="size-3.5" aria-hidden />
-          </button>
-        ) : null}
-        {onMoveStart ? (
-          <button
-            aria-label={`Move ${rowTitle}`}
-            className={`${COARSE_POINTER_ROW_ACTION_SIZE_CLASS} bb-sidebar-hover-actions relative z-20 shrink-0 rounded text-muted-foreground outline-none hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring`}
-            onClick={onMoveStart}
-            type="button"
-          >
-            <Icon name="DragDropVertical" className="size-3.5" aria-hidden />
-          </button>
-        ) : null}
       </div>
     </li>
   );
@@ -894,12 +868,6 @@ function RibbonSidebarList({
     preferences?.view.scope.kind === "group"
       ? preferences.view.scope.group
       : null;
-  const activeScopeIcon =
-    activeScope?.groupingKey === "builtin:projects"
-      ? projectIcons.get(activeScope.groupId)
-      : activeScope?.groupingKey === "builtin:sections"
-        ? sectionIcons.get(activeScope.groupId)
-        : undefined;
   const activeScopeProviderIcon = activeScope
     ? snapshot?.groupings
         .find(({ groupingKey }) => groupingKey === activeScope.groupingKey)
@@ -1055,6 +1023,23 @@ function RibbonSidebarList({
   const movingThread = draggingThreadId
     ? rootThreads.find(({ id }) => id === draggingThreadId)
     : undefined;
+  const movingPlacement = movingThread
+    ? placementByThread.get(movingThread.id)
+    : undefined;
+  const canDropPlacementInto = (groupId: string) => {
+    if (!movingThread || movingThread.isPinned || !movingPlacement) return false;
+    if (movingPlacement.groupId === groupId) return true;
+    const destination = groupDefinitions.find(({ id }) => id === groupId);
+    return grouping.membershipWritable && destination?.acceptsAssignments === true;
+  };
+  const scopeFilterValue: ScopeFilterValue =
+    activeScope?.groupingKey === "builtin:projects"
+      ? { kind: "project", id: activeScope.groupId }
+      : activeScope?.groupingKey === "builtin:sections"
+        ? activeScope.groupId === "unsectioned"
+          ? { kind: "uncategorized" }
+          : { kind: "section", id: activeScope.groupId }
+        : null;
   const hasDisplayedThreads = pinnedRoots.length + unpinnedRoots.length > 0;
   const emptyMessage =
     normalizedSearch !== ""
@@ -1110,14 +1095,6 @@ function RibbonSidebarList({
       childrenCollapsed && children.length > 0
         ? (groupIndicator([root, ...descendants(root.id, childrenByParent)]) ?? root)
         : root;
-    const canMoveBefore =
-      !normalizedSearch &&
-      depth === 0 &&
-      movingThread !== undefined &&
-      movingThread.id !== root.id &&
-      rowContext !== undefined &&
-      (rowContext.kind === "pinned") === movingThread.isPinned &&
-      (rowContext.kind === "pinned" || destination !== undefined);
     const reorderable =
       depth === 0 && !normalizedSearch && !root.isArchived && rowContext !== undefined;
     return (
@@ -1150,8 +1127,11 @@ function RibbonSidebarList({
               !reorderable ||
               !draggingThreadId ||
               !movingThread ||
-              (rowContext.kind === "pinned") !== movingThread.isPinned
+              (rowContext.kind === "pinned") !== movingThread.isPinned ||
+              (rowContext.kind === "placement" &&
+                !canDropPlacementInto(rowContext.groupId!))
             ) {
+              setDragDestination(null);
               return;
             }
             event.preventDefault();
@@ -1187,19 +1167,24 @@ function RibbonSidebarList({
             setDraggingThreadId(root.id);
           }}
           onDropBefore={(event) => {
-            if (!reorderable || !draggingThreadId || !dragDestination) return;
+            if (!reorderable || !draggingThreadId) return;
             event.preventDefault();
             event.stopPropagation();
             if (draggingThreadId === root.id) {
               clearDrag();
               return;
             }
+            if (!dragDestination) return;
             if (dragDestination.kind === "pinned") {
               void updatePinnedOrder(
                 draggingThreadId,
                 dragDestination.beforeThreadId,
               );
             } else {
+              if (!canDropPlacementInto(dragDestination.groupId)) {
+                clearDrag();
+                return;
+              }
               void updatePlacement(
                 draggingThreadId,
                 dragDestination.groupId,
@@ -1213,34 +1198,6 @@ function RibbonSidebarList({
               clearDrag();
             }
           }}
-          moveBeforeLabel={
-            canMoveBefore
-              ? `Move ${title(movingThread)} before ${title(root)}`
-              : undefined
-          }
-          onMoveBefore={
-            canMoveBefore
-              ? () => {
-                  if (rowContext.kind === "pinned") {
-                    void updatePinnedOrder(movingThread.id, root.id);
-                  } else {
-                    void updatePlacement(movingThread.id, destination!.groupId, {
-                      kind: "before",
-                      threadId: root.id,
-                    });
-                    clearDrag();
-                  }
-                }
-              : undefined
-          }
-          onMoveStart={
-            depth === 0 && !normalizedSearch && !root.isArchived
-              ? () => {
-                  setDraggingThreadId(root.id);
-                  setDragDestination(null);
-                }
-              : undefined
-          }
           onNewSection={() =>
             setEntityDialog({ kind: "create-section", name: "" })
           }
@@ -1309,318 +1266,261 @@ function RibbonSidebarList({
         } as CSSProperties
       }
     >
-      <div className="bb-sidebar-hover-actions-row group/ribbon-filter sticky top-[var(--bb-sidebar-sticky-stack-padding-top)] z-[70] mb-4 flex min-w-0 items-center gap-1 rounded-md bg-sidebar outline-none ring-sidebar-ring has-[button:focus-visible]:ring-2 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-2 before:bg-sidebar before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-sidebar after:content-['']">
-        {settings.values?.showProjectsAndSections !== false ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                aria-label={
-                  scopeLabel
-                    ? `Projects and sections: ${scopeLabel}`
-                    : "Projects and sections"
-                }
-                className="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-[state=open]:bg-state-active max-md:pointer-coarse:h-9 dark:text-sidebar-foreground"
-                type="button"
-              >
-                {activeScopeIcon ? (
-                  <HugeiconsIcon
-                    aria-hidden
-                    className="size-4 shrink-0"
-                    data-scope-icon={activeScopeIcon.name}
-                    icon={activeScopeIcon.glyph}
-                    style={
-                      activeScopeIcon.color === null
-                        ? undefined
-                        : { color: activeScopeIcon.color }
-                    }
-                  />
-                ) : activeScopeProviderIcon ? (
-                  <ProviderIcon
-                    icon={activeScopeProviderIcon}
-                    label={`${scopeLabel ?? "Scope"} icon`}
-                  />
-                ) : (
-                  <Icon
-                    aria-hidden
-                    className="size-4 shrink-0"
-                    name={
-                      activeScope?.groupingKey === "builtin:sections"
-                        ? "ListView"
-                        : "Folder"
-                    }
-                  />
-                )}
-                <span className="min-w-0 truncate">
-                  {scopeLabel ?? "Projects and sections"}
-                </span>
-                {scopeLabel ? (
-                  <span
-                    aria-label="Threads are filtered"
-                    className="inline-flex size-4 shrink-0 items-center justify-center text-subtle-foreground/60"
-                  >
-                    <HugeiconsIcon
-                      aria-hidden
-                      className="size-3.5"
-                      icon={FilterMailCircleIcon}
+      {settings.values?.showProjectsAndSections !== false ? (
+        <ScopeFilter
+          activeOverride={
+            activeScope &&
+            !["builtin:projects", "builtin:sections"].includes(
+              activeScope.groupingKey,
+            ) &&
+            scopeLabel
+              ? {
+                  label: scopeLabel,
+                  icon: activeScopeProviderIcon ? (
+                    <ProviderIcon
+                      icon={activeScopeProviderIcon}
+                      label={`${scopeLabel} icon`}
                     />
-                  </span>
-                ) : null}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-56">
-              <DropdownMenuItem
-                onSelect={() =>
-                  changePreferences((current) => ({
-                    ...current,
-                    view: { ...current.view, scope: { kind: "all" } },
-                  }))
+                  ) : undefined,
                 }
-              >
-                All projects and sections
-              </DropdownMenuItem>
-            {snapshot.groupings
-                .filter(({ groupingKey }) =>
-                  ["builtin:projects", "builtin:sections"].includes(groupingKey),
-                )
-                .map((candidate) => (
-                  <div key={candidate.groupingKey}>
-                    <DropdownMenuLabel>{candidate.pluralLabel}</DropdownMenuLabel>
-                    {candidate.groups.map((group) => (
+              : undefined
+          }
+          onAddProjectLocalPath={(project) => {
+            void rpc
+              .call("addProjectLocalPathV1", { projectId: project.id })
+              .then(() => synchronize())
+              .catch((error: unknown) =>
+                setMutationError(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not add local path",
+                ),
+              );
+          }}
+          onChange={(next) =>
+            changePreferences((current) => ({
+              ...current,
+              view: {
+                ...current.view,
+                scope:
+                  next === null
+                    ? { kind: "all" }
+                    : {
+                        kind: "group",
+                        group:
+                          next.kind === "project"
+                            ? {
+                                groupingKey: "builtin:projects",
+                                groupId: next.id,
+                              }
+                            : {
+                                groupingKey: "builtin:sections",
+                                groupId:
+                                  next.kind === "uncategorized"
+                                    ? "unsectioned"
+                                    : next.id,
+                              },
+                      },
+              },
+            }))
+          }
+          onHide={() => {
+            void rpc.call("updateSettingsV1", {
+              showProjectsAndSections: false,
+            });
+          }}
+          onNewProject={() => {
+            void rpc
+              .call("createProjectV1", null)
+              .then(() => synchronize())
+              .catch((error: unknown) =>
+                setMutationError(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not create project",
+                ),
+              );
+          }}
+          onNewSection={() =>
+            setEntityDialog({ kind: "create-section", name: "" })
+          }
+          onOpenProjectSettings={(project) => {
+            window.location.assign(
+              `/projects/${encodeURIComponent(project.id)}/settings`,
+            );
+            onNavigate();
+          }}
+          onRemoveProject={(project) =>
+            setEntityDialog({
+              kind: "delete",
+              scope: { groupingKey: "builtin:projects", groupId: project.id },
+              label: project.name,
+            })
+          }
+          onRemoveSection={(section) =>
+            setEntityDialog({
+              kind: "delete",
+              scope: { groupingKey: "builtin:sections", groupId: section.id },
+              label: section.name,
+            })
+          }
+          onRenameProject={(project) =>
+            setEntityDialog({
+              kind: "rename",
+              scope: { groupingKey: "builtin:projects", groupId: project.id },
+              label: project.name,
+              name: project.name,
+            })
+          }
+          onRenameSection={(section) =>
+            setEntityDialog({
+              kind: "rename",
+              scope: { groupingKey: "builtin:sections", groupId: section.id },
+              label: section.name,
+              name: section.name,
+            })
+          }
+          projectActionStates={projectActionStates}
+          projectIcons={projectIcons}
+          projects={sidebar.projects}
+          sectionIcons={sectionIcons}
+          sections={sections.map(({ id, label }) => ({ id, name: label }))}
+          trailing={
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    aria-label={`Group by ${grouping.pluralLabel}`}
+                    className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-subtle-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-[state=open]:bg-state-active max-md:pointer-coarse:h-9"
+                    type="button"
+                  >
+                    <Icon aria-hidden className="size-3.5" name="Workflow" />
+                    <span className="max-w-20 truncate">
+                      {grouping.pluralLabel}
+                    </span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {snapshot.groupings
+                    .filter(({ available }) => available)
+                    .map((candidate) => (
                       <DropdownMenuItem
-                        key={group.id}
+                        key={candidate.groupingKey}
                         onSelect={() =>
                           changePreferences((current) => ({
                             ...current,
                             view: {
                               ...current.view,
-                              scope: {
-                                kind: "group",
-                                group: {
-                                  groupingKey: candidate.groupingKey as GroupingKey,
-                                  groupId: group.id,
-                                },
-                              },
+                              groupingKey:
+                                candidate.groupingKey as GroupingKey,
                             },
                           }))
                         }
                       >
-                        {group.label}
+                        {candidate.pluralLabel}
                       </DropdownMenuItem>
                     ))}
-                  </div>
-                ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => {
-                  void rpc
-                    .call("createProjectV1", null)
-                    .then(() => synchronize())
-                    .catch((error: unknown) =>
-                      setMutationError(
-                        error instanceof Error
-                          ? error.message
-                          : "Could not create project",
-                      ),
-                    );
-                }}
-              >
-                New project…
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => {
-                  setEntityDialog({ kind: "create-section", name: "" });
-                }}
-              >
-                New section…
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              aria-label={`Group by ${grouping.pluralLabel}`}
-              className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-subtle-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-[state=open]:bg-state-active max-md:pointer-coarse:h-9"
-              type="button"
-            >
-              <Icon aria-hidden className="size-3.5" name="Workflow" />
-              <span className="max-w-20 truncate">{grouping.pluralLabel}</span>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {snapshot.groupings.filter(({ available }) => available).map((candidate) => (
-              <DropdownMenuItem
-                key={candidate.groupingKey}
-                onSelect={() =>
-                  changePreferences((current) => ({
-                    ...current,
-                    view: {
-                      ...current.view,
-                      groupingKey: candidate.groupingKey as GroupingKey,
-                    },
-                  }))
-                }
-              >
-                {candidate.pluralLabel}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {scopeLabel ? (
-          <div
-            className="bb-sidebar-hover-actions flex shrink-0 items-center"
-            data-sidebar-hover-actions-mobile="always"
-          >
-            <span aria-live="polite" className="sr-only">
-              {scopeLabel} scope
-            </span>
-            {matchingScope ? (
-              <button
-                aria-expanded={
-                  !preferences.collapsed.has(
-                    `${matchingScope.groupingKey}/${matchingScope.groupId}`,
-                  )
-                }
-                aria-label={
-                  preferences.collapsed.has(
-                    `${matchingScope.groupingKey}/${matchingScope.groupId}`,
-                  )
-                    ? `Expand ${scopeLabel} section`
-                    : `Collapse ${scopeLabel} section`
-                }
-                className="inline-flex size-7 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 max-md:pointer-coarse:size-9"
-                onClick={() =>
-                  changePreferences((current) => {
-                    const collapsed = new Set(current.collapsed);
-                    const ref = `${matchingScope.groupingKey}/${matchingScope.groupId}`;
-                    if (collapsed.has(ref)) collapsed.delete(ref);
-                    else collapsed.add(ref);
-                    return { ...current, collapsed };
-                  })
-                }
-                type="button"
-              >
-                <Icon
-                  aria-hidden
-                  className={`size-3 transition-transform duration-150 ${
-                    preferences.collapsed.has(
-                      `${matchingScope.groupingKey}/${matchingScope.groupId}`,
-                    )
-                      ? ""
-                      : "rotate-90"
-                  }`}
-                  name="ChevronRight"
-                />
-              </button>
-            ) : null}
-            {preferences.view.scope.kind === "group" &&
-            ["builtin:projects", "builtin:sections"].includes(
-              preferences.view.scope.group.groupingKey,
-            ) &&
-            preferences.view.scope.group.groupId !== "unsectioned" ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    aria-label="Scope actions"
-                    className="inline-flex size-7 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 max-md:pointer-coarse:size-9"
-                    type="button"
-                  >
-                    <Icon aria-hidden className="size-4" name="MoreHorizontal" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {preferences.view.scope.kind === "group" &&
-                  preferences.view.scope.group.groupingKey ===
-                    "builtin:projects" ? (
-                    <>
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          const projectId =
-                            preferences.view.scope.kind === "group"
-                              ? preferences.view.scope.group.groupId
-                              : "";
-                          window.location.assign(
-                            `/projects/${encodeURIComponent(projectId)}/settings`,
-                          );
-                          onNavigate();
-                        }}
-                      >
-                        Project settings
-                      </DropdownMenuItem>
-                      {projectActionStates.get(
-                        preferences.view.scope.group.groupId,
-                      )?.canAddLocalPath ? (
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            const projectId =
-                              preferences.view.scope.kind === "group"
-                                ? preferences.view.scope.group.groupId
-                                : "";
-                            void rpc
-                              .call("addProjectLocalPathV1", { projectId })
-                              .then(() => synchronize())
-                              .catch((error: unknown) =>
-                                setMutationError(
-                                  error instanceof Error
-                                    ? error.message
-                                    : "Could not add local path",
-                                ),
-                              );
-                          }}
-                        >
-                          Add local path…
-                        </DropdownMenuItem>
-                      ) : null}
-                      <DropdownMenuSeparator />
-                    </>
-                  ) : null}
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      if (preferences.view.scope.kind !== "group") return;
-                      const currentScope = preferences.view.scope.group;
-                      setEntityDialog({
-                        kind: "rename",
-                        scope: currentScope as BuiltinGroupRef,
-                        label: scopeLabel,
-                        name: scopeLabel,
-                      });
-                    }}
-                  >
-                    Rename…
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onSelect={() => {
-                      if (preferences.view.scope.kind !== "group") return;
-                      const currentScope = preferences.view.scope.group;
-                      setEntityDialog({
-                        kind: "delete",
-                        scope: currentScope as BuiltinGroupRef,
-                        label: scopeLabel,
-                      });
-                    }}
-                  >
-                    Delete…
-                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            ) : null}
-            <button
-              aria-label="Clear scope"
-              className="inline-flex size-7 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 max-md:pointer-coarse:size-9"
-              onClick={() =>
-                changePreferences((current) => ({
-                  ...current,
-                  view: { ...current.view, scope: { kind: "all" } },
-                }))
-              }
-              type="button"
-            >
-              <Icon aria-hidden className="size-4" name="X" />
-            </button>
-          </div>
-        ) : null}
-      </div>
+              {scopeLabel ? (
+                <>
+                  <span aria-live="polite" className="sr-only">
+                    {scopeLabel} scope
+                  </span>
+                  {matchingScope ? (
+                    <button
+                      aria-expanded={
+                        !preferences.collapsed.has(
+                          `${matchingScope.groupingKey}/${matchingScope.groupId}`,
+                        )
+                      }
+                      aria-label={
+                        preferences.collapsed.has(
+                          `${matchingScope.groupingKey}/${matchingScope.groupId}`,
+                        )
+                          ? `Expand ${scopeLabel} section`
+                          : `Collapse ${scopeLabel} section`
+                      }
+                      className="bb-sidebar-hover-actions inline-flex size-7 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 max-md:pointer-coarse:size-9"
+                      onClick={() =>
+                        changePreferences((current) => {
+                          const collapsed = new Set(current.collapsed);
+                          const ref = `${matchingScope.groupingKey}/${matchingScope.groupId}`;
+                          if (collapsed.has(ref)) collapsed.delete(ref);
+                          else collapsed.add(ref);
+                          return { ...current, collapsed };
+                        })
+                      }
+                      type="button"
+                    >
+                      <Icon
+                        aria-hidden
+                        className={`size-3 transition-transform duration-150 ${
+                          preferences.collapsed.has(
+                            `${matchingScope.groupingKey}/${matchingScope.groupId}`,
+                          )
+                            ? ""
+                            : "rotate-90"
+                        }`}
+                        name="ChevronRight"
+                      />
+                    </button>
+                  ) : null}
+                  <button
+                    aria-label="Clear scope"
+                    className="bb-sidebar-hover-actions inline-flex size-7 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 max-md:pointer-coarse:size-9"
+                    onClick={() =>
+                      changePreferences((current) => ({
+                        ...current,
+                        view: { ...current.view, scope: { kind: "all" } },
+                      }))
+                    }
+                    type="button"
+                  >
+                    <Icon aria-hidden className="size-4" name="X" />
+                  </button>
+                </>
+              ) : null}
+            </>
+          }
+          value={scopeFilterValue}
+        />
+      ) : (
+        <div className="sticky top-[var(--bb-sidebar-sticky-stack-padding-top)] z-[70] mb-4 flex justify-end bg-sidebar">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label={`Group by ${grouping.pluralLabel}`}
+                className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-subtle-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-[state=open]:bg-state-active max-md:pointer-coarse:h-9"
+                type="button"
+              >
+                <Icon aria-hidden className="size-3.5" name="Workflow" />
+                <span className="max-w-20 truncate">{grouping.pluralLabel}</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {snapshot.groupings
+                .filter(({ available }) => available)
+                .map((candidate) => (
+                  <DropdownMenuItem
+                    key={candidate.groupingKey}
+                    onSelect={() =>
+                      changePreferences((current) => ({
+                        ...current,
+                        view: {
+                          ...current.view,
+                          groupingKey: candidate.groupingKey as GroupingKey,
+                        },
+                      }))
+                    }
+                  >
+                    {candidate.pluralLabel}
+                  </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
       {mutationError ? (
         <div className="rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
           {mutationError}
@@ -1770,6 +1670,24 @@ function RibbonSidebarList({
               : ""
           }`}
           data-sidebar-sticky-group=""
+          onDragOver={(event) => {
+            if (!draggingThreadId || !movingThread?.isPinned) {
+              setDragDestination(null);
+              return;
+            }
+            event.preventDefault();
+            setDragDestination({
+              kind: "pinned",
+              beforeThreadId: null,
+              indicatorBefore: null,
+              indicatorAfter: null,
+            });
+          }}
+          onDrop={(event) => {
+            if (!draggingThreadId || !movingThread?.isPinned) return;
+            event.preventDefault();
+            void updatePinnedOrder(draggingThreadId, null);
+          }}
         >
           <div
             className="bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 text-xs font-normal leading-5 text-subtle-foreground/75 max-md:pointer-coarse:h-9"
@@ -1813,51 +1731,14 @@ function RibbonSidebarList({
             </button>
           </div>
           {normalizedSearch || !preferences.collapsed.has("builtin:pinned") ? (
-            <>
-              <ul>
-                {pinnedRoots.map((root) =>
-                  renderRoot(root, 0, true, {
-                    kind: "pinned",
-                    roots: pinnedRoots,
-                  }),
-                )}
-              </ul>
-              {!normalizedSearch ? (
-                <button
-                  aria-label="Move to end of Pinned"
-                  className={
-                    draggingThreadId && movingThread?.isPinned
-                      ? "min-h-8 w-full rounded-sm px-2 text-left text-xs text-muted-foreground outline-none hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-ring"
-                      : "hidden"
-                  }
-                  onClick={() => {
-                    if (draggingThreadId && movingThread?.isPinned) {
-                      void updatePinnedOrder(draggingThreadId, null);
-                    }
-                  }}
-                  onDragOver={(event) => {
-                    if (!draggingThreadId || !movingThread?.isPinned) return;
-                    event.preventDefault();
-                    setDragDestination({
-                      kind: "pinned",
-                      beforeThreadId: null,
-                      indicatorBefore: null,
-                      indicatorAfter: null,
-                    });
-                  }}
-                  onDrop={(event) => {
-                    if (!draggingThreadId || !movingThread?.isPinned) return;
-                    event.preventDefault();
-                    void updatePinnedOrder(draggingThreadId, null);
-                  }}
-                  type="button"
-                >
-                  {draggingThreadId && movingThread?.isPinned
-                    ? "Move to end of Pinned"
-                    : null}
-                </button>
-              ) : null}
-            </>
+            <ul>
+              {pinnedRoots.map((root) =>
+                renderRoot(root, 0, true, {
+                  kind: "pinned",
+                  roots: pinnedRoots,
+                }),
+              )}
+            </ul>
           ) : null}
         </section>
       ) : null}
@@ -1899,7 +1780,28 @@ function RibbonSidebarList({
                 : ""
             }`}
             data-sidebar-sticky-group=""
+            data-testid={sameKeyScope ? "scope-end-drop-target" : undefined}
             key={group.id}
+            onDragOver={(event) => {
+              if (!canDropPlacementInto(group.id)) {
+                setDragDestination(null);
+                return;
+              }
+              event.preventDefault();
+              setDragDestination({
+                kind: "placement",
+                groupId: group.id,
+                beforeThreadId: null,
+                indicatorBefore: null,
+                indicatorAfter: null,
+              });
+            }}
+            onDrop={(event) => {
+              if (!draggingThreadId || !canDropPlacementInto(group.id)) return;
+              event.preventDefault();
+              void updatePlacement(draggingThreadId, group.id, { kind: "end" });
+              clearDrag();
+            }}
           >
             {!sameKeyScope ? (
               <div
@@ -2014,48 +1916,6 @@ function RibbonSidebarList({
                     )
                   : null}
             </div>
-            {(sameKeyScope || !collapsed) && group.acceptsAssignments ? (
-              <button
-                aria-label={`Move to end of ${group.label}`}
-                className={
-                  draggingThreadId
-                    ? "min-h-8 w-full rounded-sm px-2 text-left text-xs text-muted-foreground outline-none hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-ring"
-                    : "hidden"
-                }
-                data-testid={sameKeyScope ? "scope-end-drop-target" : undefined}
-                onClick={() => {
-                  if (draggingThreadId && movingThread && !movingThread.isPinned) {
-                    void updatePlacement(draggingThreadId, group.id, {
-                      kind: "end",
-                    });
-                    clearDrag();
-                  }
-                }}
-                onDragOver={(event) => {
-                  if (!draggingThreadId || !movingThread || movingThread.isPinned) {
-                    return;
-                  }
-                  event.preventDefault();
-                  setDragDestination({
-                    kind: "placement",
-                    groupId: group.id,
-                    beforeThreadId: null,
-                    indicatorBefore: null,
-                    indicatorAfter: null,
-                  });
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  if (draggingThreadId && movingThread && !movingThread.isPinned) {
-                    void updatePlacement(draggingThreadId, group.id, { kind: "end" });
-                    clearDrag();
-                  }
-                }}
-                type="button"
-              >
-                {draggingThreadId ? `Move to end of ${group.label}` : null}
-              </button>
-            ) : null}
           </section>
         );
       })}
