@@ -486,7 +486,7 @@ export function ScopeFilter({
           data-state={actionsOpen ? "open" : "closed"}
           data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
           data-sidebar-hover-actions-mobile="always"
-          className="bb-sidebar-hover-actions absolute inset-y-0 right-0 z-20 flex shrink-0 items-center gap-1 bg-sidebar pl-1 opacity-0 pointer-events-none group-hover/thread-filter:opacity-100 group-hover/thread-filter:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto data-[state=open]:opacity-100 data-[state=open]:pointer-events-auto max-md:pointer-coarse:static max-md:pointer-coarse:opacity-100 max-md:pointer-coarse:pointer-events-auto"
+          className="bb-sidebar-hover-actions relative z-20 flex shrink-0 items-center gap-1 bg-sidebar pl-1 opacity-0 pointer-events-none group-hover/thread-filter:opacity-100 group-hover/thread-filter:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto data-[state=open]:opacity-100 data-[state=open]:pointer-events-auto max-md:pointer-coarse:opacity-100 max-md:pointer-coarse:pointer-events-auto"
         >
           <ThreadFilterAction
             icon="SectionAdd"
