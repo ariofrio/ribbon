@@ -22,6 +22,7 @@ import {
 import { cn } from "./vendor/lib/utils";
 import { Icon, type IconName } from "./vendor/components/ui/icon";
 import { ProviderIcon } from "./provider-icon";
+import { UnorganizedIcon } from "./unorganized-icon";
 import { ThreadFilterOptionsMenu } from "./sidebar-options-menu";
 import { CompactViewportOverrideProvider } from "./vendor/components/ui/hooks/use-compact-viewport";
 import {
@@ -195,6 +196,7 @@ export function ScopeFilter({
       );
     }
     if (grouping.groupingKey === "builtin:sections") {
+      if (groupId === "unsectioned") return <UnorganizedIcon />;
       return (
         <ProjectFilterIcon
           icon={sectionIcons.get(groupId)}
@@ -326,6 +328,24 @@ export function ScopeFilter({
       );
     });
 
+    const newEntityAction =
+      grouping.groupingKey === "builtin:sections" ? (
+        <DropdownMenuItem inset className="pl-7" onSelect={onNewSection}>
+          <Icon name="SectionAdd" className="size-4 shrink-0" aria-hidden />
+          <span>New section</span>
+        </DropdownMenuItem>
+      ) : grouping.groupingKey === "builtin:projects" ? (
+        <DropdownMenuItem
+          inset
+          className="pl-7"
+          disabled={newProjectDisabled}
+          onSelect={onNewProject}
+        >
+          <Icon name="FolderPlus" className="size-4 shrink-0" aria-hidden />
+          <span>New project</span>
+        </DropdownMenuItem>
+      ) : null;
+
     return (
       <>
         <DropdownMenuRadioGroup
@@ -334,48 +354,37 @@ export function ScopeFilter({
         >
           {rows}
         </DropdownMenuRadioGroup>
-        {grouping.groupingKey === "builtin:sections" ? (
-          <DropdownMenuItem inset className="pl-7" onSelect={onNewSection}>
-            <Icon name="SectionAdd" className="size-4 shrink-0" aria-hidden />
-            <span>New section</span>
-          </DropdownMenuItem>
-        ) : grouping.groupingKey === "builtin:projects" ? (
-          <DropdownMenuItem
-            inset
-            className="pl-7"
-            disabled={newProjectDisabled}
-            onSelect={onNewProject}
-          >
-            <Icon name="FolderPlus" className="size-4 shrink-0" aria-hidden />
-            <span>New project</span>
-          </DropdownMenuItem>
-        ) : null}
-        {canGroupBy ? (
+        {newEntityAction !== null || canGroupBy ? (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="pl-7"
-              role="menuitemcheckbox"
-              aria-checked={activeGroupingKey === grouping.groupingKey}
-              onSelect={() =>
-                onGroupingChange(
-                  activeGroupingKey === grouping.groupingKey
-                    ? null
-                    : grouping.groupingKey,
-                )
-              }
-            >
-              {activeGroupingKey === grouping.groupingKey ? (
-                <FilterRowCheck />
+            <DropdownMenuGroup>
+              {newEntityAction}
+              {canGroupBy ? (
+                <DropdownMenuItem
+                  className="pl-7"
+                  role="menuitemcheckbox"
+                  aria-checked={activeGroupingKey === grouping.groupingKey}
+                  onSelect={() =>
+                    onGroupingChange(
+                      activeGroupingKey === grouping.groupingKey
+                        ? null
+                        : grouping.groupingKey,
+                    )
+                  }
+                >
+                  {activeGroupingKey === grouping.groupingKey ? (
+                    <FilterRowCheck />
+                  ) : null}
+                  <HugeiconsIcon
+                    icon={ListTreeIcon}
+                    size={16}
+                    className="size-4 shrink-0"
+                    aria-hidden
+                  />
+                  Group by {grouping.singularLabel.toLocaleLowerCase()}
+                </DropdownMenuItem>
               ) : null}
-              <HugeiconsIcon
-                icon={ListTreeIcon}
-                size={16}
-                className="size-4 shrink-0"
-                aria-hidden
-              />
-              Group by {grouping.singularLabel.toLocaleLowerCase()}
-            </DropdownMenuItem>
+            </DropdownMenuGroup>
           </>
         ) : null}
       </>

@@ -935,17 +935,18 @@ describe("Ribbon sidebar app", () => {
       const groupBy = await slot.findByRole("menuitemcheckbox", {
         name: groupByLabel,
       });
-      const menu = groupBy.parentElement;
-      expect(menu?.lastElementChild).toBe(groupBy);
-      expect(groupBy.previousElementSibling?.getAttribute("role")).toBe(
+      const footer = groupBy.parentElement;
+      expect(footer?.getAttribute("role")).toBe("group");
+      expect(footer?.lastElementChild).toBe(groupBy);
+      expect(footer?.previousElementSibling?.getAttribute("role")).toBe(
         "separator",
       );
       if (creationLabel !== null) {
         const creation = slot.getByRole("menuitem", { name: creationLabel });
-        expect(
-          creation.compareDocumentPosition(groupBy) &
-            Node.DOCUMENT_POSITION_FOLLOWING,
-        ).toBeTruthy();
+        expect(creation.parentElement).toBe(footer);
+        expect(creation.nextElementSibling).toBe(groupBy);
+      } else {
+        expect(footer?.firstElementChild).toBe(groupBy);
       }
 
       slot.lifecycle.unmount();
@@ -999,10 +1000,18 @@ describe("Ribbon sidebar app", () => {
     );
     expect(slot.queryByRole("menuitemcheckbox", { name: "Group by section" }))
       .toBeNull();
+    const newSection = slot.getByRole("menuitem", { name: "New section" });
+    expect(newSection.parentElement?.getAttribute("role")).toBe("group");
+    expect(newSection.parentElement?.parentElement?.getAttribute("role")).toBe(
+      "group",
+    );
+    expect(
+      newSection.parentElement?.previousElementSibling?.getAttribute("role"),
+    ).toBe("separator");
     slot.lifecycle.unmount();
   });
 
-  it("puts Threads last in project groups and directly before New project", async () => {
+  it("puts Threads last in project groups before the action footer", async () => {
     window.localStorage.setItem(
       "bb.plugin.ribbon-sidebar.preferences.v1",
       JSON.stringify({
@@ -1080,7 +1089,10 @@ describe("Ribbon sidebar app", () => {
     const threads = await slot.findByRole("menuitemradio", { name: "Threads" });
     const newProject = slot.getByRole("menuitem", { name: "New project" });
     expect(threads.parentElement?.lastElementChild).toBe(threads);
-    expect(threads.parentElement?.nextElementSibling).toBe(newProject);
+    const separator = threads.parentElement?.nextElementSibling;
+    expect(separator?.getAttribute("role")).toBe("separator");
+    expect(separator?.nextElementSibling).toBe(newProject.parentElement);
+    expect(newProject.parentElement?.firstElementChild).toBe(newProject);
     slot.lifecycle.unmount();
   });
 
@@ -1115,6 +1127,10 @@ describe("Ribbon sidebar app", () => {
     fireEvent.keyDown(slot.getByRole("menuitem", { name: "Sections" }), {
       key: "ArrowRight",
     });
+    expect(
+      (await slot.findByRole("menuitemradio", { name: "Unorganized" }))
+        .querySelector('[data-icon="ListViewOff"]'),
+    ).toBeTruthy();
     expect(await slot.findByRole("menuitemcheckbox", { name: "Group by section" }))
       .toBeTruthy();
     fireEvent.click(slot.getByRole("menuitemcheckbox", { name: "Group by section" }));
@@ -1308,6 +1324,12 @@ describe("Ribbon sidebar app", () => {
       ?.querySelector("svg");
     expect(sectionIcon).not.toBeNull();
     expect(getComputedStyle(sectionIcon!).color).not.toBe("");
+    expect(
+      slot
+        .getByText("Unorganized")
+        .closest('[role="menuitem"]')
+        ?.querySelector('[data-icon="ListViewOff"]'),
+    ).toBeTruthy();
     slot.lifecycle.unmount();
   });
 
@@ -1340,7 +1362,9 @@ describe("Ribbon sidebar app", () => {
     const unorganizedHeader = slot
       .getByRole("region", { name: "Unorganized group" })
       .querySelector('[data-sidebar="group-label"]')!;
-    expect(unorganizedHeader.querySelectorAll("svg")).toHaveLength(2);
+    expect(
+      unorganizedHeader.querySelector('[data-icon="ListViewOff"]'),
+    ).toBeTruthy();
     slot.lifecycle.unmount();
 
     const hiddenFixture = options({

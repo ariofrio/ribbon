@@ -65,6 +65,7 @@ import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
 import { ScopeFilter } from "./scope-filter";
 import type { ScopeFilterValue } from "./scope-filter-value";
 import { orderedGroupings } from "./grouping-order";
+import { UnorganizedIcon } from "./unorganized-icon";
 
 const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
 
@@ -1719,6 +1720,9 @@ function RibbonSidebarList({
             : grouping?.groupingKey === "builtin:sections"
               ? "ListView"
               : undefined;
+        const unorganizedGroup =
+          grouping?.groupingKey === "builtin:sections" &&
+          group.id === "unsectioned";
         return (
           <section
             aria-label={grouping ? `${group.label} group` : undefined}
@@ -1768,7 +1772,10 @@ function RibbonSidebarList({
                 <span className="relative z-10 flex min-w-0 flex-1 items-center gap-1 text-left">
                   <span className="flex min-w-0 items-center gap-2 text-left">
                     {settings.values?.showGroupHeaderIcons !== false &&
-                    entityGroupIcon ? (
+                    unorganizedGroup ? (
+                      <UnorganizedIcon />
+                    ) : settings.values?.showGroupHeaderIcons !== false &&
+                      entityGroupIcon ? (
                       <HugeiconsIcon
                         aria-hidden
                         className="size-4 shrink-0"

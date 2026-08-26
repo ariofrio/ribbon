@@ -7,6 +7,7 @@ import type {
 import type { IconDataV1 } from "./contracts";
 import type { EntityIconView } from "./icons";
 import { ProviderIcon } from "./provider-icon";
+import { UnorganizedIcon } from "./unorganized-icon";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -364,7 +365,7 @@ function ContextSectionMenu(props: CommonMenuProps) {
                 <Icon name="Check" aria-hidden />
               ) : null}
             </span>
-            <Icon name="ListView" aria-hidden />Unorganized
+            <UnorganizedIcon />Unorganized
           </ContextMenuItem>
           <ContextMenuItem inset onSelect={props.onNewSection}>
             <Icon name="SectionAdd" aria-hidden />New section
@@ -411,7 +412,7 @@ function DropdownSectionMenu(props: CommonMenuProps) {
                 <Icon name="Check" aria-hidden />
               ) : null}
             </span>
-            <Icon name="ListView" aria-hidden />Unorganized
+            <UnorganizedIcon />Unorganized
           </DropdownMenuItem>
           <DropdownMenuItem inset onSelect={props.onNewSection}>
             <Icon name="SectionAdd" aria-hidden />New section
