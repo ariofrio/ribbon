@@ -42,6 +42,7 @@ function descriptors(
     groupingId: grouping.id,
     singularLabel: grouping.singularLabel,
     pluralLabel: grouping.pluralLabel,
+    icon: grouping.icon,
     defaultGroupId: grouping.defaultGroupId,
     groups: grouping.groups,
     membership: { kind: "ribbon" },

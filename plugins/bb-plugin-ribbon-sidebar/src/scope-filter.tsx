@@ -10,7 +10,7 @@ import {
 import {
   FilterMailCircleIcon,
   FolderLibraryIcon,
-  Group01Icon,
+  ListTreeIcon,
 } from "@hugeicons/core-free-icons";
 import type { IconDataV1 } from "./contracts";
 import type { EntityIconView } from "./icons";
@@ -61,6 +61,7 @@ export interface GroupsMenuGrouping {
   groupingKey: string;
   singularLabel: string;
   pluralLabel: string;
+  icon?: IconDataV1;
   groups: readonly {
     id: string;
     label: string;
@@ -117,7 +118,6 @@ const ACTIONABLE_SELECT_TARGET_CLASS =
 const ACTION_CLASS =
   "inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground outline-none ring-sidebar-ring transition-none hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 max-md:pointer-coarse:size-9";
 const ACTION_TOOLTIP_DELAY_MS = 350;
-const THREAD_STAGES_GROUPING_KEY = "plugin:thread-stages:stages";
 const SubmenuPointerEnterContext = createContext<(() => void) | undefined>(
   undefined,
 );
@@ -216,16 +216,15 @@ export function ScopeFilter({
     if (grouping.groupingKey === "builtin:projects") {
       return <Icon name="Folder" className="size-4 shrink-0" aria-hidden />;
     }
-    const activeStageIcon =
-      grouping.groupingKey === THREAD_STAGES_GROUPING_KEY
-        ? grouping.groups.find(({ id }) => id === "Active")?.icon
-        : undefined;
-    return activeStageIcon ? (
+    return grouping.icon ? (
       <span
         aria-hidden
         className="inline-flex size-4 shrink-0 items-center justify-center leading-none"
       >
-        <ProviderIcon icon={activeStageIcon} label="Active stage" />
+        <ProviderIcon
+          icon={grouping.icon}
+          label={`${grouping.singularLabel} icon`}
+        />
       </span>
     ) : (
       <Icon name="Workflow" className="size-4 shrink-0" aria-hidden />
@@ -347,7 +346,7 @@ export function ScopeFilter({
                 <FilterRowCheck />
               ) : null}
               <HugeiconsIcon
-                icon={Group01Icon}
+                icon={ListTreeIcon}
                 size={16}
                 className="size-4 shrink-0"
                 aria-hidden

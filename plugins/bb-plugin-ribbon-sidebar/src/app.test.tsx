@@ -2,6 +2,8 @@
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { IconDataV1 } from "./contracts";
+import type { GroupingKey } from "./placement-store";
 
 afterEach(() => {
   cleanup();
@@ -44,7 +46,25 @@ const thread = (value: Partial<Record<string, unknown>> & { id: string }) => {
   };
 };
 
-const snapshot = {
+const snapshot: {
+  groupings: Array<{
+    groupingKey: GroupingKey;
+    singularLabel: string;
+    pluralLabel: string;
+    icon?: IconDataV1;
+    defaultGroupId: string;
+    available: boolean;
+    membershipWritable: boolean;
+    groups: Array<{
+      id: string;
+      label: string;
+      icon?: IconDataV1;
+      visibleWhenEmpty: boolean;
+      acceptsAssignments: boolean;
+      defaultCollapsed: boolean;
+    }>;
+  }>;
+} = {
   groupings: [
     {
       groupingKey: "builtin:projects",
@@ -98,6 +118,13 @@ const snapshot = {
       groupingKey: "plugin:thread-stages:stages",
       singularLabel: "Stage",
       pluralLabel: "Stages",
+      icon: {
+        tag: "svg",
+        attrs: { viewBox: "0 0 24 24" },
+        children: [
+          { tag: "path", attrs: { d: "M8 5v14l11-7z" } },
+        ],
+      },
       defaultGroupId: "Idle",
       available: true,
       membershipWritable: true,
@@ -386,7 +413,12 @@ describe("Ribbon sidebar app", () => {
     expect(await slot.findByText("Mark unread")).toBeTruthy();
     expect(slot.getByText("Pin")).toBeTruthy();
     expect(slot.getByText("Rename")).toBeTruthy();
-    expect(slot.getByText("Move to stage")).toBeTruthy();
+    expect(
+      slot
+        .getByText("Move to stage")
+        .closest('[role="menuitem"]')
+        ?.querySelector('path[d="M8 5v14l11-7z"]'),
+    ).toBeTruthy();
     expect(slot.getByText("Move to section")).toBeTruthy();
     expect(slot.getByText("Archive")).toBeTruthy();
     expect(slot.getByText("Delete")).toBeTruthy();
@@ -850,6 +882,11 @@ describe("Ribbon sidebar app", () => {
       name: "Group by stage",
     });
     expect(checked.getAttribute("aria-checked")).toBe("true");
+    expect(
+      checked.querySelector(
+        'path[d="M3 4V11C3 12.8692 3 13.8038 3.40192 14.5C3.66523 14.9561 4.04394 15.3348 4.5 15.5981C5.19615 16 6.13077 16 8 16"]',
+      ),
+    ).toBeTruthy();
     fireEvent.click(checked);
 
     await waitFor(() =>

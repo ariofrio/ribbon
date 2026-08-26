@@ -197,6 +197,7 @@ const groupingSchema = z
     id: localIdSchema,
     singularLabel: z.string(),
     pluralLabel: z.string(),
+    icon: iconDataSchema.optional(),
     defaultGroupId: localIdSchema,
     groups: z.array(groupSchema).min(1),
   })
@@ -342,6 +343,7 @@ export function createGroupingCatalog(settings: {
         id: "stages",
         singularLabel: "Stage",
         pluralLabel: "Stages",
+        icon: STAGE_ICONS.Active,
         defaultGroupId: "Idle",
         groups: WORKFLOW_STAGES.map((stage) => ({
           id: stage,

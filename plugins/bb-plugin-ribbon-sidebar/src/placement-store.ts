@@ -33,6 +33,7 @@ export interface GroupingDescriptor {
   groupingKey: GroupingKey;
   singularLabel: string;
   pluralLabel: string;
+  icon?: import("./contracts").IconDataV1;
   defaultGroupId: string;
   groups: readonly GroupDescriptor[];
   membership: MembershipDescriptor;

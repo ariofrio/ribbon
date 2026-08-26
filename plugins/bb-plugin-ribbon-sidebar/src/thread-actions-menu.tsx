@@ -60,6 +60,7 @@ interface CommonMenuProps {
     groupingKey: string;
     currentGroupId: string;
     groups: readonly AssignmentGroupOption[];
+    icon?: IconDataV1;
     singularLabel: string;
     onSetGroup(groupId: string): void;
   }[];
@@ -237,7 +238,14 @@ function ContextAssignmentMenu({
   return (
     <ContextMenuSub>
       <ContextMenuSubTrigger disabled={disabled}>
-        <Icon name="Workflow" aria-hidden />
+        {assignment.icon ? (
+          <ProviderIcon
+            icon={assignment.icon}
+            label={`${assignment.singularLabel} icon`}
+          />
+        ) : (
+          <Icon name="Workflow" aria-hidden />
+        )}
         Move to {assignment.singularLabel.toLocaleLowerCase()}
       </ContextMenuSubTrigger>
       <ContextMenuPortal>
@@ -280,7 +288,14 @@ function DropdownAssignmentMenu({
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger disabled={disabled}>
-        <Icon name="Workflow" aria-hidden />
+        {assignment.icon ? (
+          <ProviderIcon
+            icon={assignment.icon}
+            label={`${assignment.singularLabel} icon`}
+          />
+        ) : (
+          <Icon name="Workflow" aria-hidden />
+        )}
         Move to {assignment.singularLabel.toLocaleLowerCase()}
       </DropdownMenuSubTrigger>
       <DropdownMenuPortal>

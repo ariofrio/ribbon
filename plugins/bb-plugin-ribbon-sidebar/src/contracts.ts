@@ -123,6 +123,7 @@ export const groupingSchema = z
     id: localIdSchema,
     singularLabel: z.string(),
     pluralLabel: z.string(),
+    icon: iconDataSchema.optional(),
     defaultGroupId: localIdSchema,
     groups: z.array(groupSchema).min(1),
   })

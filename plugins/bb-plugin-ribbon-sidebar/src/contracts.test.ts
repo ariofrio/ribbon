@@ -16,6 +16,16 @@ const validCatalog = {
       id: "stages",
       singularLabel: "Stage",
       pluralLabel: "Stages",
+      icon: {
+        tag: "svg",
+        attrs: { viewBox: "0 0 24 24" },
+        children: [
+          {
+            tag: "path",
+            attrs: { d: "M8 5v14l11-7z", fill: "currentColor" },
+          },
+        ],
+      },
       defaultGroupId: "Idle",
       groups: [
         {

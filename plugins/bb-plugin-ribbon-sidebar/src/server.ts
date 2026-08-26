@@ -71,6 +71,7 @@ const sidebarGroupingSchema = z
     ]),
     singularLabel: z.string(),
     pluralLabel: z.string(),
+    icon: iconDataSchema.optional(),
     defaultGroupId: z.string(),
     groups: z.array(sidebarGroupSchema),
     available: z.boolean(),
@@ -354,6 +355,7 @@ export default async function plugin(bb: BbPluginApi) {
         groupingKey: descriptor.groupingKey,
         singularLabel: descriptor.singularLabel,
         pluralLabel: descriptor.pluralLabel,
+        ...(descriptor.icon === undefined ? {} : { icon: descriptor.icon }),
         defaultGroupId: descriptor.defaultGroupId,
         groups: descriptor.groups.map(fullGroup),
         available:
@@ -372,6 +374,7 @@ export default async function plugin(bb: BbPluginApi) {
         groupingId: descriptor.groupingId,
         singularLabel: descriptor.singularLabel,
         pluralLabel: descriptor.pluralLabel,
+        icon: descriptor.icon,
         defaultGroupId: descriptor.defaultGroupId,
         groups: descriptor.groups,
         available: descriptor.available,

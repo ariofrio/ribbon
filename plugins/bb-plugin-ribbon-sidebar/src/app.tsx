@@ -25,6 +25,7 @@ import {
   type ReactNode,
 } from "react";
 import type { z } from "zod";
+import type { IconDataV1 } from "./contracts";
 import type { rpcContract } from "./server";
 import type { GroupingKey, PlacementRecordV1 } from "./placement-store";
 import {
@@ -190,6 +191,7 @@ function ThreadRow({
     groupingKey: string;
     currentGroupId: string;
     groups: readonly AssignmentGroupOption[];
+    icon?: IconDataV1;
     singularLabel: string;
     onSetGroup(groupId: string): void;
   }[];
@@ -1184,6 +1186,7 @@ function RibbonSidebarList({
                       groupingKey: candidate.groupingKey,
                       currentGroupId: current.groupId,
                       groups: candidate.groups,
+                      icon: candidate.icon,
                       singularLabel: candidate.singularLabel,
                       onSetGroup: (groupId: string) => {
                         void updateAssignment(

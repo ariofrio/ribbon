@@ -24,6 +24,16 @@ function catalog(label: string) {
         id: "stages",
         singularLabel: "Stage",
         pluralLabel: "Stages",
+        icon: {
+          tag: "svg" as const,
+          attrs: { viewBox: "0 0 24 24" },
+          children: [
+            {
+              tag: "path" as const,
+              attrs: { d: "M8 5v14l11-7z", fill: "currentColor" },
+            },
+          ],
+        },
         defaultGroupId: "Idle",
         groups: [
           {
@@ -63,6 +73,7 @@ describe("provider catalog discovery", () => {
     expect(providers.availableGroupings()).toMatchObject([
       {
         groupingKey: "plugin:thread-stages:stages",
+        icon: expect.objectContaining({ tag: "svg" }),
         groups: [{ label: "Idle" }],
         available: true,
       },

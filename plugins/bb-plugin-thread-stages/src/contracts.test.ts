@@ -64,6 +64,9 @@ describe("Thread stages provider contracts", () => {
     expect(
       catalog.groupings[0]?.groups.every((group) => group.icon !== undefined),
     ).toBe(true);
+    expect(catalog.groupings[0]?.icon).toEqual(
+      catalog.groupings[0]?.groups.find(({ id }) => id === "Active")?.icon,
+    );
   });
 
   it("reflects provider-owned optional-stage settings", () => {
