@@ -324,6 +324,7 @@ export function ScopeFilter({
         {canGroupBy ? (
           <>
             <DropdownMenuItem
+              className="pl-7"
               onSelect={() => onGroupingChange(grouping.groupingKey)}
             >
               <HugeiconsIcon
@@ -366,7 +367,7 @@ export function ScopeFilter({
   function groupingSubmenu(grouping: GroupsMenuGrouping) {
     return (
       <DropdownMenuSub key={grouping.groupingKey}>
-        <DropdownMenuSubTrigger>
+        <DropdownMenuSubTrigger className="pl-7">
           {groupingIcon(grouping)}
           <span className="truncate">{grouping.pluralLabel}</span>
         </DropdownMenuSubTrigger>
