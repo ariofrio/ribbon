@@ -661,12 +661,18 @@ export async function capture({ stack, fixture, shots, shotFiles }) {
  * menu should be.
  */
 async function freezeLoopingAnimations(page) {
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
     for (const animation of document.getAnimations()) {
       if (animation.effect?.getTiming().iterations !== Infinity) continue;
       animation.pause();
       animation.currentTime = 0;
     }
+    // Setting currentTime updates animation state synchronously, but Chromium's
+    // compositor may still hold the previous frame. Wait for that reset to be
+    // painted before the screenshot can race it.
+    await new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve)),
+    );
   });
 }
 
