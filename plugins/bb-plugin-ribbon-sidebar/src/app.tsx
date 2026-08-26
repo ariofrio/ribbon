@@ -42,14 +42,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./vendor/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "./vendor/components/ui/dropdown-menu";
 import { Input } from "./vendor/components/ui/input";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
 import {
@@ -69,14 +61,13 @@ import { SplitPaneMiniMap } from "./split-pane-mini-map";
 import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
 import { ScopeFilter } from "./scope-filter";
 import type { ScopeFilterValue } from "./scope-filter-value";
+import { orderedGroupings } from "./grouping-order";
 
 const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
-const THREAD_STAGES_GROUPING_KEY = "plugin:thread-stages:stages";
 
 type SidebarSnapshot = z.output<
   typeof rpcContract.sidebarSnapshotV1.output
 >;
-type SnapshotGrouping = SidebarSnapshot["groupings"][number];
 type SearchThread = z.output<
   typeof rpcContract.searchThreadIdsV1.output
 >["threads"][number];
@@ -102,19 +93,6 @@ type DragDestination =
       indicatorBefore: string | null;
       indicatorAfter: string | null;
     };
-
-function GroupingActionIcon({ grouping }: { grouping: SnapshotGrouping }) {
-  const activeStageIcon =
-    grouping.groupingKey === THREAD_STAGES_GROUPING_KEY
-      ? grouping.groups.find(({ id }) => id === "Active")?.icon
-      : undefined;
-
-  return activeStageIcon ? (
-    <ProviderIcon icon={activeStageIcon} label="Active stage" />
-  ) : (
-    <Icon aria-hidden className="size-3.5" name="Workflow" />
-  );
-}
 
 function title(thread: PluginSidebarThread) {
   return thread.title ?? thread.titleFallback ?? "Untitled thread";
@@ -179,7 +157,7 @@ function archivedSearchThread(thread: SearchThread): PluginSidebarThread {
 function ThreadRow({
   active,
   actions,
-  assignment,
+  assignments,
   childrenCollapsed,
   depth,
   hasChildren,
@@ -206,12 +184,13 @@ function ThreadRow({
 }: {
   active: boolean;
   actions: ReturnType<typeof experimental_useSidebarThreadActions>;
-  assignment?: {
+  assignments: readonly {
+    groupingKey: string;
     currentGroupId: string;
     groups: readonly AssignmentGroupOption[];
     singularLabel: string;
     onSetGroup(groupId: string): void;
-  };
+  }[];
   childrenCollapsed: boolean;
   depth: number;
   hasChildren: boolean;
@@ -245,7 +224,7 @@ function ThreadRow({
   const actionsOpen = dropdownOpen || contextOpen;
   const commonMenuProps = {
     actions,
-    assignment,
+    assignments,
     disabled: placementDisabled,
     onNewSection,
     onRename,
@@ -461,6 +440,9 @@ function RibbonSidebarList({
   const [placements, setPlacements] = useState<readonly PlacementRecordV1[]>(
     [],
   );
+  const [assignmentPlacements, setAssignmentPlacements] = useState<
+    ReadonlyMap<string, ReadonlyMap<string, PlacementRecordV1>>
+  >(new Map());
   const [revision, setRevision] = useState(0);
   const [previews, setPreviews] = useState<ReadonlyMap<string, string | null>>(
     new Map(),
@@ -583,6 +565,45 @@ function RibbonSidebarList({
     setPlacementsLoaded(true);
   }, [normalizedSearch, preferences, rpc]);
 
+  const loadAssignmentPlacements = useCallback(async () => {
+    if (!snapshot) return;
+    const writable = snapshot.groupings.filter(
+      ({ available, groupingKey, membershipWritable }) =>
+        available &&
+        membershipWritable &&
+        groupingKey !== "builtin:sections",
+    );
+    const results = await Promise.all(
+      writable.map(async (candidate) => {
+        const result = await rpc
+          .call("listPlacementsV1", {
+            groupingKey: candidate.groupingKey,
+          })
+          .catch(() => null);
+        return [candidate.groupingKey, result] as const;
+      }),
+    );
+    setAssignmentPlacements(
+      new Map(
+        results.flatMap(([groupingKey, result]) =>
+          result?.ok
+            ? [
+                [
+                  groupingKey,
+                  new Map(
+                    result.value.items.map((placement) => [
+                      placement.threadId,
+                      placement as PlacementRecordV1,
+                    ]),
+                  ),
+                ] as const,
+              ]
+            : [],
+        ),
+      ),
+    );
+  }, [rpc, snapshot]);
+
   useEffect(() => {
     void loadPlacements().catch((error: unknown) => {
       setFatalError(
@@ -590,9 +611,13 @@ function RibbonSidebarList({
       );
     });
   }, [loadPlacements]);
+  useEffect(() => {
+    void loadAssignmentPlacements();
+  }, [loadAssignmentPlacements]);
 
   useRealtime("placements-changed", () => {
     void loadPlacements();
+    void loadAssignmentPlacements();
   });
   useRealtime("catalog-changed", () => {
     void synchronize().catch((error: unknown) => {
@@ -867,26 +892,10 @@ function RibbonSidebarList({
       .find(({ groupingKey }) => groupingKey === "builtin:sections")
       ?.groups.filter(({ id }) => id !== "unsectioned") ?? [];
 
-  const scopeLabel = useMemo(() => {
-    if (!preferences || preferences.view.scope.kind === "all") return null;
-    const scope = preferences.view.scope.group;
-    const scopeGrouping = snapshot?.groupings.find(
-      ({ groupingKey }) => groupingKey === scope.groupingKey,
-    );
-    return (
-      scopeGrouping?.groups.find(({ id }) => id === scope.groupId)?.label ??
-      `${scope.groupId} (unavailable)`
-    );
-  }, [preferences, snapshot]);
   const activeScope =
     preferences?.view.scope.kind === "group"
       ? preferences.view.scope.group
       : null;
-  const activeScopeProviderIcon = activeScope
-    ? snapshot?.groupings
-        .find(({ groupingKey }) => groupingKey === activeScope.groupingKey)
-        ?.groups.find(({ id }) => id === activeScope.groupId)?.icon
-    : undefined;
 
   const submitEntityName = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -991,6 +1000,29 @@ function RibbonSidebarList({
     [loadPlacements, rpc, synchronize],
   );
 
+  const updateAssignment = useCallback(
+    async (
+      groupingKey: GroupingKey,
+      threadId: string,
+      groupId: string,
+    ) => {
+      setMutationError(null);
+      const result = await rpc.call("updatePlacementV1", {
+        groupingKey,
+        groupId,
+        threadId,
+        anchor: { kind: "preserve" },
+        origin: "ui",
+      });
+      if (!result.ok) {
+        setMutationError(result.error.message);
+        return;
+      }
+      await Promise.all([loadPlacements(), loadAssignmentPlacements()]);
+    },
+    [loadAssignmentPlacements, loadPlacements, rpc],
+  );
+
   const clearDrag = useCallback(() => {
     setDraggingThreadId(null);
     setDragDestination(null);
@@ -1046,14 +1078,7 @@ function RibbonSidebarList({
     const destination = groupDefinitions.find(({ id }) => id === groupId);
     return grouping.membershipWritable && destination?.acceptsAssignments === true;
   };
-  const scopeFilterValue: ScopeFilterValue =
-    activeScope?.groupingKey === "builtin:projects"
-      ? { kind: "project", id: activeScope.groupId }
-      : activeScope?.groupingKey === "builtin:sections"
-        ? activeScope.groupId === "unsectioned"
-          ? { kind: "uncategorized" }
-          : { kind: "section", id: activeScope.groupId }
-        : null;
+  const scopeFilterValue: ScopeFilterValue = activeScope;
   const hasDisplayedThreads = pinnedRoots.length + unpinnedRoots.length > 0;
   const emptyMessage =
     normalizedSearch !== ""
@@ -1116,19 +1141,37 @@ function RibbonSidebarList({
         <ThreadRow
           active={activeThreadId === root.id}
           actions={actions}
-          assignment={
-            depth === 0 &&
-            destination &&
-            grouping.membershipWritable
-              ? {
-                  currentGroupId: destination.groupId,
-                  groups: grouping.groups,
-                  singularLabel: grouping.singularLabel,
-                  onSetGroup: (groupId) => {
-                    void updatePlacement(root.id, groupId, { kind: "end" });
-                  },
-                }
-              : undefined
+          assignments={
+            depth === 0
+              ? orderedGroupings(snapshot.groupings).flatMap((candidate) => {
+                  if (
+                    !candidate.available ||
+                    !candidate.membershipWritable ||
+                    candidate.groupingKey === "builtin:sections"
+                  ) {
+                    return [];
+                  }
+                  const current = assignmentPlacements
+                    .get(candidate.groupingKey)
+                    ?.get(root.id);
+                  if (!current) return [];
+                  return [
+                    {
+                      groupingKey: candidate.groupingKey,
+                      currentGroupId: current.groupId,
+                      groups: candidate.groups,
+                      singularLabel: candidate.singularLabel,
+                      onSetGroup: (groupId: string) => {
+                        void updateAssignment(
+                          candidate.groupingKey as GroupingKey,
+                          root.id,
+                          groupId,
+                        );
+                      },
+                    },
+                  ];
+                })
+              : []
           }
           childrenCollapsed={childrenCollapsed}
           depth={depth}
@@ -1282,23 +1325,10 @@ function RibbonSidebarList({
     >
       {settings.values?.showProjectsAndSections !== false ? (
         <ScopeFilter
-          activeOverride={
-            activeScope &&
-            !["builtin:projects", "builtin:sections"].includes(
-              activeScope.groupingKey,
-            ) &&
-            scopeLabel
-              ? {
-                  label: scopeLabel,
-                  icon: activeScopeProviderIcon ? (
-                    <ProviderIcon
-                      icon={activeScopeProviderIcon}
-                      label={`${scopeLabel} icon`}
-                    />
-                  ) : undefined,
-                }
-              : undefined
-          }
+          activeGroupingKey={grouping.groupingKey}
+          groupings={orderedGroupings(
+            snapshot.groupings.filter(({ available }) => available),
+          )}
           onAddProjectLocalPath={(project) => {
             void rpc
               .call("addProjectLocalPathV1", { projectId: project.id })
@@ -1321,20 +1351,17 @@ function RibbonSidebarList({
                     ? { kind: "all" }
                     : {
                         kind: "group",
-                        group:
-                          next.kind === "project"
-                            ? {
-                                groupingKey: "builtin:projects",
-                                groupId: next.id,
-                              }
-                            : {
-                                groupingKey: "builtin:sections",
-                                groupId:
-                                  next.kind === "uncategorized"
-                                    ? "unsectioned"
-                                    : next.id,
-                              },
+                        group: next,
                       },
+              },
+            }))
+          }
+          onGroupingChange={(groupingKey) =>
+            changePreferences((current) => ({
+              ...current,
+              view: {
+                ...current.view,
+                groupingKey: groupingKey as GroupingKey,
               },
             }))
           }
@@ -1399,142 +1426,9 @@ function RibbonSidebarList({
           projects={sidebar.projects}
           sectionIcons={sectionIcons}
           sections={sections.map(({ id, label }) => ({ id, name: label }))}
-          trailing={
-            <>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    aria-label={`Group by ${grouping.pluralLabel}`}
-                    className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-subtle-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-[state=open]:bg-state-active max-md:pointer-coarse:h-9"
-                    type="button"
-                  >
-                    <GroupingActionIcon grouping={grouping} />
-                    <span className="max-w-20 truncate">
-                      {grouping.pluralLabel}
-                    </span>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {snapshot.groupings
-                    .filter(({ available }) => available)
-                    .map((candidate) => (
-                      <DropdownMenuItem
-                        key={candidate.groupingKey}
-                        onSelect={() =>
-                          changePreferences((current) => ({
-                            ...current,
-                            view: {
-                              ...current.view,
-                              groupingKey:
-                                candidate.groupingKey as GroupingKey,
-                            },
-                          }))
-                        }
-                      >
-                        {candidate.pluralLabel}
-                      </DropdownMenuItem>
-                    ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {scopeLabel ? (
-                <>
-                  <span aria-live="polite" className="sr-only">
-                    {scopeLabel} scope
-                  </span>
-                  {matchingScope ? (
-                    <button
-                      aria-expanded={
-                        !preferences.collapsed.has(
-                          `${matchingScope.groupingKey}/${matchingScope.groupId}`,
-                        )
-                      }
-                      aria-label={
-                        preferences.collapsed.has(
-                          `${matchingScope.groupingKey}/${matchingScope.groupId}`,
-                        )
-                          ? `Expand ${scopeLabel} section`
-                          : `Collapse ${scopeLabel} section`
-                      }
-                      className="bb-sidebar-hover-actions inline-flex size-7 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 max-md:pointer-coarse:size-9"
-                      onClick={() =>
-                        changePreferences((current) => {
-                          const collapsed = new Set(current.collapsed);
-                          const ref = `${matchingScope.groupingKey}/${matchingScope.groupId}`;
-                          if (collapsed.has(ref)) collapsed.delete(ref);
-                          else collapsed.add(ref);
-                          return { ...current, collapsed };
-                        })
-                      }
-                      type="button"
-                    >
-                      <Icon
-                        aria-hidden
-                        className={`size-3 transition-transform duration-150 ${
-                          preferences.collapsed.has(
-                            `${matchingScope.groupingKey}/${matchingScope.groupId}`,
-                          )
-                            ? ""
-                            : "rotate-90"
-                        }`}
-                        name="ChevronRight"
-                      />
-                    </button>
-                  ) : null}
-                  <button
-                    aria-label="Clear scope"
-                    className="bb-sidebar-hover-actions inline-flex size-7 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 max-md:pointer-coarse:size-9"
-                    onClick={() =>
-                      changePreferences((current) => ({
-                        ...current,
-                        view: { ...current.view, scope: { kind: "all" } },
-                      }))
-                    }
-                    type="button"
-                  >
-                    <Icon aria-hidden className="size-4" name="X" />
-                  </button>
-                </>
-              ) : null}
-            </>
-          }
           value={scopeFilterValue}
         />
-      ) : (
-        <div className="sticky top-[var(--bb-sidebar-sticky-stack-padding-top)] z-[70] mb-4 flex justify-end bg-sidebar">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                aria-label={`Group by ${grouping.pluralLabel}`}
-                className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-subtle-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-[state=open]:bg-state-active max-md:pointer-coarse:h-9"
-                type="button"
-              >
-                <GroupingActionIcon grouping={grouping} />
-                <span className="max-w-20 truncate">{grouping.pluralLabel}</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {snapshot.groupings
-                .filter(({ available }) => available)
-                .map((candidate) => (
-                  <DropdownMenuItem
-                    key={candidate.groupingKey}
-                    onSelect={() =>
-                      changePreferences((current) => ({
-                        ...current,
-                        view: {
-                          ...current.view,
-                          groupingKey: candidate.groupingKey as GroupingKey,
-                        },
-                      }))
-                    }
-                  >
-                    {candidate.pluralLabel}
-                  </DropdownMenuItem>
-                ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
+      ) : null}
       {mutationError ? (
         <div className="rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
           {mutationError}
@@ -1783,6 +1677,20 @@ function RibbonSidebarList({
           preferences.view.scope.kind === "group" &&
           preferences.view.scope.group.groupingKey === grouping.groupingKey &&
           preferences.view.scope.group.groupId === group.id;
+        const entityGroupIcon =
+          grouping.groupingKey === "builtin:projects"
+            ? projectIcons.get(group.id)
+            : grouping.groupingKey === "builtin:sections"
+              ? sectionIcons.get(group.id)
+              : undefined;
+        const builtinGroupIcon =
+          grouping.groupingKey === "builtin:projects"
+            ? sidebar.projects.find(({ id }) => id === group.id)?.isPersonal
+              ? "MessageSquare"
+              : "Folder"
+            : grouping.groupingKey === "builtin:sections"
+              ? "ListView"
+              : undefined;
         return (
           <section
             aria-label={`${group.label} group`}
@@ -1830,27 +1738,28 @@ function RibbonSidebarList({
                 data-sidebar-sticky-tier="label"
               >
                 <span className="relative z-10 flex min-w-0 flex-1 items-center gap-1 text-left">
-                  <button
-                    aria-label={`Filter to ${group.label}`}
-                    className="flex min-w-0 items-center gap-2 rounded-md text-left outline-none ring-sidebar-ring hover:text-sidebar-accent-foreground focus-visible:ring-2"
-                    onClick={() =>
-                      changePreferences((current) => ({
-                        ...current,
-                        view: {
-                          ...current.view,
-                          scope: {
-                            kind: "group",
-                            group: {
-                              groupingKey: grouping.groupingKey as GroupingKey,
-                              groupId: group.id,
-                            },
-                          },
-                        },
-                      }))
-                    }
-                    type="button"
-                  >
-                    {group.icon ? (
+                  <span className="flex min-w-0 items-center gap-2 text-left">
+                    {settings.values?.showGroupHeaderIcons !== false &&
+                    entityGroupIcon ? (
+                      <HugeiconsIcon
+                        aria-hidden
+                        className="size-4 shrink-0"
+                        icon={entityGroupIcon.glyph}
+                        style={
+                          entityGroupIcon.color === null
+                            ? undefined
+                            : { color: entityGroupIcon.color }
+                        }
+                      />
+                    ) : settings.values?.showGroupHeaderIcons !== false &&
+                      builtinGroupIcon ? (
+                      <Icon
+                        aria-hidden
+                        className="size-4 shrink-0"
+                        name={builtinGroupIcon}
+                      />
+                    ) : settings.values?.showGroupHeaderIcons !== false &&
+                      group.icon ? (
                       <ProviderIcon
                         icon={group.icon}
                         label={`${group.label} group icon`}
@@ -1859,7 +1768,7 @@ function RibbonSidebarList({
                     <span className="min-w-0 truncate" title={group.label}>
                       {group.label}
                     </span>
-                  </button>
+                  </span>
                   <button
                     aria-expanded={!collapsed}
                     aria-label={

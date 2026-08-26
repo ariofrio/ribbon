@@ -3,6 +3,7 @@ import type {
   GroupingKey,
   PlacementStore,
 } from "./placement-store";
+import { orderedGroupings } from "./grouping-order";
 
 interface CliResult {
   exitCode: number;
@@ -153,13 +154,14 @@ export async function runRibbonSidebarCli(
   const wantsJson = argv.includes("--json");
   const args = argv.filter((argument) => argument !== "--json");
   const command = args[0];
+  const availableGroupings = () => orderedGroupings(context.groupings());
   try {
     if (!command || command === "--help" || command === "-h") {
       return { exitCode: 0, stdout: HELP };
     }
     if (command === "groupings") {
       if (args.length !== 1) throw new Error("Usage: bb ribbon-sidebar groupings");
-      const values = context.groupings().map((grouping) => ({
+      const values = availableGroupings().map((grouping) => ({
         groupingKey: grouping.groupingKey,
         label: grouping.pluralLabel,
       }));
@@ -174,7 +176,7 @@ export async function runRibbonSidebarCli(
     if (command === "groups") {
       if (args.length !== 2) throw new Error("Usage: bb ribbon-sidebar groups <grouping>");
       const key = groupingKey(args[1]);
-      const descriptor = context.groupings().find(
+      const descriptor = availableGroupings().find(
         (candidate) => candidate.groupingKey === key,
       );
       if (!descriptor) throw new Error(`Grouping not found: ${key}`);
@@ -193,7 +195,7 @@ export async function runRibbonSidebarCli(
         "--group-by",
       ]);
       if (positionals.length > 0) throw new Error("Usage: bb ribbon-sidebar list [options]");
-      const available = context.groupings();
+      const available = availableGroupings();
       const displayKey = groupingKey(
         stringOption(options, "--group-by") ?? available[0]?.groupingKey,
       );
@@ -228,7 +230,7 @@ export async function runRibbonSidebarCli(
         options.get("--self") === true,
         invocation,
       );
-      const values = context.groupings().map((descriptor) =>
+      const values = availableGroupings().map((descriptor) =>
         context.store.getPlacement({
           groupingKey: descriptor.groupingKey,
           threadId,

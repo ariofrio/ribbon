@@ -56,12 +56,13 @@ export interface AssignmentGroupOption {
 
 interface CommonMenuProps {
   actions: PluginSidebarThreadActions;
-  assignment?: {
+  assignments: readonly {
+    groupingKey: string;
     currentGroupId: string;
     groups: readonly AssignmentGroupOption[];
     singularLabel: string;
     onSetGroup(groupId: string): void;
-  };
+  }[];
   disabled: boolean;
   onNewSection(): void;
   onRename(): void;
@@ -145,13 +146,14 @@ function ContextItems(props: CommonMenuProps) {
       </ContextItem>
       <ContextItem icon="Edit" onSelect={props.onRename}>Rename</ContextItem>
       <ContextMenuSeparator />
-      {props.assignment ? (
-        <ContextAssignmentMenu
-          assignment={props.assignment}
-          disabled={props.disabled}
-        />
-      ) : null}
       <ContextSectionMenu {...props} />
+      {props.assignments.map((assignment) => (
+        <ContextAssignmentMenu
+          assignment={assignment}
+          disabled={props.disabled}
+          key={assignment.groupingKey}
+        />
+      ))}
       <ContextMenuSeparator />
       <ContextItem
         icon="Archive"
@@ -199,13 +201,14 @@ function DropdownItems(props: CommonMenuProps) {
       </DropdownItem>
       <DropdownItem icon="Edit" onSelect={props.onRename}>Rename</DropdownItem>
       <DropdownMenuSeparator />
-      {props.assignment ? (
-        <DropdownAssignmentMenu
-          assignment={props.assignment}
-          disabled={props.disabled}
-        />
-      ) : null}
       <DropdownSectionMenu {...props} />
+      {props.assignments.map((assignment) => (
+        <DropdownAssignmentMenu
+          assignment={assignment}
+          disabled={props.disabled}
+          key={assignment.groupingKey}
+        />
+      ))}
       <DropdownMenuSeparator />
       <DropdownItem
         icon="Archive"
@@ -228,7 +231,7 @@ function ContextAssignmentMenu({
   assignment,
   disabled,
 }: {
-  assignment: NonNullable<CommonMenuProps["assignment"]>;
+  assignment: CommonMenuProps["assignments"][number];
   disabled: boolean;
 }) {
   return (
@@ -271,7 +274,7 @@ function DropdownAssignmentMenu({
   assignment,
   disabled,
 }: {
-  assignment: NonNullable<CommonMenuProps["assignment"]>;
+  assignment: CommonMenuProps["assignments"][number];
   disabled: boolean;
 }) {
   return (

@@ -34,6 +34,7 @@ const threadStagesCatalog = {
 };
 
 function setup({
+  includePersonalProject = false,
   includeThreadStages = true,
   migrationSnapshotFails = false,
   threads = [
@@ -54,6 +55,7 @@ function setup({
     }),
   ],
 }: {
+  includePersonalProject?: boolean;
   includeThreadStages?: boolean;
   migrationSnapshotFails?: boolean;
   threads?: ReturnType<typeof makeThreadResponse>[];
@@ -149,6 +151,19 @@ function setup({
             gitRemoteUrl: null,
             sources: [],
           },
+          ...(includePersonalProject
+            ? [
+                {
+                  id: "project-personal",
+                  name: "Personal",
+                  kind: "personal" as const,
+                  createdAt: 1,
+                  updatedAt: 1,
+                  gitRemoteUrl: null,
+                  sources: [],
+                },
+              ]
+            : []),
         ],
       },
       threadSections: {
@@ -191,9 +206,9 @@ describe("Ribbon sidebar server", () => {
     expect(harness.inspection.registrations.settingsDescriptors).toEqual({
       showProjectsAndSections: {
         type: "boolean",
-        label: "Show Projects and sections",
+        label: "Show groups",
         description:
-          "Show the Projects and sections filter and management controls in the sidebar.",
+          "Show grouping, filtering, and group management controls in the sidebar.",
         default: true,
       },
       showMessagePreviews: {
@@ -208,6 +223,12 @@ describe("Ribbon sidebar server", () => {
         description:
           "Show live activity indicators on collapsed groups outside Thread stages.",
         default: false,
+      },
+      showGroupHeaderIcons: {
+        type: "boolean",
+        label: "Show group header icons",
+        description: "Show each group’s icon beside its sidebar heading.",
+        default: true,
       },
     });
   });
@@ -266,6 +287,36 @@ describe("Ribbon sidebar server", () => {
     });
   });
 
+  it("serves canonical built-in names in the standard grouping order", async () => {
+    const { bb, harness } = setup({ includePersonalProject: true });
+    await plugin(bb);
+
+    const result = (await harness.behavior.callRpc(
+      "sidebarSnapshotV1",
+      null,
+    )) as {
+      groupings: {
+        groupingKey: string;
+        groups: { id: string; label: string }[];
+      }[];
+    };
+    expect(result.groupings.map(({ groupingKey }) => groupingKey)).toEqual([
+      "builtin:sections",
+      "builtin:projects",
+      "plugin:thread-stages:stages",
+    ]);
+    expect(
+      result.groupings
+        .find(({ groupingKey }) => groupingKey === "builtin:sections")
+        ?.groups.find(({ id }) => id === "unsectioned")?.label,
+    ).toBe("Unorganized");
+    expect(
+      result.groupings
+        .find(({ groupingKey }) => groupingKey === "builtin:projects")
+        ?.groups.find(({ id }) => id === "project-personal")?.label,
+    ).toBe("Threads");
+  });
+
   it("registers the exact public placement RPC and generic CLI", async () => {
     const { bb, harness } = setup();
     await plugin(bb);
@@ -306,6 +357,7 @@ describe("Ribbon sidebar server", () => {
         showProjectsAndSections: false,
         showMessagePreviews: false,
         showCollapsedGroupIndicators: true,
+        showGroupHeaderIcons: false,
       }),
     ).resolves.toEqual({ ok: true });
     expect(updateSettings).toHaveBeenCalledWith({
@@ -314,6 +366,7 @@ describe("Ribbon sidebar server", () => {
         showProjectsAndSections: false,
         showMessagePreviews: false,
         showCollapsedGroupIndicators: true,
+        showGroupHeaderIcons: false,
       },
     });
   });
@@ -390,8 +443,8 @@ describe("Ribbon sidebar server", () => {
       harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: false }),
     ).resolves.toMatchObject({
       groupings: [
-        { groupingKey: "builtin:projects" },
         { groupingKey: "builtin:sections" },
+        { groupingKey: "builtin:projects" },
         { groupingKey: "plugin:thread-stages:stages" },
       ],
     });
@@ -481,8 +534,8 @@ describe("Ribbon sidebar server", () => {
       harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: true }),
     ).resolves.toMatchObject({
       groupings: [
-        { groupingKey: "builtin:projects" },
         { groupingKey: "builtin:sections" },
+        { groupingKey: "builtin:projects" },
       ],
     });
     expect(callRpc).not.toHaveBeenCalled();

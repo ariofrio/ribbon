@@ -76,6 +76,38 @@ describe("Ribbon sidebar CLI", () => {
     ]);
   });
 
+  it("orders Sections, Projects, then plugin labels alphabetically", async () => {
+    const fixture = setup();
+    databases.push(fixture.database);
+    const descriptor = (
+      groupingKey: GroupingDescriptor["groupingKey"],
+      pluralLabel: string,
+    ): GroupingDescriptor => ({
+      ...stages,
+      groupingKey,
+      pluralLabel,
+    });
+    const result = await runRibbonSidebarCli(
+      {
+        ...fixture.context,
+        groupings: () => [
+          descriptor("plugin:zulu:queues", "Queues"),
+          descriptor("builtin:projects", "Projects"),
+          descriptor("plugin:alpha:alerts", "Alerts"),
+          descriptor("builtin:sections", "Sections"),
+        ],
+      },
+      ["groupings", "--json"],
+    );
+
+    expect(JSON.parse(result.stdout ?? "").map(({ groupingKey }: { groupingKey: string }) => groupingKey)).toEqual([
+      "builtin:sections",
+      "builtin:projects",
+      "plugin:alpha:alerts",
+      "plugin:zulu:queues",
+    ]);
+  });
+
   it("lists by independent scope and grouping and shows all placements", async () => {
     const fixture = setup();
     databases.push(fixture.database);

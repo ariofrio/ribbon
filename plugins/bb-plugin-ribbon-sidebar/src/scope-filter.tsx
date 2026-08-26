@@ -6,19 +6,22 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
-  type ReactNode,
 } from "react";
 import {
   FilterMailCircleIcon,
   FolderLibraryIcon,
+  Group01Icon,
 } from "@hugeicons/core-free-icons";
+import type { IconDataV1 } from "./contracts";
 import type { EntityIconView } from "./icons";
+import type { GroupingKey } from "./placement-store";
 import {
   serializeScopeFilter,
   type ScopeFilterValue,
 } from "./scope-filter-value";
 import { cn } from "./vendor/lib/utils";
 import { Icon, type IconName } from "./vendor/components/ui/icon";
+import { ProviderIcon } from "./provider-icon";
 import { ThreadFilterOptionsMenu } from "./sidebar-options-menu";
 import { CompactViewportOverrideProvider } from "./vendor/components/ui/hooks/use-compact-viewport";
 import {
@@ -54,10 +57,24 @@ interface ThreadFilterSection {
   name: string;
 }
 
+export interface GroupsMenuGrouping {
+  groupingKey: string;
+  singularLabel: string;
+  pluralLabel: string;
+  groups: readonly {
+    id: string;
+    label: string;
+    icon?: IconDataV1;
+    acceptsAssignments: boolean;
+  }[];
+}
+
 interface ThreadFilterProps {
-  activeOverride?: { icon?: ReactNode; label: string };
+  activeGroupingKey: string;
+  groupings: readonly GroupsMenuGrouping[];
   newProjectDisabled?: boolean;
   onChange: (filter: ScopeFilterValue) => void;
+  onGroupingChange: (groupingKey: string) => void;
   onHide?: () => void;
   onNewProject: () => void;
   onNewSection: () => void;
@@ -72,7 +89,6 @@ interface ThreadFilterProps {
   sectionIcons?: ReadonlyMap<string, EntityIconView>;
   projects: readonly ThreadFilterProject[];
   sections: readonly ThreadFilterSection[];
-  trailing?: ReactNode;
   value: ScopeFilterValue;
 }
 
@@ -103,6 +119,7 @@ const ACTIONABLE_SELECT_TARGET_CLASS =
 const ACTION_CLASS =
   "inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground outline-none ring-sidebar-ring transition-none hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 max-md:pointer-coarse:size-9";
 const ACTION_TOOLTIP_DELAY_MS = 350;
+const THREAD_STAGES_GROUPING_KEY = "plugin:thread-stages:stages";
 const SubmenuPointerEnterContext = createContext<(() => void) | undefined>(
   undefined,
 );
@@ -119,9 +136,11 @@ function ProjectsAndSectionsIcon() {
 }
 
 export function ScopeFilter({
-  activeOverride,
+  activeGroupingKey,
+  groupings,
   newProjectDisabled = false,
   onChange,
+  onGroupingChange,
   onHide = () => {},
   onNewProject,
   onNewSection,
@@ -136,32 +155,21 @@ export function ScopeFilter({
   sectionIcons = new Map(),
   projects,
   sections,
-  trailing,
   value,
 }: ThreadFilterProps) {
   const [open, setOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const actionsOpen = open || optionsOpen;
-  const activeProject =
-    value?.kind === "project"
-      ? projects.find((project) => project.id === value.id)
-      : undefined;
-  const activeSection =
-    value?.kind === "section"
-      ? sections.find((section) => section.id === value.id)
-      : undefined;
-  const activeUncategorized = value?.kind === "uncategorized";
-  const activeLabel =
-    activeOverride?.label ??
-    (activeProject?.isPersonal
-      ? "Threads"
-      : (activeProject?.name ??
-        activeSection?.name ??
-        (activeUncategorized ? "Unorganized" : null)));
-  const personalProject = projects.find((project) => project.isPersonal);
-  const regularProjects = projects.filter((project) => !project.isPersonal);
-  const scopeLabel = "Projects and sections";
-  const allLabel = "All projects and sections";
+  const activeGrouping = value
+    ? groupings.find(({ groupingKey }) => groupingKey === value.groupingKey)
+    : undefined;
+  const activeGroup = activeGrouping?.groups.find(
+    ({ id }) => id === value?.groupId,
+  );
+  const activeLabel = activeGroup?.label ??
+    (value ? `${value.groupId} (unavailable)` : null);
+  const scopeLabel = "Groups";
+  const allLabel = "All groups";
   const selectedValue = serializeScopeFilter(value) ?? "";
 
   function handleFilterChange(nextValue: string): void {
@@ -169,14 +177,206 @@ export function ScopeFilter({
       onChange(null);
       return;
     }
-    if (nextValue === "uncategorized") {
-      onChange({ kind: "uncategorized" });
-      return;
+    const separator = nextValue.indexOf("/");
+    if (separator <= 0 || separator === nextValue.length - 1) return;
+    onChange({
+      groupingKey: nextValue.slice(0, separator) as GroupingKey,
+      groupId: nextValue.slice(separator + 1),
+    });
+  }
+
+  function groupIcon(grouping: GroupsMenuGrouping, groupId: string) {
+    const group = grouping.groups.find(({ id }) => id === groupId);
+    if (grouping.groupingKey === "builtin:projects") {
+      const project = projects.find(({ id }) => id === groupId);
+      return (
+        <ProjectFilterIcon
+          icon={projectIcons.get(groupId)}
+          personal={project?.isPersonal}
+        />
+      );
     }
-    const [kind, id] = nextValue.split(":", 2);
-    if ((kind === "project" || kind === "section") && id) {
-      onChange({ kind, id });
+    if (grouping.groupingKey === "builtin:sections") {
+      return (
+        <ProjectFilterIcon
+          icon={sectionIcons.get(groupId)}
+          fallback="ListView"
+        />
+      );
     }
+    return group?.icon ? (
+      <ProviderIcon icon={group.icon} label={`${group.label} icon`} />
+    ) : (
+      <Icon name="Workflow" className="size-4 shrink-0" aria-hidden />
+    );
+  }
+
+  function groupingIcon(grouping: GroupsMenuGrouping) {
+    if (grouping.groupingKey === "builtin:sections") {
+      return <Icon name="ListView" className="size-4 shrink-0" aria-hidden />;
+    }
+    if (grouping.groupingKey === "builtin:projects") {
+      return <Icon name="Folder" className="size-4 shrink-0" aria-hidden />;
+    }
+    const activeStageIcon =
+      grouping.groupingKey === THREAD_STAGES_GROUPING_KEY
+        ? grouping.groups.find(({ id }) => id === "Active")?.icon
+        : undefined;
+    return activeStageIcon ? (
+      <span aria-hidden>
+        <ProviderIcon icon={activeStageIcon} label="Active stage" />
+      </span>
+    ) : (
+      <Icon name="Workflow" className="size-4 shrink-0" aria-hidden />
+    );
+  }
+
+  function groupingContents(
+    grouping: GroupsMenuGrouping,
+    allowGroupBy = true,
+  ) {
+    const canGroupBy =
+      allowGroupBy && activeGroupingKey !== grouping.groupingKey;
+    const selectGroup = (groupId: string) => {
+      onChange({
+        groupingKey: grouping.groupingKey as GroupingKey,
+        groupId,
+      });
+      setOpen(false);
+    };
+    const rows = grouping.groups.map((group) => {
+      const selected =
+        value?.groupingKey === grouping.groupingKey &&
+        value.groupId === group.id;
+      if (grouping.groupingKey === "builtin:sections" && group.id !== "unsectioned") {
+        const section = sections.find(({ id }) => id === group.id);
+        if (!section) return null;
+        return (
+          <ActionableThreadFilterItem
+            key={group.id}
+            label={group.label}
+            selected={selected}
+            onSelect={() => selectGroup(group.id)}
+          >
+            {groupIcon(grouping, group.id)}
+            <SectionActions
+              onRemove={() => onRemoveSection(section)}
+              onRename={() => onRenameSection(section)}
+            />
+          </ActionableThreadFilterItem>
+        );
+      }
+      if (grouping.groupingKey === "builtin:projects") {
+        const project = projects.find(({ id }) => id === group.id);
+        if (!project) return null;
+        if (project.isPersonal) {
+          return (
+            <ThreadFilterItem
+              key={group.id}
+              label={group.label}
+              selectedValue={selectedValue}
+              value={serializeScopeFilter({
+                groupingKey: grouping.groupingKey as GroupingKey,
+                groupId: group.id,
+              })!}
+            >
+              {groupIcon(grouping, group.id)}
+            </ThreadFilterItem>
+          );
+        }
+        return (
+          <ActionableThreadFilterItem
+            key={group.id}
+            label={group.label}
+            selected={selected}
+            onSelect={() => selectGroup(group.id)}
+          >
+            {groupIcon(grouping, group.id)}
+            <ProjectActions
+              canAddLocalPath={
+                projectActionStates.get(project.id)?.canAddLocalPath ?? false
+              }
+              onAddLocalPath={() => onAddProjectLocalPath(project)}
+              onOpenSettings={() => onOpenProjectSettings(project)}
+              onRemove={() => onRemoveProject(project)}
+              onRename={() => onRenameProject(project)}
+            />
+          </ActionableThreadFilterItem>
+        );
+      }
+      return (
+        <ThreadFilterItem
+          key={group.id}
+          label={group.label}
+          selectedValue={selectedValue}
+          value={serializeScopeFilter({
+            groupingKey: grouping.groupingKey as GroupingKey,
+            groupId: group.id,
+          })!}
+        >
+          {groupIcon(grouping, group.id)}
+        </ThreadFilterItem>
+      );
+    });
+
+    return (
+      <>
+        {canGroupBy ? (
+          <>
+            <DropdownMenuItem
+              onSelect={() => onGroupingChange(grouping.groupingKey)}
+            >
+              <HugeiconsIcon
+                icon={Group01Icon}
+                size={16}
+                className="size-4 shrink-0"
+                aria-hidden
+              />
+              Group by {grouping.singularLabel.toLocaleLowerCase()}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
+        <DropdownMenuRadioGroup
+          value={selectedValue}
+          onValueChange={handleFilterChange}
+        >
+          {rows}
+        </DropdownMenuRadioGroup>
+        {grouping.groupingKey === "builtin:sections" ? (
+          <DropdownMenuItem inset className="pl-7" onSelect={onNewSection}>
+            <Icon name="SectionAdd" className="size-4 shrink-0" aria-hidden />
+            <span>New section</span>
+          </DropdownMenuItem>
+        ) : grouping.groupingKey === "builtin:projects" ? (
+          <DropdownMenuItem
+            inset
+            className="pl-7"
+            disabled={newProjectDisabled}
+            onSelect={onNewProject}
+          >
+            <Icon name="FolderPlus" className="size-4 shrink-0" aria-hidden />
+            <span>New project</span>
+          </DropdownMenuItem>
+        ) : null}
+      </>
+    );
+  }
+
+  function groupingSubmenu(grouping: GroupsMenuGrouping) {
+    return (
+      <DropdownMenuSub key={grouping.groupingKey}>
+        <DropdownMenuSubTrigger>
+          {groupingIcon(grouping)}
+          <span className="truncate">{grouping.pluralLabel}</span>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuPortal>
+          <DropdownMenuSubContent>
+            {groupingContents(grouping)}
+          </DropdownMenuSubContent>
+        </DropdownMenuPortal>
+      </DropdownMenuSub>
+    );
   }
 
   return (
@@ -189,30 +389,12 @@ export function ScopeFilter({
             type="button"
             data-thread-filter-trigger=""
             aria-label={
-              activeLabel === null
-                ? scopeLabel
-                : `${scopeLabel}: ${activeLabel}`
+              activeLabel === null ? scopeLabel : `${activeLabel}, filtered`
             }
             className="thread-filter-trigger flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[state=open]:bg-state-active data-[state=open]:text-sidebar-foreground max-md:pointer-coarse:h-9 dark:text-sidebar-foreground"
           >
-            {activeOverride?.icon ? (
-              activeOverride.icon
-            ) : activeProject ? (
-              <ProjectFilterIcon
-                icon={projectIcons.get(activeProject.id)}
-                personal={activeProject.isPersonal}
-              />
-            ) : activeSection ? (
-              <ProjectFilterIcon
-                icon={sectionIcons.get(activeSection.id)}
-                fallback="ListView"
-              />
-            ) : activeUncategorized ? (
-              <Icon
-                name="ListView"
-                className="size-4 shrink-0"
-                aria-hidden
-              />
+            {activeGrouping && activeGroup ? (
+              groupIcon(activeGrouping, activeGroup.id)
             ) : (
               <ProjectsAndSectionsIcon />
             )}
@@ -229,7 +411,7 @@ export function ScopeFilter({
               <span data-thread-filter-label="" className="truncate">
                 {activeLabel ?? scopeLabel}
               </span>
-              {value === null && activeOverride === undefined ? null : (
+              {value === null ? null : (
                 <span
                   aria-label="Threads are filtered"
                   data-thread-filter-indicator=""
@@ -247,11 +429,7 @@ export function ScopeFilter({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className={CONTENT_CLASS}>
-          <DropdownMenuRadioGroup
-            aria-label="All threads"
-            value={selectedValue}
-            onValueChange={handleFilterChange}
-          >
+          <DropdownMenuRadioGroup value={selectedValue} onValueChange={handleFilterChange}>
             <ThreadFilterItem
               label={allLabel}
               selectedValue={selectedValue}
@@ -261,118 +439,24 @@ export function ScopeFilter({
             </ThreadFilterItem>
           </DropdownMenuRadioGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuGroup aria-labelledby="thread-filter-sections-label">
-            <DropdownMenuLabel
-              id="thread-filter-sections-label"
-              className={CHROME_SECTION_LABEL_CLASS}
-            >
-              Sections
-            </DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={selectedValue}
-              onValueChange={handleFilterChange}
-            >
-              {sections.map((section) => (
-                <ActionableThreadFilterItem
-                  key={section.id}
-                  label={section.name}
-                  selected={
-                    value?.kind === "section" && value.id === section.id
-                  }
-                  onSelect={() => {
-                    onChange({ kind: "section", id: section.id });
-                    setOpen(false);
-                  }}
-                >
-                  <ProjectFilterIcon
-                    icon={sectionIcons.get(section.id)}
-                    fallback="ListView"
-                  />
-                  <SectionActions
-                    onRemove={() => onRemoveSection(section)}
-                    onRename={() => onRenameSection(section)}
-                  />
-                </ActionableThreadFilterItem>
-              ))}
-              {sections.length > 0 ? (
-                <ThreadFilterItem
-                  label="Unorganized"
-                  selectedValue={selectedValue}
-                  value="uncategorized"
-                >
-                  <Icon
-                    name="ListView"
-                    className="size-4 shrink-0"
-                    aria-hidden
-                  />
-                </ThreadFilterItem>
-              ) : null}
-            </DropdownMenuRadioGroup>
-            <DropdownMenuItem inset className="pl-7" onSelect={onNewSection}>
-              <Icon name="SectionAdd" className="size-4 shrink-0" aria-hidden />
-              <span>New section</span>
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup aria-labelledby="thread-filter-projects-label">
-            <DropdownMenuLabel
-              id="thread-filter-projects-label"
-              className={CHROME_SECTION_LABEL_CLASS}
-            >
-              Projects
-            </DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={selectedValue}
-              onValueChange={handleFilterChange}
-            >
-              {regularProjects.map((project) => (
-                <ActionableThreadFilterItem
-                  key={project.id}
-                  label={project.name}
-                  selected={
-                    value?.kind === "project" && value.id === project.id
-                  }
-                  onSelect={() => {
-                    onChange({ kind: "project", id: project.id });
-                    setOpen(false);
-                  }}
-                >
-                  <ProjectFilterIcon icon={projectIcons.get(project.id)} />
-                  <ProjectActions
-                    canAddLocalPath={
-                      projectActionStates.get(project.id)?.canAddLocalPath ??
-                      false
-                    }
-                    onAddLocalPath={() => onAddProjectLocalPath(project)}
-                    onOpenSettings={() => onOpenProjectSettings(project)}
-                    onRemove={() => onRemoveProject(project)}
-                    onRename={() => onRenameProject(project)}
-                  />
-                </ActionableThreadFilterItem>
-              ))}
-              {personalProject ? (
-                <ThreadFilterItem
-                  label="Threads"
-                  selectedValue={selectedValue}
-                  value={`project:${personalProject.id}`}
-                >
-                  <ProjectFilterIcon
-                    icon={projectIcons.get(personalProject.id)}
-                    personal
-                  />
-                </ThreadFilterItem>
-              ) : null}
-            </DropdownMenuRadioGroup>
-            <DropdownMenuItem
-              inset
-              className="pl-7"
-              disabled={newProjectDisabled}
-              onSelect={onNewProject}
-            >
-              <Icon name="FolderPlus" className="size-4 shrink-0" aria-hidden />
-              <span>New project</span>
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
+          {activeGrouping ? (
+            <>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className={CHROME_SECTION_LABEL_CLASS}>
+                  {activeGrouping.pluralLabel}
+                </DropdownMenuLabel>
+                {groupingContents(activeGrouping, false)}
+              </DropdownMenuGroup>
+              {groupings.some(
+                ({ groupingKey }) => groupingKey !== activeGrouping.groupingKey,
+              ) ? <DropdownMenuSeparator /> : null}
+              {groupings
+                .filter(({ groupingKey }) => groupingKey !== activeGrouping.groupingKey)
+                .map(groupingSubmenu)}
+            </>
+          ) : (
+            groupings.map(groupingSubmenu)
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       </CompactViewportOverrideProvider>
@@ -403,7 +487,6 @@ export function ScopeFilter({
         </span>
       </TooltipProvider>
       </div>
-      {trailing}
     </div>
   );
 }

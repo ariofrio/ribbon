@@ -25,6 +25,7 @@ import {
 import { createProviderCatalog } from "./provider-catalog";
 import { runRibbonSidebarCli } from "./cli";
 import { derivePreview, type PreviewRow } from "./preview";
+import { orderedGroupings } from "./grouping-order";
 
 const ICONS_PLUGIN_ID = "icons";
 const iconGlyphSchema = z.array(
@@ -216,6 +217,7 @@ export const rpcContract = defineRpcContract({
         showProjectsAndSections: z.boolean().optional(),
         showMessagePreviews: z.boolean().optional(),
         showCollapsedGroupIndicators: z.boolean().optional(),
+        showGroupHeaderIcons: z.boolean().optional(),
       })
       .strict(),
     output: z.object({ ok: z.literal(true) }).strict(),
@@ -262,9 +264,8 @@ export default async function plugin(bb: BbPluginApi) {
   const settings = bb.settings.define({
     showProjectsAndSections: {
       type: "boolean",
-      label: "Show Projects and sections",
-      description:
-        "Show the Projects and sections filter and management controls in the sidebar.",
+      label: "Show groups",
+      description: "Show grouping, filtering, and group management controls in the sidebar.",
       default: true,
     },
     showMessagePreviews: {
@@ -279,6 +280,12 @@ export default async function plugin(bb: BbPluginApi) {
       description:
         "Show live activity indicators on collapsed groups outside Thread stages.",
       default: false,
+    },
+    showGroupHeaderIcons: {
+      type: "boolean",
+      label: "Show group header icons",
+      description: "Show each group’s icon beside its sidebar heading.",
+      default: true,
     },
   });
   const database = bb.storage.database();
@@ -330,11 +337,12 @@ export default async function plugin(bb: BbPluginApi) {
     if (groupingKey === "builtin:sections") return sectionGrouping();
     return providers.getGrouping(groupingKey);
   };
-  const groupings = (): GroupingDescriptor[] => [
-    projectGrouping(),
-    sectionGrouping(),
-    ...providers.allGroupings(),
-  ];
+  const groupings = (): GroupingDescriptor[] =>
+    orderedGroupings([
+      projectGrouping(),
+      sectionGrouping(),
+      ...providers.allGroupings(),
+    ]);
   const store = createPlacementStore(database, { grouping, groupings });
   let threadStagesInstalled = false;
   let mountedMigrationPending = false;
@@ -391,7 +399,7 @@ export default async function plugin(bb: BbPluginApi) {
 
     projectGroups = projects.map((project) => ({
       id: project.id,
-      label: project.name,
+      label: project.kind === "personal" ? "Threads" : project.name,
       acceptsAssignments: true,
       visibleWhenEmpty: true,
       defaultCollapsed: false,
@@ -406,7 +414,7 @@ export default async function plugin(bb: BbPluginApi) {
       })),
       {
         id: "unsectioned",
-        label: "No section",
+        label: "Unorganized",
         acceptsAssignments: true,
         visibleWhenEmpty: true,
         defaultCollapsed: false,

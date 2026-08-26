@@ -25,7 +25,7 @@ export function ThreadFilterOptionsMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label="Sections and projects options"
+          aria-label="Groups options"
           className={`${TRIGGER_CLASS} ${PANEL_OPTIONS_TRIGGER_CLASS}`}
         >
           <Icon
@@ -44,4 +44,3 @@ export function ThreadFilterOptionsMenu({
     </DropdownMenu>
   );
 }
-
