@@ -987,6 +987,17 @@ export function createPlacementStore(
             };
           }
           const writeTime = now();
+          if (
+            freshCurrentGroup !== null &&
+            freshCurrentGroup !== input.groupId
+          ) {
+            materializeOrder(
+              input.groupingKey,
+              freshCurrentGroup,
+              orderedMemberIds(freshGrouping, freshCurrentGroup),
+              writeTime,
+            );
+          }
           const membersWithoutThread = freshDestinationOrder.filter(
             (threadId) => threadId !== input.threadId,
           );
@@ -1000,21 +1011,36 @@ export function createPlacementStore(
             destinationKey = retained?.sort_key ?? null;
           }
           if (destinationKey === null) {
+            const retainedDestinationIds = (
+              listOrders.all(input.groupingKey, input.groupId) as OrderRow[]
+            )
+              .map(({ thread_id }) => thread_id)
+              .filter((threadId) => threadId !== input.threadId);
+            const retainedDestinationSet = new Set(retainedDestinationIds);
+            const destinationOrderWithRetained = [
+              ...retainedDestinationIds,
+              ...membersWithoutThread.filter(
+                (threadId) => !retainedDestinationSet.has(threadId),
+              ),
+            ];
             materializeOrder(
               input.groupingKey,
               input.groupId,
-              membersWithoutThread,
+              destinationOrderWithRetained,
               writeTime,
             );
-            let insertionIndex = membersWithoutThread.length;
+            let insertionIndex = destinationOrderWithRetained.length;
             if (input.anchor?.kind === "start") insertionIndex = 0;
             if (input.anchor?.kind === "before" || input.anchor?.kind === "after") {
-              const index = membersWithoutThread.indexOf(input.anchor.threadId);
+              const index = destinationOrderWithRetained.indexOf(
+                input.anchor.threadId,
+              );
               insertionIndex =
                 input.anchor.kind === "before" ? index : index + 1;
             }
-            const previousThreadId = membersWithoutThread[insertionIndex - 1];
-            const nextThreadId = membersWithoutThread[insertionIndex];
+            const previousThreadId =
+              destinationOrderWithRetained[insertionIndex - 1];
+            const nextThreadId = destinationOrderWithRetained[insertionIndex];
             const previousKey =
               previousThreadId === undefined
                 ? null

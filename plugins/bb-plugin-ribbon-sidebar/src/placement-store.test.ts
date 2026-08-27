@@ -169,7 +169,7 @@ describe("placement persistence", () => {
         stages.groupingKey as `plugin:${string}:${string}`,
         renamed.groupingKey as `plugin:${string}:${string}`,
       ),
-    ).toEqual({ assignments: 2, orders: 1, revision: 2 });
+    ).toEqual({ assignments: 2, orders: 3, revision: 2 });
     expect(
       store.listPlacements({ groupingKey: renamed.groupingKey }),
     ).toMatchObject({
@@ -586,6 +586,87 @@ describe("placement persistence", () => {
         },
       },
     });
+  });
+
+  it("preserves a fresh thread's original position across a cross-group move", () => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    for (const migration of RIBBON_SIDEBAR_MIGRATIONS) database.exec(migration);
+    const store = createPlacementStore(database, {
+      grouping: (key) => (key === stages.groupingKey ? stages : null),
+      groupings: () => [stages],
+      now: () => 1_000,
+    });
+    store.reconcileRoots(["thread-a", "thread-b", "thread-c"], []);
+    const idleIds = () => {
+      const result = store.listPlacements({
+        groupingKey: stages.groupingKey,
+        groupIds: ["Idle"],
+      });
+      if (!result.ok) throw new Error(result.error.message);
+      return result.value.items.map(({ threadId }) => threadId);
+    };
+
+    store.updatePlacement({
+      groupingKey: stages.groupingKey,
+      groupId: "Active",
+      threadId: "thread-b",
+      anchor: { kind: "end" },
+      origin: "ui",
+    });
+    store.updatePlacement({
+      groupingKey: stages.groupingKey,
+      groupId: "Idle",
+      threadId: "thread-b",
+      anchor: { kind: "preserve" },
+      origin: "ui",
+    });
+
+    expect(idleIds()).toEqual(["thread-a", "thread-b", "thread-c"]);
+  });
+
+  it("keeps restored order deterministic when departed threads retain keys", () => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    for (const migration of RIBBON_SIDEBAR_MIGRATIONS) database.exec(migration);
+    const store = createPlacementStore(database, {
+      grouping: (key) => (key === stages.groupingKey ? stages : null),
+      groupings: () => [stages],
+      now: () => 1_000,
+    });
+    const place = (
+      threadId: string,
+      groupId: string,
+      anchor: { kind: "start" | "end" | "preserve" },
+    ) =>
+      store.updatePlacement({
+        groupingKey: stages.groupingKey,
+        groupId,
+        threadId,
+        anchor,
+        origin: "ui",
+      });
+    const idleIds = () => {
+      const result = store.listPlacements({
+        groupingKey: stages.groupingKey,
+        groupIds: ["Idle"],
+      });
+      if (!result.ok) throw new Error(result.error.message);
+      return result.value.items.map(({ threadId }) => threadId);
+    };
+
+    store.reconcileRoots(["thread-a", "thread-b"], []);
+    place("thread-b", "Idle", { kind: "start" });
+    place("thread-b", "Active", { kind: "end" });
+    place("thread-a", "Active", { kind: "end" });
+    store.reconcileRoots(
+      ["thread-a", "thread-b", "thread-c", "thread-d"],
+      [],
+    );
+    place("thread-d", "Idle", { kind: "start" });
+    place("thread-b", "Idle", { kind: "preserve" });
+
+    expect(idleIds()).toEqual(["thread-d", "thread-b", "thread-c"]);
   });
 
   it("intersects list filters and preserves relative display order", () => {

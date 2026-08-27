@@ -452,7 +452,7 @@ function ContextItem({
     <ContextMenuItem
       className={
         destructive
-          ? "text-destructive focus:bg-destructive/15 focus:text-destructive"
+          ? DESTRUCTIVE_CONTEXT_ITEM_CLASS
           : undefined
       }
       onSelect={onSelect}
@@ -461,6 +461,9 @@ function ContextItem({
     </ContextMenuItem>
   );
 }
+
+const DESTRUCTIVE_CONTEXT_ITEM_CLASS =
+  "text-destructive focus:bg-destructive/15 focus:text-destructive data-[last-hovered]:bg-destructive/15 data-[last-hovered]:text-destructive";
 
 function DropdownItem({
   children,

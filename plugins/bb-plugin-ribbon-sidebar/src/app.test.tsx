@@ -191,7 +191,9 @@ function options(overrides: Record<string, unknown> = {}) {
             groupingKey === "builtin:projects"
               ? "project-a"
               : groupingKey === "builtin:sections"
-                ? "section-a"
+                ? threadId === "thread-b"
+                  ? "section-b"
+                  : "section-a"
                 : index === 0
                   ? "Idle"
                   : "Active",
@@ -1142,6 +1144,13 @@ describe("Ribbon sidebar app", () => {
     );
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
+    fixture.synchronizeV1.mockResolvedValue({
+      groupings: [
+        snapshot.groupings[1]!,
+        snapshot.groupings[0]!,
+        snapshot.groupings[2]!,
+      ],
+    });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Design migration");
 
@@ -1153,6 +1162,8 @@ describe("Ribbon sidebar app", () => {
     await waitFor(() =>
       expect(slot.queryByRole("region", { name: "Release group" })).toBeNull(),
     );
+    expect(slot.getByText("Design migration")).toBeTruthy();
+    expect(slot.queryByText("Ship UI")).toBeNull();
     expect(
       JSON.parse(
         window.localStorage.getItem(
@@ -2102,10 +2113,10 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
-  it("ignores self-drops and keeps recoverable placement errors visible", async () => {
+  it("ignores self-drops and retries one revision conflict", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
-    fixture.updatePlacementV1.mockResolvedValue({
+    fixture.updatePlacementV1.mockResolvedValueOnce({
       ok: false as const,
       error: {
         code: "REVISION_CONFLICT" as const,
@@ -2126,7 +2137,11 @@ describe("Ribbon sidebar app", () => {
     const activeGroup = slot.getByRole("region", { name: "Active group" });
     fireEvent.dragOver(activeGroup, { dataTransfer });
     fireEvent.drop(activeGroup, { dataTransfer });
-    expect(await slot.findByText("Grouping revision changed.")).toBeTruthy();
+    await waitFor(() => expect(fixture.updatePlacementV1).toHaveBeenCalledTimes(2));
+    expect(fixture.updatePlacementV1.mock.calls[1]?.[0]).toMatchObject({
+      expectedRevision: 2,
+    });
+    expect(slot.queryByText("Grouping revision changed.")).toBeNull();
     slot.lifecycle.unmount();
   });
 

@@ -198,6 +198,11 @@ export function createRibbonSidebarClient({
         { cause },
       );
     }
+    if (response.status === 404) {
+      throw new RibbonSidebarDependencyError(
+        "Install and enable Ribbon sidebar, then retry.",
+      );
+    }
 
     let envelope: z.output<typeof rpcEnvelopeSchema>;
     try {

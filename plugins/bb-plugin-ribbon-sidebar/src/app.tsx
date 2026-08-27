@@ -66,6 +66,7 @@ import { ScopeFilter } from "./scope-filter";
 import type { ScopeFilterValue } from "./scope-filter-value";
 import { orderedGroupings } from "./grouping-order";
 import { UnorganizedIcon } from "./unorganized-icon";
+import { CHROME_SECTION_LABEL_CLASS } from "./chrome-style-tokens";
 import {
   GroupHeaderMenu,
   type HeaderGroupActions,
@@ -553,6 +554,12 @@ function RibbonSidebarList({
     if (!placementGroupingKey) return;
     setPlacementsLoaded(false);
     let threadIds: string[] | undefined;
+    const sameGroupingScope =
+      !normalizedSearch &&
+      preferences.view.scope.kind === "group" &&
+      preferences.view.scope.group.groupingKey === placementGroupingKey
+        ? preferences.view.scope.group
+        : null;
     if (
       !normalizedSearch &&
       preferences.view.scope.kind === "group" &&
@@ -573,7 +580,12 @@ function RibbonSidebarList({
       ...(threadIds === undefined ? {} : { threadIds }),
     });
     if (!result.ok) throw new Error(result.error.message);
-    setPlacements(result.value.items as PlacementRecordV1[]);
+    setPlacements(
+      result.value.items.filter(
+        ({ groupId }) =>
+          sameGroupingScope === null || groupId === sameGroupingScope.groupId,
+      ) as PlacementRecordV1[],
+    );
     setRevision(result.value.revision);
     setPlacementsLoaded(true);
   }, [normalizedSearch, preferences, rpc, snapshot]);
@@ -991,14 +1003,25 @@ function RibbonSidebarList({
     ) => {
       if (!preferences?.view.groupingKey) return;
       setMutationError(null);
-      const result = await rpc.call("updatePlacementV1", {
+      const input = {
         groupingKey: preferences.view.groupingKey,
         groupId,
         threadId,
         anchor,
         expectedRevision: revision,
-        origin: "ui",
-      });
+        origin: "ui" as const,
+      };
+      let result = await rpc.call("updatePlacementV1", input);
+      if (
+        !result.ok &&
+        result.error.code === "REVISION_CONFLICT" &&
+        result.error.revision !== undefined
+      ) {
+        result = await rpc.call("updatePlacementV1", {
+          ...input,
+          expectedRevision: result.error.revision,
+        });
+      }
       if (!result.ok) {
         setMutationError(result.error.message);
         await loadPlacements();
@@ -1619,7 +1642,7 @@ function RibbonSidebarList({
           }}
         >
           <div
-            className="bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 text-xs font-normal leading-5 text-subtle-foreground/75 max-md:pointer-coarse:h-9"
+            className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} max-md:pointer-coarse:h-9`}
             data-sidebar="group-label"
             data-sidebar-sticky-tier="label"
           >
@@ -1856,7 +1879,7 @@ function RibbonSidebarList({
           >
             {!sameKeyScope ? (
               <div
-                className="bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 text-xs font-normal leading-5 text-subtle-foreground/75 transition-colors max-md:pointer-coarse:h-9"
+                className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} transition-colors max-md:pointer-coarse:h-9`}
                 data-sidebar="group-label"
                 data-sidebar-sticky-tier="label"
               >

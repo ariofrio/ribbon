@@ -42,10 +42,8 @@ owns provider assignments and manual within-group order. Sections can be moved
 from this release, while Projects remain read-only because bb's public SDK does
 not yet expose project movement.
 
-Drag a root before another row or onto a group's end target. For keyboard or
-touch input, start from a row's Move control, then choose a row's move-before
-control or a group's end target; Escape cancels the move. Group headers can be
-collapsed, while the Groups menu controls filtering and display grouping.
+Drag a root before another row or onto a group's end target. Group headers can
+be collapsed, while the Groups menu controls filtering and display grouping.
 Filtering and grouping are local to the current client and cannot use the same
 dimension at once; choosing one clears the other when necessary. Opening a
 thread moves an existing Project or Section scope to that thread's root, and a
@@ -76,8 +74,8 @@ grouping key.
 
 ## Settings
 
-Ribbon sidebar can hide the Projects and sections control or message previews,
-and can show experimental activity indicators for collapsed groups. Collapsed
+Ribbon sidebar can hide the Groups control, message previews, group-header
+icons, or experimental activity indicators for collapsed groups. Collapsed
 Stages always show the highest-priority non-unread activity indicator, matching
 Thread stages; collapsed nonempty groups always show their root-thread count.
 Provider catalog, policy, automation, shortcuts, and retention remain in each

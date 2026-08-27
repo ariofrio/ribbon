@@ -21,4 +21,19 @@ describe("message previews", () => {
       ]),
     ).toBe("Shipped the fix");
   });
+
+  it.each([
+    ["Open [the page](https://example.com/a(b))", "Open the page"],
+    ["```ts\nconst a = 1;\n```", "const a = 1;"],
+    ["See <b>this</b> and <br/>", "See this and"],
+    ["This is *important* work", "This is important work"],
+    ["[ ] first item", "first item"],
+    ["[ref]: https://example.com\nSee the ref", "See the ref"],
+  ])("preserves the released plain-text output for %s", (text, expected) => {
+    expect(
+      derivePreview([
+        { kind: "conversation", role: "user", text, sourceSeqEnd: 1 },
+      ]),
+    ).toBe(expected);
+  });
 });

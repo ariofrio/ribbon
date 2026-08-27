@@ -124,6 +124,19 @@ describe("Ribbon sidebar forwarding client", () => {
     }
   });
 
+  it("tells users how to restore the missing Ribbon dependency", async () => {
+    const client = createRibbonSidebarClient({
+      baseUrl: "http://127.0.0.1:38886",
+      fetcher: async () => new Response("not found", { status: 404 }),
+    });
+
+    await expect(
+      client.invalidateGroupingCatalogV1({
+        providerPluginId: "thread-stages",
+      }),
+    ).rejects.toThrow("Install and enable Ribbon sidebar");
+  });
+
   it("reads authoritative placements for compatibility policy", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
