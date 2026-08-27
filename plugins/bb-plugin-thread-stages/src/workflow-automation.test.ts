@@ -12,14 +12,35 @@ afterEach(async () => {
   await Promise.all(disposers.splice(0).map((dispose) => dispose()));
 });
 
-function setup(threads: Array<ReturnType<typeof makeThreadResponse>>) {
+function setup(
+  threads: Array<ReturnType<typeof makeThreadResponse>>,
+  {
+    pendingInteractionThreadIds = new Set<string>(),
+    backgroundCommandThreadIds = new Set<string>(),
+  }: {
+    pendingInteractionThreadIds?: ReadonlySet<string>;
+    backgroundCommandThreadIds?: ReadonlySet<string>;
+  } = {},
+) {
   const host = createFakePluginHost({
     pluginId: "thread-stages",
     sdk: {
       threads: {
         list: vi.fn(async () => threads),
-        interactions: { list: vi.fn(async () => []) },
-        timeline: vi.fn(async () => ({ activeBackgroundCommands: [] }) as never),
+        interactions: {
+          list: vi.fn(async ({ threadId }) =>
+            pendingInteractionThreadIds.has(threadId)
+              ? ([{ status: "pending" }] as never)
+              : [],
+          ),
+        },
+        timeline: vi.fn(async ({ threadId }) =>
+          ({
+            activeBackgroundCommands: backgroundCommandThreadIds.has(threadId)
+              ? [{ id: "background-command" }]
+              : [],
+          }) as never,
+        ),
       },
       subscribe: vi.fn(() => () => {}),
     },
@@ -103,6 +124,45 @@ describe("stage automation", () => {
     });
     expect(updateStage).toHaveBeenCalledWith("root", "Active");
     expect(updateStage).not.toHaveBeenCalledWith("child", expect.anything());
+  });
+
+  it("treats a pending interaction as idle even with a background command", async () => {
+    const threads = [makeThreadResponse({ id: "root", status: "active" })];
+    const host = setup(threads, {
+      pendingInteractionThreadIds: new Set(["root"]),
+      backgroundCommandThreadIds: new Set(["root"]),
+    });
+    const updateStage = vi.fn(async () => {});
+    registerThreadWorkflow(host.bb, updateStage);
+
+    await host.harness.behavior.emitThreadEvent("thread.active", {
+      thread: threads[0]!,
+    });
+
+    expect(updateStage).toHaveBeenCalledWith("root", "Idle");
+  });
+
+  it("keeps the root active when a different thread is still working", async () => {
+    const threads = [
+      makeThreadResponse({ id: "root", status: "active" }),
+      makeThreadResponse({
+        id: "child",
+        parentThreadId: "root",
+        status: "idle",
+      }),
+    ];
+    const host = setup(threads, {
+      pendingInteractionThreadIds: new Set(["root"]),
+      backgroundCommandThreadIds: new Set(["root", "child"]),
+    });
+    const updateStage = vi.fn(async () => {});
+    registerThreadWorkflow(host.bb, updateStage);
+
+    await host.harness.behavior.emitThreadEvent("thread.active", {
+      thread: threads[0]!,
+    });
+
+    expect(updateStage).toHaveBeenCalledWith("root", "Active");
   });
 
   it("retries an edge after Ribbon is temporarily unavailable", async () => {

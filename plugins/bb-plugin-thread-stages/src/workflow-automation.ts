@@ -121,9 +121,12 @@ export function registerThreadWorkflow(
       ]);
       const rootId = roots.get(thread.id);
       if (rootId === null || rootId === undefined) continue;
-      if (hasBackgroundCommand === true || (lifecycleIsActive && !isWaiting)) {
+      if (
+        !isWaiting &&
+        (hasBackgroundCommand === true || lifecycleIsActive)
+      ) {
         activeRootIds.add(rootId);
-      } else if (hasBackgroundCommand === null) {
+      } else if (!isWaiting && hasBackgroundCommand === null) {
         indeterminateRootIds.add(rootId);
       }
     }

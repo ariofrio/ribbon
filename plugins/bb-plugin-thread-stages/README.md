@@ -30,8 +30,9 @@ returns without restoring Thread stages' retired UI.
 Only visible root threads have a stage. Child threads inherit their root's
 stage and move with it. A root hierarchy moves from **Idle** to **Active** when
 a turn or background command starts anywhere in the hierarchy, and returns to
-**Idle** once none are working. A thread waiting on a question or approval
-counts as Idle unless a background command is still running.
+**Idle** once none are working. A pending question or approval takes priority
+over both turn and background-command activity, so that thread counts as Idle.
+Activity on another thread in the hierarchy still keeps the root Active.
 
 Automation does not override a manual **Deferred**, **Blocked**, or
 **Completed** assignment. Deferred and Blocked can be disabled in Thread
