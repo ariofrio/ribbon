@@ -142,7 +142,7 @@ function IconHeaderAction({ threadId, projectId }: PluginThreadHeaderActionProps
   /**
    * Set when the pointer reaches the icon, before any click.
    *
-   * The catalog is 3,525 icons and deliberately not in the bundle, so opening
+   * The catalog is 5,930 icons and deliberately not in the bundle, so opening
    * cold means the popover arrives, then its categories and grid land a beat
    * later — one movement answered by a second. Fetching on approach keeps the
    * bundle small and still has the picker whole by the time it opens.

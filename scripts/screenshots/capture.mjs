@@ -301,16 +301,37 @@ export async function openApp({ browser, stack, fixture, theme, viewport, style 
   );
   // The sidebar opens focused on the product rather than on everything bb
   // knows about, which is what a section is for and what the shots are of.
-  // Thread stages keeps this choice per client, so it is set here rather than
-  // seeded on the server.
+  // Ribbon keeps this choice per client, so it is set here rather than seeded
+  // on the server.
   await context.addInitScript(
     (id) =>
       window.localStorage.setItem(
-        "bb.plugin.thread-stages.threadFilter",
-        `section:${id}`,
+        "bb.plugin.ribbon-sidebar.preferences.v1",
+        JSON.stringify({
+          view: {
+            scope: {
+              kind: "group",
+              group: { groupingKey: "builtin:sections", groupId: id },
+            },
+            groupingKey: "plugin:thread-stages:stages",
+          },
+          collapsed: [
+            "plugin:thread-stages:stages/Deferred",
+            "plugin:thread-stages:stages/Completed",
+          ],
+        }),
       ),
     fixture.section.id,
   );
+  // Thread stages no longer registers a list, so every shot starts on Ribbon.
+  await context.addInitScript(() => {
+    if (window.localStorage.getItem("bb.sidebar.threadListProvider") === null) {
+      window.localStorage.setItem(
+        "bb.sidebar.threadListProvider",
+        JSON.stringify("ribbon-sidebar/ribbon-sidebar"),
+      );
+    }
+  });
   await context.addInitScript(
     (css) => {
       const sheet = document.createElement("style");
@@ -640,12 +661,18 @@ export async function capture({ stack, fixture, shots, shotFiles }) {
  * menu should be.
  */
 async function freezeLoopingAnimations(page) {
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
     for (const animation of document.getAnimations()) {
       if (animation.effect?.getTiming().iterations !== Infinity) continue;
       animation.pause();
       animation.currentTime = 0;
     }
+    // Setting currentTime updates animation state synchronously, but Chromium's
+    // compositor may still hold the previous frame. Wait for that reset to be
+    // painted before the screenshot can race it.
+    await new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve)),
+    );
   });
 }
 

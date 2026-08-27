@@ -198,6 +198,16 @@ export function createRibbonSidebarClient({
         { cause },
       );
     }
+    if (response.status === 404) {
+      throw new RibbonSidebarDependencyError(
+        "Install and enable Ribbon sidebar, then retry.",
+      );
+    }
+    if (response.status === 503) {
+      throw new RibbonSidebarDependencyError(
+        "Enable Ribbon sidebar or wait for it to finish starting, then retry.",
+      );
+    }
 
     let envelope: z.output<typeof rpcEnvelopeSchema>;
     try {
@@ -242,14 +252,29 @@ export function createRibbonSidebarClient({
     },
     async updatePlacementV1(input) {
       const validatedInput = updatePlacementInputSchema.parse(input);
-      const result = await call("updatePlacementV1", validatedInput);
-      const parsed = updatePlacementOutputSchema.safeParse(result);
-      if (!parsed.success) {
-        throw new RibbonSidebarDependencyError(
-          `RPC updatePlacementV1 returned invalid output: ${parsed.error.message}`,
-        );
+      const invoke = async (nextInput: typeof validatedInput) => {
+        const result = await call("updatePlacementV1", nextInput);
+        const parsed = updatePlacementOutputSchema.safeParse(result);
+        if (!parsed.success) {
+          throw new RibbonSidebarDependencyError(
+            `RPC updatePlacementV1 returned invalid output: ${parsed.error.message}`,
+          );
+        }
+        return parsed.data;
+      };
+      const first = await invoke(validatedInput);
+      if (
+        validatedInput.origin !== "auto" &&
+        !first.ok &&
+        first.error.code === "REVISION_CONFLICT" &&
+        first.error.revision !== undefined
+      ) {
+        return invoke({
+          ...validatedInput,
+          expectedRevision: first.error.revision,
+        });
       }
-      return parsed.data;
+      return first;
     },
     async invalidateGroupingCatalogV1(input) {
       const validatedInput = z

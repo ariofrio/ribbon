@@ -4,10 +4,10 @@ Gives every thread section and every project an icon and an optional color, and
 draws it wherever bb names a section or a project: bb's own sidebar headers, the header
 above a thread and above a project's own screens, the prompt box and the menus
 it opens, and each row of the
-[Thread stages](../bb-plugin-thread-stages#readme) sidebar.
+[Ribbon sidebar](../bb-plugin-ribbon-sidebar#readme).
 
 Click one on a sidebar header, in the thread header, or on the strip under an
-open thread to change it: search 3,525 icons by name or synonym, filter by
+open thread to change it: search 5,930 icons by name or synonym, filter by
 category, and pick a color. Changes save as you click and appear everywhere at
 once.
 
@@ -56,11 +56,12 @@ render it without shipping the catalog themselves.
 ## The icon catalog
 
 `npm run build:catalog` regenerates `src/icon-catalog.json` and
-`src/icon-catalog.generated.ts` from Hugeicons' published index. It keeps the
-project's 32 retained Hugeicons categories, includes every numbered name
-variant, and drops anything the free package does not export — 3,527 icons
-across 32 categories. The result is committed, so builds and CI never reach
-the network.
+`src/icon-catalog.generated.ts` from Hugeicons' published index. It includes
+every category and numbered name variant, and drops anything the free package
+does not export — 5,936 icons across 60 categories. The picker then reserves
+the six glyphs bb or this plugin already draws for sections, projects, and
+projectless threads, leaving 5,930 choices. The result is committed, so builds
+and CI never reach the network.
 
 That index is unversioned and sends no `ETag` or `Last-Modified`, and no
 released package carries the tags, so regenerating silently adopts whatever
@@ -72,7 +73,7 @@ before it is adopted.
 ## Where the icons appear
 
 **bb's sidebar.** The icon sits at the head of a group's label row, where
-Thread stages puts a stage icon, which is what lines the group name up with the
+Ribbon sidebar puts a group icon, which is what lines the group name up with the
 New thread, Extensions, and Automations labels above it. bb shows section
 groups only under *Manually* and project groups under *Organize → By project*,
 so which headers exist depends on that setting.
@@ -111,8 +112,8 @@ the way bb's own controls beside it do, and draws its background outside its
 own footprint so nothing shifts.
 
 Each of the three can be turned off on its own in the plugin's settings, and
-all three are on by default. Sidebars other plugins draw are their own; Thread
-stages draws these icons on its rows through the contract below.
+all three are on by default. Sidebars other plugins draw are their own; Ribbon
+sidebar draws these icons through the contract below.
 
 ## How the icons get there
 
@@ -191,7 +192,7 @@ color of the label beside it.
 
 `document.documentElement` carries `data-ribbon-icons-ready` once the
 stylesheet is in. Key off it for anything that should not exist without this
-plugin; Thread stages collapses its row icons that way.
+plugin; Ribbon sidebar collapses its row icons that way.
 
 These names are additive: a kind or a property may be added, and none will
 change meaning.

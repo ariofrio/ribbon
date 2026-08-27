@@ -20,6 +20,10 @@
       "source": "./plugins/bb-plugin-missing-keyboard-shortcuts"
     },
     {
+      "name": "ribbon-sidebar",
+      "source": "./plugins/bb-plugin-ribbon-sidebar"
+    },
+    {
       "name": "thread-stages",
       "source": "./plugins/bb-plugin-thread-stages"
     }

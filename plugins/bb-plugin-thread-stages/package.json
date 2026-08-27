@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-thread-stages",
-  "version": "0.9.0",
-  "description": "Group threads in the sidebar into stages from Deferred to Completed, updating as they run.",
+  "version": "0.10.0",
+  "description": "Provide workflow stages, automation, and shortcuts to Ribbon sidebar.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -20,17 +20,12 @@
     "src",
     "!src/**/*.test.ts",
     "!src/**/*.test.tsx",
-    "scripts",
     "skills"
   ],
   "type": "module",
   "scripts": {
     "build": "bb plugin build",
     "prepublishOnly": "npm run release:check",
-    "qa:menu-animations": "bash scripts/qa-menu-animations.sh",
-    "qa:project-filter-hover": "bash scripts/qa-project-filter-hover.sh",
-    "qa:sidebar-indicator-alignment": "bash scripts/qa-sidebar-indicator-alignment.sh",
-    "qa:thread-row-height": "bash scripts/qa-thread-row-height.sh",
     "release:check": "npm run verify:lockfile && npm test && npm run typecheck && npm run verify:types && npm run build && npm run verify:styles && npm run verify:package",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -45,7 +40,7 @@
   },
   "bb": {
     "name": "Thread stages",
-    "description": "Group threads in the sidebar into stages from Deferred to Completed, updating as they run.",
+    "description": "Provide workflow stages, automation, and shortcuts to Ribbon sidebar.",
     "branding": {
       "icon": "./assets/icon.svg"
     },
@@ -56,32 +51,19 @@
     ]
   },
   "dependencies": {
-    "@hugeicons/core-free-icons": "^4.1.3",
-    "@hugeicons/react": "^1.1.6",
-    "@radix-ui/react-context-menu": "^2.3.3",
-    "@radix-ui/react-dialog": "^1.1.23",
-    "@radix-ui/react-dropdown-menu": "^2.1.16",
-    "@radix-ui/react-slot": "^1.3.3",
-    "@radix-ui/react-tooltip": "^1.2.12",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^3.4.0",
+    "sonner": "^2.0.7",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@get-bb/plugin-sdk": "0.4.8",
     "@testing-library/react": "^16.3.2",
-    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "bb-app": "0.39.0",
-    "better-sqlite3": "^12.0.0",
-    "cron-parser": "^5.10.0",
-    "hono": "^4.11.9",
     "jsdom": "^29.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "sonner": "^2.0.7",
     "typescript": "^5.7.0",
     "vitest": "^4.0.0"
   }
