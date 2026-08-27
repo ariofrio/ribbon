@@ -7,7 +7,7 @@ it opens, and each row of the
 [Thread stages](../bb-plugin-thread-stages#readme) sidebar.
 
 Click one on a sidebar header, in the thread header, or on the strip under an
-open thread to change it: search 3,525 icons by name or synonym, filter by
+open thread to change it: search 5,930 icons by name or synonym, filter by
 category, and pick a color. Changes save as you click and appear everywhere at
 once.
 
@@ -56,11 +56,12 @@ render it without shipping the catalog themselves.
 ## The icon catalog
 
 `npm run build:catalog` regenerates `src/icon-catalog.json` and
-`src/icon-catalog.generated.ts` from Hugeicons' published index. It keeps the
-project's 32 retained Hugeicons categories, includes every numbered name
-variant, and drops anything the free package does not export — 3,527 icons
-across 32 categories. The result is committed, so builds and CI never reach
-the network.
+`src/icon-catalog.generated.ts` from Hugeicons' published index. It includes
+every category and numbered name variant, and drops anything the free package
+does not export — 5,936 icons across 60 categories. The picker then reserves
+the six glyphs bb or this plugin already draws for sections, projects, and
+projectless threads, leaving 5,930 choices. The result is committed, so builds
+and CI never reach the network.
 
 That index is unversioned and sends no `ETag` or `Last-Modified`, and no
 released package carries the tags, so regenerating silently adopts whatever

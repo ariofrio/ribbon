@@ -1,5 +1,17 @@
 # bb-plugin-project-icons
 
+## 0.6.1
+
+### Patch Changes
+
+- c8e1853: Include every eligible free Hugeicons numbered variant in the icon picker.
+- fca506d: Offer every eligible free Hugeicons category while reserving the six glyphs bb already uses for sections, projects, and projectless threads.
+- be6a3c9: Virtualize the icon picker on compact layouts too, using the responsive number
+  of columns that actually fit so opening and scrolling the full catalog stays
+  fast on phones and narrow windows.
+- 0dffb77: Show bb-native tooltips on icon choices and keep numbered variants distinct in labels and search.
+- 3505197: Refresh the collapsed icon catalog from Hugeicons' current official index.
+
 ## 0.6.0
 
 ### Minor Changes

@@ -34,6 +34,7 @@ test("the harness that frames every shot recaptures", () => {
   // window.
   assert.ok(captures("scripts/screenshots/package.json"));
   assert.ok(captures("package-lock.json"));
+  assert.ok(captures(".bb/plugins.json"));
 });
 
 // The container tag tracks the playwright version, which picks the Chromium

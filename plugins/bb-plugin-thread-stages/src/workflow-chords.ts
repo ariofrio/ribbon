@@ -1,4 +1,3 @@
-import type { UndoCandidate } from "./store";
 import {
   listedThreads,
   pinnedThreadIds,
@@ -12,6 +11,13 @@ export type ChordDestination =
   | { kind: "stay" }
   | { kind: "thread"; threadId: string }
   | { kind: "compose" };
+
+export interface UndoCandidate {
+  threadId: string;
+  previousStage: WorkflowStage | null;
+  previousSortKey: string | null;
+  updatedAt: number;
+}
 
 export type StageChord =
   | { kind: "none" }

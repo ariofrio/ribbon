@@ -15,6 +15,11 @@ const transcripts = JSON.parse(
 );
 
 let nextSessionId = 1;
+const sessionIdPrefix = process.env.BB_THREAD_ID ?? `process-${process.pid}`;
+
+function allocateSessionId() {
+  return `screenshot-session-${sessionIdPrefix}-${nextSessionId++}`;
+}
 
 function send(message) {
   process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}\n`);
@@ -73,7 +78,7 @@ const handlers = {
     },
   }),
   "session/new": () => ({
-    sessionId: `screenshot-session-${nextSessionId++}`,
+    sessionId: allocateSessionId(),
     models: {
       currentModelId: process.env.BB_SCREENSHOT_MODEL_ID,
       availableModels: [
@@ -87,7 +92,7 @@ const handlers = {
   // Nothing to restore or carry over: the reply for each prompt comes from the
   // transcript, not from the agent's own history.
   "session/load": () => null,
-  "session/fork": () => ({ sessionId: `screenshot-session-${nextSessionId++}` }),
+  "session/fork": () => ({ sessionId: allocateSessionId() }),
   "session/cancel": () => null,
 };
 

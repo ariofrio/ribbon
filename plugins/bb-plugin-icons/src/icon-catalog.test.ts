@@ -38,6 +38,17 @@ describe("icon catalog", () => {
     ).toEqual(["ai-search", "ai-search-01", "ai-search-02"]);
   });
 
+  it("keeps every upstream category without duplicate metadata aliases", () => {
+    expect(new Set(entries.map((entry) => entry.category)).size).toBe(60);
+    expect(
+      entries
+        .map((entry) => entry.name)
+        .filter((name) => name === "arrow-down-0-1" || name === "arrow-up-0-1"),
+    ).toEqual([]);
+    expect(entries.some((entry) => entry.name === "arrow-down-01")).toBe(true);
+    expect(entries.some((entry) => entry.name === "arrow-up-01")).toBe(true);
+  });
+
   it("carries the fields the picker and the drift check read", () => {
     const malformed = entries.filter(
       (entry) =>
