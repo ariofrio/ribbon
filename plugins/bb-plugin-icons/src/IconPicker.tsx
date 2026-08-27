@@ -538,12 +538,12 @@ function CategoryChip({
 /**
  * Draws only the rows of a category that are near the viewport.
  *
- * The catalog is 3,525 icons. Drawing every one of them put over fourteen
- * thousand nodes in the popover, where bb's own menus hold about twenty-five,
- * and the cost landed where it shows most: the browser built the whole grid
- * before it could paint, so the picker arrived late, and its entrance
- * animation ran on a blocked thread, dropping frames until it snapped into
- * place rather than easing.
+ * The catalog is 5,930 icons. Drawing even its earlier 3,525-icon version put
+ * over fourteen thousand nodes in the popover, where bb's own menus hold about
+ * twenty-five, and the cost landed where it shows most: the browser built the
+ * whole grid before it could paint, so the picker arrived late, and its
+ * entrance animation ran on a blocked thread, dropping frames until it snapped
+ * into place rather than easing.
  *
  * A category holds its full height whether or not its rows exist, so the
  * scrollbar always describes the whole catalog and nothing shifts underneath

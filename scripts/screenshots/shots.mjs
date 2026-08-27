@@ -21,6 +21,8 @@ const THEME_FILES = [
   "card-beside-dark.png",
 ];
 
+export const SIDEBAR_PROVIDER = "Ribbon sidebar";
+
 /** bb's own sidebar column, which both sidebar cards are framed from. */
 function bbSidebar(page) {
   return page.locator('[data-sidebar="sidebar"]');
@@ -31,6 +33,23 @@ function sideChatPanel(page) {
   return page
     .locator("aside")
     .filter({ has: page.getByRole("textbox", { name: "Reply…" }) });
+}
+
+async function openSideChatByShortcut(page) {
+  const reply = page.getByRole("textbox", { name: "Reply…" });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.keyboard.press("Shift+Meta+KeyL");
+    try {
+      await reply.waitFor({ timeout: 10000 });
+      return reply;
+    } catch {
+      // A full navigation remounts the shortcut plugin. Its RPC can finish
+      // just before the listener lands, so a key sent in that interval is
+      // lost; retry only after the composer itself proves it did not open.
+    }
+  }
+  await reply.waitFor({ timeout: 120000 });
+  return reply;
 }
 
 /**
@@ -52,11 +71,24 @@ async function hideFixtureModelLabel(page) {
  * own target rather than clicking it, because clicking scrolls the row into
  * view, and a scrolled sidebar is not the top of a sidebar.
  */
-async function openFeaturedThread(page) {
-  const href = await page
-    .getByRole("link", { name: new RegExp(`^Open ${FEATURED_THREAD}`) })
-    .first()
-    .getAttribute("href");
+async function openFeaturedThread(page, knownHref) {
+  // Installing Ribbon changes bb's Automatic choice. Select it explicitly so
+  // every shot exercises the only sidebar replacement in this repository;
+  // Ribbon's own shot supplies the route directly below.
+  if (knownHref === undefined) {
+    await selectSidebar(page, SIDEBAR_PROVIDER);
+    // Appearance does not render a thread list. Return to bb's main route so
+    // the selected provider mounts before resolving the featured row's link.
+    await page.goto(new URL("/", page.url()).toString(), {
+      waitUntil: "domcontentloaded",
+    });
+  }
+  const href =
+    knownHref ??
+    (await page
+      .getByRole("link", { name: new RegExp(`^Open ${FEATURED_THREAD}`) })
+      .first()
+      .getAttribute("href", { timeout: 120000 }));
   // Not networkidle: bb holds a socket open, so idleness never arrives
   // reliably. The wait below is the real proof the thread rendered.
   await page.goto(new URL(href, page.url()).toString(), {
@@ -93,7 +125,7 @@ async function openFeaturedThread(page) {
   // own on an animation frame. Only the breadcrumbs shot clicks the crumb, so
   // every other shot framing this header would otherwise race it and capture
   // whichever title won — with the project before it, or bare.
-  // Given the room the Thread stages sidebar is given, and for the same
+  // Given the room the Ribbon sidebar is given, and for the same
   // reason: a freshly seeded bb is still settling while the first shots are
   // taken, and a plugin bundle can load well past Playwright's default minute.
   await projectCrumb(page).waitFor({ timeout: 120000 });
@@ -102,16 +134,34 @@ async function openFeaturedThread(page) {
   await settleAnimations(page);
 }
 
+async function selectSidebar(page, name) {
+  await page.goto(new URL("/settings/appearance", page.url()).toString(), {
+    waitUntil: "domcontentloaded",
+  });
+  await page
+    .getByRole("heading", { name: "Appearance", exact: true })
+    .waitFor({ timeout: 120000 });
+  const selector = page.getByRole("button", { name: "Sidebar thread list" });
+  await selector.waitFor({ timeout: 120000 });
+  if ((await selector.innerText()) !== name) {
+    await selector.click();
+    // The accessible name also includes the option description, so filter the
+    // menu item by its exact title instead of matching the whole name.
+    await page
+      .getByRole("menuitem")
+      .filter({ has: page.getByText(name, { exact: true }) })
+      .click();
+  }
+}
+
 /**
  * The crumb the featured thread's project draws, named by the container the
  * plugin installs rather than by the label alone.
  *
  * bb's own sidebar lists threads under a project heading whose menu carries
- * the same `<project> actions` label, and it is on screen from the first
- * paint until Thread stages replaces the list — which happens just before the
- * crumb arrives. Waiting on the label alone is therefore answered immediately
- * by a control in the other half of the window, and the wait returns during
- * the one second when neither the heading nor the crumb is on screen.
+ * the same `<project> actions` label. Waiting on the label alone can therefore
+ * be answered by a control in the other half of the window rather than the
+ * crumb this shot needs.
  */
 function projectCrumb(page) {
   return page.locator(
@@ -138,7 +188,7 @@ export function setupScreenshots({ fixture }) {
 
 export const SHOTS = [
   {
-    // The collection, not a plugin: one window with four of the five at work —
+    // The collection, not a plugin: one window with four of the six at work —
     // the stage sidebar, a project icon on every row and in the header, and the
     // project the thread belongs to before its title. Nothing is shaded here,
     // because nothing is being pointed at.
@@ -206,24 +256,20 @@ export const SHOTS = [
     outputs: THEME_FILES,
     async prepare({ page }) {
       await openFeaturedThread(page);
-      // The plugin mounts its sidebar after bb's own, so the shot waits for the
-      // element it is about rather than for the thread alone. A freshly seeded
-      // bb is still settling while the first shots are taken, and the plugin
-      // bundle can load well past Playwright's default minute, so the wait is
-      // given room rather than being allowed to fail the run.
+      // Thread stages is provider-only; its card shows its catalog rendered by
+      // the required Ribbon sidebar.
       await page
-        .locator("[data-thread-stages-sidebar-root]")
+        .locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]")
         .waitFor({ timeout: 120000 });
     },
-    // The plugin owns the whole thread list rather than one control inside it,
-    // so the shade lifts its entire sidebar out of the window.
+    // The provider owns every stage heading and membership shown through
+    // Ribbon, so the shade lifts the complete grouped list out of the window.
     highlights: (page) => [
-      { locator: page.locator("[data-thread-stages-sidebar-root]"), padding: 6 },
+      { locator: page.locator("[data-ribbon-sidebar-root]"), padding: 6 },
     ],
-    // A sidebar is read from its top, so the card starts at the top of the one
-    // the plugin manages, with bb's own rows just above it left in frame,
-    // shaded, marking where bb stops and the plugin starts.
-    focus: (page) => [page.locator("[data-thread-stages-sidebar-root]")],
+    // A sidebar is read from its top, so the card starts at the top of the
+    // provider grouping Ribbon renders.
+    focus: (page) => [page.locator("[data-ribbon-sidebar-root]")],
     focusAlign: "start",
   },
   {
@@ -247,9 +293,7 @@ export const SHOTS = [
       ]);
       // ⇧⌘L opens a side chat and puts the cursor in its composer, so the
       // question can be typed without clicking anything.
-      await page.keyboard.press("Shift+Meta+KeyL");
-      const reply = page.getByRole("textbox", { name: "Reply…" });
-      await reply.waitFor();
+      const reply = await openSideChatByShortcut(page);
       // The next line types blind, so focus has to have arrived: the shortcut
       // moves it into this composer as the panel opens, and a keystroke sent
       // before that lands in whatever still holds it.
@@ -294,7 +338,7 @@ export const SHOTS = [
     },
     // A palette has nothing to point at: the whole window is the change.
     highlights: () => [],
-    // Framed like the Thread stages card, from the top of the same sidebar,
+    // Framed from the top of the sidebar,
     // where the palette repaints the most per pixel and the diagonal still has
     // two surfaces to divide.
     focus: (page) => [bbSidebar(page)],
@@ -308,5 +352,27 @@ export const SHOTS = [
       viewport: { width: 900, height: 400 },
       style: '[data-sidebar="panel"], [data-sidebar="gap"] { --sidebar-width: 220px !important; }',
     },
+  },
+  {
+    id: "ribbon-sidebar",
+    plugin: "bb-plugin-ribbon-sidebar",
+    outputs: THEME_FILES,
+    async prepare({ fixture, page }) {
+      const featured = fixture.threads.get(FEATURED_THREAD);
+      const href = `/projects/${encodeURIComponent(featured.projectId)}/threads/${encodeURIComponent(featured.id)}`;
+      await selectSidebar(page, SIDEBAR_PROVIDER);
+      await openFeaturedThread(page, href);
+      await page
+        .locator(
+          "[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]",
+        )
+        .waitFor({ timeout: 120000 });
+      await settleAnimations(page);
+    },
+    highlights: (page) => [
+      { locator: page.locator("[data-ribbon-sidebar-root]"), padding: 6 },
+    ],
+    focus: (page) => [page.locator("[data-ribbon-sidebar-root]")],
+    focusAlign: "start",
   },
 ];

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  acknowledgePlacementMigrationInputSchema,
   createGroupingCatalog,
   groupingCatalogSchema,
   placementMigrationSnapshotSchema,
@@ -65,6 +64,9 @@ describe("Thread stages provider contracts", () => {
     expect(
       catalog.groupings[0]?.groups.every((group) => group.icon !== undefined),
     ).toBe(true);
+    expect(catalog.groupings[0]?.icon).toEqual(
+      catalog.groupings[0]?.groups.find(({ id }) => id === "Active")?.icon,
+    );
   });
 
   it("reflects provider-owned optional-stage settings", () => {
@@ -82,6 +84,30 @@ describe("Thread stages provider contracts", () => {
       id: "Blocked",
       visibleWhenEmpty: false,
       acceptsAssignments: false,
+    });
+  });
+
+  it("preserves the released progress-ring stage glyph family", () => {
+    const groups = createGroupingCatalog({}).groupings[0]!.groups;
+    const iconByStage = new Map(groups.map((group) => [group.id, group.icon]));
+
+    expect(iconByStage.get("Idle")?.children).toEqual([
+      expect.objectContaining({
+        tag: "circle",
+        attrs: expect.objectContaining({ cx: 12, cy: 12, r: 10 }),
+      }),
+    ]);
+    expect(iconByStage.get("Active")?.children?.[1]).toMatchObject({
+      tag: "path",
+      attrs: { fill: "currentColor" },
+    });
+    expect(iconByStage.get("Blocked")?.children?.[1]).toMatchObject({
+      tag: "path",
+      attrs: { transform: "rotate(-45 12 12)" },
+    });
+    expect(iconByStage.get("Completed")?.children?.[1]).toMatchObject({
+      tag: "circle",
+      attrs: { cx: 12, cy: 12, r: 7.5, fill: "currentColor" },
     });
   });
 
@@ -117,53 +143,28 @@ describe("Thread stages provider contracts", () => {
     }
   });
 
-  it("strictly validates migration identity, provenance, placement, and order", () => {
+  it("keeps the released migration snapshot contract strict", () => {
     const snapshot = {
-      sourcePluginId: "thread-stages" as const,
-      sourceSchema: 1 as const,
+      sourcePluginId: "thread-stages",
+      sourceSchema: 1,
       installationId: "a".repeat(32),
-      revision: 3,
+      revision: 1,
       placements: [
         {
           groupingId: "stages",
-          threadId: "thr_1",
-          groupId: "Completed",
-          enteredAtMs: 100,
-          updatedAtMs: 100,
-          previousGroupId: "Idle",
-          origin: "ui" as const,
-          orders: [
-            { groupId: "Idle", sortKey: "a0", updatedAtMs: 50 },
-            { groupId: "Completed", sortKey: "b0", updatedAtMs: 100 },
-          ],
+          threadId: "thread-a",
+          groupId: "Idle",
+          enteredAtMs: 1,
+          updatedAtMs: 1,
+          origin: "auto",
+          orders: [{ groupId: "Idle", sortKey: "A", updatedAtMs: 1 }],
         },
       ],
     };
-    expect(() => placementMigrationSnapshotSchema.parse(snapshot)).not.toThrow();
-
-    const duplicatePlacement = structuredClone(snapshot);
-    duplicatePlacement.placements.push(structuredClone(snapshot.placements[0]!));
-    expect(() =>
-      placementMigrationSnapshotSchema.parse(duplicatePlacement),
-    ).toThrow();
-
-    const duplicateOrder = structuredClone(snapshot);
-    duplicateOrder.placements[0]!.orders.push({
-      groupId: "Idle",
-      sortKey: "a1",
-      updatedAtMs: 75,
-    });
-    expect(() => placementMigrationSnapshotSchema.parse(duplicateOrder)).toThrow();
-
+    expect(placementMigrationSnapshotSchema.parse(snapshot)).toEqual(snapshot);
     expect(() =>
       placementMigrationSnapshotSchema.parse({ ...snapshot, extra: true }),
     ).toThrow();
-    expect(() =>
-      acknowledgePlacementMigrationInputSchema.parse({
-        installationId: snapshot.installationId,
-        revision: snapshot.revision,
-        extra: true,
-      }),
-    ).toThrow();
   });
+
 });

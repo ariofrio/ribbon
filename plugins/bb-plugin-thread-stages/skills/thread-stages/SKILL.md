@@ -5,6 +5,10 @@ description: Organize root bb threads into the stages Deferred, Idle, Active, Bl
 
 # Thread stages
 
+Thread stages requires the Ribbon sidebar plugin, which owns all stage
+placement and ordering. If a command reports a Ribbon sidebar dependency
+problem, install or reload `ribbon-sidebar` before retrying.
+
 Use `bb thread-stages list` to list organized threads, `bb thread-stages
 show [<thread-id> | --self]` to inspect one, and `bb thread-stages update
 [<thread-id> | --self] --stage <stage>` to change it. Add `--after
