@@ -14,6 +14,8 @@ const ROOT_FILES = new Set([
   "package.json",
   // Pins playwright, which picks the container's Chromium.
   "package-lock.json",
+  // Controls which plugins the shared screenshot bb installs.
+  ".bb/plugins.json",
   ".nvmrc",
   ".github/workflows/screenshots.yml",
 ]);

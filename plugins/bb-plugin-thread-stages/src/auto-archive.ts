@@ -1,13 +1,15 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { listAllThreads } from "./list-all-threads";
-import type { ThreadWorkflowStore } from "./store";
+
+export interface CompletedThreadCandidate {
+  threadId: string;
+  enteredAt: number;
+}
 
 export interface CompletedPlacementSource {
   listCompletedBefore(
     cutoff: number,
-  ):
-    | ReturnType<ThreadWorkflowStore["listCompletedBefore"]>
-    | Promise<ReturnType<ThreadWorkflowStore["listCompletedBefore"]>>;
+  ): readonly CompletedThreadCandidate[] | Promise<readonly CompletedThreadCandidate[]>;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1_000;

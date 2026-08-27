@@ -124,6 +124,111 @@ describe("Ribbon sidebar forwarding client", () => {
     }
   });
 
+  it("tells users how to restore the missing Ribbon dependency", async () => {
+    const client = createRibbonSidebarClient({
+      baseUrl: "http://127.0.0.1:38886",
+      fetcher: async () => new Response("not found", { status: 404 }),
+    });
+
+    await expect(
+      client.invalidateGroupingCatalogV1({
+        providerPluginId: "thread-stages",
+      }),
+    ).rejects.toThrow("Install and enable Ribbon sidebar");
+  });
+
+  it("tells users how to restore a disabled or starting Ribbon dependency", async () => {
+    const client = createRibbonSidebarClient({
+      baseUrl: "http://127.0.0.1:38886",
+      fetcher: async () => new Response("unavailable", { status: 503 }),
+    });
+
+    await expect(
+      client.invalidateGroupingCatalogV1({
+        providerPluginId: "thread-stages",
+      }),
+    ).rejects.toThrow("Enable Ribbon sidebar or wait for it to finish starting");
+  });
+
+  it("retries one placement revision conflict with the returned revision", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        rpcResponse({
+          ok: false,
+          error: {
+            code: "REVISION_CONFLICT",
+            message: "stale revision",
+            revision: 9,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        rpcResponse({
+          ok: true,
+          value: {
+            placement: {
+              groupingKey: "plugin:thread-stages:stages",
+              groupId: "Active",
+              threadId: "thr_1",
+              enteredAtMs: 123,
+              origin: "ui",
+            },
+            revision: 10,
+          },
+        }),
+      );
+    const client = createRibbonSidebarClient({
+      baseUrl: "http://127.0.0.1:38886",
+      fetcher,
+    });
+
+    await expect(
+      client.updatePlacementV1({
+        groupingKey: "plugin:thread-stages:stages",
+        groupId: "Active",
+        threadId: "thr_1",
+        expectedRevision: 8,
+        origin: "ui",
+      }),
+    ).resolves.toMatchObject({ ok: true, value: { revision: 10 } });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body))).toMatchObject({
+      expectedRevision: 9,
+    });
+  });
+
+  it("does not retry an automated placement whose precondition became stale", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      rpcResponse({
+        ok: false,
+        error: {
+          code: "REVISION_CONFLICT",
+          message: "stale lifecycle observation",
+          revision: 9,
+        },
+      }),
+    );
+    const client = createRibbonSidebarClient({
+      baseUrl: "http://127.0.0.1:38886",
+      fetcher,
+    });
+
+    await expect(
+      client.updatePlacementV1({
+        groupingKey: "plugin:thread-stages:stages",
+        groupId: "Active",
+        threadId: "thr_1",
+        expectedRevision: 8,
+        origin: "auto",
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "REVISION_CONFLICT", revision: 9 },
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("reads authoritative placements for compatibility policy", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
