@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 afterEach(() => {
   vi.unstubAllGlobals();
   window.history.replaceState({}, "", "/");
+  document.body.replaceChildren();
 });
 
 function jsonResponse(value: unknown): Response {
@@ -45,6 +46,13 @@ describe("thread stages app registration", () => {
     });
     vi.stubGlobal("fetch", fetcher);
     window.history.replaceState({}, "", "/threads/thread-a");
+    document.body.innerHTML = `
+      <div
+        data-ribbon-sidebar-root
+        data-ribbon-sidebar-scope-grouping-key="builtin:projects"
+        data-ribbon-sidebar-scope-group-id="project-a"
+      ></div>
+    `;
     const app = await loadPluginApp(() => import("./app"));
     const mounted = await mountPluginContentScripts(app, {
       pluginId: "thread-stages",
@@ -67,6 +75,10 @@ describe("thread stages app registration", () => {
           body: JSON.stringify({
             workflowStage: "Completed",
             threadId: "thread-a",
+            scope: {
+              groupingKey: "builtin:projects",
+              groupId: "project-a",
+            },
           }),
         }),
       );

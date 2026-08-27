@@ -36,6 +36,8 @@ export interface ResolveStageChordInput {
   assignments: readonly ThreadAssignment[];
   /** Newest first, already filtered to moves the user made in the app. */
   undoCandidates: readonly UndoCandidate[];
+  /** Threads admitted by Ribbon's active project, section, or provider filter. */
+  scopedThreadIds?: readonly string[];
 }
 
 /**
@@ -49,6 +51,7 @@ export function resolveStageChord({
   threads,
   assignments,
   undoCandidates,
+  scopedThreadIds,
 }: ResolveStageChordInput): StageChord {
   const listed = listedThreads(threads);
   const rootThreads = partitionWorkflowThreads(listed).rootThreads;
@@ -80,11 +83,13 @@ export function resolveStageChord({
   // means the row below on screen.
   const threadById = new Map(rootThreads.map((thread) => [thread.id, thread]));
   const pinned = pinnedThreadIds(listed);
+  const scoped = scopedThreadIds === undefined ? null : new Set(scopedThreadIds);
   const toDo = assignments
     .filter(
       (assignment) =>
         assignment.workflowStage === "Idle" &&
         threadById.has(assignment.threadId) &&
+        (scoped === null || scoped.has(assignment.threadId)) &&
         !pinned.has(assignment.threadId),
     )
     .flatMap((assignment) => threadById.get(assignment.threadId) ?? []);

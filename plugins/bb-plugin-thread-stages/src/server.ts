@@ -87,6 +87,18 @@ export const rpcContract = defineRpcContract({
       .object({
         threadId: z.string().min(1).max(256),
         workflowStage: workflowStageSchema,
+        scope: z
+          .object({
+            groupingKey: z.union([
+              z.literal("builtin:projects"),
+              z.literal("builtin:sections"),
+              z.string().regex(/^plugin:[^:/]+:[^:/]+$/u),
+            ]),
+            groupId: z.string().min(1).max(128),
+          })
+          .strict()
+          .nullable()
+          .optional(),
       })
       .strict(),
     output: z.object({ destination: destinationSchema }).strict(),
@@ -246,7 +258,11 @@ export default function plugin(bb: BbPluginApi) {
   }
 
   bb.rpc.register(rpcContract, {
-    async setWorkflowStage({ threadId, workflowStage }) {
+    async setWorkflowStage({
+      threadId,
+      workflowStage,
+      scope,
+    }) {
       await requireEnabledStage(workflowStage);
       const threads = await listAllThreads(({ limit, offset }) =>
         bb.sdk.threads.list({ archived: false, limit, offset }),
@@ -256,6 +272,15 @@ export default function plugin(bb: BbPluginApi) {
         ({ id }) => id,
       );
       const placementState = await ribbonAssignments(rootThreadIds);
+      const scopedThreadIds =
+        scope === null || scope === undefined
+          ? undefined
+          : (
+              await listPlacements({
+                groupingKey: scope.groupingKey,
+                groupIds: [scope.groupId],
+              })
+            ).items.map(({ threadId: id }) => id);
       const undoCandidates = placementState.placements
         .filter(
           (placement) =>
@@ -282,6 +307,7 @@ export default function plugin(bb: BbPluginApi) {
         threads,
         assignments: placementState.assignments,
         undoCandidates,
+        scopedThreadIds,
       });
       const stay: ChordDestination = { kind: "stay" };
       if (chord.kind === "none") return { destination: stay };
