@@ -198,6 +198,37 @@ describe("Ribbon sidebar forwarding client", () => {
     });
   });
 
+  it("does not retry an automated placement whose precondition became stale", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      rpcResponse({
+        ok: false,
+        error: {
+          code: "REVISION_CONFLICT",
+          message: "stale lifecycle observation",
+          revision: 9,
+        },
+      }),
+    );
+    const client = createRibbonSidebarClient({
+      baseUrl: "http://127.0.0.1:38886",
+      fetcher,
+    });
+
+    await expect(
+      client.updatePlacementV1({
+        groupingKey: "plugin:thread-stages:stages",
+        groupId: "Active",
+        threadId: "thr_1",
+        expectedRevision: 8,
+        origin: "auto",
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "REVISION_CONFLICT", revision: 9 },
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("reads authoritative placements for compatibility policy", async () => {
     const fetcher = vi
       .fn<typeof fetch>()

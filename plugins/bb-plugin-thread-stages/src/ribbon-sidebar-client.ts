@@ -264,6 +264,7 @@ export function createRibbonSidebarClient({
       };
       const first = await invoke(validatedInput);
       if (
+        validatedInput.origin !== "auto" &&
         !first.ok &&
         first.error.code === "REVISION_CONFLICT" &&
         first.error.revision !== undefined
