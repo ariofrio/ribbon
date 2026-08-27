@@ -161,23 +161,44 @@ describe("thread stages provider", () => {
   });
 
   it("writes shortcut stage changes directly to Ribbon without a handoff", async () => {
-    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+    const fetcher = vi.fn(async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
       const url = String(input);
       if (url.endsWith("/rpc/listPlacementsV1")) {
+        const request = JSON.parse(String(init?.body)) as {
+          groupingKey: string;
+        };
+        if (request.groupingKey === "builtin:projects") {
+          return jsonResponse({
+            ok: true,
+            value: {
+              groupingKey: "builtin:projects",
+              revision: 9,
+              items: ["thread-a", "thread-c"].map((threadId) => ({
+                groupingKey: "builtin:projects",
+                groupId: "project-a",
+                threadId,
+                enteredAtMs: 1,
+              })),
+            },
+          });
+        }
         return jsonResponse({
           ok: true,
           value: {
             groupingKey: "plugin:thread-stages:stages",
             revision: 4,
-            items: [
-              {
+            items: ["thread-a", "thread-b", "thread-c"].map(
+              (threadId) => ({
                 groupingKey: "plugin:thread-stages:stages",
                 groupId: "Idle",
-                threadId: "thread-a",
+                threadId,
                 enteredAtMs: 1,
                 origin: "auto",
-              },
-            ],
+              }),
+            ),
           },
         });
       }
@@ -210,16 +231,31 @@ describe("thread stages provider", () => {
       pinSortKey: null,
       createdAt: 1,
     };
+    const threads = [
+      thread,
+      { ...thread, id: "thread-b", projectId: "project-b" },
+      { ...thread, id: "thread-c" },
+    ];
     const harness = createHarness({
-      sdk: { threads: { list: vi.fn(async () => [thread] as never) } },
+      sdk: { threads: { list: vi.fn(async () => threads as never) } },
     });
 
     await expect(
       harness.behavior.callRpc("setWorkflowStage", {
         threadId: "thread-a",
         workflowStage: "Completed",
+        scope: {
+          groupingKey: "builtin:projects",
+          groupId: "project-a",
+        },
       }),
-    ).resolves.toEqual({ destination: { kind: "compose" } });
+    ).resolves.toEqual({
+      destination: {
+        kind: "thread",
+        threadId: "thread-c",
+        projectId: "project-a",
+      },
+    });
     expect(fetcher).toHaveBeenCalledWith(
       expect.stringContaining("/ribbon-sidebar/rpc/updatePlacementV1"),
       expect.objectContaining({
