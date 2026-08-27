@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-thread-stages",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "description": "Provide workflow stages, automation, and shortcuts to Ribbon sidebar.",
   "license": "MIT",
   "repository": {
