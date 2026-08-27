@@ -803,7 +803,7 @@ export default async function plugin(bb: BbPluginApi) {
       { name: "groups", summary: "List groups", usage: "bb ribbon-sidebar groups <grouping> [--json]" },
       { name: "list", summary: "List threads", usage: "bb ribbon-sidebar list [--scope <group-ref>] [--group-by <grouping>] [--json]" },
       { name: "show", summary: "Show thread placement", usage: "bb ribbon-sidebar show [thread] [--self] [--json]" },
-      { name: "place", summary: "Place a thread", usage: "bb ribbon-sidebar place [thread] --to <group-ref> [--before <thread>|--after <thread>] [--json]" },
+      { name: "place", summary: "Place a thread", usage: "bb ribbon-sidebar place [thread] [--self] --to <group-ref> [--before <thread>|--after <thread>] [--json]" },
       { name: "migrate", summary: "Migrate legacy placement", usage: "bb ribbon-sidebar migrate thread-stages [--json]" },
       { name: "rekey", summary: "Rekey provider placement", usage: "bb ribbon-sidebar rekey --from <plugin-key> --to <plugin-key> [--json]" },
     ],

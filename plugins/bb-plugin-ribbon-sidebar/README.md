@@ -61,7 +61,7 @@ bb ribbon-sidebar groupings
 bb ribbon-sidebar groups <grouping>
 bb ribbon-sidebar list [--scope <group-ref>] [--group-by <grouping>]
 bb ribbon-sidebar show [thread] [--self]
-bb ribbon-sidebar place [thread] --to <group-ref> [--before <thread>|--after <thread>]
+bb ribbon-sidebar place [thread] [--self] --to <group-ref> [--before <thread>|--after <thread>]
 bb ribbon-sidebar migrate thread-stages
 bb ribbon-sidebar rekey --from <plugin-key> --to <plugin-key>
 ```
