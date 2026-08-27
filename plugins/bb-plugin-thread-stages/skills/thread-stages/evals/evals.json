@@ -1,0 +1,16 @@
+{
+  "skill_name": "thread-stages",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm preparing a routine bulk status notification. The visible roots are Billing cleanup (Idle), Release checklist (Completed), Search indexing (Active), and Vendor access (Blocked). I did not ask to resume anything. Which roots are in scope by default? Do not send any messages.",
+      "expected_output": "The agent excludes the Completed root by default while retaining the other visible roots, and explains that Completed is treated like archived work unless explicitly included or resumed.",
+      "files": [],
+      "expectations": [
+        "The in-scope roots are Billing cleanup, Search indexing, and Vendor access.",
+        "Release checklist is excluded because Completed roots are out of scope by default.",
+        "The response does not claim that Blocked or Idle roots are automatically excluded."
+      ]
+    }
+  ]
+}

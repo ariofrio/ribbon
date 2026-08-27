@@ -230,39 +230,21 @@ export const rpcContract = defineRpcContract({
   },
 });
 
-interface ThreadSummary {
-  id: string;
-  projectId: string;
-  sectionId: string | null;
-  parentThreadId: string | null;
-  archivedAt: number | null;
-  visibility: "visible" | "hidden";
-}
+type ThreadSummary = Awaited<
+  ReturnType<BbPluginApi["sdk"]["threads"]["list"]>
+>[number];
 
-async function listAllThreads(bb: BbPluginApi): Promise<ThreadSummary[]> {
-  const threads: ThreadSummary[] = [];
+async function listThreadsForSidebar(
+  bb: BbPluginApi,
+  options: { includeArchived: boolean; includeHidden: boolean },
+): Promise<ThreadSummary[]> {
   const limit = 100;
-  while (threads.length <= 10_000) {
-    const page = await bb.sdk.threads.list({
-      archived: false,
-      includeHidden: false,
-      limit,
-      offset: threads.length,
-    });
-    threads.push(...page);
-    if (page.length < limit) return threads;
-  }
-  throw new Error("Thread list exceeds 10000 entries.");
-}
-
-async function listSidebarThreads(bb: BbPluginApi) {
   const list = async (archived: boolean) => {
-    const threads: Awaited<ReturnType<typeof bb.sdk.threads.list>> = [];
-    const limit = 100;
+    const threads: ThreadSummary[] = [];
     while (threads.length <= 10_000) {
       const page = await bb.sdk.threads.list({
         archived,
-        includeHidden: true,
+        includeHidden: options.includeHidden,
         limit,
         offset: threads.length,
       });
@@ -271,8 +253,40 @@ async function listSidebarThreads(bb: BbPluginApi) {
     }
     throw new Error("Thread list exceeds 10000 entries.");
   };
+  if (!options.includeArchived) return list(false);
   const [notArchived, archived] = await Promise.all([list(false), list(true)]);
-  return [...notArchived, ...archived].map((thread) => ({
+  return [...notArchived, ...archived];
+}
+
+function sidebarRootThreads(threads: readonly ThreadSummary[]) {
+  const liveThreadIds = new Set(
+    threads
+      .filter(
+        (thread) =>
+          thread.archivedAt === null && thread.visibility === "visible",
+      )
+      .map(({ id }) => id),
+  );
+  return threads.filter(
+    (thread) =>
+      thread.parentThreadId === null ||
+      !liveThreadIds.has(thread.parentThreadId),
+  );
+}
+
+async function listAllThreads(bb: BbPluginApi): Promise<ThreadSummary[]> {
+  return listThreadsForSidebar(bb, {
+    includeArchived: false,
+    includeHidden: false,
+  });
+}
+
+async function listSidebarThreads(bb: BbPluginApi) {
+  const threads = await listThreadsForSidebar(bb, {
+    includeArchived: true,
+    includeHidden: true,
+  });
+  return threads.map((thread) => ({
     id: thread.id,
     projectId: thread.projectId,
     title: thread.title,
@@ -390,6 +404,7 @@ export default async function plugin(bb: BbPluginApi) {
       ...providers.allGroupings(),
     ]);
   const store = createPlacementStore(database, { grouping, groupings });
+  let sidebarThreads: ThreadSummary[] = [];
   let threadStagesInstalled = false;
   let mountedMigrationPending = false;
 
@@ -480,6 +495,7 @@ export default async function plugin(bb: BbPluginApi) {
       projectByThread.set(thread.id, thread.projectId);
       sectionByThread.set(thread.id, thread.sectionId ?? "unsectioned");
     }
+    sidebarThreads = threads;
     const liveThreadIds = new Set(
       threads
         .filter(
@@ -859,16 +875,16 @@ export default async function plugin(bb: BbPluginApi) {
   });
 
   bb.cli.register({
-    name: "ribbon-sidebar",
+    name: "sidebar",
     summary: "Inspect and change Ribbon sidebar placement",
     commands: [
-      { name: "groupings", summary: "List groupings", usage: "bb ribbon-sidebar groupings [--json]" },
-      { name: "groups", summary: "List groups", usage: "bb ribbon-sidebar groups <grouping> [--json]" },
-      { name: "list", summary: "List threads", usage: "bb ribbon-sidebar list [--scope <group-ref>] [--group-by <grouping>] [--json]" },
-      { name: "show", summary: "Show thread placement", usage: "bb ribbon-sidebar show [thread] [--self] [--json]" },
-      { name: "place", summary: "Place a thread", usage: "bb ribbon-sidebar place [thread] [--self] --to <group-ref> [--before <thread>|--after <thread>] [--json]" },
-      { name: "migrate", summary: "Migrate legacy placement", usage: "bb ribbon-sidebar migrate thread-stages [--json]" },
-      { name: "rekey", summary: "Rekey provider placement", usage: "bb ribbon-sidebar rekey --from <plugin-key> --to <plugin-key> [--json]" },
+      { name: "groupings", summary: "List groupings", usage: "bb sidebar groupings [--json]" },
+      { name: "groups", summary: "List groups", usage: "bb sidebar groups <grouping> [--json]" },
+      { name: "list", summary: "List threads", usage: "bb sidebar list [--scope <group-ref>] [--include-archived] [--include-hidden] [--json]" },
+      { name: "show", summary: "Show thread placement", usage: "bb sidebar show [thread] [--self] [--json]" },
+      { name: "place", summary: "Place a thread", usage: "bb sidebar place [thread] [--self] --to <group-ref> [--before <thread>|--after <thread>] [--json]" },
+      { name: "migrate", summary: "Migrate legacy placement", usage: "bb sidebar migrate thread-stages [--json]" },
+      { name: "rekey", summary: "Rekey provider placement", usage: "bb sidebar rekey --from <plugin-key> --to <plugin-key> [--json]" },
     ],
     async run(argv, context) {
       await refreshCatalogsAndRoots();
@@ -876,6 +892,19 @@ export default async function plugin(bb: BbPluginApi) {
         {
           store,
           groupings,
+          threads: async ({ includeArchived, includeHidden }) => {
+            const threads = includeArchived || includeHidden
+              ? await listThreadsForSidebar(bb, {
+                  includeArchived,
+                  includeHidden,
+                })
+              : sidebarThreads;
+            for (const thread of threads) {
+              projectByThread.set(thread.id, thread.projectId);
+              sectionByThread.set(thread.id, thread.sectionId ?? "unsectioned");
+            }
+            return sidebarRootThreads(threads);
+          },
           updatePlacement,
           migrateThreadStages: migrateFromThreadStages,
         },

@@ -831,11 +831,71 @@ describe("Ribbon sidebar server", () => {
       "updateSettingsV1",
     ]);
     expect(harness.inspection.registrations.cli).toMatchObject({
-      name: "ribbon-sidebar",
+      name: "sidebar",
     });
     await expect(
       harness.behavior.runCli(["groupings", "--json"]),
     ).resolves.toMatchObject({ exitCode: 0 });
+    const listed = await harness.behavior.runCli(["list", "--json"]);
+    expect(listed.exitCode).toBe(0);
+    expect(JSON.parse(listed.stdout ?? "")).toEqual([
+      expect.objectContaining({
+        id: "thread-a",
+        status: expect.any(String),
+        project: { id: "project-a", name: "Storefront" },
+        section: { id: "section-a", name: "Release" },
+        pluginGroups: [
+          expect.objectContaining({
+            pluginId: "thread-stages",
+            groupingId: "stages",
+            groupId: expect.any(String),
+            groupName: expect.any(String),
+          }),
+        ],
+      }),
+    ]);
+  });
+
+  it("keeps archived and hidden roots out of CLI lists unless included", async () => {
+    const visible = makeThreadResponse({
+      id: "visible-root",
+      projectId: "project-a",
+      sectionId: "section-a",
+      parentThreadId: null,
+      visibility: "visible",
+      archivedAt: null,
+    });
+    const hidden = makeThreadResponse({
+      id: "hidden-root",
+      projectId: "project-a",
+      sectionId: "section-a",
+      parentThreadId: null,
+      visibility: "hidden",
+      archivedAt: null,
+    });
+    const archived = makeThreadResponse({
+      id: "archived-root",
+      projectId: "project-a",
+      sectionId: "section-a",
+      parentThreadId: null,
+      visibility: "visible",
+      archivedAt: 100,
+    });
+    const { bb, harness } = setup({ threads: [visible, hidden, archived] });
+    await plugin(bb);
+
+    const listed = await harness.behavior.runCli(["list", "--json"]);
+    expect(JSON.parse(listed.stdout ?? "").map(({ id }: { id: string }) => id))
+      .toEqual(["visible-root"]);
+
+    const included = await harness.behavior.runCli([
+      "list",
+      "--include-archived",
+      "--include-hidden",
+      "--json",
+    ]);
+    expect(JSON.parse(included.stdout ?? "").map(({ id }: { id: string }) => id))
+      .toEqual(["visible-root", "hidden-root", "archived-root"]);
   });
 
   it("lists hidden and visible threads across both archival states", async () => {
