@@ -327,6 +327,24 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("refreshes cached previews when the backend publishes a change", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    fixture.value.rpc.listPreviewsV1
+      .mockResolvedValueOnce({
+        previews: [{ threadId: "thread-a", preview: "Initial preview" }],
+      })
+      .mockResolvedValue({
+        previews: [{ threadId: "thread-a", preview: "Updated preview" }],
+      });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    expect(await slot.findByText("Initial preview")).toBeTruthy();
+    await slot.emitRealtime("previews-changed", { threadId: "thread-a" });
+    expect(await slot.findByText("Updated preview")).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
   it("preserves released Thread stages row and group interactions", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({
@@ -1187,6 +1205,43 @@ describe("Ribbon sidebar app", () => {
     expect(newSection.previousElementSibling?.getAttribute("role")).toBe(
       "group",
     );
+    slot.lifecycle.unmount();
+  });
+
+  it("hides pinned threads outside the active group filter", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.ribbon-sidebar.preferences.v1",
+      JSON.stringify({
+        view: {
+          scope: {
+            kind: "group",
+            group: {
+              groupingKey: "builtin:sections",
+              groupId: "section-a",
+            },
+          },
+          groupingKey: null,
+          filterGroupingKey: "builtin:sections",
+        },
+        collapsed: [],
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        projects: [
+          { id: "project-a", name: "Storefront", isPersonal: false },
+        ],
+        threads: [
+          thread({ id: "thread-a", title: "Release thread" }),
+          thread({ id: "thread-b", title: "Roadmap pin", isPinned: true }),
+        ],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    expect(await slot.findByText("Release thread")).toBeTruthy();
+    expect(slot.queryByText("Roadmap pin")).toBeNull();
     slot.lifecycle.unmount();
   });
 

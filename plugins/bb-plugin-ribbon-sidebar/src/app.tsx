@@ -491,6 +491,7 @@ function RibbonSidebarList({
   const [searchAttempt, setSearchAttempt] = useState(0);
   const reconnectPending = useRef(false);
   const mounted = useRef(false);
+  const previewRequest = useRef(0);
   const scopeSyncedForThreadId = useRef<string | null>(null);
   const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
 
@@ -740,7 +741,8 @@ function RibbonSidebarList({
     preferences,
     sidebar.status,
   ]);
-  useEffect(() => {
+  const refreshPreviews = useCallback(() => {
+    const request = ++previewRequest.current;
     setPreviewsLoaded(false);
     if (
       sidebar.status !== "ready" ||
@@ -750,13 +752,12 @@ function RibbonSidebarList({
       setPreviewsLoaded(true);
       return;
     }
-    let canceled = false;
     void rpc
       .call("listPreviewsV1", {
         threadIds: liveThreads.map(({ id }) => id),
       })
       .then(({ previews: next }) => {
-        if (!canceled) {
+        if (previewRequest.current === request) {
           setPreviews(
             new Map(next.map(({ threadId, preview }) => [threadId, preview])),
           );
@@ -764,12 +765,18 @@ function RibbonSidebarList({
         }
       })
       .catch(() => {
-        if (!canceled) setPreviewsLoaded(true);
+        if (previewRequest.current === request) setPreviewsLoaded(true);
       });
-    return () => {
-      canceled = true;
-    };
   }, [liveThreads, rpc, settings.values?.showMessagePreviews, sidebar.status]);
+  useEffect(() => {
+    refreshPreviews();
+    return () => {
+      previewRequest.current += 1;
+    };
+  }, [refreshPreviews]);
+  useRealtime("previews-changed", () => {
+    refreshPreviews();
+  });
   useEffect(() => {
     let canceled = false;
     const refresh = () => {
@@ -855,16 +862,31 @@ function RibbonSidebarList({
     },
     [childrenByParent, normalizedSearch, searchResult],
   );
-  // Pinned membership and ordering come directly from bb; placement never
-  // participates in this array.
+  const visiblePlacementIds = useMemo(
+    () => new Set(placements.map(({ threadId }) => threadId)),
+    [placements],
+  );
+  const hasGroupScope = preferences?.view.scope.kind === "group";
+  // Pinned membership and ordering come directly from bb. An active Ribbon
+  // scope still controls which pinned roots are visible.
   const pinnedRoots = useMemo(
     () =>
       displayRootThreads.filter(
-        (thread) => thread.isPinned && matchesSearch(thread),
+        (thread) =>
+          thread.isPinned &&
+          (Boolean(normalizedSearch) ||
+            !hasGroupScope ||
+            visiblePlacementIds.has(thread.id)) &&
+          matchesSearch(thread),
       ),
-    [displayRootThreads, matchesSearch],
+    [
+      displayRootThreads,
+      hasGroupScope,
+      matchesSearch,
+      normalizedSearch,
+      visiblePlacementIds,
+    ],
   );
-  const visiblePlacementIds = new Set(placements.map(({ threadId }) => threadId));
   const placementOrder = new Map(
     placements.map(({ threadId }, index) => [threadId, index]),
   );

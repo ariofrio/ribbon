@@ -62,6 +62,16 @@ function setup({
 } = {}) {
   let currentThreadStagesCatalog = threadStagesCatalog;
   let currentMigrationSnapshotFails = migrationSnapshotFails;
+  const timeline = vi.fn(async () => ({
+    rows: [
+      {
+        kind: "conversation",
+        role: "assistant",
+        text: "Cached sidebar preview",
+        sourceSeqEnd: 2,
+      },
+    ],
+  }));
   const updateSettings = vi.fn(async () => ({ values: {} }));
   const callRpc = vi.fn(async ({ pluginId, method }: {
     pluginId: string;
@@ -116,8 +126,10 @@ function setup({
   const host = createFakePluginHost({
     pluginId: "ribbon-sidebar",
     sdk: {
+      subscribe: () => () => undefined,
       threads: {
         list: async () => threads,
+        timeline,
         search: async () =>
           ({
             active: { results: [{ thread: threads[1] }] },
@@ -188,6 +200,7 @@ function setup({
   return {
     ...host,
     callRpc,
+    timeline,
     updateSettings,
     setThreadStagesCatalog(catalog: typeof threadStagesCatalog) {
       currentThreadStagesCatalog = catalog;
@@ -357,6 +370,32 @@ describe("Ribbon sidebar server", () => {
     await expect(
       harness.behavior.runCli(["groupings", "--json"]),
     ).resolves.toMatchObject({ exitCode: 0 });
+  });
+
+  it("serves previews from the durable background cache", async () => {
+    const { bb, harness, timeline } = setup();
+    await plugin(bb);
+    const running = harness.behavior.runService("thread-previews");
+
+    await vi.waitFor(async () => {
+      await expect(
+        harness.behavior.callRpc("listPreviewsV1", {
+          threadIds: ["thread-a"],
+        }),
+      ).resolves.toEqual({
+        previews: [
+          { threadId: "thread-a", preview: "Cached sidebar preview" },
+        ],
+      });
+    });
+    const callsBeforeRead = timeline.mock.calls.length;
+    await harness.behavior.callRpc("listPreviewsV1", {
+      threadIds: ["thread-a"],
+    });
+    expect(timeline).toHaveBeenCalledTimes(callsBeforeRead);
+
+    running.controller.abort();
+    await running.done;
   });
 
   it("saves every Ribbon setting through the bb SDK", async () => {

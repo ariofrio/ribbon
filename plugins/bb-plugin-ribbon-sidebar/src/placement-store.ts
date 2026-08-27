@@ -99,6 +99,13 @@ export const RIBBON_SIDEBAR_MIGRATIONS = [
       PRIMARY KEY (source_plugin_id, installation_id, source_revision)
     );
   `,
+  `
+    CREATE TABLE IF NOT EXISTS thread_preview (
+      thread_id TEXT PRIMARY KEY,
+      preview TEXT,
+      updated_at_ms INTEGER NOT NULL CHECK (updated_at_ms >= 0)
+    );
+  `,
 ];
 
 interface AssignmentRow {

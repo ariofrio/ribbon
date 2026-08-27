@@ -24,8 +24,9 @@ import {
 } from "./placement-store";
 import { createProviderCatalog } from "./provider-catalog";
 import { runRibbonSidebarCli } from "./cli";
-import { derivePreview, type PreviewRow } from "./preview";
 import { orderedGroupings } from "./grouping-order";
+import { createPreviewStore } from "./preview-store";
+import { registerThreadPreviews } from "./thread-previews";
 
 const ICONS_PLUGIN_ID = "icons";
 const iconGlyphSchema = z.array(
@@ -291,6 +292,8 @@ export default async function plugin(bb: BbPluginApi) {
   });
   const database = bb.storage.database();
   bb.storage.migrate(database, RIBBON_SIDEBAR_MIGRATIONS);
+  const previews = createPreviewStore(database);
+  registerThreadPreviews(bb, previews);
 
   let projectGroups: GroupingDescriptor["groups"] = [];
   let personalProjectId: string | null = null;
@@ -704,25 +707,8 @@ export default async function plugin(bb: BbPluginApi) {
         groupingKey: input.groupingKey as GroupingKey,
       });
     },
-    async listPreviewsV1({ threadIds }) {
-      const previews = await Promise.all(
-        threadIds.map(async (threadId) => {
-          try {
-            const timeline = await bb.sdk.threads.timeline({
-              threadId,
-              includeNestedRows: "true",
-              segmentLimit: "1",
-            });
-            return {
-              threadId,
-              preview: derivePreview(timeline.rows as PreviewRow[]),
-            };
-          } catch {
-            return { threadId, preview: null };
-          }
-        }),
-      );
-      return { previews };
+    listPreviewsV1({ threadIds }) {
+      return { previews: previews.list(threadIds) };
     },
     async listProjectActionStatesV1() {
       const [{ primaryHostId }, projects] = await Promise.all([
@@ -846,6 +832,7 @@ export default async function plugin(bb: BbPluginApi) {
   });
 
   bb.events.on("thread.deleted", ({ thread }) => {
+    previews.delete(thread.id);
     const result = store.deleteThread(thread.id);
     if (result.changedGroupingKeys.length > 0) {
       bb.realtime.publish("placements-changed", {
