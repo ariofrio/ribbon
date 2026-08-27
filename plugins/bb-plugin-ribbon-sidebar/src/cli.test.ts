@@ -55,6 +55,55 @@ describe("Ribbon sidebar CLI", () => {
     for (const database of databases.splice(0)) database.close();
   });
 
+  it("offers top-level and command-specific help", async () => {
+    const fixture = setup();
+    databases.push(fixture.database);
+
+    const topLevel = await runRibbonSidebarCli(fixture.context, ["--help"]);
+    expect(topLevel).toMatchObject({
+      exitCode: 0,
+      stdout: expect.stringContaining(
+        "Usage: bb ribbon-sidebar [options] [command]",
+      ),
+    });
+    expect(topLevel.stdout).toContain(
+      "Inspect and change Ribbon sidebar placement",
+    );
+    expect(topLevel.stdout).toContain("help [command]");
+
+    const placeHelp = await runRibbonSidebarCli(fixture.context, [
+      "help",
+      "place",
+    ]);
+    expect(placeHelp).toMatchObject({
+      exitCode: 0,
+      stdout: expect.stringContaining(
+        "Usage: bb ribbon-sidebar place [thread] [--self] --to <group-ref>",
+      ),
+    });
+    expect(placeHelp.stdout).toContain("--self");
+    expect(placeHelp.stdout).toContain("--before <thread>");
+    expect(placeHelp.stdout).toContain("--after <thread>");
+    expect(placeHelp.stdout).toContain("--json");
+
+    await expect(
+      runRibbonSidebarCli(fixture.context, ["show", "--help"]),
+    ).resolves.toMatchObject({
+      exitCode: 0,
+      stdout: expect.stringContaining("Target the current thread"),
+    });
+    await expect(
+      runRibbonSidebarCli(fixture.context, [
+        "groups",
+        stages.groupingKey,
+        "--help",
+      ]),
+    ).resolves.toMatchObject({
+      exitCode: 0,
+      stdout: expect.stringContaining("Arguments:\n  grouping"),
+    });
+  });
+
   it("lists groupings and groups with stable human and JSON output", async () => {
     const fixture = setup();
     databases.push(fixture.database);
@@ -140,6 +189,50 @@ describe("Ribbon sidebar CLI", () => {
     ]);
   });
 
+  it("formats human thread lists as an aligned labeled table", async () => {
+    const fixture = setup();
+    databases.push(fixture.database);
+    await fixture.store.updatePlacement({
+      groupingKey: stages.groupingKey,
+      groupId: "Active",
+      threadId: "thread-b",
+      origin: "ui",
+    });
+
+    await expect(
+      runRibbonSidebarCli(fixture.context, ["list"]),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stdout:
+        "\nID        Stage\nthread-a  Idle\nthread-b  Active\n\n",
+    });
+  });
+
+  it("labels human placement details and update confirmations", async () => {
+    const fixture = setup();
+    databases.push(fixture.database);
+
+    await expect(
+      runRibbonSidebarCli(fixture.context, ["show", "thread-a"]),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stdout: "Thread: thread-a\n  Stage: Idle\n",
+    });
+
+    await expect(
+      runRibbonSidebarCli(fixture.context, [
+        "place",
+        "thread-a",
+        "--to",
+        `${stages.groupingKey}/Active`,
+      ]),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stdout:
+        "Thread thread-a updated\nThread: thread-a\n  Stage: Active\n",
+    });
+  });
+
   it("places with unambiguous destination and anchor flags", async () => {
     const fixture = setup();
     databases.push(fixture.database);
@@ -208,7 +301,7 @@ describe("Ribbon sidebar CLI", () => {
     });
   });
 
-  it("rejects malformed group refs, conflicting anchors, and ambiguous self", async () => {
+  it("returns failure for invalid values and usage errors for malformed invocations", async () => {
     const fixture = setup();
     databases.push(fixture.database);
     for (const argv of [
@@ -226,7 +319,15 @@ describe("Ribbon sidebar CLI", () => {
       ],
       ["show", "thread-a", "--self"],
     ]) {
-      expect((await runRibbonSidebarCli(fixture.context, argv)).exitCode).toBe(2);
+      expect((await runRibbonSidebarCli(fixture.context, argv)).exitCode).toBe(1);
     }
+
+    await expect(
+      runRibbonSidebarCli(fixture.context, ["show", "thread-a", "thread-b"]),
+    ).resolves.toEqual({
+      exitCode: 2,
+      stderr:
+        "Usage: bb ribbon-sidebar show [thread] [--self] [--json]\n",
+    });
   });
 });
