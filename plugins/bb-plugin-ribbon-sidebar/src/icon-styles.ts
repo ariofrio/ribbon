@@ -7,17 +7,12 @@ import type { IconSvgElement } from "@hugeicons/react";
 
 /**
  * The icons this sidebar draws, taken from the Icons plugin through CSS rather
- * than fetched.
+ * than fetched: a box names its owner and the glyph arrives through the
+ * cascade. That plugin's README documents the names.
  *
- * That plugin publishes one custom property per owner someone has chosen an
- * icon for, keyed by an attribute a consumer puts on its own box, and marks the
- * document once its stylesheet is in. So a row names its owner and the glyph
- * arrives through the cascade, with nothing to fetch or subscribe to. See that
- * plugin's README for the names.
- *
- * Written as one stylesheet of plain CSS rather than as classes on the spans,
- * because the rule that collapses a row's icon has to name `:root`, which is
- * outside the scope root bb compiles a plugin's own stylesheet into.
+ * Plain CSS rather than classes on the spans, because the rule that collapses a
+ * row's icon has to name `:root`, which is outside the scope root bb compiles
+ * a plugin's own stylesheet into.
  */
 const READY_ATTRIBUTE = "data-ribbon-icons-ready";
 
@@ -25,18 +20,16 @@ const READY_ATTRIBUTE = "data-ribbon-icons-ready";
 export const ICON_ATTRIBUTE = "data-ribbon-sidebar-icon";
 
 /**
- * Marks a box that should not exist at all without the Icons plugin.
+ * Marks a box that should not exist without the Icons plugin.
  *
- * With no plugin to supply one, a row wants its old layout back rather than the
- * same folder repeated down the list. The scope filter and the group headers
- * draw their own glyphs and stay either way.
+ * A row would otherwise show the same folder repeated down the list. The scope
+ * filter and the group headings draw their own glyphs and stay either way.
  */
 export const ICON_OPTIONAL_ATTRIBUTE = "data-ribbon-sidebar-icon-optional";
 
 /**
- * Whose icon a box wants, and the glyph it keeps until somebody picks one.
- *
- * The fallback is this plugin's own: the contract leaves it to the consumer.
+ * Whose icon a box wants, and the glyph it keeps until somebody picks one. The
+ * fallback is this plugin's own; the contract leaves it to the consumer.
  */
 export type IconFallback = "project" | "personal" | "section";
 

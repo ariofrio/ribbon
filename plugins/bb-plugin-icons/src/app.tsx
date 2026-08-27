@@ -345,9 +345,8 @@ export default definePluginApp((app) => {
      */
     mount({ pluginId, signal }) {
       const rpc = iconsRpc(pluginId);
-      // Published first and independently of any placement: a consumer that
-      // marks its own box needs nothing else from this plugin, and nothing
-      // here needs to know that consumer exists.
+      // Published independently of any placement: a consumer that marks its
+      // own box needs nothing else from this plugin.
       const stopStylesheet = publishIconStylesheet({
         load: () => rpc.list(),
         subscribe: subscribeToIconChanges,

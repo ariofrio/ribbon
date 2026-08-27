@@ -3,8 +3,7 @@
 Gives every thread section and every project an icon and an optional color, and
 draws it wherever bb names a section or a project: bb's own sidebar headers, the header
 above a thread and above a project's own screens, the prompt box and the menus
-it opens, and each row of the
-[Ribbon sidebar](../bb-plugin-ribbon-sidebar#readme).
+it opens, and the [Ribbon sidebar](../bb-plugin-ribbon-sidebar#readme).
 
 Click one on a sidebar header, in the thread header, or on the strip under an
 open thread to change it: search 5,930 icons by name or synonym, filter by

@@ -297,10 +297,8 @@ function ThreadRow({
           onClick={openThread}
         />
         <span className="flex min-w-0 flex-1 items-center gap-2">
-          {/*
-            The project's icon, which the Icons plugin paints through the
-            cascade. Empty by design; without that plugin the box collapses.
-          */}
+          {/* Empty by design: the box names its project, and icon-styles.ts
+              paints it. Without that plugin the box collapses. */}
           <span
             aria-hidden
             data-ribbon-icons-project={thread.projectId}
@@ -1740,9 +1738,8 @@ function RibbonSidebarList({
           preferences.view.scope.kind === "group" &&
           preferences.view.scope.group.groupingKey === grouping?.groupingKey &&
           preferences.view.scope.group.groupId === group.id;
-        // A project or section group heads its own list, so its heading takes
-        // the same icon its rows do — whichever was chosen for it, or this
-        // plugin's own glyph until one is.
+        // A group heading takes the same icon its rows do: whichever was chosen
+        // for that project or section, or this plugin's own glyph until one is.
         const entityGroupIcon: { kind: "project" | "section"; fallback: IconFallback } | undefined =
           grouping?.groupingKey === "builtin:projects"
             ? {
