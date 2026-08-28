@@ -72,6 +72,19 @@ describe("resolveStageChord", () => {
     ).toMatchObject({ next: { kind: "thread", threadId: "thr_next" } });
   });
 
+  it("walks only the rows displayed by the filtered sidebar", () => {
+    expect(
+      resolveStageChord({
+        threadId: "thr_open",
+        workflowStage: "Completed",
+        threads,
+        assignments,
+        undoCandidates: [],
+        scopedThreadIds: ["thr_open", "thr_later"],
+      }),
+    ).toMatchObject({ next: { kind: "thread", threadId: "thr_later" } });
+  });
+
   it("starts at the top when the filed task was not in Idle", () => {
     expect(
       resolveStageChord({

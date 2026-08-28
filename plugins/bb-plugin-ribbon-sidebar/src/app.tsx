@@ -1401,6 +1401,12 @@ function RibbonSidebarList({
         placementsLoaded && previewsLoaded ? "" : undefined
       }
       data-ribbon-sidebar-root=""
+      data-ribbon-sidebar-scope-group-id={
+        normalizedSearch ? undefined : activeScope?.groupId
+      }
+      data-ribbon-sidebar-scope-grouping-key={
+        normalizedSearch ? undefined : activeScope?.groupingKey
+      }
       onKeyDown={(event) => {
         if (event.key === "Escape") clearDrag();
       }}

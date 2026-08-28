@@ -735,6 +735,13 @@ describe("Ribbon sidebar app", () => {
     expect(await slot.findByRole("button", { name: "Roadmap, filtered" })).toBeTruthy();
     expect(await slot.findByText("Ship UI")).toBeTruthy();
     expect(await slot.findByText("Opened child")).toBeTruthy();
+    expect(
+      slot.container.querySelector<HTMLElement>("[data-ribbon-sidebar-root]")
+        ?.dataset,
+    ).toMatchObject({
+      ribbonSidebarScopeGroupingKey: "builtin:sections",
+      ribbonSidebarScopeGroupId: "section-b",
+    });
 
     fireEvent.keyDown(
       slot.getByRole("button", { name: "Roadmap, filtered" }),
@@ -743,6 +750,13 @@ describe("Ribbon sidebar app", () => {
     fireEvent.click(await slot.findByText("Release"));
     expect(await slot.findByRole("button", { name: "Release, filtered" })).toBeTruthy();
     expect(await slot.findByText("Design migration")).toBeTruthy();
+    expect(
+      slot.container.querySelector<HTMLElement>("[data-ribbon-sidebar-root]")
+        ?.dataset,
+    ).toMatchObject({
+      ribbonSidebarScopeGroupingKey: "builtin:sections",
+      ribbonSidebarScopeGroupId: "section-a",
+    });
     slot.lifecycle.unmount();
   });
 

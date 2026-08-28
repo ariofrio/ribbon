@@ -32,17 +32,45 @@ export interface RibbonSidebarCliInvocation {
 
 const GROUPING_KEY = /^(?:builtin:(?:projects|sections)|plugin:[^:/]+:[^:/]+)$/u;
 const PLUGIN_KEY = /^plugin:[^:/]+:[^:/]+$/u;
-const HELP = `Usage: bb ribbon-sidebar <command>
+const USAGE = {
+  groupings: "Usage: bb ribbon-sidebar groupings [--json]\n",
+  groups: "Usage: bb ribbon-sidebar groups <grouping> [--json]\n",
+  list:
+    "Usage: bb ribbon-sidebar list [--scope <group-ref>] [--group-by <grouping>] [--json]\n",
+  show:
+    "Usage: bb ribbon-sidebar show [thread] [--self] [--json]\n",
+  place:
+    "Usage: bb ribbon-sidebar place [thread] [--self] --to <group-ref> [--before <thread>|--after <thread>] [--json]\n",
+  migrate: "Usage: bb ribbon-sidebar migrate thread-stages [--json]\n",
+  rekey:
+    "Usage: bb ribbon-sidebar rekey --from <plugin-key> --to <plugin-key> [--json]\n",
+} as const;
+const HELP = `Usage: bb ribbon-sidebar [options] [command]
+
+Inspect and change Ribbon sidebar placement
+
+Options:
+  -h, --help                                  display help for command
 
 Commands:
-  groupings
-  groups <grouping>
-  list [--scope <group-ref>] [--group-by <grouping>]
-  show [thread] [--self]
-  place [thread] --to <group-ref> [--before <thread>|--after <thread>]
-  migrate thread-stages
-  rekey --from <plugin-key> --to <plugin-key>
+  groupings [options]                         List groupings
+  groups [options] <grouping>                 List groups
+  list [options]                              List threads
+  show [options] [thread]                     Show thread placement
+  place [options] [thread]                    Place a thread
+  migrate [options] thread-stages             Migrate legacy placement
+  rekey [options]                             Rekey provider placement
+  help [command]                              display help for command
 `;
+const COMMAND_HELP: Record<keyof typeof USAGE, string> = {
+  groupings: `${USAGE.groupings}\nList groupings\n\nOptions:\n  --json      Print machine-readable JSON output\n  -h, --help  display help for command\n`,
+  groups: `${USAGE.groups}\nList groups\n\nArguments:\n  grouping    Grouping key\n\nOptions:\n  --json      Print machine-readable JSON output\n  -h, --help  display help for command\n`,
+  list: `${USAGE.list}\nList threads\n\nOptions:\n  --scope <group-ref>    Filter by group\n  --group-by <grouping>  Grouping shown for each thread\n  --json                 Print machine-readable JSON output\n  -h, --help             display help for command\n`,
+  show: `${USAGE.show}\nShow thread placement\n\nOptions:\n  --self      Target the current thread\n  --json      Print machine-readable JSON output\n  -h, --help  display help for command\n`,
+  place: `${USAGE.place}\nPlace a thread\n\nOptions:\n  --self             Target the current thread\n  --to <group-ref>   Destination group\n  --before <thread>  Next thread\n  --after <thread>   Previous thread\n  --json             Print machine-readable JSON output\n  -h, --help         display help for command\n`,
+  migrate: `${USAGE.migrate}\nMigrate legacy Thread stages placement\n\nOptions:\n  --json      Print machine-readable JSON output\n  -h, --help  display help for command\n`,
+  rekey: `${USAGE.rekey}\nRekey provider placement\n\nOptions:\n  --from <plugin-key>  Existing plugin grouping key\n  --to <plugin-key>    Replacement plugin grouping key\n  --json               Print machine-readable JSON output\n  -h, --help           display help for command\n`,
+};
 
 function json(value: unknown) {
   return `${JSON.stringify(value, null, 2)}\n`;
@@ -128,6 +156,40 @@ function success(value: unknown, human: string, wantsJson: boolean): CliResult {
   return { exitCode: 0, stdout: wantsJson ? json(value) : human };
 }
 
+function humanTable(rows: readonly (readonly string[])[]): string {
+  const widths = rows[0]?.map((_, column) =>
+    Math.max(...rows.map((row) => row[column]?.length ?? 0)),
+  );
+  return `\n${rows
+    .map((row) =>
+      row
+        .map((value, column) =>
+          value.padEnd(widths?.[column] ?? value.length),
+        )
+        .join("  ")
+        .trimEnd(),
+    )
+    .join("\n")}\n\n`;
+}
+
+function humanPlacements(
+  threadId: string,
+  placements: readonly { groupingKey: GroupingKey; groupId: string }[],
+  groupings: readonly GroupingDescriptor[],
+): string {
+  const labels = new Map(
+    groupings.map((grouping) => [
+      grouping.groupingKey,
+      grouping.singularLabel,
+    ]),
+  );
+  const details = placements.map(
+    (placement) =>
+      `  ${labels.get(placement.groupingKey) ?? "Group"}: ${placement.groupId}`,
+  );
+  return `Thread: ${threadId}${details.length > 0 ? `\n${details.join("\n")}` : ""}\n`;
+}
+
 function domainFailure(result: { ok: false; error: { message: string } }): CliResult {
   return { exitCode: 1, stderr: `${result.error.message}\n` };
 }
@@ -146,6 +208,13 @@ function groupJson(group: GroupingDescriptor["groups"][number]) {
   };
 }
 
+function commandHelp(command: string | undefined): string | null {
+  if (!command) return HELP;
+  return command in COMMAND_HELP
+    ? COMMAND_HELP[command as keyof typeof COMMAND_HELP]
+    : null;
+}
+
 export async function runRibbonSidebarCli(
   context: RibbonSidebarCliContext,
   argv: readonly string[],
@@ -159,8 +228,23 @@ export async function runRibbonSidebarCli(
     if (!command || command === "--help" || command === "-h") {
       return { exitCode: 0, stdout: HELP };
     }
+    if (
+      command === "help" ||
+      args.slice(1).some((argument) => argument === "--help" || argument === "-h")
+    ) {
+      const requested = command === "help" ? args[1] : command;
+      const help = commandHelp(requested);
+      return help
+        ? { exitCode: 0, stdout: help }
+        : {
+            exitCode: 2,
+            stderr: `Unknown command: ${requested ?? command}\n\n${HELP}`,
+          };
+    }
     if (command === "groupings") {
-      if (args.length !== 1) throw new Error("Usage: bb ribbon-sidebar groupings");
+      if (args.length !== 1) {
+        return { exitCode: 2, stderr: USAGE.groupings };
+      }
       const values = availableGroupings().map((grouping) => ({
         groupingKey: grouping.groupingKey,
         label: grouping.pluralLabel,
@@ -174,7 +258,9 @@ export async function runRibbonSidebarCli(
       );
     }
     if (command === "groups") {
-      if (args.length !== 2) throw new Error("Usage: bb ribbon-sidebar groups <grouping>");
+      if (args.length !== 2) {
+        return { exitCode: 2, stderr: USAGE.groups };
+      }
       const key = groupingKey(args[1]);
       const descriptor = availableGroupings().find(
         (candidate) => candidate.groupingKey === key,
@@ -194,10 +280,15 @@ export async function runRibbonSidebarCli(
         "--scope",
         "--group-by",
       ]);
-      if (positionals.length > 0) throw new Error("Usage: bb ribbon-sidebar list [options]");
+      if (positionals.length > 0) {
+        return { exitCode: 2, stderr: USAGE.list };
+      }
       const available = availableGroupings();
       const displayKey = groupingKey(
         stringOption(options, "--group-by") ?? available[0]?.groupingKey,
+      );
+      const displayGrouping = available.find(
+        (grouping) => grouping.groupingKey === displayKey,
       );
       let threadIds: string[] | undefined;
       const rawScope = stringOption(options, "--scope");
@@ -217,14 +308,20 @@ export async function runRibbonSidebarCli(
       if (!listed.ok) return domainFailure(listed);
       const human = listed.value.items.length === 0
         ? "No threads found\n"
-        : `${listed.value.items
-            .map(({ threadId, groupId }) => `${threadId}\t${groupId}`)
-            .join("\n")}\n`;
+        : humanTable([
+            ["ID", displayGrouping?.singularLabel ?? "Group"],
+            ...listed.value.items.map(({ threadId, groupId }) => [
+              threadId,
+              groupId,
+            ]),
+          ]);
       return success(listed.value, human, wantsJson);
     }
     if (command === "show") {
       const { options, positionals } = parse(args.slice(1), [], ["--self"]);
-      if (positionals.length > 1) throw new Error("Usage: bb ribbon-sidebar show [thread] [--self]");
+      if (positionals.length > 1) {
+        return { exitCode: 2, stderr: USAGE.show };
+      }
       const threadId = resolveThreadId(
         positionals[0],
         options.get("--self") === true,
@@ -243,12 +340,11 @@ export async function runRibbonSidebarCli(
         .map(({ value }) => value);
       return success(
         successful,
-        `${successful
-          .map(
-            ({ placement }) =>
-              `${placement.groupingKey}/${placement.groupId}`,
-          )
-          .join("\n")}\n`,
+        humanPlacements(
+          threadId,
+          successful.map(({ placement }) => placement),
+          availableGroupings(),
+        ),
         wantsJson,
       );
     }
@@ -258,7 +354,9 @@ export async function runRibbonSidebarCli(
         "--before",
         "--after",
       ], ["--self"]);
-      if (positionals.length > 1) throw new Error("Usage: bb ribbon-sidebar place [thread] --to <group-ref>");
+      if (positionals.length > 1) {
+        return { exitCode: 2, stderr: USAGE.place };
+      }
       const before = stringOption(options, "--before");
       const after = stringOption(options, "--after");
       if (before && after) throw new Error("Use only one of --before or --after.");
@@ -281,13 +379,17 @@ export async function runRibbonSidebarCli(
       if (!result.ok) return domainFailure(result);
       return success(
         result.value,
-        `${result.value.placement.threadId}\t${result.value.placement.groupingKey}/${result.value.placement.groupId}\n`,
+        `Thread ${threadId} updated\n${humanPlacements(
+          threadId,
+          [result.value.placement],
+          availableGroupings(),
+        )}`,
         wantsJson,
       );
     }
     if (command === "migrate") {
       if (args.length !== 2 || args[1] !== "thread-stages") {
-        throw new Error("Usage: bb ribbon-sidebar migrate thread-stages");
+        return { exitCode: 2, stderr: USAGE.migrate };
       }
       if (!context.migrateThreadStages) {
         throw new Error("Thread stages migration is unavailable.");
@@ -301,7 +403,9 @@ export async function runRibbonSidebarCli(
     }
     if (command === "rekey") {
       const { options, positionals } = parse(args.slice(1), ["--from", "--to"]);
-      if (positionals.length > 0) throw new Error("Usage: bb ribbon-sidebar rekey --from <plugin-key> --to <plugin-key>");
+      if (positionals.length > 0) {
+        return { exitCode: 2, stderr: USAGE.rekey };
+      }
       const from = pluginKey(stringOption(options, "--from"));
       const to = pluginKey(stringOption(options, "--to"));
       const result = context.store.rekeyGrouping(from, to);
@@ -315,7 +419,7 @@ export async function runRibbonSidebarCli(
     return { exitCode: 2, stderr: `Unknown command: ${command}\n\n${HELP}` };
   } catch (error) {
     return {
-      exitCode: 2,
+      exitCode: 1,
       stderr: `${error instanceof Error ? error.message : String(error)}\n`,
     };
   }

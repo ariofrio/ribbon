@@ -23,6 +23,12 @@ type ChordDestination =
   | { kind: "compose" };
 
 const PERSONAL_PROJECT_ID = "proj_personal";
+const GROUPING_KEY = /^(?:builtin:(?:projects|sections)|plugin:[^:/]+:[^:/]+)$/u;
+
+interface RibbonScope {
+  groupingKey: string;
+  groupId: string;
+}
 
 function rpcErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === "string") return error;
@@ -56,6 +62,20 @@ function goTo(destination: ChordDestination, openComposer: () => void): void {
       ? `/threads/${encodeURIComponent(destination.threadId)}`
       : `/projects/${encodeURIComponent(destination.projectId ?? "")}/threads/${encodeURIComponent(destination.threadId)}`,
   );
+}
+
+function activeRibbonScope(): RibbonScope | null {
+  const sidebar = document.querySelector<HTMLElement>(
+    "[data-ribbon-sidebar-root]",
+  );
+  const groupingKey = sidebar?.dataset.ribbonSidebarScopeGroupingKey;
+  const groupId = sidebar?.dataset.ribbonSidebarScopeGroupId;
+  return groupingKey !== undefined &&
+    GROUPING_KEY.test(groupingKey) &&
+    groupId !== undefined &&
+    groupId.length > 0
+    ? { groupingKey, groupId }
+    : null;
 }
 
 async function callRpc<Result>(
@@ -137,7 +157,11 @@ export default definePluginApp((app) => {
               ? callRpc<{ destination: ChordDestination }>(
                   pluginId,
                   "setWorkflowStage",
-                  { workflowStage, threadId },
+                  {
+                    workflowStage,
+                    threadId,
+                    scope: activeRibbonScope(),
+                  },
                 ).then(({ destination }) => {
                   goTo(destination, () => void newThreadCommand.dispatch());
                 })
