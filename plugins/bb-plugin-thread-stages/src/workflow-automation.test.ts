@@ -210,6 +210,34 @@ describe("stage automation", () => {
     expect(updateStage).toHaveBeenCalledTimes(1);
   });
 
+  it("uses the newest interaction signal when coalescing a burst", async () => {
+    const threads = [makeWorkflowThread({ id: "root", status: "active" })];
+    const host = setup(threads);
+    const updateStage = vi.fn(async () => {});
+    registerThreadWorkflow(
+      host.bb,
+      updateStage,
+      new Map([["root", true]]),
+    );
+    await host.start();
+
+    const callback = host.sdk.subscribe.mock.calls.find(
+      ([subscription]) => subscription.event === "thread:changed",
+    )?.[0].callback as RealtimeCallback;
+    const first = callback(
+      threadChanged("root", ["interactions-changed"], {
+        hasPendingInteraction: true,
+      }) as never,
+    );
+    const second = callback(
+      threadChanged("root", ["interactions-changed"]) as never,
+    );
+    await Promise.all([first, second].filter(Boolean));
+
+    expect(host.sdk.interactions).toHaveBeenCalledTimes(1);
+    expect(updateStage).not.toHaveBeenCalled();
+  });
+
   it("updates only the affected root for lifecycle, background, and interaction edges", async () => {
     const threads = [
       makeWorkflowThread({ id: "root" }),

@@ -155,15 +155,16 @@ function mergeRefreshRequest(
   request: ThreadRefreshRequest,
 ): void {
   const current = target.get(threadId);
+  const pendingInteractionValue = request.pendingInteraction
+    ? request.pendingInteractionValue
+    : current?.pendingInteractionValue;
   target.set(threadId, {
     background: current?.background === true || request.background,
     pendingInteraction:
       current?.pendingInteraction === true || request.pendingInteraction,
-    ...(request.pendingInteractionValue !== undefined
-      ? { pendingInteractionValue: request.pendingInteractionValue }
-      : current?.pendingInteractionValue !== undefined
-        ? { pendingInteractionValue: current.pendingInteractionValue }
-        : {}),
+    ...(pendingInteractionValue !== undefined
+      ? { pendingInteractionValue }
+      : {}),
     status: current?.status === true || request.status,
   });
 }
