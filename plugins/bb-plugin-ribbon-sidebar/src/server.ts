@@ -497,6 +497,23 @@ export default async function plugin(bb: BbPluginApi) {
     }
   }
 
+  async function eligibleRoot(
+    thread: Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>,
+  ): Promise<boolean> {
+    if (thread.archivedAt !== null || thread.visibility !== "visible") {
+      return false;
+    }
+    if (thread.parentThreadId === null) return true;
+    try {
+      const parent = await bb.sdk.threads.get({
+        threadId: thread.parentThreadId,
+      });
+      return parent.archivedAt !== null || parent.visibility !== "visible";
+    } catch {
+      return true;
+    }
+  }
+
   async function migrateFromThreadStages() {
     if (!threadStagesInstalled) {
       throw new Error("Thread stages is not installed and running.");
@@ -779,12 +796,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     async placeNewThreadV1({ groupingKey, groupId, threadId }) {
       const thread = await bb.sdk.threads.get({ threadId });
-      reconcileRoot(
-        thread,
-        thread.parentThreadId === null &&
-          thread.archivedAt === null &&
-          thread.visibility === "visible",
-      );
+      reconcileRoot(thread, await eligibleRoot(thread));
       return updatePlacement({
         groupingKey,
         groupId,
@@ -882,18 +894,14 @@ export default async function plugin(bb: BbPluginApi) {
     }
   });
   registerThreadGroupInheritance(bb, {
+    eligibleRoot,
     reconcileRoot,
     groupings,
     getPlacement: store.getPlacement,
     updatePlacement,
   });
-  bb.events.on("thread.created", ({ thread }) => {
-    reconcileRoot(
-      thread,
-      thread.parentThreadId === null &&
-        thread.archivedAt === null &&
-        thread.visibility === "visible",
-    );
+  bb.events.on("thread.created", async ({ thread }) => {
+    reconcileRoot(thread, await eligibleRoot(thread));
   });
   bb.events.on("thread.archived", ({ thread }) => {
     reconcileRoot(thread, false);

@@ -619,7 +619,7 @@ describe("Ribbon sidebar server", () => {
       id: "thr_child",
       changes: ["parent-changed"],
     });
-    await vi.waitFor(() => expect(fixture.get).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(fixture.get).toHaveBeenCalledTimes(2));
     expect(fixture.update).not.toHaveBeenCalled();
     expect(fixture.list).not.toHaveBeenCalled();
 
@@ -636,6 +636,75 @@ describe("Ribbon sidebar server", () => {
         sectionId: "section_new",
       }),
     );
+    expect(fixture.list).not.toHaveBeenCalled();
+    service.controller.abort();
+    await service.done;
+  });
+
+  it("keeps a reparented thread as a root when its new parent is not live", async () => {
+    let onThreadChanged: ThreadChangedCallback | undefined;
+    const subscribe = vi.fn((args: RealtimeSubscribeArgs) => {
+      if (args.event === "thread:changed") onThreadChanged = args.callback;
+      return vi.fn();
+    });
+    let currentParentThreadId: string | null = null;
+    const fixture = setup({
+      subscribe,
+      threads: [
+        makeThreadResponse({
+          id: "thr_root",
+          parentThreadId: null,
+          visibility: "visible",
+          archivedAt: null,
+        }),
+      ],
+      threadGet: async ({ threadId }) => {
+        if (threadId === "thr_root") {
+          return makeThreadResponse({
+            id: threadId,
+            parentThreadId: currentParentThreadId,
+            visibility: "visible",
+            archivedAt: null,
+          });
+        }
+        return makeThreadResponse({
+          id: threadId,
+          parentThreadId: null,
+          visibility: "hidden",
+          archivedAt: null,
+        });
+      },
+    });
+    await plugin(fixture.bb);
+    await fixture.harness.behavior.callRpc("updatePlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Active",
+      threadId: "thr_root",
+      origin: "ui",
+    });
+    const service = fixture.harness.behavior.runService("group-inheritance");
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+    fixture.get.mockClear();
+    fixture.list.mockClear();
+
+    currentParentThreadId = "thr_hidden_parent";
+    onThreadChanged?.({
+      type: "changed",
+      entity: "thread",
+      id: "thr_root",
+      changes: ["parent-changed"],
+    });
+
+    await vi.waitFor(() => expect(fixture.get).toHaveBeenCalledTimes(2));
+    await expect(
+      fixture.harness.behavior.callRpc("getPlacementV1", {
+        groupingKey: "plugin:thread-stages:stages",
+        threadId: "thr_root",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { placement: { groupId: "Active" } },
+    });
     expect(fixture.list).not.toHaveBeenCalled();
     service.controller.abort();
     await service.done;

@@ -8,6 +8,7 @@ import type {
 type Thread = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>;
 
 interface GroupInheritanceOptions {
+  eligibleRoot(thread: Thread): boolean | Promise<boolean>;
   reconcileRoot(thread: Thread, eligible: boolean): void;
   groupings(): readonly GroupingDescriptor[];
   getPlacement: PlacementStore["getPlacement"];
@@ -102,9 +103,7 @@ async function applyInheritedGroups(
 
   options.reconcileRoot(
     reconciledTarget,
-    reconciledTarget.parentThreadId === null &&
-      reconciledTarget.archivedAt === null &&
-      reconciledTarget.visibility === "visible",
+    await options.eligibleRoot(reconciledTarget),
   );
   for (const [groupingKey, groupId] of ribbonPlacements) {
     const current = options.getPlacement({ groupingKey, threadId: target.id });
@@ -165,7 +164,7 @@ export function registerThreadGroupInheritance(
         const thread = await bb.sdk.threads.get({ threadId: event.id });
         parentByThreadId.set(thread.id, thread.parentThreadId);
         if (thread.parentThreadId !== null) {
-          options.reconcileRoot(thread, false);
+          options.reconcileRoot(thread, await options.eligibleRoot(thread));
           return;
         }
         if (oldParentThreadId == null) return;
