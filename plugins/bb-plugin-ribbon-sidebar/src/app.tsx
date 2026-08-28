@@ -350,20 +350,31 @@ function ThreadRow({
           onClick={openThread}
         />
         <span className="flex min-w-0 flex-1 items-start gap-2">
-          {/* Empty by design: the box names its project, and icon-styles.ts
-              paints it. Without that plugin the box collapses. */}
           <span
-            aria-hidden
-            data-ribbon-icons-project={thread.projectId}
-            data-ribbon-sidebar-icon={
-              thread.projectId === PERSONAL_PROJECT_ID ? "personal" : "project"
-            }
-            data-ribbon-sidebar-icon-optional=""
-          />
-          <span className="flex min-w-0 flex-1 flex-col justify-center leading-none">
-            <span className="truncate leading-5" title={accessibleTitle}>{rowTitle}</span>
+            className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] gap-x-2"
+          >
+            {/* Empty by design: the box names its project, and icon-styles.ts
+                paints it. Without that plugin the box collapses. */}
+            <span
+              aria-hidden
+              className="col-start-1 row-start-1 self-center"
+              data-ribbon-icons-project={thread.projectId}
+              data-ribbon-sidebar-icon={
+                thread.projectId === PERSONAL_PROJECT_ID ? "personal" : "project"
+              }
+              data-ribbon-sidebar-icon-optional=""
+            />
+            <span
+              className="col-start-2 row-start-1 truncate leading-5"
+              title={accessibleTitle}
+            >
+              {rowTitle}
+            </span>
             {preview ? (
-              <span className="truncate text-[11px] leading-4 text-subtle-foreground/75" title={preview}>
+              <span
+                className="col-start-2 row-start-2 truncate text-[11px] leading-4 text-subtle-foreground/75"
+                title={preview}
+              >
                 {preview}
               </span>
             ) : null}
