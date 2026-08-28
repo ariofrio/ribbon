@@ -728,17 +728,9 @@ export default async function plugin(bb: BbPluginApi) {
         groupingKey: input.groupingKey as GroupingKey,
       });
     },
-    invalidateGroupingCatalogV1({ providerPluginId }) {
-      providers.invalidate(providerPluginId);
-      void refreshCatalogsAndRoots()
-        .then(() => {
-          bb.realtime.publish("catalog-changed", null);
-        })
-        .catch((error: unknown) => {
-          bb.log.warn(
-            `Could not refresh grouping catalogs: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        });
+    async invalidateGroupingCatalogV1({ providerPluginId }) {
+      await providers.refreshProvider(providerPluginId);
+      bb.realtime.publish("catalog-changed", null);
       return null;
     },
     listPlacementsV1(input) {

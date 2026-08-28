@@ -1249,19 +1249,26 @@ describe("Ribbon sidebar server", () => {
   });
 
   it("publishes refreshed catalogs after provider invalidation", async () => {
-    const { bb, harness } = setup();
+    const { bb, harness, callRpc, list } = setup();
     await plugin(bb);
-    await harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: false });
+    callRpc.mockClear();
+    list.mockClear();
 
     await harness.behavior.callRpc("invalidateGroupingCatalogV1", {
       providerPluginId: "thread-stages",
     });
-    await vi.waitFor(() =>
-      expect(harness.inspection.realtimeSignals).toContainEqual({
-        channel: "catalog-changed",
-        payload: null,
+    expect(harness.inspection.realtimeSignals).toContainEqual({
+      channel: "catalog-changed",
+      payload: null,
+    });
+    expect(callRpc).toHaveBeenCalledOnce();
+    expect(callRpc).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pluginId: "thread-stages",
+        method: "getGroupingCatalogV1",
       }),
     );
+    expect(list).not.toHaveBeenCalled();
   });
 
   it("publishes provider catalog changes discovered by reconciliation", async () => {
