@@ -77,6 +77,49 @@ describe("project breadcrumb app registration", () => {
     slot.lifecycle.unmount();
   });
 
+  it("hides bb's child pill when ancestor breadcrumbs are enabled", async () => {
+    document.body.innerHTML = `
+      <header>
+        <div>
+          <div><p>Child thread</p></div>
+          <span id="child-pill" style="display: inline-flex"><span>child</span></span>
+          <span data-testid="thread-detail-header-actions-menu"></span>
+        </div>
+        <span id="slot-wrapper" role="group"></span>
+      </header>
+    `;
+    const app = await loadPluginApp(() => import("./app"));
+    const action = app.threadHeaderActions[0]!;
+    const wrapper = document.querySelector("#slot-wrapper")!;
+    const slot = renderSlot(
+      action,
+      { threadId: "thread-1", projectId: "project-1", isCompactViewport: false },
+      {
+        rpc: {
+          trailForThread: () => ({
+            section: null,
+            project: { id: "project-1", name: "Example project", isPersonal: false },
+            ancestors: [{ id: "thread-0", title: "Parent thread" }],
+          }),
+        },
+        sidebarThreads: { projects: [], threads: [] },
+        settings: { showAncestors: true },
+      },
+    );
+    wrapper.append(slot.container);
+
+    expect(await slot.findByTitle("Parent thread")).toBeTruthy();
+    expect(
+      getComputedStyle(document.querySelector<HTMLElement>("#child-pill")!)
+        .display,
+    ).toBe("none");
+    slot.lifecycle.unmount();
+    expect(
+      getComputedStyle(document.querySelector<HTMLElement>("#child-pill")!)
+        .display,
+    ).toBe("inline-flex");
+  });
+
   it("leaves an anchor before each crumb for the Icons plugin to fill", async () => {
     document.body.innerHTML = `
       <header>
@@ -154,7 +197,11 @@ describe("project breadcrumb app registration", () => {
   it("leaves the ancestors out until the setting asks for them", async () => {
     document.body.innerHTML = `
       <header>
-        <div><div><p>Thread title</p></div><span data-testid="thread-detail-header-actions-menu"></span></div>
+        <div>
+          <div><p>Thread title</p></div>
+          <span id="child-pill" style="display: inline-flex"><span>child</span></span>
+          <span data-testid="thread-detail-header-actions-menu"></span>
+        </div>
         <span id="slot-wrapper" role="group"></span>
       </header>
     `;
@@ -183,6 +230,10 @@ describe("project breadcrumb app registration", () => {
       await slot.findByRole("button", { name: "Example project actions" }),
     ).toBeTruthy();
     expect(slot.queryByTitle("Parent thread")).toBeNull();
+    expect(
+      getComputedStyle(document.querySelector<HTMLElement>("#child-pill")!)
+        .display,
+    ).toBe("inline-flex");
     slot.lifecycle.unmount();
   });
 });
