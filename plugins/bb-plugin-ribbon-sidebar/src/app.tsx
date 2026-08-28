@@ -276,6 +276,8 @@ function ThreadRow({
   const rowTitle = title(thread);
   const accessibleTitle = preview ? `${rowTitle} — ${preview}` : rowTitle;
   const actionsOpen = dropdownOpen || contextOpen;
+  const hasTrailingIndicator =
+    layout !== null || indicatorThread.indicator !== "none";
   const commonMenuProps = {
     actions,
     assignments,
@@ -347,7 +349,7 @@ function ThreadRow({
           href={`/projects/${encodeURIComponent(thread.projectId)}/threads/${encodeURIComponent(thread.id)}`}
           onClick={openThread}
         />
-        <span className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="flex min-w-0 flex-1 items-start gap-2">
           {/* Empty by design: the box names its project, and icon-styles.ts
               paints it. Without that plugin the box collapses. */}
           <span
@@ -382,7 +384,13 @@ function ThreadRow({
             </button>
           ) : null}
         </span>
-        <span className="relative -my-1 flex w-7 shrink-0 self-stretch items-center justify-end max-md:pointer-coarse:-my-2.5 max-md:pointer-coarse:w-9">
+        <span
+          className={`relative -my-1 flex shrink-0 self-stretch items-center justify-end max-md:pointer-coarse:-my-2.5 ${
+            hasTrailingIndicator
+              ? "w-7 max-md:pointer-coarse:w-9"
+              : "w-0"
+          }`}
+        >
           <span
             className="bb-sidebar-hover-actions-fade absolute inset-0 flex items-center justify-center text-subtle-foreground"
             data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
@@ -424,7 +432,7 @@ function ThreadRow({
           </span>
           {!thread.isArchived ? (
             <span
-              className="bb-sidebar-hover-actions absolute inset-0 z-10 flex items-center justify-end max-md:pointer-coarse:hidden"
+              className="bb-sidebar-hover-actions absolute inset-y-0 right-0 z-10 flex w-7 items-center justify-end max-md:pointer-coarse:hidden"
               data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
             >
               <ThreadActionsDropdown
@@ -1975,7 +1983,7 @@ function RibbonSidebarList({
             data-sidebar-sticky-tier="label"
           >
             <span className="flex min-w-0 flex-1 items-center">
-              <span className="min-w-0 flex-1 truncate">Pinned</span>
+              <span className="min-w-0 truncate">Pinned</span>
               <button
                 aria-expanded={!pinnedSectionCollapsed}
                 aria-label={
