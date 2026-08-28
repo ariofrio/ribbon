@@ -52,19 +52,17 @@ scope and collapse state. The Groups menu retains project and section creation
 plus entity actions. If the Ribbon UI cannot load, it delegates to bb's
 original list.
 
-Starting a thread from bb's New thread UI uses the selected group scope. Ribbon
-selects Projects and Sections, including Unorganized, before creation through
-bb's native composer state. For a writable provider group, Ribbon captures the
-form submission and places only the newly created thread after bb assigns its
-ID. A failed submission followed by navigation cannot reassign an existing
-thread.
+bb's New thread UI uses the selected Ribbon scope. Projects and Sections,
+including Unorganized, are selected before creation through bb's composer
+state. Writable provider groups are applied after bb returns the new thread ID.
+Ribbon records the existing thread IDs on submission, so navigation after a
+failed submission cannot place an existing thread.
 
-A fork inherits the nearest Section and provider-group placements on its fork
-source's ancestor chain, while an ordinary CLI-spawned thread keeps each
-grouping's default placement, including Unorganized. Unparenting a thread
-preserves the nearest placements from its former parent hierarchy; reparenting
-writes no placement on the thread itself, so it continues to inherit through
-its new parent.
+Forks inherit the nearest explicit Section and provider placement on the fork
+source's ancestor chain. Non-fork CLI threads use each grouping's default
+group, including Unorganized. Unparenting copies placement from the former
+parent chain. Reparenting writes no placement, so the thread inherits from its
+new parent.
 
 ## CLI
 
