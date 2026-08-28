@@ -108,6 +108,7 @@ function setup({
   const subscribe = vi.fn(
     subscribeOverride ?? (() => () => undefined),
   );
+  const list = vi.fn(async () => threads);
   const callRpc = vi.fn(async ({ pluginId, method }: {
     pluginId: string;
     method: string;
@@ -164,7 +165,7 @@ function setup({
       subscribe,
       threads: {
         get,
-        list: async () => threads,
+        list,
         timeline,
         search: async () =>
           ({
@@ -232,6 +233,7 @@ function setup({
     ...host,
     callRpc,
     get,
+    list,
     subscribe,
     update,
     timeline,
@@ -391,7 +393,7 @@ describe("Ribbon sidebar server", () => {
     expect(fixture.update).not.toHaveBeenCalled();
   });
 
-  it("refreshes roots before placing a newly created UI thread", async () => {
+  it("places a newly created UI thread without rescanning all threads", async () => {
     const threads = [
       makeThreadResponse({
         id: "thread-a",
@@ -402,9 +404,12 @@ describe("Ribbon sidebar server", () => {
     ];
     const fixture = setup({ threads });
     await plugin(fixture.bb);
+    fixture.list.mockClear();
     threads.push(
       makeThreadResponse({
         id: "thread-new",
+        projectId: "project-a",
+        sectionId: "section-a",
         parentThreadId: null,
         visibility: "visible",
         archivedAt: null,
@@ -420,6 +425,26 @@ describe("Ribbon sidebar server", () => {
     ).resolves.toMatchObject({
       ok: true,
       value: { placement: { groupId: "Active", origin: "ui" } },
+    });
+    expect(fixture.list).not.toHaveBeenCalled();
+    expect(fixture.get).toHaveBeenCalledWith({ threadId: "thread-new" });
+    await expect(
+      fixture.harness.behavior.callRpc("getPlacementV1", {
+        groupingKey: "builtin:projects",
+        threadId: "thread-new",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { placement: { groupId: "project-a" } },
+    });
+    await expect(
+      fixture.harness.behavior.callRpc("getPlacementV1", {
+        groupingKey: "builtin:sections",
+        threadId: "thread-new",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { placement: { groupId: "section-a" } },
     });
   });
 
@@ -462,6 +487,7 @@ describe("Ribbon sidebar server", () => {
     await plugin(fixture.bb);
     const service = fixture.harness.behavior.runService("group-inheritance");
     await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+    fixture.list.mockClear();
 
     onThreadChanged?.({
       type: "changed",
@@ -476,6 +502,16 @@ describe("Ribbon sidebar server", () => {
         sectionId: "section_family",
       }),
     );
+    expect(fixture.list).not.toHaveBeenCalled();
+    await expect(
+      fixture.harness.behavior.callRpc("getPlacementV1", {
+        groupingKey: "builtin:sections",
+        threadId: "thr_child",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { placement: { groupId: "section_family" } },
+    });
     service.controller.abort();
     await service.done;
     expect(unsubscribe).toHaveBeenCalledOnce();
@@ -511,6 +547,7 @@ describe("Ribbon sidebar server", () => {
     });
     const service = fixture.harness.behavior.runService("group-inheritance");
     await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+    fixture.list.mockClear();
     threads[0] = makeThreadResponse({
       id: "thr_child",
       parentThreadId: null,
@@ -573,6 +610,7 @@ describe("Ribbon sidebar server", () => {
     await plugin(fixture.bb);
     const service = fixture.harness.behavior.runService("group-inheritance");
     await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+    fixture.list.mockClear();
 
     currentParentThreadId = "thr_new_parent";
     onThreadChanged?.({
@@ -583,6 +621,7 @@ describe("Ribbon sidebar server", () => {
     });
     await vi.waitFor(() => expect(fixture.get).toHaveBeenCalledTimes(1));
     expect(fixture.update).not.toHaveBeenCalled();
+    expect(fixture.list).not.toHaveBeenCalled();
 
     currentParentThreadId = null;
     onThreadChanged?.({
@@ -597,6 +636,7 @@ describe("Ribbon sidebar server", () => {
         sectionId: "section_new",
       }),
     );
+    expect(fixture.list).not.toHaveBeenCalled();
     service.controller.abort();
     await service.done;
   });

@@ -8,7 +8,7 @@ import type {
 type Thread = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>;
 
 interface GroupInheritanceOptions {
-  refresh(): unknown | Promise<unknown>;
+  reconcileRoot(thread: Thread, eligible: boolean): void;
   groupings(): readonly GroupingDescriptor[];
   getPlacement: PlacementStore["getPlacement"];
   updatePlacement(
@@ -88,14 +88,24 @@ async function applyInheritedGroups(
   inheritSection: boolean,
 ): Promise<void> {
   const ribbonPlacements = inheritedRibbonPlacements(candidates, options);
+  let reconciledTarget = target;
   if (inheritSection) {
     const sectionId = inheritedSectionId(candidates);
     if (sectionId !== target.sectionId) {
-      await bb.sdk.threads.update({ threadId: target.id, sectionId });
+      await bb.sdk.threads.update({
+        threadId: target.id,
+        sectionId,
+      });
+      reconciledTarget = { ...target, sectionId };
     }
   }
 
-  await options.refresh();
+  options.reconcileRoot(
+    reconciledTarget,
+    reconciledTarget.parentThreadId === null &&
+      reconciledTarget.archivedAt === null &&
+      reconciledTarget.visibility === "visible",
+  );
   for (const [groupingKey, groupId] of ribbonPlacements) {
     const current = options.getPlacement({ groupingKey, threadId: target.id });
     if (current.ok && current.value.placement.groupId === groupId) continue;
@@ -155,7 +165,7 @@ export function registerThreadGroupInheritance(
         const thread = await bb.sdk.threads.get({ threadId: event.id });
         parentByThreadId.set(thread.id, thread.parentThreadId);
         if (thread.parentThreadId !== null) {
-          await options.refresh();
+          options.reconcileRoot(thread, false);
           return;
         }
         if (oldParentThreadId == null) return;

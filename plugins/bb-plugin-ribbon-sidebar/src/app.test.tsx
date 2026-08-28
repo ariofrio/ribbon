@@ -518,6 +518,24 @@ describe("Ribbon sidebar app", () => {
     await scripts.lifecycle.dispose();
   });
 
+  it("does not rescan the document for unrelated DOM mutations", async () => {
+    storeSectionScope("section-a");
+    const querySelectorAll = vi.spyOn(document, "querySelectorAll");
+    const app = await loadPluginApp(() => import("./app"));
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "ribbon-sidebar",
+      generation: 1,
+    });
+    querySelectorAll.mockClear();
+
+    document.body.append(document.createElement("span"));
+    await waitFor(() => expect(document.body.lastElementChild).toBeTruthy());
+
+    expect(querySelectorAll).not.toHaveBeenCalled();
+    querySelectorAll.mockRestore();
+    await scripts.lifecycle.dispose();
+  });
+
   it("selects the requested Project through bb's New thread action", async () => {
     storeGroupScope("builtin:projects", "project-a");
     const app = await loadPluginApp(() => import("./app"));

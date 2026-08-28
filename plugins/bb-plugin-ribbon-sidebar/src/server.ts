@@ -483,6 +483,20 @@ export default async function plugin(bb: BbPluginApi) {
     return catalogBefore !== providerCatalogFingerprint();
   }
 
+  function reconcileRoot(
+    thread: Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>,
+    eligible: boolean,
+  ) {
+    projectByThread.set(thread.id, thread.projectId);
+    sectionByThread.set(thread.id, thread.sectionId ?? "unsectioned");
+    const result = store.reconcileRoot(thread.id, eligible);
+    if (result.changedGroupingKeys.length > 0) {
+      bb.realtime.publish("placements-changed", {
+        groupingKeys: result.changedGroupingKeys,
+      });
+    }
+  }
+
   async function migrateFromThreadStages() {
     if (!threadStagesInstalled) {
       throw new Error("Thread stages is not installed and running.");
@@ -764,7 +778,13 @@ export default async function plugin(bb: BbPluginApi) {
       return { ok: true as const };
     },
     async placeNewThreadV1({ groupingKey, groupId, threadId }) {
-      await refreshCatalogsAndRoots();
+      const thread = await bb.sdk.threads.get({ threadId });
+      reconcileRoot(
+        thread,
+        thread.parentThreadId === null &&
+          thread.archivedAt === null &&
+          thread.visibility === "visible",
+      );
       return updatePlacement({
         groupingKey,
         groupId,
@@ -852,6 +872,8 @@ export default async function plugin(bb: BbPluginApi) {
 
   bb.events.on("thread.deleted", ({ thread }) => {
     previews.delete(thread.id);
+    projectByThread.delete(thread.id);
+    sectionByThread.delete(thread.id);
     const result = store.deleteThread(thread.id);
     if (result.changedGroupingKeys.length > 0) {
       bb.realtime.publish("placements-changed", {
@@ -860,20 +882,22 @@ export default async function plugin(bb: BbPluginApi) {
     }
   });
   registerThreadGroupInheritance(bb, {
-    refresh: refreshCatalogsAndRoots,
+    reconcileRoot,
     groupings,
     getPlacement: store.getPlacement,
     updatePlacement,
   });
-  for (const event of ["thread.created", "thread.archived"] as const) {
-    bb.events.on(event, () => {
-      void refreshCatalogsAndRoots().catch((error: unknown) => {
-        bb.log.warn(
-          `Could not reconcile sidebar roots: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
-    });
-  }
+  bb.events.on("thread.created", ({ thread }) => {
+    reconcileRoot(
+      thread,
+      thread.parentThreadId === null &&
+        thread.archivedAt === null &&
+        thread.visibility === "visible",
+    );
+  });
+  bb.events.on("thread.archived", ({ thread }) => {
+    reconcileRoot(thread, false);
+  });
   bb.background.schedule("catalog-reconciliation", "* * * * *", async () => {
     const catalogChanged = await refreshCatalogsAndRoots();
     const migrationCompleted = await attemptMountedMigration();

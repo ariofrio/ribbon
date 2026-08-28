@@ -53,15 +53,49 @@ function withSelectedSection(
   };
 }
 
+const NEW_THREAD_COMPOSER_SELECTOR =
+  '[data-app-composer][data-app-composer-role="primary"]';
+
 function newThreadComposers(target: Window): HTMLElement[] {
   return Array.from(
     target.document.querySelectorAll<HTMLElement>(
-      '[data-app-composer][data-app-composer-role="primary"]',
+      NEW_THREAD_COMPOSER_SELECTOR,
     ),
   ).filter(
     (composer) =>
       composer.querySelector("[data-promptbox-project-control]") !== null,
   );
+}
+
+function isNewThreadComposer(element: Element): element is HTMLElement {
+  return (
+    element instanceof HTMLElement &&
+    element.matches(NEW_THREAD_COMPOSER_SELECTOR) &&
+    element.querySelector("[data-promptbox-project-control]") !== null
+  );
+}
+
+function addedNewThreadComposers(
+  records: readonly MutationRecord[],
+): HTMLElement[] {
+  const composers = new Set<HTMLElement>();
+  for (const record of records) {
+    for (const node of Array.from<Node>(record.addedNodes)) {
+      const element = node instanceof Element ? node : node.parentElement;
+      if (element === null) continue;
+      const ancestor = element.closest(NEW_THREAD_COMPOSER_SELECTOR);
+      if (ancestor !== null && isNewThreadComposer(ancestor)) {
+        composers.add(ancestor);
+      }
+      if (isNewThreadComposer(element)) composers.add(element);
+      for (const candidate of Array.from<Element>(
+        element.querySelectorAll<Element>(NEW_THREAD_COMPOSER_SELECTOR),
+      )) {
+        if (isNewThreadComposer(candidate)) composers.add(candidate);
+      }
+    }
+  }
+  return [...composers];
 }
 
 function selectComposeSection(
@@ -86,9 +120,9 @@ export function mountGroupAwareThreadCreation(
   target: Window,
 ): () => void {
   const initializedComposers = new WeakSet<HTMLElement>();
-  const syncNewComposers = () => {
+  const syncComposers = (composers: readonly HTMLElement[]) => {
     let discoveredComposer = false;
-    for (const composer of newThreadComposers(target)) {
+    for (const composer of composers) {
       if (initializedComposers.has(composer)) continue;
       initializedComposers.add(composer);
       discoveredComposer = true;
@@ -105,6 +139,9 @@ export function mountGroupAwareThreadCreation(
           : group.groupId
         : undefined,
     );
+  };
+  const syncNewComposers = (records: MutationRecord[]) => {
+    syncComposers(addedNewThreadComposers(records));
   };
   const syncOpenComposers = () => {
     const group = selectedGroup(target.localStorage);
@@ -144,7 +181,7 @@ export function mountGroupAwareThreadCreation(
   };
   const observer = new MutationObserver(syncNewComposers);
   observer.observe(target.document.body, { childList: true, subtree: true });
-  syncNewComposers();
+  syncComposers(newThreadComposers(target));
   target.addEventListener(
     RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT,
     syncOpenComposers,
