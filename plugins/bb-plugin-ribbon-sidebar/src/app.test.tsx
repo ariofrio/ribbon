@@ -5,6 +5,7 @@ import {
   renderSlot,
 } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
+import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { IconDataV1 } from "./contracts";
 import type { GroupingKey } from "./placement-store";
@@ -30,6 +31,20 @@ function storeSectionScope(groupId: string) {
         },
         groupingKey: "plugin:thread-stages:stages",
         filterGroupingKey: "builtin:sections",
+      },
+      collapsed: [],
+    }),
+  );
+}
+
+function storeGroupScope(groupingKey: GroupingKey, groupId: string) {
+  window.localStorage.setItem(
+    SIDEBAR_PREFERENCES_KEY,
+    JSON.stringify({
+      view: {
+        scope: { kind: "group", group: { groupingKey, groupId } },
+        groupingKey: "builtin:sections",
+        filterGroupingKey: groupingKey,
       },
       collapsed: [],
     }),
@@ -240,6 +255,17 @@ function options(overrides: Record<string, unknown> = {}) {
       revision: 2,
     },
   }));
+  const placeNewThreadV1 = vi.fn(async (input: unknown) => ({
+    ok: true as const,
+    value: {
+      placement: {
+        ...(input as Record<string, unknown>),
+        enteredAtMs: 1,
+        origin: "ui" as const,
+      },
+      revision: 2,
+    },
+  }));
   const createProjectV1 = vi.fn(async () => ({ id: "project-new" }));
   const createSectionV1 = vi.fn(async () => ({ id: "section-new" }));
   const renameEntityV1 = vi.fn(async () => null);
@@ -254,6 +280,7 @@ function options(overrides: Record<string, unknown> = {}) {
     synchronizeV1,
     listPlacementsV1,
     updatePlacementV1,
+    placeNewThreadV1,
     createProjectV1,
     createSectionV1,
     renameEntityV1,
@@ -310,6 +337,7 @@ function options(overrides: Record<string, unknown> = {}) {
           threads: [],
         })),
         updatePlacementV1,
+        placeNewThreadV1,
         addProjectLocalPathV1,
         reorderPinnedV1,
         createProjectV1,
@@ -409,6 +437,173 @@ describe("Ribbon sidebar app", () => {
 
     await waitFor(() => expect(window.history.state.usr.sectionId).toBe(""));
     await scripts.lifecycle.dispose();
+  });
+
+  it("clears an injected Section when an open composer switches to a provider group", async () => {
+    storeSectionScope("section-a");
+    window.history.replaceState(
+      { idx: 1, key: "compose", usr: { focusPrompt: true } },
+      "",
+      "/",
+    );
+    document.body.innerHTML = `<div data-app-composer data-app-composer-role="primary">
+      <button data-promptbox-project-control>Project</button>
+    </div>`;
+    const app = await loadPluginApp(() => import("./app"));
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "ribbon-sidebar",
+      generation: 1,
+    });
+    await waitFor(() =>
+      expect(window.history.state.usr?.sectionId).toBe("section-a"),
+    );
+
+    storeGroupScope("plugin:thread-stages:stages", "Active");
+    window.dispatchEvent(
+      new Event(RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT),
+    );
+
+    await waitFor(() =>
+      expect(window.history.state.usr).not.toHaveProperty("sectionId"),
+    );
+    await scripts.lifecycle.dispose();
+  });
+
+  it("captures a selected provider group when the New thread form is submitted", async () => {
+    storeGroupScope("plugin:thread-stages:stages", "Active");
+    document.body.innerHTML = `<form data-app-composer data-app-composer-role="primary">
+      <button data-promptbox-project-control>Project</button>
+    </form>`;
+    const requested: unknown[] = [];
+    window.addEventListener("bb.ribbon-sidebar.new-thread-group-requested", (event) => {
+      requested.push((event as CustomEvent).detail);
+    });
+    const app = await loadPluginApp(() => import("./app"));
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "ribbon-sidebar",
+      generation: 1,
+    });
+
+    fireEvent.submit(document.querySelector("form")!);
+
+    expect(requested).toEqual([
+      {
+        groupingKey: "plugin:thread-stages:stages",
+        groupId: "Active",
+      },
+    ]);
+    await scripts.lifecycle.dispose();
+  });
+
+  it("requests the selected Project when a New thread composer appears", async () => {
+    storeGroupScope("builtin:projects", "project-a");
+    const requested: unknown[] = [];
+    window.addEventListener("bb.ribbon-sidebar.new-thread-project-requested", (event) => {
+      requested.push((event as CustomEvent).detail);
+    });
+    const app = await loadPluginApp(() => import("./app"));
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "ribbon-sidebar",
+      generation: 1,
+    });
+
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      `<div data-app-composer data-app-composer-role="primary">
+        <button data-promptbox-project-control>Project</button>
+      </div>`,
+    );
+
+    await waitFor(() => expect(requested).toEqual(["project-a"]));
+    await scripts.lifecycle.dispose();
+  });
+
+  it("selects the requested Project through bb's New thread action", async () => {
+    storeGroupScope("builtin:projects", "project-a");
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    expect(await slot.findByRole("button", { name: "Storefront, filtered" })).toBeTruthy();
+
+    window.dispatchEvent(
+      new CustomEvent("bb.ribbon-sidebar.new-thread-project-requested", {
+        detail: "project-a",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(slot.inspection.sidebarActionCalls).toContainEqual({
+        method: "openNewThread",
+        options: { projectId: "project-a", focusPrompt: true },
+      }),
+    );
+    slot.lifecycle.unmount();
+  });
+
+  it("places the newly active thread in the provider group captured at submission", async () => {
+    storeGroupScope("plugin:thread-stages:stages", "Active");
+    const app = await loadPluginApp(() => import("./app"));
+    const sidebarThreads = {
+      projects: [{ id: "project-a", name: "Storefront", isPersonal: false }],
+      threads: [] as ReturnType<typeof thread>[],
+    };
+    const fixture = options({
+      sidebarThreads,
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    expect(await slot.findByRole("button", { name: "Active, filtered" })).toBeTruthy();
+
+    window.dispatchEvent(
+      new CustomEvent("bb.ribbon-sidebar.new-thread-group-requested", {
+        detail: {
+          groupingKey: "plugin:thread-stages:stages",
+          groupId: "Active",
+        },
+      }),
+    );
+    sidebarThreads.threads.push(thread({ id: "thread-new" }));
+    slot.lifecycle.rerender(
+      createElement(app.threadLists[0]!.component, {
+        ...props,
+        activeThreadId: "thread-new",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(fixture.placeNewThreadV1).toHaveBeenCalledWith({
+        groupingKey: "plugin:thread-stages:stages",
+        groupId: "Active",
+        threadId: "thread-new",
+      }),
+    );
+    slot.lifecycle.unmount();
+  });
+
+  it("does not place a known thread after a New thread submission fails", async () => {
+    storeGroupScope("plugin:thread-stages:stages", "Active");
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    expect(await slot.findByRole("button", { name: "Active, filtered" })).toBeTruthy();
+
+    window.dispatchEvent(
+      new CustomEvent("bb.ribbon-sidebar.new-thread-group-requested", {
+        detail: {
+          groupingKey: "plugin:thread-stages:stages",
+          groupId: "Active",
+        },
+      }),
+    );
+    slot.lifecycle.rerender(
+      createElement(app.threadLists[0]!.component, {
+        ...props,
+        activeThreadId: "thread-a",
+      }),
+    );
+
+    await waitFor(() => expect(fixture.synchronizeV1).toHaveBeenCalled());
+    expect(fixture.placeNewThreadV1).not.toHaveBeenCalled();
+    slot.lifecycle.unmount();
   });
 
   it("refreshes cached previews when the backend publishes a change", async () => {

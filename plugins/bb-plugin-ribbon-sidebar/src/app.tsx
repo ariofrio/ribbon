@@ -72,7 +72,9 @@ import {
   type HeaderGroupActions,
 } from "./group-header-menu";
 import {
-  mountSectionAwareComposeNavigation,
+  mountGroupAwareThreadCreation,
+  RIBBON_SIDEBAR_NEW_THREAD_GROUP_REQUESTED_EVENT,
+  RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT,
   RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT,
 } from "./new-thread-section";
 
@@ -437,6 +439,7 @@ function SidebarMessage({
 }
 
 function RibbonSidebarList({
+  activeProjectId,
   activeThreadId,
   experimental_Original: OriginalThreadList,
   onNavigate,
@@ -481,6 +484,14 @@ function RibbonSidebarList({
   const [previewsLoaded, setPreviewsLoaded] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [pendingNewThreadGroup, setPendingNewThreadGroup] = useState<{
+    group: GroupRef;
+    activeThreadIdAtSubmission: string | null;
+    knownThreadIds: ReadonlySet<string>;
+  } | null>(null);
+  const [pendingComposerProjectId, setPendingComposerProjectId] = useState<
+    string | null
+  >(null);
   const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
   const [dragDestination, setDragDestination] =
     useState<DragDestination | null>(null);
@@ -675,6 +686,115 @@ function RibbonSidebarList({
       new Event(RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT),
     );
   }, [preferences]);
+
+  useEffect(() => {
+    const capture = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (
+        typeof detail !== "object" ||
+        detail === null ||
+        !("groupingKey" in detail) ||
+        !("groupId" in detail) ||
+        typeof detail.groupingKey !== "string" ||
+        typeof detail.groupId !== "string"
+      ) {
+        return;
+      }
+      setPendingNewThreadGroup({
+        group: detail as GroupRef,
+        activeThreadIdAtSubmission: activeThreadId,
+        knownThreadIds: new Set(sidebar.threads.map(({ id }) => id)),
+      });
+    };
+    window.addEventListener(
+      RIBBON_SIDEBAR_NEW_THREAD_GROUP_REQUESTED_EVENT,
+      capture,
+    );
+    return () => {
+      window.removeEventListener(
+        RIBBON_SIDEBAR_NEW_THREAD_GROUP_REQUESTED_EVENT,
+        capture,
+      );
+    };
+  }, [activeThreadId, sidebar.threads]);
+
+  useEffect(() => {
+    if (
+      pendingNewThreadGroup === null ||
+      activeThreadId === null ||
+      activeThreadId === pendingNewThreadGroup.activeThreadIdAtSubmission ||
+      snapshot === null
+    ) {
+      return;
+    }
+    const { group } = pendingNewThreadGroup;
+    if (pendingNewThreadGroup.knownThreadIds.has(activeThreadId)) {
+      setPendingNewThreadGroup(null);
+      return;
+    }
+    const descriptor = snapshot.groupings.find(
+      ({ groupingKey }) => groupingKey === group.groupingKey,
+    );
+    const destination = descriptor?.groups.find(({ id }) => id === group.groupId);
+    setPendingNewThreadGroup(null);
+    if (
+      descriptor?.available !== true ||
+      !descriptor.membershipWritable ||
+      destination?.acceptsAssignments !== true
+    ) {
+      return;
+    }
+    void rpc
+      .call("placeNewThreadV1", {
+        ...group,
+        threadId: activeThreadId,
+      })
+      .then((result) => {
+        if (!result.ok) setMutationError(result.error.message);
+      })
+      .catch((error: unknown) => {
+        setMutationError(
+          error instanceof Error
+            ? error.message
+            : "Could not place the new thread",
+        );
+      });
+  }, [activeThreadId, pendingNewThreadGroup, rpc, snapshot]);
+
+  useEffect(() => {
+    const capture = (event: Event) => {
+      const projectId = (event as CustomEvent<unknown>).detail;
+      if (typeof projectId === "string" && projectId.length > 0) {
+        setPendingComposerProjectId(projectId);
+      }
+    };
+    window.addEventListener(
+      RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT,
+      capture,
+    );
+    return () => {
+      window.removeEventListener(
+        RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT,
+        capture,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    if (pendingComposerProjectId === null || snapshot === null) return;
+    const projects = snapshot.groupings.find(
+      ({ groupingKey }) => groupingKey === "builtin:projects",
+    );
+    const projectExists = projects?.groups.some(
+      ({ id }) => id === pendingComposerProjectId,
+    );
+    setPendingComposerProjectId(null);
+    if (!projectExists || activeProjectId === pendingComposerProjectId) return;
+    actions.openNewThread({
+      projectId: pendingComposerProjectId,
+      focusPrompt: true,
+    });
+  }, [actions, activeProjectId, pendingComposerProjectId, snapshot]);
 
   const grouping = snapshot?.groupings.find(
     ({ groupingKey }) => groupingKey === preferences?.view.groupingKey,
@@ -2067,9 +2187,9 @@ export default definePluginApp((app) => {
     component: RibbonSidebarList,
   });
   app.contentScripts.register({
-    id: "new-thread-section",
+    id: "new-thread-group",
     mount({ signal }) {
-      const dispose = mountSectionAwareComposeNavigation(window);
+      const dispose = mountGroupAwareThreadCreation(window);
       signal.addEventListener("abort", dispose, { once: true });
       return dispose;
     },

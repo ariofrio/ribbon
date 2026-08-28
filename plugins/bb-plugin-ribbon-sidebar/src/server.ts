@@ -27,7 +27,7 @@ import { runRibbonSidebarCli } from "./cli";
 import { orderedGroupings } from "./grouping-order";
 import { createPreviewStore } from "./preview-store";
 import { registerThreadPreviews } from "./thread-previews";
-import { registerThreadSectionInheritance } from "./section-inheritance";
+import { registerThreadGroupInheritance } from "./group-inheritance";
 
 const ICONS_PLUGIN_ID = "icons";
 const iconGlyphSchema = z.array(
@@ -156,6 +156,14 @@ export const rpcContract = defineRpcContract({
         ),
       })
       .strict(),
+  },
+  placeNewThreadV1: {
+    input: updatePlacementInputSchema.omit({
+      anchor: true,
+      expectedRevision: true,
+      origin: true,
+    }),
+    output: updatePlacementOutputSchema,
   },
   listEntityIconsV1: {
     input: z.null(),
@@ -755,6 +763,16 @@ export default async function plugin(bb: BbPluginApi) {
       await refreshCatalogsAndRoots();
       return { ok: true as const };
     },
+    async placeNewThreadV1({ groupingKey, groupId, threadId }) {
+      await refreshCatalogsAndRoots();
+      return updatePlacement({
+        groupingKey,
+        groupId,
+        threadId,
+        anchor: { kind: "end" },
+        origin: "ui",
+      });
+    },
     async reorderPinnedV1({ threadId, previousThreadId, nextThreadId }) {
       await bb.sdk.threads.reorderPinned({
         threadId,
@@ -841,7 +859,12 @@ export default async function plugin(bb: BbPluginApi) {
       });
     }
   });
-  registerThreadSectionInheritance(bb, refreshCatalogsAndRoots);
+  registerThreadGroupInheritance(bb, {
+    refresh: refreshCatalogsAndRoots,
+    groupings,
+    getPlacement: store.getPlacement,
+    updatePlacement,
+  });
   for (const event of ["thread.created", "thread.archived"] as const) {
     bb.events.on(event, () => {
       void refreshCatalogsAndRoots().catch((error: unknown) => {

@@ -317,6 +317,56 @@ describe("Ribbon sidebar server", () => {
     });
   });
 
+  it("places a new fork in provider groups inherited from its fork source ancestry", async () => {
+    const threads = [
+      makeThreadResponse({
+        id: "thr_parent",
+        parentThreadId: null,
+        visibility: "visible",
+        archivedAt: null,
+      }),
+      makeThreadResponse({
+        id: "thr_fork_source",
+        parentThreadId: "thr_parent",
+        visibility: "visible",
+        archivedAt: null,
+      }),
+    ];
+    const fixture = setup({ threads });
+    await plugin(fixture.bb);
+    await fixture.harness.behavior.callRpc("updatePlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Active",
+      threadId: "thr_parent",
+      origin: "ui",
+    });
+    const fork = makeThreadResponse({
+      id: "thr_fork",
+      originKind: "fork",
+      sourceThreadId: "thr_fork_source",
+      parentThreadId: null,
+      visibility: "visible",
+      archivedAt: null,
+    });
+    threads.push(fork);
+
+    await fixture.harness.behavior.emitThreadEvent("thread.created", {
+      thread: fork,
+    });
+
+    await vi.waitFor(async () => {
+      await expect(
+        fixture.harness.behavior.callRpc("getPlacementV1", {
+          groupingKey: "plugin:thread-stages:stages",
+          threadId: "thr_fork",
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        value: { placement: { groupId: "Active" } },
+      });
+    });
+  });
+
   it("preserves explicit sections and leaves non-fork spawns Unorganized", async () => {
     const fixture = setup();
     await plugin(fixture.bb);
@@ -338,8 +388,39 @@ describe("Ribbon sidebar server", () => {
       }),
     });
 
-    expect(fixture.get).not.toHaveBeenCalled();
     expect(fixture.update).not.toHaveBeenCalled();
+  });
+
+  it("refreshes roots before placing a newly created UI thread", async () => {
+    const threads = [
+      makeThreadResponse({
+        id: "thread-a",
+        parentThreadId: null,
+        visibility: "visible",
+        archivedAt: null,
+      }),
+    ];
+    const fixture = setup({ threads });
+    await plugin(fixture.bb);
+    threads.push(
+      makeThreadResponse({
+        id: "thread-new",
+        parentThreadId: null,
+        visibility: "visible",
+        archivedAt: null,
+      }),
+    );
+
+    await expect(
+      fixture.harness.behavior.callRpc("placeNewThreadV1", {
+        groupingKey: "plugin:thread-stages:stages",
+        groupId: "Active",
+        threadId: "thread-new",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { placement: { groupId: "Active", origin: "ui" } },
+    });
   });
 
   it("gives an unparented thread the nearest section from its former parent hierarchy", async () => {
@@ -379,7 +460,7 @@ describe("Ribbon sidebar server", () => {
       },
     });
     await plugin(fixture.bb);
-    const service = fixture.harness.behavior.runService("section-inheritance");
+    const service = fixture.harness.behavior.runService("group-inheritance");
     await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
 
     onThreadChanged?.({
@@ -398,6 +479,65 @@ describe("Ribbon sidebar server", () => {
     service.controller.abort();
     await service.done;
     expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it("gives an unparented thread provider groups from its former parent hierarchy", async () => {
+    let onThreadChanged: ThreadChangedCallback | undefined;
+    const subscribe = vi.fn((args: RealtimeSubscribeArgs) => {
+      if (args.event === "thread:changed") onThreadChanged = args.callback;
+      return vi.fn();
+    });
+    const threads = [
+      makeThreadResponse({
+        id: "thr_child",
+        parentThreadId: "thr_parent",
+        visibility: "visible",
+        archivedAt: null,
+      }),
+      makeThreadResponse({
+        id: "thr_parent",
+        parentThreadId: null,
+        visibility: "visible",
+        archivedAt: null,
+      }),
+    ];
+    const fixture = setup({ subscribe, threads });
+    await plugin(fixture.bb);
+    await fixture.harness.behavior.callRpc("updatePlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Active",
+      threadId: "thr_parent",
+      origin: "ui",
+    });
+    const service = fixture.harness.behavior.runService("group-inheritance");
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+    threads[0] = makeThreadResponse({
+      id: "thr_child",
+      parentThreadId: null,
+      visibility: "visible",
+      archivedAt: null,
+    });
+
+    onThreadChanged?.({
+      type: "changed",
+      entity: "thread",
+      id: "thr_child",
+      changes: ["parent-changed"],
+    });
+
+    await vi.waitFor(async () => {
+      await expect(
+        fixture.harness.behavior.callRpc("getPlacementV1", {
+          groupingKey: "plugin:thread-stages:stages",
+          threadId: "thr_child",
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        value: { placement: { groupId: "Active" } },
+      });
+    });
+    service.controller.abort();
+    await service.done;
   });
 
   it("tracks a reparented thread without changing it, then inherits from that parent when unparented", async () => {
@@ -431,7 +571,7 @@ describe("Ribbon sidebar server", () => {
       },
     });
     await plugin(fixture.bb);
-    const service = fixture.harness.behavior.runService("section-inheritance");
+    const service = fixture.harness.behavior.runService("group-inheritance");
     await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
 
     currentParentThreadId = "thr_new_parent";
@@ -570,6 +710,7 @@ describe("Ribbon sidebar server", () => {
       "listPlacementsV1",
       "listPreviewsV1",
       "listProjectActionStatesV1",
+      "placeNewThreadV1",
       "listEntityIconsV1",
       "searchThreadIdsV1",
       "renameEntityV1",
