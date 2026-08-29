@@ -15,6 +15,7 @@ import {
   navigateToProjectSettings,
 } from "./header-dom";
 import { createCrumbRoot, type CrumbRoot } from "./crumb-root";
+import { mountComposerBreadcrumbs } from "./composer-layout";
 import type { rpcContract } from "./server";
 
 interface Trail {
@@ -235,6 +236,10 @@ function Crumbs({ section, project, ancestors, refresh, rpc, navigate, threadAct
 }
 
 export default definePluginApp((app) => {
+  app.contentScripts.register({
+    id: "composer-breadcrumbs",
+    mount: mountComposerBreadcrumbs,
+  });
   app.slots.experimental_threadHeaderAction({
     id: "project-breadcrumb",
     title: "Breadcrumbs",

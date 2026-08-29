@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import {
   loadPluginApp,
+  mountPluginContentScripts,
   renderSlot,
 } from "@get-bb/plugin-sdk/testing/app";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -21,6 +23,7 @@ beforeEach(() => {
 
 afterEach(() => {
   document.body.innerHTML = "";
+  vi.unstubAllGlobals();
 });
 
 describe("project breadcrumb app registration", () => {
@@ -32,6 +35,376 @@ describe("project breadcrumb app registration", () => {
       id: "project-breadcrumb",
       title: "Breadcrumbs",
     });
+  });
+
+  it("registers the composer breadcrumb layout as a trusted content script", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+
+    expect(app.contentScripts).toHaveLength(1);
+    expect(app.contentScripts[0]?.id).toBe("composer-breadcrumbs");
+  });
+
+  it("puts Section and the native Project selector before New thread", async () => {
+    document.body.innerHTML = `
+      <div id="pane">
+        <header>
+          <div data-testid="app-page-header-content-row">
+            <div><div id="header-center"><div id="new-thread-title"><p>New thread</p></div></div></div>
+          </div>
+        </header>
+        <main>
+          <div data-app-composer="" data-app-composer-role="primary">
+            <div id="new-thread-options">
+              <button data-promptbox-project-control="" aria-label="Project">bb-plugins</button>
+              <button id="environment">Local</button>
+            </div>
+          </div>
+        </main>
+      </div>
+    `;
+    let sectionRequests = 0;
+    let finishRefresh!: () => void;
+    const refresh = new Promise<void>((resolve) => {
+      finishRefresh = resolve;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const method = String(input).split("/").at(-1);
+        if (method === "listSections" && sectionRequests++ > 0) {
+          await refresh;
+        }
+        const result =
+          method === "listCrumbs"
+            ? {
+                showSection: true,
+                showProject: true,
+                showAncestors: false,
+                showComposerBreadcrumbs: true,
+              }
+            : { sections: [{ id: "sec_work", name: "Work" }] };
+        return new Response(JSON.stringify({ ok: true, result }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "breadcrumbs",
+      generation: 1,
+    });
+
+    await waitFor(() => {
+      expect(
+        document.querySelector(
+          '[data-composer-breadcrumbs-root] [aria-label="Section"]',
+        ),
+      ).not.toBeNull();
+    });
+    const root = document.querySelector<HTMLElement>(
+      "[data-composer-breadcrumbs-root]",
+    )!;
+    expect(root.nextElementSibling?.id).toBe("new-thread-title");
+    expect(root.querySelector('[aria-label="Section"]')).not.toBeNull();
+    expect(
+      document.querySelector('[aria-label="Project"]')?.textContent,
+    ).toBe("bb-plugins");
+    expect(root.querySelectorAll('[data-icon="ChevronRight"]')).toHaveLength(2);
+    expect(
+      getComputedStyle(
+        document.querySelector<HTMLElement>(
+          "#new-thread-options [aria-label=Project]",
+        )!,
+      ).position,
+    ).toBe("fixed");
+    expect(document.querySelector("#new-thread-options #environment")).not.toBeNull();
+
+    const section = root.querySelector<HTMLButtonElement>(
+      '[aria-label="Section"]',
+    )!;
+    fireEvent.pointerDown(section, {
+      button: 0,
+      ctrlKey: false,
+      pointerType: "mouse",
+    });
+    await waitFor(() => expect(sectionRequests).toBe(2));
+    expect(section.disabled).toBe(false);
+    expect(document.querySelector('[role="menuitem"]')?.textContent).toContain(
+      "Work",
+    );
+    finishRefresh();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() =>
+      expect(document.querySelector('[role="menuitem"]')).toBeNull(),
+    );
+
+    await scripts.lifecycle.dispose();
+    expect(
+      document.querySelector("#new-thread-options [aria-label=Project]"),
+    ).not.toBeNull();
+  });
+
+  it("tracks external section choices that arrive after the New thread composer", async () => {
+    window.history.replaceState(
+      { idx: 1, key: "compose", usr: { focusPrompt: true } },
+      "",
+      "/",
+    );
+    document.body.innerHTML = `
+      <div id="pane">
+        <header><div data-testid="app-page-header-content-row"><div><div><div><p>New thread</p></div></div></div></div></header>
+        <div data-app-composer="" data-app-composer-role="primary">
+          <div><button aria-label="Project" data-promptbox-project-control="">bb-plugins</button></div>
+        </div>
+      </div>
+    `;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const result = String(input).endsWith("/listCrumbs")
+          ? {
+              showSection: true,
+              showProject: true,
+              showAncestors: false,
+              showComposerBreadcrumbs: true,
+            }
+          : {
+              sections: [
+                { id: "section_now", name: "Now" },
+                { id: "section_later", name: "Later" },
+              ],
+            };
+        return new Response(JSON.stringify({ ok: true, result }));
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "breadcrumbs",
+      generation: 1,
+    });
+    await waitFor(() =>
+      expect(
+        document.querySelector('[aria-label="Section"]')?.textContent,
+      ).toContain("Unorganized"),
+    );
+    const section = document.querySelector<HTMLButtonElement>(
+      '[aria-label="Section"]',
+    )!;
+
+    const selectLater = {
+      ...window.history.state,
+      usr: { ...window.history.state.usr, sectionId: "section_later" },
+    };
+    window.history.replaceState(selectLater, "", window.location.href);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: selectLater }));
+    await waitFor(() => expect(section.textContent).toContain("Later"));
+
+    const consumed = { ...window.history.state, usr: {} };
+    window.history.replaceState(consumed, "", window.location.href);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: consumed }));
+    expect(section.textContent).toContain("Later");
+
+    const unorganized = {
+      ...window.history.state,
+      usr: { sectionId: "" },
+    };
+    window.history.replaceState(unorganized, "", window.location.href);
+    window.dispatchEvent(
+      new PopStateEvent("popstate", { state: unorganized }),
+    );
+    await waitFor(() => expect(section.textContent).toContain("Unorganized"));
+
+    await scripts.lifecycle.dispose();
+  });
+
+  it("shows a fork source section read-only until changing project leaves fork mode", async () => {
+    const navigation = new EventTarget();
+    vi.stubGlobal("navigation", navigation);
+    window.history.replaceState({ idx: 0, key: "thread", usr: null }, "", "/");
+    document.body.innerHTML = `
+      <div id="pane">
+        <div data-app-composer="" data-app-composer-role="primary">
+          <div data-follow-up-composer-footer="">Follow-up controls</div>
+        </div>
+      </div>
+    `;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const method = String(input).split("/").at(-1);
+        const result =
+          method === "listCrumbs"
+            ? {
+                showSection: true,
+                showProject: true,
+                showAncestors: false,
+                showComposerBreadcrumbs: true,
+              }
+            : method === "trailForThread"
+              ? {
+                  section: { id: "section_inherited", name: "Inherited" },
+                  project: null,
+                  ancestors: [],
+                }
+              : {
+                  sections: [
+                    { id: "section_inherited", name: "Inherited" },
+                    { id: "section_selected", name: "Selected" },
+                  ],
+                };
+        return new Response(JSON.stringify({ ok: true, result }));
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "breadcrumbs",
+      generation: 1,
+    });
+
+    navigation.dispatchEvent(new Event("navigate"));
+    window.history.replaceState(
+      {
+        idx: 1,
+        key: "compose",
+        usr: {
+          forkThreadCreateSeed: {
+            sourceThreadId: "thread_fork_source",
+          },
+        },
+      },
+      "",
+      "/",
+    );
+    await Promise.resolve();
+    window.history.replaceState(
+      { idx: 1, key: "compose", usr: null },
+      "",
+      "/",
+    );
+    document.body.innerHTML = `
+      <div id="pane">
+        <header><div data-testid="app-page-header-content-row"><div><div><div><p>New thread</p></div></div></div></div></header>
+        <div data-app-composer="" data-app-composer-role="primary">
+          <div aria-label="Forking Parent thread">Forking Parent thread</div>
+          <div><button aria-label="Project" data-promptbox-project-control="">bb-plugins</button></div>
+        </div>
+      </div>
+    `;
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-inherited-fork-section]')?.textContent,
+      ).toContain("Inherited"),
+    );
+    expect(document.querySelector('button[aria-label="Section"]')).toBeNull();
+
+    const selected = {
+      ...window.history.state,
+      usr: { sectionId: "section_selected" },
+    };
+    window.history.replaceState(selected, "", window.location.href);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: selected }));
+    expect(
+      document.querySelector('[data-inherited-fork-section]')?.textContent,
+    ).toContain("Inherited");
+
+    const project = document.querySelector<HTMLButtonElement>(
+      '[data-promptbox-project-control]',
+    )!;
+    project.addEventListener(
+      "click",
+      () => document.querySelector('[aria-label^="Forking "]')?.remove(),
+      { once: true },
+    );
+    fireEvent.click(project);
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('button[aria-label="Section"]')?.textContent,
+      ).toContain("Selected"),
+    );
+    expect(document.querySelector('[data-inherited-fork-section]')).toBeNull();
+
+    await scripts.lifecycle.dispose();
+  });
+
+  it("hides only the repeated project below an existing thread composer", async () => {
+    document.body.innerHTML = `
+      <div data-app-composer="" data-app-composer-role="primary">
+        <div data-follow-up-composer-footer="">
+          <div id="thread-project" title="Project: bb-plugins">bb-plugins</div>
+          <div id="thread-environment" title="Environment: Local">Local</div>
+        </div>
+      </div>
+    `;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const result = String(input).endsWith("/listCrumbs")
+          ? {
+              showSection: true,
+              showProject: true,
+              showAncestors: false,
+              showComposerBreadcrumbs: true,
+            }
+          : { sections: [] };
+        return new Response(JSON.stringify({ ok: true, result }));
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "breadcrumbs",
+      generation: 1,
+    });
+    const project = document.querySelector<HTMLElement>("#thread-project")!;
+    const environment = document.querySelector<HTMLElement>(
+      "#thread-environment",
+    )!;
+
+    await waitFor(() => expect(project.hidden).toBe(true));
+    expect(environment.hidden).toBe(false);
+
+    await scripts.lifecycle.dispose();
+    expect(project.hidden).toBe(false);
+  });
+
+  it("leaves both composer layouts native when the option is disabled", async () => {
+    document.body.innerHTML = `
+      <div id="pane">
+        <header><div data-testid="app-page-header-content-row"><div><div><div><p>New thread</p></div></div></div></div></header>
+        <div data-app-composer="" data-app-composer-role="primary">
+          <div id="native-options"><button aria-label="Project" data-promptbox-project-control="">bb-plugins</button></div>
+        </div>
+      </div>
+    `;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const result = String(input).endsWith("/listCrumbs")
+          ? {
+              showSection: true,
+              showProject: true,
+              showAncestors: false,
+              showComposerBreadcrumbs: false,
+            }
+          : { sections: [] };
+        return new Response(JSON.stringify({ ok: true, result }));
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "breadcrumbs",
+      generation: 1,
+    });
+
+    expect(document.querySelector("[data-composer-breadcrumbs-root]")).toBeNull();
+    expect(
+      document.querySelector("#native-options [aria-label=Project]"),
+    ).not.toBeNull();
+
+    await scripts.lifecycle.dispose();
   });
 
   it("draws the whole trail from one settled answer", async () => {

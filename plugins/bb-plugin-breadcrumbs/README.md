@@ -12,6 +12,23 @@ and the project start on; the ancestors start off, because most threads have
 none and the ones that do are already nested in the sidebar. A thread with none
 of them keeps bb's header exactly as it was.
 
+The **Show composer breadcrumbs** setting starts on too. It removes the
+project repeated below an existing thread's composer, while leaving the
+environment, branch, permission, and context controls there. On the New thread
+screen it moves bb's project selector into the header and adds a section
+selector before it, so the header reads:
+
+```text
+Release  >  bb-plugins  >  New thread
+```
+
+Turn the setting off to keep bb's native composer layouts unchanged.
+
+The picker stays synchronized with a section selected elsewhere after the New
+thread composer mounts. Fork drafts show the section inherited from the fork
+source as read-only, because changing it would not affect bb's fork request.
+Changing the project leaves fork mode and restores the editable picker.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-dark.png">
   <img src="assets/screenshot-light.png" alt="The Storefront project and its actions menu in a bb thread header">
@@ -55,10 +72,21 @@ otherwise-hidden slot inserts a React portal immediately before bb's existing
 thread-title container. The frontend action dialogs call schema-validated RPC
 handlers registered by `src/server.ts` for project rename and removal.
 
-This deliberately relies on bb's private thread-header DOM structure because
-the plugin SDK has no title-prefix slot. `src/header-dom.test.ts` documents and
-tests the expected structure so a future bb header change fails locally rather
-than silently changing the thread title.
+A trusted content script supplies the composer layout because the plugin SDK
+has no slot for New thread's title prefix. It keeps bb's real project selector
+under its React-owned parent and positions it over a header placeholder; bb's
+native project menu, focus handling, and live selection state therefore remain
+the control being used. The section selector sends the same one-use route state
+that bb consumes when New thread is opened from a sidebar section, and listens
+for explicit section changes sent through that state by other plugins. A
+missing section key means bb consumed the one-use state; an empty value means
+Unorganized.
+
+These layouts deliberately rely on bb's private header and composer DOM
+structures because the plugin SDK has no title-prefix or New thread layout
+slot. `src/header-dom.test.ts` and `src/composer-dom.test.ts` document and test
+the expected structures so a future bb change fails locally rather than
+silently changing either trail.
 
 ## Sharing the header with Icons
 

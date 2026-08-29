@@ -118,6 +118,7 @@ describe("section action RPC", () => {
       showSection: true,
       showProject: true,
       showAncestors: false,
+      showComposerBreadcrumbs: true,
     });
   });
 });
