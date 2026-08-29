@@ -246,24 +246,6 @@ describe("Ribbon sidebar server", () => {
     });
   });
 
-  it("filters Icons plugin rows before serving entity icons", async () => {
-    const { bb, harness } = setup();
-    await plugin(bb);
-
-    await expect(
-      harness.behavior.callRpc("listEntityIconsV1", null),
-    ).resolves.toEqual({
-      icons: [
-        expect.objectContaining({
-          kind: "section",
-          id: "section-a",
-          color: "blue",
-        }),
-      ],
-      defaults: { project: [], personal: [], section: [] },
-    });
-  });
-
   it("hydrates built-in and provider placement state before serving RPCs", async () => {
     const { bb, harness } = setup();
     await plugin(bb);
@@ -355,7 +337,6 @@ describe("Ribbon sidebar server", () => {
       "listPlacementsV1",
       "listPreviewsV1",
       "listProjectActionStatesV1",
-      "listEntityIconsV1",
       "searchThreadIdsV1",
       "renameEntityV1",
       "reorderPinnedV1",

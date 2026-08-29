@@ -10,7 +10,6 @@ import {
   type PluginSidebarThread,
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
   useCallback,
   useEffect,
@@ -47,11 +46,7 @@ import {
 } from "./vendor/components/ui/dialog";
 import { Input } from "./vendor/components/ui/input";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
-import {
-  fetchEntityIcons,
-  subscribeToIconChanges,
-  type EntityIconView,
-} from "./icons";
+import { publishIconStyles, type IconFallback } from "./icon-styles";
 import {
   ThreadActionsContextMenu,
   ThreadActionsDropdown,
@@ -73,6 +68,8 @@ import {
 } from "./group-header-menu";
 
 const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
+/** bb keeps project-less threads in the personal project, under a reserved id. */
+const PERSONAL_PROJECT_ID = "proj_personal";
 
 type SidebarSnapshot = z.output<
   typeof rpcContract.sidebarSnapshotV1.output
@@ -183,9 +180,7 @@ function ThreadRow({
   onToggleChildren,
   placementDisabled,
   preview,
-  projectIcon,
   reorderable,
-  sectionIcons,
   sections,
   showDropAfter,
   showDropBefore,
@@ -217,9 +212,7 @@ function ThreadRow({
   onToggleChildren(): void;
   placementDisabled: boolean;
   preview: string | null;
-  projectIcon: EntityIconView | null;
   reorderable: boolean;
-  sectionIcons: ReadonlyMap<string, EntityIconView>;
   sections: readonly { id: string; label: string }[];
   showDropAfter: boolean;
   showDropBefore: boolean;
@@ -239,7 +232,6 @@ function ThreadRow({
     onNewSection,
     onRename,
     onSetSection,
-    sectionIcons,
     sections,
     splitAvailable,
     thread,
@@ -305,15 +297,16 @@ function ThreadRow({
           onClick={openThread}
         />
         <span className="flex min-w-0 flex-1 items-center gap-2">
-          {projectIcon ? (
-            <HugeiconsIcon
-              aria-hidden
-              className="size-4 shrink-0"
-              data-project-icon={projectIcon.name}
-              icon={projectIcon.glyph}
-              style={projectIcon.color === null ? undefined : { color: projectIcon.color }}
-            />
-          ) : null}
+          {/* Empty by design: the box names its project, and icon-styles.ts
+              paints it. Without that plugin the box collapses. */}
+          <span
+            aria-hidden
+            data-ribbon-icons-project={thread.projectId}
+            data-ribbon-sidebar-icon={
+              thread.projectId === PERSONAL_PROJECT_ID ? "personal" : "project"
+            }
+            data-ribbon-sidebar-icon-optional=""
+          />
           <span className="flex min-w-0 flex-1 flex-col justify-center leading-none">
             <span className="truncate leading-5" title={accessibleTitle}>{rowTitle}</span>
             {preview ? (
@@ -457,12 +450,6 @@ function RibbonSidebarList({
   const [previews, setPreviews] = useState<ReadonlyMap<string, string | null>>(
     new Map(),
   );
-  const [projectIcons, setProjectIcons] = useState<
-    ReadonlyMap<string, EntityIconView>
-  >(new Map());
-  const [sectionIcons, setSectionIcons] = useState<
-    ReadonlyMap<string, EntityIconView>
-  >(new Map());
   const [projectActionStates, setProjectActionStates] = useState<
     ReadonlyMap<string, { canAddLocalPath: boolean }>
   >(new Map());
@@ -777,27 +764,9 @@ function RibbonSidebarList({
   useRealtime("previews-changed", () => {
     refreshPreviews();
   });
-  useEffect(() => {
-    let canceled = false;
-    const refresh = () => {
-      void fetchEntityIcons(
-        () => rpc.call("listEntityIconsV1", null),
-        sidebar.projects.map(({ id }) => id),
-      ).then((icons) => {
-          if (!canceled) {
-            setProjectIcons(icons.projects);
-            setSectionIcons(icons.sections);
-          }
-        },
-      );
-    };
-    refresh();
-    const unsubscribe = subscribeToIconChanges(refresh);
-    return () => {
-      canceled = true;
-      unsubscribe();
-    };
-  }, [rpc, sidebar.projects]);
+  // Inserted once: the icons arrive through the cascade, so neither a list that
+  // moved nor an edited icon costs this plugin anything.
+  useEffect(() => publishIconStyles(), []);
   const childrenByParent = useMemo(() => {
     const result = new Map<string, PluginSidebarThread[]>();
     for (const child of liveThreads.filter(
@@ -1363,9 +1332,7 @@ function RibbonSidebarList({
               ? null
               : (previews.get(root.id) ?? null)
           }
-          projectIcon={projectIcons.get(root.projectId) ?? null}
           reorderable={reorderable}
-          sectionIcons={sectionIcons}
           sections={sections}
           showDropAfter={dragDestination?.indicatorAfter === root.id}
           showDropBefore={dragDestination?.indicatorBefore === root.id}
@@ -1492,9 +1459,7 @@ function RibbonSidebarList({
             })
           }
           projectActionStates={projectActionStates}
-          projectIcons={projectIcons}
           projects={sidebar.projects}
-          sectionIcons={sectionIcons}
           sections={sections.map(({ id, label }) => ({ id, name: label }))}
           value={scopeFilterValue}
         />
@@ -1779,19 +1744,19 @@ function RibbonSidebarList({
           preferences.view.scope.kind === "group" &&
           preferences.view.scope.group.groupingKey === grouping?.groupingKey &&
           preferences.view.scope.group.groupId === group.id;
-        const entityGroupIcon =
+        // A group heading takes the same icon its rows do: whichever was chosen
+        // for that project or section, or this plugin's own glyph until one is.
+        const entityGroupIcon: { kind: "project" | "section"; fallback: IconFallback } | undefined =
           grouping?.groupingKey === "builtin:projects"
-            ? projectIcons.get(group.id)
+            ? {
+                kind: "project",
+                fallback: sidebar.projects.find(({ id }) => id === group.id)
+                  ?.isPersonal
+                  ? "personal"
+                  : "project",
+              }
             : grouping?.groupingKey === "builtin:sections"
-              ? sectionIcons.get(group.id)
-              : undefined;
-        const builtinGroupIcon =
-          grouping?.groupingKey === "builtin:projects"
-            ? sidebar.projects.find(({ id }) => id === group.id)?.isPersonal
-              ? "MessageSquare"
-              : "Folder"
-            : grouping?.groupingKey === "builtin:sections"
-              ? "ListView"
+              ? { kind: "section", fallback: "section" }
               : undefined;
         const unorganizedGroup =
           grouping?.groupingKey === "builtin:sections" &&
@@ -1918,22 +1883,12 @@ function RibbonSidebarList({
                       <UnorganizedIcon />
                     ) : settings.values?.showGroupHeaderIcons !== false &&
                       entityGroupIcon ? (
-                      <HugeiconsIcon
+                      <span
                         aria-hidden
-                        className="size-4 shrink-0"
-                        icon={entityGroupIcon.glyph}
-                        style={
-                          entityGroupIcon.color === null
-                            ? undefined
-                            : { color: entityGroupIcon.color }
-                        }
-                      />
-                    ) : settings.values?.showGroupHeaderIcons !== false &&
-                      builtinGroupIcon ? (
-                      <Icon
-                        aria-hidden
-                        className="size-4 shrink-0"
-                        name={builtinGroupIcon}
+                        {...(entityGroupIcon.kind === "project"
+                          ? { "data-ribbon-icons-project": group.id }
+                          : { "data-ribbon-icons-section": group.id })}
+                        data-ribbon-sidebar-icon={entityGroupIcon.fallback}
                       />
                     ) : settings.values?.showGroupHeaderIcons !== false &&
                       group.icon ? (

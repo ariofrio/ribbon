@@ -12,7 +12,8 @@ import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { afterPluginFrame } from "./after-plugin-frame";
 import type { Placement } from "./decorate";
-import { announceIconsChanged } from "./broadcast";
+import { announceIconsChanged, subscribeToIconChanges } from "./broadcast";
+import { publishIconStylesheet } from "./icon-sheet";
 import { installIconPortal } from "./header-dom";
 import { IconGlyph } from "./IconGlyph";
 import { IconPicker, type CatalogIcon } from "./IconPicker";
@@ -344,11 +345,18 @@ export default definePluginApp((app) => {
      */
     mount({ pluginId, signal }) {
       const rpc = iconsRpc(pluginId);
+      // Published independently of any placement: a consumer that marks its
+      // own box needs nothing else from this plugin.
+      const stopStylesheet = publishIconStylesheet({
+        load: () => rpc.list(),
+        subscribe: subscribeToIconChanges,
+      });
       let teardown: (() => void) | null = null;
       let disposed = false;
 
       const dispose = () => {
         disposed = true;
+        stopStylesheet();
         const stop = teardown;
         teardown = null;
         stop?.();

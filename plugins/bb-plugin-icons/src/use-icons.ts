@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { announceIconsChanged, ICONS_CHANNEL } from "./broadcast";
+import { announceIconsChanged, subscribeToIconChanges } from "./broadcast";
 import {
   iconFor,
   type CatalogEntryView,
@@ -49,21 +49,7 @@ export function useIcons(rpc: IconsRpc): IconsController {
 
   // The thread header and other windows announce their edits here, and bb
   // publishes nothing about sections, so a focus check covers the rest.
-  useEffect(() => {
-    let channel: BroadcastChannel | null = null;
-    try {
-      channel = new BroadcastChannel(ICONS_CHANNEL);
-      channel.onmessage = () => void refresh();
-    } catch {
-      // Clients without BroadcastChannel still refresh on focus.
-    }
-    const onFocus = () => void refresh();
-    window.addEventListener("focus", onFocus);
-    return () => {
-      channel?.close();
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [refresh]);
+  useEffect(() => subscribeToIconChanges(() => void refresh()), [refresh]);
 
   /**
    * The backend fills its project list off the read path, so a client can read
