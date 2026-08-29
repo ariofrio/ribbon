@@ -353,7 +353,7 @@ function ThreadRow({
           href={`/projects/${encodeURIComponent(thread.projectId)}/threads/${encodeURIComponent(thread.id)}`}
           onClick={openThread}
         />
-        <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] grid-rows-[var(--bb-sidebar-row-height)_auto] gap-x-2 max-md:pointer-coarse:grid-rows-[var(--bb-sidebar-row-height-coarse)_auto]">
+        <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 py-[calc((var(--bb-sidebar-row-height)-1lh)/2)] max-md:pointer-coarse:py-[calc((var(--bb-sidebar-row-height-coarse)-1lh)/2)]">
           {/* Empty by design: the box names its project, and icon-styles.ts
               paints it. Without that plugin the box collapses. */}
           <span
