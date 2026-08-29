@@ -29,31 +29,6 @@ import { createPreviewStore } from "./preview-store";
 import { registerThreadPreviews } from "./thread-previews";
 import { registerThreadGroupInheritance } from "./group-inheritance";
 
-const ICONS_PLUGIN_ID = "icons";
-const iconGlyphSchema = z.array(
-  z.tuple([z.string(), z.record(z.string(), z.any())]),
-);
-const iconDefaultsSchema = z.object({
-  project: iconGlyphSchema,
-  personal: iconGlyphSchema,
-  section: iconGlyphSchema,
-});
-const entityIconSchema = z.object({
-  kind: z.enum(["project", "section"]),
-  id: z.string(),
-  icon: z.string(),
-  color: z.string().nullable(),
-  glyph: iconGlyphSchema,
-});
-const iconsAnswerSchema = z.object({
-  icons: z.array(z.unknown()),
-  defaults: iconDefaultsSchema,
-});
-const entityIconsSchema = z.object({
-  icons: z.array(entityIconSchema),
-  defaults: iconDefaultsSchema,
-});
-
 const sidebarGroupSchema = z
   .object({
     id: z.string(),
@@ -164,10 +139,6 @@ export const rpcContract = defineRpcContract({
       origin: true,
     }),
     output: updatePlacementOutputSchema,
-  },
-  listEntityIconsV1: {
-    input: z.null(),
-    output: entityIconsSchema,
   },
   searchThreadIdsV1: {
     input: z.object({ query: z.string().trim().min(1).max(500) }).strict(),
@@ -760,21 +731,6 @@ export default async function plugin(bb: BbPluginApi) {
                   source.hostId === primaryHostId,
               ),
           })),
-      };
-    },
-    async listEntityIconsV1() {
-      const answer = await bb.sdk.plugins.callRpc({
-        pluginId: ICONS_PLUGIN_ID,
-        method: "listIcons",
-        input: null,
-        outputSchema: iconsAnswerSchema,
-      });
-      return {
-        ...answer,
-        icons: answer.icons.flatMap((icon) => {
-          const parsed = entityIconSchema.safeParse(icon);
-          return parsed.success ? [parsed.data] : [];
-        }),
       };
     },
     async renameEntityV1({ groupingKey, id, name }) {

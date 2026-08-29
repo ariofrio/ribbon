@@ -131,6 +131,65 @@ describe("observeDecorations", () => {
     expect(target()?.className).toBe("size-4");
   });
 
+  it("paints a spot that only has to be looked at, rather than reporting it", async () => {
+    document.body.innerHTML = `<div><svg data-icon="Folder" class="size-3.5 text-muted-foreground" data-project="proj_b"></svg></div>`;
+
+    await start([replacing]);
+    const box = target()?.querySelector("[data-ribbon-icons-glyph]");
+
+    expect(box?.getAttribute("data-ribbon-icons-project")).toBe("proj_b");
+    // The stylesheet paints it, so the box has nothing in it to read out.
+    expect(box?.getAttribute("aria-hidden")).toBe("true");
+    expect(box?.textContent).toBe("");
+    // bb sizes and mutes its folder differently from one surface to the next.
+    expect(box?.className).toBe("size-3.5 text-muted-foreground");
+  });
+
+  it("leaves the box to React where a click has to open the picker", async () => {
+    document.body.innerHTML = `<div><svg data-icon="Folder"></svg></div>`;
+    const asking: Placement = {
+      ...replacing,
+      find: (root, shared) =>
+        replacing.find(root, shared).map((spot) => ({ ...spot, picker: true })),
+    };
+
+    await start([asking]);
+
+    expect(target()?.querySelector("[data-ribbon-icons-glyph]")).toBeNull();
+  });
+
+  it("changes hands when bb re-renders a row for another project", async () => {
+    // Through `title`, which is one of the attributes a pass watches — bb
+    // reconciles such a row in place rather than replacing it.
+    const titled: Placement = {
+      id: "titled",
+      setting: "showInComposer",
+      find: (root) =>
+        Array.from(
+          root.querySelectorAll<HTMLElement>('svg[data-icon="Folder"]'),
+        ).map((node) => ({
+          owner: { kind: "project", id: node.getAttribute("title") ?? "" },
+          replaces: node,
+        })),
+    };
+    document.body.innerHTML = `<div><svg data-icon="Folder" title="proj_a"></svg></div>`;
+    await start([titled]);
+
+    glyph().setAttribute("title", "proj_b");
+    await vi.waitFor(() =>
+      expect(
+        target()
+          ?.querySelector("[data-ribbon-icons-glyph]")
+          ?.getAttribute("data-ribbon-icons-project"),
+      ).toBe("proj_b"),
+    );
+
+    // One box, changed, rather than a second beside the first.
+    expect(document.querySelectorAll("[data-ribbon-icons-glyph]")).toHaveLength(
+      1,
+    );
+  });
+
   // bb sizes its folder differently from one surface to the next and mutes it
   // on some; the icon standing in wears what bb chose, or it matches none of
   // them.

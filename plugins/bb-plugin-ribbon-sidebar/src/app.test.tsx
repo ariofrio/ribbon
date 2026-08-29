@@ -8,6 +8,7 @@ import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { IconDataV1 } from "./contracts";
+import { ICON_ATTRIBUTE, ICON_OPTIONAL_ATTRIBUTE } from "./icon-styles";
 import type { GroupingKey } from "./placement-store";
 import {
   RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT,
@@ -303,29 +304,6 @@ function options(overrides: Record<string, unknown> = {}) {
           previews: [
             { threadId: "thread-a", preview: "A useful preview" },
           ],
-        })),
-        listEntityIconsV1: vi.fn(async () => ({
-          icons: [
-            {
-              kind: "project" as const,
-              id: "project-a",
-              icon: "custom-project",
-              color: "blue",
-              glyph: [["path", { d: "M2 2h12v12H2z" }]],
-            },
-            {
-              kind: "section" as const,
-              id: "section-a",
-              icon: "custom-section",
-              color: "red",
-              glyph: [["path", { d: "M1 1h14v14H1z" }]],
-            },
-          ],
-          defaults: {
-            project: [],
-            personal: [],
-            section: [],
-          },
         })),
         listProjectActionStatesV1,
         searchThreadIdsV1: vi.fn(async (raw: unknown) => ({
@@ -746,7 +724,7 @@ describe("Ribbon sidebar app", () => {
     expect(open).toBeTruthy();
     expect(slot.getByLabelText("Thread working")).toBeTruthy();
     expect(
-      open.parentElement?.querySelector('[data-project-icon="custom-project"]'),
+      open.parentElement?.querySelector('[data-ribbon-icons-project="project-a"]'),
     ).not.toBeNull();
 
     const collapseChildren = slot.getByRole("button", {
@@ -802,6 +780,33 @@ describe("Ribbon sidebar app", () => {
     expect(slot.getByText("Archive")).toBeTruthy();
     expect(slot.getByText("Delete")).toBeTruthy();
     slot.lifecycle.unmount();
+  });
+
+  it("names each row's owner for the Icons plugin to paint", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+
+    const box = slot.container.querySelector(
+      '[data-ribbon-icons-project="project-a"]',
+    );
+    expect(box).not.toBeNull();
+
+    // The rules and the boxes are written apart, in CSS and in JSX; a rename
+    // on one side would render an empty span forever.
+    const sheet = document.head.querySelector(
+      "style[data-ribbon-sidebar-icons]",
+    )?.textContent;
+    expect(sheet).toContain(`[${ICON_ATTRIBUTE}="project"]`);
+    expect(box?.getAttribute(ICON_ATTRIBUTE)).toBe("project");
+    expect(sheet).toContain(`[${ICON_OPTIONAL_ATTRIBUTE}]{display:none}`);
+    expect(box?.hasAttribute(ICON_OPTIONAL_ATTRIBUTE)).toBe(true);
+
+    slot.lifecycle.unmount();
+    expect(
+      document.head.querySelector("style[data-ribbon-sidebar-icons]"),
+    ).toBeNull();
   });
 
   it("applies provider collapse defaults for a fresh client", async () => {
@@ -1961,12 +1966,13 @@ describe("Ribbon sidebar app", () => {
     );
     fireEvent.click(await slot.findByText("Move to section"));
 
-    const sectionIcon = slot
-      .getByText("Release")
-      .closest('[role="menuitem"]')
-      ?.querySelector("svg");
-    expect(sectionIcon).not.toBeNull();
-    expect(getComputedStyle(sectionIcon!).color).not.toBe("");
+    // jsdom paints nothing, so only the name a row writes is readable here.
+    expect(
+      slot
+        .getByText("Release")
+        .closest('[role="menuitem"]')
+        ?.querySelector('[data-ribbon-icons-section="section-a"]'),
+    ).not.toBeNull();
     expect(
       slot
         .getByText("Unorganized")
@@ -1998,10 +2004,8 @@ describe("Ribbon sidebar app", () => {
     })).querySelector('[data-sidebar="group-label"]')!;
     await waitFor(() =>
       expect(
-        Array.from(releaseHeader.querySelectorAll("svg"), (icon) =>
-          getComputedStyle(icon).color,
-        ),
-      ).toContain("oklch(0.531 0.212 23.5)"),
+        releaseHeader.querySelector('[data-ribbon-icons-section="section-a"]'),
+      ).not.toBeNull(),
     );
     const unorganizedHeader = slot
       .getByRole("region", { name: "Unorganized group" })
@@ -2035,10 +2039,8 @@ describe("Ribbon sidebar app", () => {
       name: "Release group",
     })).querySelector('[data-sidebar="group-label"]')!;
     expect(
-      Array.from(hiddenHeader.querySelectorAll("svg"), (icon) =>
-        getComputedStyle(icon).color,
-      ),
-    ).not.toContain("oklch(0.531 0.212 23.5)");
+      hiddenHeader.querySelector('[data-ribbon-icons-section="section-a"]'),
+    ).toBeNull();
     hiddenSlot.lifecycle.unmount();
   });
 

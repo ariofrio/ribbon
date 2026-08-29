@@ -12,7 +12,7 @@ import {
   FolderLibraryIcon,
 } from "@hugeicons/core-free-icons";
 import type { IconDataV1 } from "./contracts";
-import type { EntityIconView } from "./icons";
+import type { IconFallback } from "./icon-styles";
 import type { GroupingKey } from "./placement-store";
 import {
   serializeScopeFilter,
@@ -85,8 +85,6 @@ interface ThreadFilterProps {
   onRenameProject?: (project: ThreadFilterProject) => void;
   onRenameSection?: (section: ThreadFilterSection) => void;
   projectActionStates?: ReadonlyMap<string, { canAddLocalPath: boolean }>;
-  projectIcons?: ReadonlyMap<string, EntityIconView>;
-  sectionIcons?: ReadonlyMap<string, EntityIconView>;
   projects: readonly ThreadFilterProject[];
   sections: readonly ThreadFilterSection[];
   value: ScopeFilterValue;
@@ -147,8 +145,6 @@ export function ScopeFilter({
   onRenameProject = () => {},
   onRenameSection = () => {},
   projectActionStates = new Map(),
-  projectIcons = new Map(),
-  sectionIcons = new Map(),
   projects,
   sections,
   value,
@@ -193,20 +189,15 @@ export function ScopeFilter({
     if (grouping.groupingKey === "builtin:projects") {
       const project = projects.find(({ id }) => id === groupId);
       return (
-        <ProjectFilterIcon
-          icon={projectIcons.get(groupId)}
-          personal={project?.isPersonal}
+        <ScopeOwnerIcon
+          id={groupId}
+          fallback={project?.isPersonal ? "personal" : "project"}
         />
       );
     }
     if (grouping.groupingKey === "builtin:sections") {
       if (groupId === "unsectioned") return <UnorganizedIcon />;
-      return (
-        <ProjectFilterIcon
-          icon={sectionIcons.get(groupId)}
-          fallback="ListView"
-        />
-      );
+      return <ScopeOwnerIcon id={groupId} fallback="section" />;
     }
     return group?.icon ? (
       <ProviderIcon icon={group.icon} label={`${group.label} icon`} />
@@ -754,34 +745,19 @@ function FilterActionItem({
   );
 }
 
-function ProjectFilterIcon({
-  icon,
-  personal = false,
+/** Empty by design: the box names its owner, and icon-styles.ts paints it. */
+function ScopeOwnerIcon({
+  id,
   fallback,
 }: {
-  icon?: EntityIconView;
-  personal?: boolean;
-  /** Drawn where the owner has no icon of its own. */
-  fallback?: IconName;
+  id: string;
+  fallback: IconFallback;
 }) {
-  if (!icon) {
-    return (
-      <Icon
-        name={fallback ?? (personal ? "MessageSquare" : "Folder")}
-        className="size-4 shrink-0"
-        aria-hidden
-      />
-    );
-  }
-
-  return (
-    <HugeiconsIcon
-      icon={icon.glyph}
-      className="size-4 shrink-0"
-      style={icon.color === null ? undefined : { color: icon.color }}
-      aria-hidden
-    />
-  );
+  const named =
+    fallback === "section"
+      ? { "data-ribbon-icons-section": id }
+      : { "data-ribbon-icons-project": id };
+  return <span aria-hidden data-ribbon-sidebar-icon={fallback} {...named} />;
 }
 
 function ThreadFilterAction({
