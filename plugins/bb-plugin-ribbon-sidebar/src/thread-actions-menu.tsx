@@ -1,11 +1,9 @@
 import type { ReactNode } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import type {
   PluginSidebarThread,
   PluginSidebarThreadActions,
 } from "@get-bb/plugin-sdk/app";
 import type { IconDataV1 } from "./contracts";
-import type { EntityIconView } from "./icons";
 import { ProviderIcon } from "./provider-icon";
 import { UnorganizedIcon } from "./unorganized-icon";
 import {
@@ -69,7 +67,6 @@ interface CommonMenuProps {
   onNewSection(): void;
   onRename(): void;
   onSetSection(sectionId: string | null): void;
-  sectionIcons: ReadonlyMap<string, EntityIconView>;
   sections: readonly { id: string; label: string }[];
   splitAvailable: boolean;
   thread: PluginSidebarThread;
@@ -351,7 +348,7 @@ function ContextSectionMenu(props: CommonMenuProps) {
                   <Icon name="Check" aria-hidden />
                 ) : null}
               </span>
-              <SectionMenuIcon icon={props.sectionIcons.get(section.id)} />
+              <SectionMenuIcon id={section.id} />
               {section.label}
             </ContextMenuItem>
           ))}
@@ -398,7 +395,7 @@ function DropdownSectionMenu(props: CommonMenuProps) {
                   <Icon name="Check" aria-hidden />
                 ) : null}
               </span>
-              <SectionMenuIcon icon={props.sectionIcons.get(section.id)} />
+              <SectionMenuIcon id={section.id} />
               {section.label}
             </DropdownMenuItem>
           ))}
@@ -423,17 +420,10 @@ function DropdownSectionMenu(props: CommonMenuProps) {
   );
 }
 
-function SectionMenuIcon({ icon }: { icon?: EntityIconView }) {
-  if (!icon) {
-    return <Icon name="ListView" className="size-4 shrink-0" aria-hidden />;
-  }
+/** Empty by design: the box names its section, and icon-styles.ts paints it. */
+function SectionMenuIcon({ id }: { id: string }) {
   return (
-    <HugeiconsIcon
-      icon={icon.glyph}
-      className="size-4 shrink-0"
-      style={icon.color === null ? undefined : { color: icon.color }}
-      aria-hidden
-    />
+    <span aria-hidden data-ribbon-icons-section={id} data-ribbon-sidebar-icon="section" />
   );
 }
 
