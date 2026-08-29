@@ -12,7 +12,7 @@ const repositoryRoot = resolve(harnessDirectory, "../..");
 const scratch = join(repositoryRoot, ".scratch/routing-e2e");
 const bb = BB_CLI_PATH;
 
-async function openScopedComposer({ browser, stack, group }) {
+async function openScopedComposer({ browser, stack, group, path = "/" }) {
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     reducedMotion: "reduce",
@@ -65,7 +65,9 @@ async function openScopedComposer({ browser, stack, group }) {
     group,
   );
   const page = await context.newPage();
-  await page.goto(stack.serverUrl, { waitUntil: "domcontentloaded" });
+  await page.goto(new URL(path, stack.serverUrl).href, {
+    waitUntil: "domcontentloaded",
+  });
   await page
     .locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]")
     .waitFor({ timeout: 120_000 });
@@ -107,10 +109,13 @@ async function verifyProjectComposerIsStable({ browser, stack, fixture }) {
 async function verifyStagePlacement({ browser, stack, fixture }) {
   const groupingKey = "plugin:thread-stages:stages";
   const groupId = "Deferred";
+  const project = fixture.projects.get("atlas-api");
+  assert.ok(project, "The routing fixture is missing atlas-api");
   const { context, page, composer } = await openScopedComposer({
     browser,
     stack,
     group: { groupingKey, groupId },
+    path: `/projects/${encodeURIComponent(project.id)}`,
   });
   try {
     const editor = composer.locator('[contenteditable="true"]');
