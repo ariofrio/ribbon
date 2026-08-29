@@ -118,11 +118,24 @@ async function verifyStagePlacement({ browser, stack, fixture }) {
     path: `/projects/${encodeURIComponent(project.id)}`,
   });
   try {
+    const environmentButton = composer.getByRole("button", {
+      name: "Environment",
+    });
+    const environmentChoice = page.getByRole("menuitem", {
+      name: /^Work (locally|remotely)/,
+    });
+    await environmentButton.click();
+    await environmentChoice.click();
+    await environmentChoice.waitFor({ state: "hidden" });
+    await environmentButton
+      .filter({ hasText: /Work (locally|remotely)/ })
+      .waitFor();
+    await composer.getByRole("button", { name: "Submit (Enter)" }).waitFor();
     const editor = composer.locator('[contenteditable="true"]');
     const prompt =
       "Investigate why webhook retries stall after the third attempt.";
     await editor.click();
-    await editor.pressSequentially(prompt);
+    await editor.pressSequentially(prompt, { delay: 10 });
     assert.equal(await editor.textContent(), prompt);
     await composer
       .locator('[data-promptbox-submit-action][type="submit"]')
