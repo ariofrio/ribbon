@@ -8,7 +8,11 @@ import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { IconDataV1 } from "./contracts";
-import { ICON_ATTRIBUTE, ICON_OPTIONAL_ATTRIBUTE } from "./icon-styles";
+import {
+  ICON_ATTRIBUTE,
+  ICON_LAYOUT_ATTRIBUTE,
+  ICON_OPTIONAL_ATTRIBUTE,
+} from "./icon-styles";
 import type { GroupingKey } from "./placement-store";
 import {
   RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT,
@@ -979,6 +983,7 @@ describe("Ribbon sidebar app", () => {
     )?.textContent;
     expect(sheet).toContain(`[${ICON_ATTRIBUTE}="project"]`);
     expect(box?.getAttribute(ICON_ATTRIBUTE)).toBe("project");
+    expect(box?.parentElement?.hasAttribute(ICON_LAYOUT_ATTRIBUTE)).toBe(true);
     expect(sheet).toContain(`[${ICON_OPTIONAL_ATTRIBUTE}]{display:none}`);
     expect(box?.hasAttribute(ICON_OPTIONAL_ATTRIBUTE)).toBe(true);
 

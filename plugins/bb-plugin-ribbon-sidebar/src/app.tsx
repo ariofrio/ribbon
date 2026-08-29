@@ -48,7 +48,11 @@ import {
 } from "./vendor/components/ui/dialog";
 import { Input } from "./vendor/components/ui/input";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
-import { publishIconStyles, type IconFallback } from "./icon-styles";
+import {
+  ICON_LAYOUT_ATTRIBUTE,
+  publishIconStyles,
+  type IconFallback,
+} from "./icon-styles";
 import {
   ThreadActionsContextMenu,
   ThreadActionsDropdown,
@@ -353,7 +357,10 @@ function ThreadRow({
           href={`/projects/${encodeURIComponent(thread.projectId)}/threads/${encodeURIComponent(thread.id)}`}
           onClick={openThread}
         />
-        <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 py-[calc((var(--bb-sidebar-row-height)-1lh)/2)] max-md:pointer-coarse:py-[calc((var(--bb-sidebar-row-height-coarse)-1lh)/2)]">
+        <span
+          className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 py-[calc((var(--bb-sidebar-row-height)-1lh)/2)] max-md:pointer-coarse:py-[calc((var(--bb-sidebar-row-height-coarse)-1lh)/2)]"
+          {...{ [ICON_LAYOUT_ATTRIBUTE]: "" }}
+        >
           {/* Empty by design: the box names its project, and icon-styles.ts
               paints it. Without that plugin the box collapses. */}
           <span
