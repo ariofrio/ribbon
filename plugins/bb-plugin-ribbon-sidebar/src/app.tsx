@@ -319,7 +319,11 @@ function ThreadRow({
         />
       ) : null}
       <div
-        className={`bb-sidebar-hover-actions-row group/thread-row relative flex w-full items-center gap-2 rounded-md py-1 pr-0 text-sm transition-colors max-md:pointer-coarse:py-2.5 ${
+        className={`bb-sidebar-hover-actions-row group/thread-row relative grid w-full items-start rounded-md pr-0 text-sm transition-colors ${
+          hasTrailingIndicator
+            ? "grid-cols-[minmax(0,1fr)_auto] gap-x-2"
+            : "grid-cols-1"
+        } ${
           active
             ? "bg-state-active text-sidebar-foreground"
             : "cursor-pointer text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:text-sidebar-foreground"
@@ -349,110 +353,111 @@ function ThreadRow({
           href={`/projects/${encodeURIComponent(thread.projectId)}/threads/${encodeURIComponent(thread.id)}`}
           onClick={openThread}
         />
-        <span className="flex min-w-0 flex-1 items-start gap-2">
+        <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] grid-rows-[var(--bb-sidebar-row-height)_auto] gap-x-2 max-md:pointer-coarse:grid-rows-[var(--bb-sidebar-row-height-coarse)_auto]">
+          {/* Empty by design: the box names its project, and icon-styles.ts
+              paints it. Without that plugin the box collapses. */}
           <span
-            className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] gap-x-2"
-          >
-            {/* Empty by design: the box names its project, and icon-styles.ts
-                paints it. Without that plugin the box collapses. */}
-            <span
-              aria-hidden
-              className="col-start-1 row-start-1 self-center"
-              data-ribbon-icons-project={thread.projectId}
-              data-ribbon-sidebar-icon={
-                thread.projectId === PERSONAL_PROJECT_ID ? "personal" : "project"
-              }
-              data-ribbon-sidebar-icon-optional=""
-            />
-            <span
-              className="col-start-2 row-start-1 truncate leading-5"
-              title={accessibleTitle}
-            >
+            aria-hidden
+            className="col-start-1 row-start-1 self-center"
+            data-ribbon-icons-project={thread.projectId}
+            data-ribbon-sidebar-icon={
+              thread.projectId === PERSONAL_PROJECT_ID ? "personal" : "project"
+            }
+            data-ribbon-sidebar-icon-optional=""
+          />
+          <span className="col-start-2 row-start-1 flex min-w-0 items-center gap-1.5">
+            <span className="min-w-0 truncate" title={accessibleTitle}>
               {rowTitle}
             </span>
-            {preview ? (
-              <span
-                className="col-start-2 row-start-2 truncate text-[11px] leading-4 text-subtle-foreground/75"
-                title={preview}
+            {hasChildren ? (
+              <button
+                aria-expanded={!childrenCollapsed}
+                aria-label={childrenCollapsed ? `Expand ${rowTitle} threads` : `Collapse ${rowTitle} threads`}
+                className="bb-sidebar-hover-actions relative z-20 inline-flex size-5 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onToggleChildren();
+                }}
+                type="button"
               >
-                {preview}
-              </span>
+                <Icon name="ChevronRight" className={`size-3 transition-transform duration-150 ${childrenCollapsed ? "" : "rotate-90"}`} aria-hidden />
+              </button>
             ) : null}
           </span>
-          {hasChildren ? (
-            <button
-              aria-expanded={!childrenCollapsed}
-              aria-label={childrenCollapsed ? `Expand ${rowTitle} threads` : `Collapse ${rowTitle} threads`}
-              className="bb-sidebar-hover-actions relative z-20 inline-flex size-5 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                onToggleChildren();
-              }}
-              type="button"
-            >
-              <Icon name="ChevronRight" className={`size-3 transition-transform duration-150 ${childrenCollapsed ? "" : "rotate-90"}`} aria-hidden />
-            </button>
-          ) : null}
-        </span>
-        <span
-          className={`relative -my-1 flex shrink-0 self-stretch items-center justify-end max-md:pointer-coarse:-my-2.5 ${
-            hasTrailingIndicator
-              ? "w-7 max-md:pointer-coarse:w-9"
-              : "w-0"
-          }`}
-        >
-          <span
-            className="bb-sidebar-hover-actions-fade absolute inset-0 flex items-center justify-center text-subtle-foreground"
-            data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
-          >
-            {layout ? (
-              <span
-                className="inline-flex size-4 items-center justify-center"
-                data-sidebar-thread-trailing-indicator=""
-              >
-                <SplitPaneMiniMap
-                  active={[
-                    "working-draft",
-                    "workflow",
-                    "background-agent",
-                    "background-command",
-                    "plan-mode",
-                    "goal",
-                    "runtime",
-                  ].includes(indicatorThread.indicator)}
-                  label={
-                    indicatorThread.indicatorLabel
-                      ? `${rowTitle} — open in split; ${indicatorThread.indicatorLabel}`
-                      : `${rowTitle} — open in split`
-                  }
-                  layout={layout}
-                />
-              </span>
-            ) : indicatorThread.indicator !== "none" ? (
-              <span
-                className="inline-flex size-4 items-center justify-center"
-                data-sidebar-thread-trailing-indicator=""
-              >
-                <ThreadIndicator
-                  indicator={indicatorThread.indicator}
-                  label={indicatorThread.indicatorLabel}
-                />
-              </span>
-            ) : null}
-          </span>
-          {!thread.isArchived ? (
+          {preview ? (
             <span
-              className="bb-sidebar-hover-actions absolute inset-y-0 right-0 z-10 flex w-7 items-center justify-end max-md:pointer-coarse:hidden"
-              data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
+              className="col-start-2 row-start-2 truncate text-[11px] leading-4 text-subtle-foreground/75"
+              title={preview}
             >
-              <ThreadActionsDropdown
-                {...commonMenuProps}
-                onOpenChange={setDropdownOpen}
-              />
+              {preview}
             </span>
           ) : null}
         </span>
+        {hasTrailingIndicator ? (
+          <span className="relative flex h-[var(--bb-sidebar-row-height)] w-7 shrink-0 items-center justify-end max-md:pointer-coarse:h-[var(--bb-sidebar-row-height-coarse)] max-md:pointer-coarse:w-9">
+            <span
+              className="bb-sidebar-hover-actions-fade absolute inset-0 flex items-center justify-center text-subtle-foreground"
+              data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
+            >
+              {layout ? (
+                <span
+                  className="inline-flex size-4 items-center justify-center"
+                  data-sidebar-thread-trailing-indicator=""
+                >
+                  <SplitPaneMiniMap
+                    active={[
+                      "working-draft",
+                      "workflow",
+                      "background-agent",
+                      "background-command",
+                      "plan-mode",
+                      "goal",
+                      "runtime",
+                    ].includes(indicatorThread.indicator)}
+                    label={
+                      indicatorThread.indicatorLabel
+                        ? `${rowTitle} — open in split; ${indicatorThread.indicatorLabel}`
+                        : `${rowTitle} — open in split`
+                    }
+                    layout={layout}
+                  />
+                </span>
+              ) : (
+                <span
+                  className="inline-flex size-4 items-center justify-center"
+                  data-sidebar-thread-trailing-indicator=""
+                >
+                  <ThreadIndicator
+                    indicator={indicatorThread.indicator}
+                    label={indicatorThread.indicatorLabel}
+                  />
+                </span>
+              )}
+            </span>
+            {!thread.isArchived ? (
+              <span
+                className="bb-sidebar-hover-actions absolute inset-y-0 right-0 z-10 flex w-7 items-center justify-end max-md:pointer-coarse:hidden"
+                data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
+              >
+                <ThreadActionsDropdown
+                  {...commonMenuProps}
+                  onOpenChange={setDropdownOpen}
+                />
+              </span>
+            ) : null}
+          </span>
+        ) : !thread.isArchived ? (
+          <span
+            className="bb-sidebar-hover-actions absolute right-0 top-0 z-10 col-start-1 row-start-1 flex h-[var(--bb-sidebar-row-height)] w-7 items-center justify-end max-md:pointer-coarse:hidden max-md:pointer-coarse:h-[var(--bb-sidebar-row-height-coarse)] max-md:pointer-coarse:w-9"
+            data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
+          >
+            <ThreadActionsDropdown
+              {...commonMenuProps}
+              onOpenChange={setDropdownOpen}
+            />
+          </span>
+        ) : null}
       </div>
     </li>
   );
