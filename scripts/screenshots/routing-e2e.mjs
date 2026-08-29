@@ -114,12 +114,14 @@ async function verifyStagePlacement({ browser, stack, fixture }) {
   });
   try {
     const editor = composer.locator('[contenteditable="true"]');
-    await editor.fill(
-      "Investigate why webhook retries stall after the third attempt.",
-    );
+    const prompt =
+      "Investigate why webhook retries stall after the third attempt.";
+    await editor.click();
+    await editor.pressSequentially(prompt);
+    assert.equal(await editor.textContent(), prompt);
     await composer
       .locator('[data-promptbox-submit-action][type="submit"]')
-      .click();
+      .click({ timeout: 120_000 });
     await page.waitForURL(/\/threads\/[^/]+/, { timeout: 120_000 });
     const threadId = new URL(page.url()).pathname.match(/\/threads\/([^/]+)/)?.[1];
     assert.ok(threadId, `Could not read the created thread ID from ${page.url()}`);
