@@ -4,7 +4,7 @@ import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { chromium } from "playwright";
-import { seed, writeManagedConfig } from "./fixture.mjs";
+import { AGENT, seed, writeManagedConfig } from "./fixture.mjs";
 import { BB_CLI_PATH, startStack } from "./stack.mjs";
 
 const harnessDirectory = dirname(fileURLToPath(import.meta.url));
@@ -18,7 +18,7 @@ async function openScopedComposer({ browser, stack, group, path = "/" }) {
     reducedMotion: "reduce",
   });
   await context.addInitScript(
-    ({ groupingKey, groupId }) => {
+    ({ groupingKey, groupId, providerId, modelId }) => {
       window.localStorage.setItem(
         "bb.plugin.ribbon-sidebar.preferences.v1",
         JSON.stringify({
@@ -32,6 +32,11 @@ async function openScopedComposer({ browser, stack, group, path = "/" }) {
       window.localStorage.setItem(
         "bb.sidebar.threadListProvider",
         JSON.stringify("ribbon-sidebar/ribbon-sidebar"),
+      );
+      window.localStorage.setItem("bb.promptbox.provider", providerId);
+      window.localStorage.setItem(
+        `bb.promptbox.model-${encodeURIComponent(providerId)}-1`,
+        modelId,
       );
       window.__routingE2e = { composers: 0 };
       document.addEventListener(
@@ -62,7 +67,11 @@ async function openScopedComposer({ browser, stack, group, path = "/" }) {
         { once: true },
       );
     },
-    group,
+    {
+      ...group,
+      providerId: `acp-${AGENT.id}`,
+      modelId: AGENT.modelId,
+    },
   );
   const page = await context.newPage();
   await page.goto(new URL(path, stack.serverUrl).href, {
@@ -130,6 +139,10 @@ async function verifyStagePlacement({ browser, stack, fixture }) {
     await environmentButton
       .filter({ hasText: /Work (locally|remotely)/ })
       .waitFor();
+    const modelButton = composer.getByRole("button", {
+      name: /Provider, model and reasoning/,
+    });
+    await modelButton.filter({ hasText: AGENT.modelName }).waitFor();
     await composer.getByRole("button", { name: "Submit (Enter)" }).waitFor();
     const editor = composer.locator('[contenteditable="true"]');
     const prompt =
