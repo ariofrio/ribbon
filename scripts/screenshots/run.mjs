@@ -13,6 +13,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capture } from "./capture.mjs";
 import { applyPluginState, seed, writeManagedConfig } from "./fixture.mjs";
+import { verifyNewThreadRouting } from "./routing-e2e.mjs";
 import { setupScreenshots, SHOTS } from "./shots.mjs";
 import { BB_CLI_PATH, startStack } from "./stack.mjs";
 
@@ -117,6 +118,11 @@ try {
   console.log("Capturing…");
   const captured = await timePhase("capture", () =>
     capture({ stack, fixture, shots, shotFiles, repositoryRoot }),
+  );
+
+  console.log("Verifying New thread routing…");
+  await timePhase("New thread routing", () =>
+    verifyNewThreadRouting({ stack, fixture }),
   );
 
   console.log(

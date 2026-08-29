@@ -7,6 +7,8 @@ export const RIBBON_SIDEBAR_NEW_THREAD_GROUP_REQUESTED_EVENT =
   "bb.ribbon-sidebar.new-thread-group-requested";
 export const RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT =
   "bb.ribbon-sidebar.new-thread-project-requested";
+export const RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE =
+  "data-ribbon-sidebar-pending-new-thread-project";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -107,11 +109,14 @@ function selectComposeSection(
   target.dispatchEvent(new PopStateEvent("popstate", { state }));
 }
 
-function requestComposeProject(target: Window, group: GroupRef | null): void {
-  if (group?.groupingKey !== "builtin:projects") return;
+function requestComposeProject(target: Window, projectId: string): void {
+  target.document.documentElement.setAttribute(
+    RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
+    projectId,
+  );
   target.dispatchEvent(
     new CustomEvent(RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT, {
-      detail: group.groupId,
+      detail: projectId,
     }),
   );
 }
@@ -120,6 +125,31 @@ export function mountGroupAwareThreadCreation(
   target: Window,
 ): () => void {
   const initializedComposers = new WeakSet<HTMLElement>();
+  let requestedProjectId: string | null = null;
+  const clearPendingProjectRequest = () => {
+    if (
+      target.document.documentElement.getAttribute(
+        RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
+      ) === requestedProjectId
+    ) {
+      target.document.documentElement.removeAttribute(
+        RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
+      );
+    }
+  };
+  const syncComposeProject = (group: GroupRef | null) => {
+    const projectId =
+      group?.groupingKey === "builtin:projects" ? group.groupId : null;
+    if (projectId === null) {
+      clearPendingProjectRequest();
+      requestedProjectId = null;
+      return;
+    }
+    if (requestedProjectId === projectId) return;
+    clearPendingProjectRequest();
+    requestedProjectId = projectId;
+    requestComposeProject(target, projectId);
+  };
   const syncComposers = (composers: readonly HTMLElement[]) => {
     let discoveredComposer = false;
     for (const composer of composers) {
@@ -130,7 +160,7 @@ export function mountGroupAwareThreadCreation(
     if (!discoveredComposer) return;
     const group = selectedGroup(target.localStorage);
     if (group === undefined) return;
-    requestComposeProject(target, group);
+    syncComposeProject(group);
     selectComposeSection(
       target,
       group?.groupingKey === "builtin:sections"
@@ -148,7 +178,7 @@ export function mountGroupAwareThreadCreation(
     if (group === undefined || newThreadComposers(target).length === 0) {
       return;
     }
-    requestComposeProject(target, group);
+    syncComposeProject(group);
     selectComposeSection(
       target,
       group?.groupingKey === "builtin:sections"
@@ -162,7 +192,10 @@ export function mountGroupAwareThreadCreation(
     if (!(event.target instanceof HTMLFormElement)) return;
     const form = event.target;
     const isNewThreadForm = newThreadComposers(target).some(
-      (composer) => composer === form || form.contains(composer),
+      (composer) =>
+        composer === form ||
+        form.contains(composer) ||
+        composer.contains(form),
     );
     if (!isNewThreadForm) return;
     const group = selectedGroup(target.localStorage);
@@ -190,6 +223,7 @@ export function mountGroupAwareThreadCreation(
 
   return () => {
     observer.disconnect();
+    clearPendingProjectRequest();
     target.removeEventListener(
       RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT,
       syncOpenComposers,

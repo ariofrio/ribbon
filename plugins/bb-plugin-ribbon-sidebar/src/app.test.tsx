@@ -471,9 +471,11 @@ describe("Ribbon sidebar app", () => {
 
   it("captures a selected provider group when the New thread form is submitted", async () => {
     storeGroupScope("plugin:thread-stages:stages", "Active");
-    document.body.innerHTML = `<form data-app-composer data-app-composer-role="primary">
-      <button data-promptbox-project-control>Project</button>
-    </form>`;
+    document.body.innerHTML = `<div data-app-composer data-app-composer-role="primary">
+      <form data-promptbox>
+        <button data-promptbox-project-control>Project</button>
+      </form>
+    </div>`;
     const requested: unknown[] = [];
     window.addEventListener("bb.ribbon-sidebar.new-thread-group-requested", (event) => {
       requested.push((event as CustomEvent).detail);
@@ -515,6 +517,66 @@ describe("Ribbon sidebar app", () => {
     );
 
     await waitFor(() => expect(requested).toEqual(["project-a"]));
+    await scripts.lifecycle.dispose();
+  });
+
+  it("requests a selected Project only once across composer remounts", async () => {
+    storeGroupScope("builtin:projects", "project-a");
+    const requested: unknown[] = [];
+    const capture = (event: Event) => {
+      const projectId = (event as CustomEvent).detail;
+      requested.push(projectId);
+    };
+    window.addEventListener(
+      "bb.ribbon-sidebar.new-thread-project-requested",
+      capture,
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "ribbon-sidebar",
+      generation: 1,
+    });
+
+    for (let mount = 0; mount < 2; mount += 1) {
+      document.body.innerHTML = `<div data-app-composer data-app-composer-role="primary">
+        <button data-promptbox-project-control>Project</button>
+      </div>`;
+      await new Promise<void>((resolve) => queueMicrotask(resolve));
+    }
+
+    expect(requested).toEqual(["project-a"]);
+    await scripts.lifecycle.dispose();
+    window.removeEventListener(
+      "bb.ribbon-sidebar.new-thread-project-requested",
+      capture,
+    );
+  });
+
+  it("delivers a pending Project request when Ribbon mounts later", async () => {
+    storeGroupScope("builtin:projects", "project-a");
+    document.body.innerHTML = `<div data-app-composer data-app-composer-role="primary">
+      <button data-promptbox-project-control>Project</button>
+    </div>`;
+    const app = await loadPluginApp(() => import("./app"));
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "ribbon-sidebar",
+      generation: 1,
+    });
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    await waitFor(() =>
+      expect(slot.inspection.sidebarActionCalls).toContainEqual({
+        method: "openNewThread",
+        options: { projectId: "project-a", focusPrompt: true },
+      }),
+    );
+    expect(
+      document.documentElement.hasAttribute(
+        "data-ribbon-sidebar-pending-new-thread-project",
+      ),
+    ).toBe(false);
+    slot.lifecycle.unmount();
     await scripts.lifecycle.dispose();
   });
 

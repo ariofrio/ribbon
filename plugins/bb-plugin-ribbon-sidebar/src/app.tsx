@@ -74,6 +74,7 @@ import {
 import {
   mountGroupAwareThreadCreation,
   RIBBON_SIDEBAR_NEW_THREAD_GROUP_REQUESTED_EVENT,
+  RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
   RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT,
   RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT,
 } from "./new-thread-section";
@@ -765,6 +766,15 @@ function RibbonSidebarList({
     const capture = (event: Event) => {
       const projectId = (event as CustomEvent<unknown>).detail;
       if (typeof projectId === "string" && projectId.length > 0) {
+        if (
+          document.documentElement.getAttribute(
+            RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
+          ) === projectId
+        ) {
+          document.documentElement.removeAttribute(
+            RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
+          );
+        }
         setPendingComposerProjectId(projectId);
       }
     };
@@ -772,6 +782,16 @@ function RibbonSidebarList({
       RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT,
       capture,
     );
+    const pendingProjectId = document.documentElement.getAttribute(
+      RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
+    );
+    if (pendingProjectId !== null) {
+      capture(
+        new CustomEvent(RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT, {
+          detail: pendingProjectId,
+        }),
+      );
+    }
     return () => {
       window.removeEventListener(
         RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT,

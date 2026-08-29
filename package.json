@@ -19,6 +19,7 @@
     "prepare": "git config --local core.hooksPath .githooks || true",
     "screenshots": "node scripts/require-node.mjs && node scripts/screenshots/run.mjs",
     "test": "node --test scripts/*.test.mjs scripts/screenshots/*.test.mjs",
+    "test:routing-e2e": "node scripts/require-node.mjs && node scripts/screenshots/routing-e2e.mjs",
     "version:plugins": "changeset version && node scripts/sync-plugin-lockfiles.mjs"
   },
   "devDependencies": {
