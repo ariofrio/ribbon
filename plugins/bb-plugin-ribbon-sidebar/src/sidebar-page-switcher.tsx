@@ -103,6 +103,7 @@ export function SidebarPageSwitcher({
       minimumTarget,
       Math.min(maximumTarget, rawTargetIndex),
     );
+    wheelGestureOrigin.current = null;
     if (targetIndex !== activeIndex) {
       onPageChange(pages[targetIndex]!.id);
     } else {
