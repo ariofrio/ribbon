@@ -70,6 +70,11 @@ import {
   type HeaderGroupActions,
 } from "./group-header-menu";
 import {
+  SidebarPageSwitcher,
+  type SidebarPage,
+} from "./sidebar-page-switcher";
+import { ScopeGroupIcon } from "./scope-group-icon";
+import {
   mountGroupAwareThreadCreation,
   RIBBON_SIDEBAR_NEW_THREAD_GROUP_REQUESTED_EVENT,
   RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
@@ -1198,6 +1203,49 @@ function RibbonSidebarList({
     preferences?.view.scope.kind === "group"
       ? preferences.view.scope.group
       : null;
+  const pagesGrouping = snapshot?.groupings.find(
+    ({ groupingKey }) =>
+      groupingKey === preferences?.view.filterGroupingKey,
+  );
+  const sidebarPages = useMemo<readonly SidebarPage[]>(() => {
+    const pages: SidebarPage[] = [
+      {
+        id: null,
+        label: "All groups",
+        icon: <Icon aria-hidden className="size-4" name="Layers" />,
+      },
+      ...(pagesGrouping?.groups.map((group) => ({
+        id: group.id,
+        label: group.label,
+        icon: (
+          <ScopeGroupIcon
+            group={group}
+            groupingKey={pagesGrouping.groupingKey}
+            projects={sidebar.projects}
+          />
+        ),
+      })) ?? []),
+    ];
+    if (
+      activeScope !== null &&
+      pagesGrouping !== undefined &&
+      activeScope.groupingKey === pagesGrouping.groupingKey &&
+      !pages.some(({ id }) => id === activeScope.groupId)
+    ) {
+      pages.push({
+        id: activeScope.groupId,
+        label: `${activeScope.groupId} (unavailable)`,
+        icon: <Icon aria-hidden className="size-4" name="Workflow" />,
+      });
+    }
+    return pages;
+  }, [activeScope, pagesGrouping, sidebar.projects]);
+  const activePageId =
+    activeScope !== null &&
+    pagesGrouping !== undefined &&
+    activeScope.groupingKey === pagesGrouping.groupingKey
+      ? activeScope.groupId
+      : null;
 
   const submitEntityName = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -1634,7 +1682,7 @@ function RibbonSidebarList({
 
   return (
     <div
-      className="relative flex w-full min-w-0 flex-col"
+      className="relative flex min-h-full w-full min-w-0 flex-col"
       data-sidebar="group"
       data-sidebar-sticky-density="compact-actions"
       data-sidebar-sticky-stack=""
@@ -1915,6 +1963,27 @@ function RibbonSidebarList({
         </DialogContent>
       </Dialog>
 
+      <SidebarPageSwitcher
+        activePageId={activePageId}
+        onPageChange={(pageId) =>
+          changePreferences((current) => ({
+            ...current,
+            view: changeSidebarScope(
+              current.view,
+              pageId === null || pagesGrouping === undefined
+                ? { kind: "all" }
+                : {
+                    kind: "group",
+                    group: {
+                      groupingKey: pagesGrouping.groupingKey as GroupingKey,
+                      groupId: pageId,
+                    },
+                  },
+            ),
+          }))
+        }
+        pages={sidebarPages}
+      >
       {normalizedSearch && searchResult.status === "loading" ? (
         <SidebarMessage icon="Loading" loading>
           Searching threads…
@@ -2318,6 +2387,7 @@ function RibbonSidebarList({
       })}
         </div>
       )}
+      </SidebarPageSwitcher>
     </div>
   );
 }

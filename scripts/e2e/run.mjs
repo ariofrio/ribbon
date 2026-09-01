@@ -7,6 +7,7 @@ import {
   verifyNewThreadRouting,
   waitForStageCatalog,
 } from "./ribbon-sidebar/new-thread-routing.mjs";
+import { verifyPageSwitching } from "./ribbon-sidebar/page-switching.mjs";
 import { seed, writeManagedConfig } from "../screenshots/fixture.mjs";
 import { BB_CLI_PATH, startStack } from "../screenshots/stack.mjs";
 
@@ -23,6 +24,14 @@ const suites = [
     plugins: ["bb-plugin-breadcrumbs"],
     async run({ stack, fixture }) {
       await verifyBreadcrumbChildBadge({ stack, fixture });
+    },
+  },
+  {
+    id: "page-switching",
+    cases: ["click-and-swipe"],
+    plugins: ["bb-plugin-ribbon-sidebar"],
+    async run({ stack }) {
+      await verifyPageSwitching({ stack });
     },
   },
   {
