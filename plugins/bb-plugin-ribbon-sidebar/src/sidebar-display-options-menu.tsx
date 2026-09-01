@@ -145,7 +145,9 @@ export function SidebarDisplayOptionsMenu({
               <DropdownMenuTrigger asChild>
                 <button
                   aria-label="Sidebar display options"
-                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none ring-sidebar-ring transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-foreground"
+                  className="bb-sidebar-hover-actions inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none ring-sidebar-ring transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-foreground"
+                  data-sidebar-hover-actions-mobile="always"
+                  data-sidebar-hover-actions-open={open ? "true" : undefined}
                   type="button"
                 >
                   <Icon aria-hidden className="size-4" name="SlidersHorizontal" />

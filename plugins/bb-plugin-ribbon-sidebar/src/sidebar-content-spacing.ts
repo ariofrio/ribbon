@@ -1,9 +1,6 @@
 const RIBBON_SIDEBAR_ROOT_SELECTOR = "[data-ribbon-sidebar-root]";
 const SIDEBAR_CONTENT_SELECTOR = '[data-sidebar="content"]';
 const SIDEBAR_NAV_SELECTOR = '[data-testid="plugin-nav-sidebar-items"]';
-const STICKY_STACK_PADDING_TOP_PROPERTY =
-  "--bb-sidebar-sticky-stack-padding-top";
-
 interface InlineStyleValue {
   priority: string;
   value: string;
@@ -34,16 +31,17 @@ function restoreInlineStyle(
 export function mountSidebarContentSpacing(signal: AbortSignal): () => void {
   let disposed = false;
   let styledRoot: HTMLElement | null = null;
+  let styledContent: HTMLElement | null = null;
   let styledNav: HTMLElement | null = null;
-  let previousRootPaddingTop: InlineStyleValue | null = null;
+  let previousContentOverflowX: InlineStyleValue | null = null;
   let previousNavPaddingBottom: InlineStyleValue | null = null;
 
   function restore(): void {
-    if (styledRoot !== null && previousRootPaddingTop !== null) {
+    if (styledContent !== null && previousContentOverflowX !== null) {
       restoreInlineStyle(
-        styledRoot,
-        STICKY_STACK_PADDING_TOP_PROPERTY,
-        previousRootPaddingTop,
+        styledContent,
+        "overflow-x",
+        previousContentOverflowX,
       );
     }
     if (styledNav !== null && previousNavPaddingBottom !== null) {
@@ -54,8 +52,9 @@ export function mountSidebarContentSpacing(signal: AbortSignal): () => void {
       );
     }
     styledRoot = null;
+    styledContent = null;
     styledNav = null;
-    previousRootPaddingTop = null;
+    previousContentOverflowX = null;
     previousNavPaddingBottom = null;
   }
 
@@ -64,27 +63,34 @@ export function mountSidebarContentSpacing(signal: AbortSignal): () => void {
     const nextRoot = document.querySelector<HTMLElement>(
       RIBBON_SIDEBAR_ROOT_SELECTOR,
     );
-    const nextContent = nextRoot?.closest<HTMLElement>(SIDEBAR_CONTENT_SELECTOR);
+    const nextContent =
+      nextRoot?.closest<HTMLElement>(SIDEBAR_CONTENT_SELECTOR) ?? null;
     const previousSibling = nextContent?.previousElementSibling;
     const nextNav =
       previousSibling instanceof HTMLElement &&
       previousSibling.matches(SIDEBAR_NAV_SELECTOR)
         ? previousSibling
         : null;
-    if (nextRoot === styledRoot && nextNav === styledNav) return;
+    if (
+      nextRoot === styledRoot &&
+      nextContent === styledContent &&
+      nextNav === styledNav
+    ) {
+      return;
+    }
 
     restore();
-    if (nextRoot === null || nextNav === null) return;
+    if (nextRoot === null || nextContent === null) return;
 
     styledRoot = nextRoot;
+    styledContent = nextContent;
     styledNav = nextNav;
-    previousRootPaddingTop = readInlineStyle(
-      nextRoot,
-      STICKY_STACK_PADDING_TOP_PROPERTY,
-    );
-    previousNavPaddingBottom = readInlineStyle(nextNav, "padding-bottom");
-    nextRoot.style.setProperty(STICKY_STACK_PADDING_TOP_PROPERTY, "0px");
-    nextNav.style.setProperty("padding-bottom", "0px");
+    previousContentOverflowX = readInlineStyle(nextContent, "overflow-x");
+    nextContent.style.setProperty("overflow-x", "hidden");
+    if (nextNav !== null) {
+      previousNavPaddingBottom = readInlineStyle(nextNav, "padding-bottom");
+      nextNav.style.setProperty("padding-bottom", "0px");
+    }
   }
 
   const observer = new MutationObserver(sync);

@@ -213,7 +213,7 @@ export function ScopeFilter({
 
   function switcherIcon() {
     const tileClass =
-      "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-white [&_svg]:text-white";
+      "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-primary-foreground [&_svg]:text-primary-foreground";
     if (
       activeGrouping?.groupingKey === "builtin:projects" &&
       activeGroup
@@ -226,7 +226,7 @@ export function ScopeFilter({
           data-ribbon-icons-project={activeGroup.id}
           style={{
             backgroundColor:
-              "var(--ribbon-icons-project-color, var(--sidebar-primary))",
+              "var(--ribbon-icons-project-color, var(--primary))",
           }}
         >
           <span
@@ -234,7 +234,7 @@ export function ScopeFilter({
             data-ribbon-sidebar-icon={
               project?.isPersonal ? "personal" : "project"
             }
-            style={{ backgroundColor: "white" }}
+            style={{ backgroundColor: "var(--primary-foreground)" }}
           />
         </span>
       );
@@ -252,7 +252,7 @@ export function ScopeFilter({
             : { "data-ribbon-icons-section": activeGroup.id })}
           style={{
             backgroundColor:
-              "var(--ribbon-icons-section-color, var(--sidebar-primary))",
+              "var(--ribbon-icons-section-color, var(--primary))",
           }}
         >
           {activeGroup.id === "unsectioned" ? (
@@ -261,7 +261,7 @@ export function ScopeFilter({
             <span
               data-ribbon-icons-section={activeGroup.id}
               data-ribbon-sidebar-icon="section"
-              style={{ backgroundColor: "white" }}
+              style={{ backgroundColor: "var(--primary-foreground)" }}
             />
           )}
         </span>
@@ -270,7 +270,7 @@ export function ScopeFilter({
     return (
       <span
         aria-hidden
-        className={`${tileClass} bg-sidebar-primary text-sidebar-primary-foreground`}
+        className={`${tileClass} bg-primary`}
       >
         {activeGrouping && activeGroup
           ? groupIcon(activeGrouping, activeGroup.id)
@@ -432,17 +432,17 @@ export function ScopeFilter({
                 ? `${scopeLabel}, Pages by ${pagesLabel}`
                 : `${activeLabel}, filtered`
             }
-            className="thread-filter-trigger flex h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-1.5 text-sidebar-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[state=open]:bg-state-active data-[state=open]:text-sidebar-foreground dark:text-sidebar-foreground"
+            className="thread-filter-trigger flex h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 text-sidebar-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[state=open]:bg-state-active data-[state=open]:text-sidebar-foreground dark:text-sidebar-foreground"
           >
             {switcherIcon()}
             <span
               data-thread-filter-label-cluster=""
-              className="flex min-w-0 flex-1 flex-col items-start justify-center leading-tight"
+              className="flex min-w-0 flex-col items-start justify-center leading-tight"
             >
               <span data-thread-filter-label="" className="max-w-full truncate text-sm font-medium">
                 {activeLabel ?? scopeLabel}
               </span>
-              <span className="max-w-full truncate text-xs text-muted-foreground">
+              <span className="max-w-full truncate text-xs text-subtle-foreground/75">
                 {activeGrouping?.singularLabel ?? pagesLabel}
               </span>
             </span>
