@@ -213,7 +213,9 @@ export function ScopeFilter({
 
   function switcherIcon() {
     const tileClass =
-      "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-primary-foreground [&_svg]:text-primary-foreground";
+      "inline-flex size-8 shrink-0 items-center justify-center rounded-lg";
+    const semanticIconClass =
+      `${tileClass} text-primary-foreground [&_svg]:text-primary-foreground`;
     if (
       activeGrouping?.groupingKey === "builtin:projects" &&
       activeGroup
@@ -222,11 +224,11 @@ export function ScopeFilter({
       return (
         <span
           aria-hidden
-          className={tileClass}
+          className={semanticIconClass}
           data-ribbon-icons-project={activeGroup.id}
           style={{
             backgroundColor:
-              "var(--ribbon-icons-project-color, var(--primary))",
+              "var(--ribbon-icons-project-color-light, var(--primary))",
           }}
         >
           <span
@@ -234,7 +236,10 @@ export function ScopeFilter({
             data-ribbon-sidebar-icon={
               project?.isPersonal ? "personal" : "project"
             }
-            style={{ backgroundColor: "var(--primary-foreground)" }}
+            style={{
+              backgroundColor:
+                "var(--ribbon-icons-project-on-color-light, var(--primary-foreground))",
+            }}
           />
         </span>
       );
@@ -246,13 +251,13 @@ export function ScopeFilter({
       return (
         <span
           aria-hidden
-          className={tileClass}
+          className={semanticIconClass}
           {...(activeGroup.id === "unsectioned"
             ? {}
             : { "data-ribbon-icons-section": activeGroup.id })}
           style={{
             backgroundColor:
-              "var(--ribbon-icons-section-color, var(--primary))",
+              "var(--ribbon-icons-section-color-light, var(--primary))",
           }}
         >
           {activeGroup.id === "unsectioned" ? (
@@ -261,7 +266,10 @@ export function ScopeFilter({
             <span
               data-ribbon-icons-section={activeGroup.id}
               data-ribbon-sidebar-icon="section"
-              style={{ backgroundColor: "var(--primary-foreground)" }}
+              style={{
+                backgroundColor:
+                  "var(--ribbon-icons-section-on-color-light, var(--primary-foreground))",
+              }}
             />
           )}
         </span>
@@ -270,7 +278,7 @@ export function ScopeFilter({
     return (
       <span
         aria-hidden
-        className={`${tileClass} bg-primary`}
+        className={`${semanticIconClass} bg-primary`}
       >
         {activeGrouping && activeGroup
           ? groupIcon(activeGrouping, activeGroup.id)

@@ -431,6 +431,29 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("uses the light icon-palette color behind a white scoped icon", async () => {
+    storeSectionScope("section-a");
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    await slot.findByText("Design migration");
+    const tile = slot.container.querySelector<HTMLElement>(
+      'button.thread-filter-trigger > [data-ribbon-icons-section="section-a"]',
+    );
+    const icon = tile?.querySelector<HTMLElement>(
+      '[data-ribbon-sidebar-icon="section"]',
+    );
+
+    expect(tile?.style.backgroundColor).toBe(
+      "var(--ribbon-icons-section-color-light, var(--primary))",
+    );
+    expect(icon?.style.backgroundColor).toBe(
+      "var(--ribbon-icons-section-on-color-light, var(--primary-foreground))",
+    );
+    slot.lifecycle.unmount();
+  });
+
   it("keeps grouping submenu icons decorative", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
