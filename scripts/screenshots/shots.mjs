@@ -37,19 +37,45 @@ function sideChatPanel(page) {
 
 async function openSideChatByShortcut(page) {
   const reply = page.getByRole("textbox", { name: "Reply…" });
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    await page.keyboard.press("Shift+Meta+KeyL");
+  const readinessTimeout = 120000;
+  const retryTimeout = 10000;
+  const maxAttempts = readinessTimeout / retryTimeout;
+  const isCreateSideChatRequest = (request) =>
+    request.method() === "POST" &&
+    new URL(request.url()).pathname ===
+      "/api/v1/plugins/missing-keyboard-shortcuts/rpc/createSideChat";
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    let response;
+    const responsePromise = page.waitForResponse(
+      (candidate) => isCreateSideChatRequest(candidate.request()),
+      { timeout: readinessTimeout },
+    );
+    void responsePromise.catch(() => {});
     try {
-      await reply.waitFor({ timeout: 10000 });
-      return reply;
-    } catch {
-      // A full navigation remounts the shortcut plugin. Its RPC can finish
-      // just before the listener lands, so a key sent in that interval is
-      // lost; retry only after the composer itself proves it did not open.
+      await Promise.all([
+        page.waitForRequest(
+          isCreateSideChatRequest,
+          { timeout: retryTimeout },
+        ),
+        page.keyboard.press("Shift+Meta+KeyL"),
+      ]);
+    } catch (error) {
+      // A full navigation remounts the shortcut plugin, so keep delivering the
+      // key until the outgoing RPC proves its listener handled one. Never
+      // retry after that point: a late composer could receive the next key as
+      // a request to close its newly opened panel.
+      if (error?.name !== "TimeoutError" || attempt === maxAttempts - 1) {
+        throw error;
+      }
+      continue;
     }
+    response = await responsePromise;
+    if (!response.ok()) {
+      throw new Error(`createSideChat failed with HTTP ${response.status()}`);
+    }
+    await reply.waitFor({ timeout: readinessTimeout });
+    return reply;
   }
-  await reply.waitFor({ timeout: 120000 });
-  return reply;
 }
 
 /**
