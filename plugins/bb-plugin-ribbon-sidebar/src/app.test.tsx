@@ -52,6 +52,21 @@ function storeGroupScope(groupingKey: GroupingKey, groupId: string) {
   );
 }
 
+function appendNewThreadComposer() {
+  const composer = document.createElement("div");
+  composer.dataset.appComposer = "";
+  composer.dataset.appComposerRole = "primary";
+  const form = document.createElement("form");
+  form.dataset.promptbox = "";
+  const projectControl = document.createElement("button");
+  projectControl.dataset.promptboxProjectControl = "";
+  projectControl.textContent = "Project";
+  form.append(projectControl);
+  composer.append(form);
+  document.body.append(composer);
+  return { composer, form, projectControl };
+}
+
 const activity = {
   workflows: 0,
   backgroundAgents: 0,
@@ -374,12 +389,7 @@ describe("Ribbon sidebar app", () => {
       generation: 1,
     });
 
-    document.body.insertAdjacentHTML(
-      "beforeend",
-      `<div data-app-composer data-app-composer-role="primary">
-        <button data-promptbox-project-control>Project</button>
-      </div>`,
-    );
+    appendNewThreadComposer();
 
     await waitFor(() =>
       expect(window.history.state.usr?.sectionId).toBe("section-a"),
@@ -396,9 +406,7 @@ describe("Ribbon sidebar app", () => {
       "",
       "/",
     );
-    document.body.innerHTML = `<div data-app-composer data-app-composer-role="primary">
-      <button data-promptbox-project-control>Project</button>
-    </div>`;
+    appendNewThreadComposer();
     const app = await loadPluginApp(() => import("./app"));
     const scripts = await mountPluginContentScripts(app, {
       pluginId: "ribbon-sidebar",
@@ -424,9 +432,7 @@ describe("Ribbon sidebar app", () => {
       "",
       "/",
     );
-    document.body.innerHTML = `<div data-app-composer data-app-composer-role="primary">
-      <button data-promptbox-project-control>Project</button>
-    </div>`;
+    appendNewThreadComposer();
     const app = await loadPluginApp(() => import("./app"));
     const scripts = await mountPluginContentScripts(app, {
       pluginId: "ribbon-sidebar",
@@ -449,11 +455,7 @@ describe("Ribbon sidebar app", () => {
 
   it("captures a selected provider group when the New thread form is submitted", async () => {
     storeGroupScope("plugin:thread-stages:stages", "Active");
-    document.body.innerHTML = `<div data-app-composer data-app-composer-role="primary">
-      <form data-promptbox>
-        <button data-promptbox-project-control>Project</button>
-      </form>
-    </div>`;
+    const { form } = appendNewThreadComposer();
     const requested: unknown[] = [];
     window.addEventListener("bb.ribbon-sidebar.new-thread-group-requested", (event) => {
       requested.push((event as CustomEvent).detail);
@@ -464,7 +466,7 @@ describe("Ribbon sidebar app", () => {
       generation: 1,
     });
 
-    fireEvent.submit(document.querySelector("form")!);
+    fireEvent.submit(form);
 
     expect(requested).toEqual([
       {
@@ -487,12 +489,7 @@ describe("Ribbon sidebar app", () => {
       generation: 1,
     });
 
-    document.body.insertAdjacentHTML(
-      "beforeend",
-      `<div data-app-composer data-app-composer-role="primary">
-        <button data-promptbox-project-control>Project</button>
-      </div>`,
-    );
+    appendNewThreadComposer();
 
     await waitFor(() => expect(requested).toEqual(["project-a"]));
     await scripts.lifecycle.dispose();
@@ -516,9 +513,8 @@ describe("Ribbon sidebar app", () => {
     });
 
     for (let mount = 0; mount < 2; mount += 1) {
-      document.body.innerHTML = `<div data-app-composer data-app-composer-role="primary">
-        <button data-promptbox-project-control>Project</button>
-      </div>`;
+      document.body.replaceChildren();
+      appendNewThreadComposer();
       await new Promise<void>((resolve) => queueMicrotask(resolve));
     }
 
@@ -532,9 +528,7 @@ describe("Ribbon sidebar app", () => {
 
   it("delivers a pending Project request when Ribbon mounts later", async () => {
     storeGroupScope("builtin:projects", "project-a");
-    document.body.innerHTML = `<div data-app-composer data-app-composer-role="primary">
-      <button data-promptbox-project-control>Project</button>
-    </div>`;
+    appendNewThreadComposer();
     const app = await loadPluginApp(() => import("./app"));
     const scripts = await mountPluginContentScripts(app, {
       pluginId: "ribbon-sidebar",
