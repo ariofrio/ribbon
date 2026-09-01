@@ -410,6 +410,25 @@ describe("Ribbon sidebar app", () => {
     });
     expect(within(switcher).getByText("All groups")).toBeTruthy();
     expect(within(switcher).getByText("Section")).toBeTruthy();
+    const pageNavigation = slot.getByRole("navigation", {
+      name: "Sidebar pages",
+    });
+    expect(
+      within(pageNavigation).getByRole("button", {
+        name: "Show All groups page",
+        current: "page",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(pageNavigation).getByRole("button", {
+        name: "Show Release page",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(pageNavigation).getByRole("button", {
+        name: "Show Roadmap page",
+      }),
+    ).toBeTruthy();
 
     fireEvent.keyDown(
       slot.getByRole("button", { name: "Sidebar display options" }),
@@ -427,6 +446,38 @@ describe("Ribbon sidebar app", () => {
     fireEvent.keyDown(
       slot.getByRole("menuitem", { name: "Sort Last updated" }),
       { key: "Escape" },
+    );
+    slot.lifecycle.unmount();
+  });
+
+  it("switches the persisted sidebar scope from the bottom page icons", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+
+    fireEvent.click(
+      slot.getByRole("button", { name: "Show Roadmap page" }),
+    );
+    fireEvent.transitionEnd(slot.getByTestId("sidebar-page-panel"), {
+      propertyName: "transform",
+    });
+
+    expect(
+      await slot.findByRole("button", { name: "Roadmap, filtered" }),
+    ).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        JSON.parse(
+          window.localStorage.getItem(SIDEBAR_PREFERENCES_KEY) ?? "null",
+        ).view.scope,
+      ).toEqual({
+        kind: "group",
+        group: {
+          groupingKey: "builtin:sections",
+          groupId: "section-b",
+        },
+      }),
     );
     slot.lifecycle.unmount();
   });
