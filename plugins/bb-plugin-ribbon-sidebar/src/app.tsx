@@ -500,6 +500,12 @@ function RibbonSidebarList({
   const [placements, setPlacements] = useState<readonly PlacementRecordV1[]>(
     [],
   );
+  const [pagePlacements, setPagePlacements] = useState<
+    readonly PlacementRecordV1[]
+  >([]);
+  const [scopePlacements, setScopePlacements] = useState<
+    readonly PlacementRecordV1[]
+  >([]);
   const [assignmentPlacements, setAssignmentPlacements] = useState<
     ReadonlyMap<string, ReadonlyMap<string, PlacementRecordV1>>
   >(new Map());
@@ -609,42 +615,48 @@ function RibbonSidebarList({
       snapshot?.groupings.find(({ available }) => available)?.groupingKey;
     if (!placementGroupingKey) return;
     setPlacementsLoaded(false);
-    let threadIds: string[] | undefined;
-    const sameGroupingScope =
-      !normalizedSearch &&
-      preferences.view.scope.kind === "group" &&
-      preferences.view.scope.group.groupingKey === placementGroupingKey
-        ? preferences.view.scope.group
+    const pageGroupingKey = preferences.view.filterGroupingKey;
+    const scopeGroupingKey =
+      preferences.view.scope.kind === "group"
+        ? preferences.view.scope.group.groupingKey
         : null;
-    if (
-      !normalizedSearch &&
-      preferences.view.scope.kind === "group" &&
-      preferences.view.scope.group.groupingKey !==
-        placementGroupingKey
-    ) {
-      const scope = preferences.view.scope.group;
-      const scoped = await rpc.call("listPlacementsV1", {
-        groupingKey: scope.groupingKey,
-      });
-      if (!scoped.ok) throw new Error(scoped.error.message);
-      threadIds = scoped.value.items
-        .filter(({ groupId }) => groupId === scope.groupId)
-        .map(({ threadId }) => threadId);
-    }
-    const result = await rpc.call("listPlacementsV1", {
-      groupingKey: placementGroupingKey,
-      ...(threadIds === undefined ? {} : { threadIds }),
-    });
+    const [result, pageResult, scopeResult] = await Promise.all([
+      rpc.call("listPlacementsV1", { groupingKey: placementGroupingKey }),
+      pageGroupingKey === placementGroupingKey
+        ? null
+        : rpc.call("listPlacementsV1", { groupingKey: pageGroupingKey }),
+      scopeGroupingKey === null ||
+      scopeGroupingKey === placementGroupingKey ||
+      scopeGroupingKey === pageGroupingKey
+        ? null
+        : rpc.call("listPlacementsV1", { groupingKey: scopeGroupingKey }),
+    ]);
     if (!result.ok) throw new Error(result.error.message);
-    setPlacements(
-      result.value.items.filter(
-        ({ groupId }) =>
-          sameGroupingScope === null || groupId === sameGroupingScope.groupId,
-      ) as PlacementRecordV1[],
+    if (pageResult !== null && !pageResult.ok) {
+      throw new Error(pageResult.error.message);
+    }
+    if (scopeResult !== null && !scopeResult.ok) {
+      throw new Error(scopeResult.error.message);
+    }
+    const nextPlacements = result.value.items as PlacementRecordV1[];
+    const nextPagePlacements =
+      pageResult === null
+        ? nextPlacements
+        : (pageResult.value.items as PlacementRecordV1[]);
+    setPlacements(nextPlacements);
+    setPagePlacements(nextPagePlacements);
+    setScopePlacements(
+      scopeGroupingKey === null
+        ? []
+        : scopeGroupingKey === placementGroupingKey
+          ? nextPlacements
+          : scopeGroupingKey === pageGroupingKey
+            ? nextPagePlacements
+            : (scopeResult?.value.items as PlacementRecordV1[]),
     );
     setRevision(result.value.revision);
     setPlacementsLoaded(true);
-  }, [normalizedSearch, preferences, rpc, snapshot]);
+  }, [preferences, rpc, snapshot]);
 
   const loadAssignmentPlacements = useCallback(async () => {
     if (!snapshot) return;
@@ -1093,34 +1105,9 @@ function RibbonSidebarList({
     },
     [childrenByParent, normalizedSearch, searchResult],
   );
-  const visiblePlacementIds = useMemo(
-    () => new Set(placements.map(({ threadId }) => threadId)),
-    [placements],
-  );
   const supplementalThreadIds = useMemo(
     () => new Set(supplementalThreads.map(({ id }) => id)),
     [supplementalThreads],
-  );
-  const hasGroupScope = preferences?.view.scope.kind === "group";
-  // Pinned membership and ordering come directly from bb. An active Ribbon
-  // scope still controls which pinned roots are visible.
-  const pinnedRoots = useMemo(
-    () =>
-      displayRootThreads.filter(
-        (thread) =>
-          thread.isPinned &&
-          (Boolean(normalizedSearch) ||
-            !hasGroupScope ||
-            visiblePlacementIds.has(thread.id)) &&
-          matchesSearch(thread),
-      ),
-    [
-      displayRootThreads,
-      hasGroupScope,
-      matchesSearch,
-      normalizedSearch,
-      visiblePlacementIds,
-    ],
   );
   const placementOrder = new Map(
     placements.map(({ threadId }, index) => [threadId, index]),
@@ -1137,26 +1124,6 @@ function RibbonSidebarList({
               ? grouping.defaultGroupId
               : undefined)
       : "ungrouped";
-  const unpinnedRoots = displayRootThreads.filter(
-    (thread) =>
-      !thread.isPinned &&
-      (visiblePlacementIds.has(thread.id) ||
-        supplementalThreadIds.has(thread.id) ||
-        (Boolean(normalizedSearch) && thread.isArchived)) &&
-      matchesSearch(thread),
-  );
-  if (preferences?.view.sort !== "manual") {
-    unpinnedRoots.sort((left, right) =>
-      compareSidebarThreads(preferences?.view.sort ?? "updated", left, right),
-    );
-  } else if (grouping) {
-    unpinnedRoots.sort(
-      (left, right) =>
-        (placementOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
-        (placementOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER),
-    );
-  }
-
   const groupDefinitions = useMemo(() => {
     if (!grouping) {
       return [
@@ -1186,15 +1153,6 @@ function RibbonSidebarList({
       })),
     ];
   }, [grouping, placements]);
-  const matchingScope =
-    !normalizedSearch &&
-    preferences?.view.scope.kind === "group" &&
-    preferences.view.scope.group.groupingKey === grouping?.groupingKey
-      ? preferences.view.scope.group
-      : null;
-  const displayedGroupDefinitions = matchingScope
-    ? groupDefinitions.filter(({ id }) => id === matchingScope.groupId)
-    : groupDefinitions;
   const sections =
     snapshot?.groupings
       .find(({ groupingKey }) => groupingKey === "builtin:sections")
@@ -1247,6 +1205,76 @@ function RibbonSidebarList({
     activeScope.groupingKey === pagesGrouping.groupingKey
       ? activeScope.groupId
       : null;
+  const allPlacementIds = new Set(placements.map(({ threadId }) => threadId));
+
+  const sidebarPageView = (pageId: string | null) => {
+    const pageScope =
+      normalizedSearch || pagesGrouping === undefined
+        ? null
+        : pageId !== null
+          ? { groupingKey: pagesGrouping.groupingKey, groupId: pageId }
+          : activePageId === null
+            ? activeScope
+            : null;
+    const membershipPlacements =
+      pageScope?.groupingKey === pagesGrouping?.groupingKey
+        ? pagePlacements
+        : scopePlacements;
+    const pageThreadIds =
+      pageScope === null
+        ? null
+        : new Set(
+            membershipPlacements
+              .filter(({ groupId }) => groupId === pageScope.groupId)
+              .map(({ threadId }) => threadId),
+          );
+    const belongsToPage = (threadId: string) =>
+      pageThreadIds === null || pageThreadIds.has(threadId);
+    const pinnedRoots = displayRootThreads.filter(
+      (thread) =>
+        thread.isPinned && belongsToPage(thread.id) && matchesSearch(thread),
+    );
+    const unpinnedRoots = displayRootThreads.filter(
+      (thread) =>
+        !thread.isPinned &&
+        belongsToPage(thread.id) &&
+        (allPlacementIds.has(thread.id) ||
+          supplementalThreadIds.has(thread.id) ||
+          (Boolean(normalizedSearch) && thread.isArchived)) &&
+        matchesSearch(thread),
+    );
+    const sort = preferences?.view.sort ?? "updated";
+    if (sort !== "manual") {
+      unpinnedRoots.sort((left, right) =>
+        compareSidebarThreads(sort, left, right),
+      );
+    } else if (grouping) {
+      unpinnedRoots.sort(
+        (left, right) =>
+          (placementOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+          (placementOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER),
+      );
+    }
+    const displayedGroupDefinitions =
+      pageScope !== null && pageScope.groupingKey === grouping?.groupingKey
+        ? groupDefinitions.filter(({ id }) => id === pageScope.groupId)
+        : groupDefinitions;
+    const emptyMessage =
+      normalizedSearch !== ""
+        ? "No matching threads"
+        : pageScope?.groupingKey === "builtin:projects"
+          ? "No threads in this project"
+          : pageScope?.groupingKey === "builtin:sections"
+            ? "No threads in this section"
+            : "No threads yet";
+    return {
+      displayedGroupDefinitions,
+      emptyMessage,
+      pinnedRoots,
+      unpinnedRoots,
+    };
+  };
+  const { pinnedRoots, unpinnedRoots } = sidebarPageView(activePageId);
 
   const submitEntityName = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -1443,29 +1471,8 @@ function RibbonSidebarList({
     return grouping.membershipWritable && destination?.acceptsAssignments === true;
   };
   const scopeFilterValue: ScopeFilterValue = activeScope;
-  const hasDisplayedThreads = pinnedRoots.length + unpinnedRoots.length > 0;
   const pinnedSectionCollapsed =
     !normalizedSearch && preferences.collapsed.has("builtin:pinned");
-  const pinnedActivePreview =
-    pinnedSectionCollapsed && activeThreadId !== null
-      ? pinnedRoots
-          .flatMap((root) => [
-            root,
-            ...descendants(root.id, childrenByParent),
-          ])
-          .find(({ id }) => id === activeThreadId)
-      : undefined;
-  const emptyMessage =
-    normalizedSearch !== ""
-      ? "No matching threads"
-      : preferences.view.scope.kind === "group" &&
-          preferences.view.scope.group.groupingKey === "builtin:projects"
-        ? "No threads in this project"
-        : preferences.view.scope.kind === "group" &&
-            preferences.view.scope.group.groupingKey === "builtin:sections"
-          ? "No threads in this section"
-          : "No threads yet";
-
   async function updatePinnedOrder(
     threadId: string,
     beforeThreadId: string | null,
@@ -1990,7 +1997,26 @@ function RibbonSidebarList({
           }))
         }
         pages={sidebarPages}
-      >
+        renderPage={({ id: pageId }) => {
+          const {
+            displayedGroupDefinitions,
+            emptyMessage,
+            pinnedRoots,
+            unpinnedRoots,
+          } = sidebarPageView(pageId);
+          const hasDisplayedThreads =
+            pinnedRoots.length + unpinnedRoots.length > 0;
+          const pinnedActivePreview =
+            pinnedSectionCollapsed && activeThreadId !== null
+              ? pinnedRoots
+                  .flatMap((root) => [
+                    root,
+                    ...descendants(root.id, childrenByParent),
+                  ])
+                  .find(({ id }) => id === activeThreadId)
+              : undefined;
+          return (
+            <>
       {normalizedSearch && searchResult.status === "loading" ? (
         <SidebarMessage icon="Loading" loading>
           Searching threads…
@@ -2136,9 +2162,9 @@ function RibbonSidebarList({
             ? groupThreads.find(({ id }) => id === activeThreadId)
             : undefined;
         const sameKeyScope =
-          preferences.view.scope.kind === "group" &&
-          preferences.view.scope.group.groupingKey === grouping?.groupingKey &&
-          preferences.view.scope.group.groupId === group.id;
+          pageId !== null &&
+          pagesGrouping?.groupingKey === grouping?.groupingKey &&
+          pageId === group.id;
         // A group heading takes the same icon its rows do: whichever was chosen
         // for that project or section, or this plugin's own glyph until one is.
         const entityGroupIcon: { kind: "project" | "section"; fallback: IconFallback } | undefined =
@@ -2394,7 +2420,10 @@ function RibbonSidebarList({
       })}
         </div>
       )}
-      </SidebarPageSwitcher>
+            </>
+          );
+        }}
+      />
     </div>
   );
 }

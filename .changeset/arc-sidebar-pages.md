@@ -2,5 +2,5 @@
 "bb-plugin-ribbon-sidebar": minor
 ---
 
-Add an Arc-like page bar for Ribbon groups with animated icon switching and
-velocity-aware horizontal trackpad gestures that settle to the nearest page.
+Add an Arc-like page bar for Ribbon groups with native horizontal scroll
+snapping that reveals neighboring page content during trackpad gestures.

@@ -13,15 +13,13 @@ async function waitForActivePage(page, label) {
   );
 }
 
-async function waitForPanelAtRest(page, panel) {
-  const element = await panel.elementHandle();
-  assert.ok(element, "The page panel did not render");
+async function waitForPageAtRest(page, viewport, pageIndex) {
+  const element = await viewport.elementHandle();
+  assert.ok(element, "The page viewport did not render");
   await page.waitForFunction(
-    (candidate) =>
-      getComputedStyle(candidate).transform ===
-        "matrix(1, 0, 0, 1, 0, 0)" &&
-      candidate.style.transition === "none",
-    element,
+    ([candidate, index]) =>
+      Math.abs(candidate.scrollLeft - candidate.clientWidth * index) <= 1,
+    [element, pageIndex],
     { timeout: 120_000 },
   );
 }
@@ -47,11 +45,11 @@ export async function verifyPageSwitching({ stack }) {
     const navigation = root.getByRole("navigation", {
       name: "Sidebar pages",
     });
-    const panel = root.getByTestId("sidebar-page-panel");
     const viewport = root.getByTestId("sidebar-page-viewport");
 
     await navigation.getByRole("button", { name: "Show Atlas page" }).click();
     await waitForActivePage(page, "Atlas");
+    await waitForPageAtRest(page, viewport, 1);
     assert.match(
       await root.getAttribute("data-ribbon-sidebar-scope-group-id"),
       /^sec_/u,
@@ -80,12 +78,10 @@ export async function verifyPageSwitching({ stack }) {
 
     await page.mouse.wheel(110, 0);
     await page.waitForFunction(
-      (element) =>
-        getComputedStyle(element).transform !==
-        "matrix(1, 0, 0, 1, 0, 0)",
-      await panel.elementHandle(),
+      (element) => element.scrollLeft > element.clientWidth + 20,
+      await viewport.elementHandle(),
     );
-    await waitForPanelAtRest(page, panel);
+    await waitForPageAtRest(page, viewport, 1);
     assert.equal(
       await navigation
         .locator('[aria-current="page"]')
@@ -94,20 +90,53 @@ export async function verifyPageSwitching({ stack }) {
       "A short horizontal gesture should return to the closest page",
     );
 
+    await viewport.evaluate((element) => {
+      window.__ribbonAdjacentFrame = null;
+      element.addEventListener(
+        "scroll",
+        () => {
+          requestAnimationFrame(() => {
+            const adjacentContent = [...element.querySelectorAll("*")].find(
+              (candidate) =>
+                candidate.textContent?.trim() === "No threads in this section",
+            );
+            const viewportBox = element.getBoundingClientRect();
+            const adjacentBox = adjacentContent?.getBoundingClientRect();
+            window.__ribbonAdjacentFrame = {
+              activeLabel: document
+                .querySelector(
+                  '[data-ribbon-sidebar-root] nav[aria-label="Sidebar pages"] [aria-current="page"]',
+                )
+                ?.getAttribute("aria-label"),
+              adjacentRendered: adjacentBox !== undefined,
+              adjacentEntered:
+                adjacentBox !== undefined && adjacentBox.left < viewportBox.right,
+            };
+          });
+        },
+        { once: true },
+      );
+    });
     await page.mouse.wheel(220, 0);
+    const adjacentFrame = await page.waitForFunction(
+      () => window.__ribbonAdjacentFrame,
+    );
+    assert.deepEqual(await adjacentFrame.jsonValue(), {
+      activeLabel: "Show Atlas page",
+      adjacentRendered: true,
+      adjacentEntered: true,
+    });
     await waitForActivePage(page, "Unorganized");
     assert.equal(
       await root.getAttribute("data-ribbon-sidebar-scope-group-id"),
       "unsectioned",
     );
     await root.getByText("No threads in this section", { exact: true }).waitFor();
-    assert.equal(
-      await panel.evaluate((element) => getComputedStyle(element).transform),
-      "matrix(1, 0, 0, 1, 0, 0)",
-    );
+    await waitForPageAtRest(page, viewport, 2);
 
     await page.mouse.wheel(-220, 0);
     await waitForActivePage(page, "Atlas");
+    await waitForPageAtRest(page, viewport, 1);
   } finally {
     await context.close();
     await browser.close();

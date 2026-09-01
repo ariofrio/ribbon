@@ -455,13 +455,18 @@ describe("Ribbon sidebar app", () => {
     const fixture = options();
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Design migration");
+    const viewport = slot.getByTestId("sidebar-page-viewport");
+    Object.defineProperty(viewport, "clientWidth", { value: 320 });
+    Object.defineProperty(viewport, "scrollTo", {
+      value: ({ left }: ScrollToOptions) => {
+        viewport.scrollLeft = Number(left);
+      },
+    });
 
     fireEvent.click(
       slot.getByRole("button", { name: "Show Roadmap page" }),
     );
-    fireEvent.transitionEnd(slot.getByTestId("sidebar-page-panel"), {
-      propertyName: "transform",
-    });
+    fireEvent(viewport, new Event("scrollend"));
 
     expect(
       await slot.findByRole("button", { name: "Roadmap, filtered" }),
