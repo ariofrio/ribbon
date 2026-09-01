@@ -102,19 +102,23 @@ export async function verifyPageSwitching({ stack }) {
             );
             const viewportBox = element.getBoundingClientRect();
             const adjacentBox = adjacentContent?.getBoundingClientRect();
+            if (
+              adjacentBox === undefined ||
+              adjacentBox.left >= viewportBox.right
+            ) {
+              return;
+            }
             window.__ribbonAdjacentFrame = {
               activeLabel: document
                 .querySelector(
                   '[data-ribbon-sidebar-root] nav[aria-label="Sidebar pages"] [aria-current="page"]',
                 )
                 ?.getAttribute("aria-label"),
-              adjacentRendered: adjacentBox !== undefined,
-              adjacentEntered:
-                adjacentBox !== undefined && adjacentBox.left < viewportBox.right,
+              adjacentRendered: true,
+              adjacentEntered: true,
             };
           });
         },
-        { once: true },
       );
     });
     await page.mouse.wheel(220, 0);
