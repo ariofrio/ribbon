@@ -27,6 +27,9 @@ export const ICON_ATTRIBUTE = "data-ribbon-sidebar-icon";
  */
 export const ICON_OPTIONAL_ATTRIBUTE = "data-ribbon-sidebar-icon-optional";
 
+/** The title/preview grid whose optional icon owns its first column. */
+export const ICON_LAYOUT_ATTRIBUTE = "data-ribbon-sidebar-icon-layout";
+
 /**
  * Whose icon a box wants, and the glyph it keeps until somebody picks one. The
  * fallback is this plugin's own; the contract leaves it to the consumer.
@@ -84,6 +87,10 @@ export function iconStyles(): string {
   }
   rules.push(
     `:root:not([${READY_ATTRIBUTE}]) [${ICON_OPTIONAL_ATTRIBUTE}]{display:none}`,
+    `:root:not([${READY_ATTRIBUTE}]) [${ICON_LAYOUT_ATTRIBUTE}]{` +
+      "grid-template-columns:minmax(0,1fr);column-gap:0}",
+    `:root:not([${READY_ATTRIBUTE}]) [${ICON_LAYOUT_ATTRIBUTE}]` +
+      `>:not([${ICON_ATTRIBUTE}]){grid-column-start:1}`,
   );
   return rules.join("\n");
 }

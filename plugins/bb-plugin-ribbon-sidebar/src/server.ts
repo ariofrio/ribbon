@@ -317,6 +317,14 @@ export default async function plugin(bb: BbPluginApi) {
       description: "Show the latest message preview below each thread title.",
       default: true,
     },
+    threadAdornmentAlignment: {
+      type: "select",
+      label: "Icon and indicator alignment",
+      description:
+        "Align thread icons and indicators with the title row or center them across the entire item.",
+      options: ["Title row", "Entire item"],
+      default: "Title row",
+    },
     showCollapsedGroupIndicators: {
       type: "boolean",
       label: "Show collapsed-group indicators (experimental)",
