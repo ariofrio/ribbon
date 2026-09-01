@@ -7,10 +7,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import {
-  FilterMailCircleIcon,
-  FolderLibraryIcon,
-} from "@hugeicons/core-free-icons";
+import { FolderLibraryIcon } from "@hugeicons/core-free-icons";
 import type { IconDataV1 } from "./contracts";
 import type { IconFallback } from "./icon-styles";
 import type { GroupingKey } from "./placement-store";
@@ -22,7 +19,6 @@ import { cn } from "./vendor/lib/utils";
 import { Icon, type IconName } from "./vendor/components/ui/icon";
 import { ProviderIcon } from "./provider-icon";
 import { UnorganizedIcon } from "./unorganized-icon";
-import { ThreadFilterOptionsMenu } from "./sidebar-options-menu";
 import { CompactViewportOverrideProvider } from "./vendor/components/ui/hooks/use-compact-viewport";
 import {
   DropdownMenu,
@@ -39,12 +35,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./vendor/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./vendor/components/ui/tooltip";
 
 interface ThreadFilterProject {
   id: string;
@@ -75,7 +65,6 @@ interface ThreadFilterProps {
   groupings: readonly GroupsMenuGrouping[];
   newProjectDisabled?: boolean;
   onChange: (filter: ScopeFilterValue) => void;
-  onHide?: () => void;
   onNewProject: () => void;
   onNewSection: () => void;
   onAddProjectLocalPath?: (project: ThreadFilterProject) => void;
@@ -112,9 +101,6 @@ const ACTIONABLE_ITEM_CLASS =
   "relative flex cursor-default select-none items-center gap-0 rounded-none p-0 pr-1 text-xs outline-none transition-none focus:bg-transparent focus:text-inherit data-[state=open]:bg-transparent data-[state=open]:text-inherit data-[last-hovered]:bg-transparent data-[last-hovered]:text-inherit";
 const ACTIONABLE_SELECT_TARGET_CLASS =
   "relative flex min-w-0 flex-1 items-center gap-2 rounded-sm py-[0.3125rem] pl-7 pr-2 transition-colors data-[active]:bg-state-hover data-[active]:text-foreground";
-const ACTION_CLASS =
-  "inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground outline-none ring-sidebar-ring transition-none hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 max-md:pointer-coarse:size-9";
-const ACTION_TOOLTIP_DELAY_MS = 350;
 const SubmenuPointerEnterContext = createContext<(() => void) | undefined>(
   undefined,
 );
@@ -135,7 +121,6 @@ export function ScopeFilter({
   groupings,
   newProjectDisabled = false,
   onChange,
-  onHide = () => {},
   onNewProject,
   onNewSection,
   onAddProjectLocalPath = () => {},
@@ -150,8 +135,6 @@ export function ScopeFilter({
   value,
 }: ThreadFilterProps) {
   const [open, setOpen] = useState(false);
-  const [optionsOpen, setOptionsOpen] = useState(false);
-  const actionsOpen = open || optionsOpen;
   const activeGrouping = value
     ? groupings.find(({ groupingKey }) => groupingKey === value.groupingKey)
     : undefined;
@@ -167,7 +150,7 @@ export function ScopeFilter({
   );
   const activeLabel = activeGroup?.label ??
     (value ? `${value.groupId} (unavailable)` : null);
-  const scopeLabel = "Groups";
+  const scopeLabel = "All groups";
   const allLabel = "All groups";
   const selectedValue = serializeScopeFilter(value) ?? "";
 
@@ -225,6 +208,74 @@ export function ScopeFilter({
       </span>
     ) : (
       <Icon name="Workflow" className="size-4 shrink-0" aria-hidden />
+    );
+  }
+
+  function switcherIcon() {
+    const tileClass =
+      "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-white [&_svg]:text-white";
+    if (
+      activeGrouping?.groupingKey === "builtin:projects" &&
+      activeGroup
+    ) {
+      const project = projects.find(({ id }) => id === activeGroup.id);
+      return (
+        <span
+          aria-hidden
+          className={tileClass}
+          data-ribbon-icons-project={activeGroup.id}
+          style={{
+            backgroundColor:
+              "var(--ribbon-icons-project-color, var(--sidebar-primary))",
+          }}
+        >
+          <span
+            data-ribbon-icons-project={activeGroup.id}
+            data-ribbon-sidebar-icon={
+              project?.isPersonal ? "personal" : "project"
+            }
+            style={{ backgroundColor: "white" }}
+          />
+        </span>
+      );
+    }
+    if (
+      activeGrouping?.groupingKey === "builtin:sections" &&
+      activeGroup
+    ) {
+      return (
+        <span
+          aria-hidden
+          className={tileClass}
+          {...(activeGroup.id === "unsectioned"
+            ? {}
+            : { "data-ribbon-icons-section": activeGroup.id })}
+          style={{
+            backgroundColor:
+              "var(--ribbon-icons-section-color, var(--sidebar-primary))",
+          }}
+        >
+          {activeGroup.id === "unsectioned" ? (
+            <Icon className="size-4" name="ListView" />
+          ) : (
+            <span
+              data-ribbon-icons-section={activeGroup.id}
+              data-ribbon-sidebar-icon="section"
+              style={{ backgroundColor: "white" }}
+            />
+          )}
+        </span>
+      );
+    }
+    return (
+      <span
+        aria-hidden
+        className={`${tileClass} bg-sidebar-primary text-sidebar-primary-foreground`}
+      >
+        {activeGrouping && activeGroup
+          ? groupIcon(activeGrouping, activeGroup.id)
+          : <ProjectsAndSectionsIcon />}
+      </span>
     );
   }
 
@@ -366,9 +417,10 @@ export function ScopeFilter({
     );
   }
 
+  const pagesLabel = expandedGrouping?.singularLabel ?? "Section";
+
   return (
-    <div className="bb-sidebar-hover-actions-row group/thread-filter sticky top-[var(--bb-sidebar-sticky-stack-padding-top)] z-[70] mb-4 flex min-w-0 items-center gap-1 rounded-md bg-sidebar outline-none ring-sidebar-ring has-[.thread-filter-trigger:focus-visible]:ring-2 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-2 before:bg-sidebar before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-sidebar after:content-['']">
-      <div className="relative flex min-w-0 flex-1 items-center">
+    <div className="relative flex min-w-0 flex-1 items-center">
       <CompactViewportOverrideProvider isCompactViewport={false}>
       <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
@@ -376,68 +428,43 @@ export function ScopeFilter({
             type="button"
             data-thread-filter-trigger=""
             aria-label={
-              activeLabel === null ? scopeLabel : `${activeLabel}, filtered`
+              activeLabel === null
+                ? `${scopeLabel}, Pages by ${pagesLabel}`
+                : `${activeLabel}, filtered`
             }
-            className="thread-filter-trigger flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[state=open]:bg-state-active data-[state=open]:text-sidebar-foreground max-md:pointer-coarse:h-9 dark:text-sidebar-foreground"
+            className="thread-filter-trigger flex h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-1.5 text-sidebar-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[state=open]:bg-state-active data-[state=open]:text-sidebar-foreground dark:text-sidebar-foreground"
           >
-            {activeGrouping && activeGroup ? (
-              groupIcon(activeGrouping, activeGroup.id)
-            ) : (
-              <ProjectsAndSectionsIcon />
-            )}
+            {switcherIcon()}
             <span
               data-thread-filter-label-cluster=""
-              // 10px, which is what a stage header leaves between its own
-              // label and its chevron: 4px of gap plus the 6px of slack a
-              // 12px glyph has inside its 24px button. This indicator is the
-              // same shape of thing one column over — a small glyph trailing
-              // a name — and its own box has no slack, so the gap carries it
-              // all.
-              className="flex min-w-0 items-center gap-2.5"
+              className="flex min-w-0 flex-1 flex-col items-start justify-center leading-tight"
             >
-              <span data-thread-filter-label="" className="truncate">
+              <span data-thread-filter-label="" className="max-w-full truncate text-sm font-medium">
                 {activeLabel ?? scopeLabel}
               </span>
-              {value === null ? null : (
-                <span
-                  aria-label="Threads are filtered"
-                  data-thread-filter-indicator=""
-                  className="inline-flex size-4 shrink-0 items-center justify-center text-subtle-foreground/60"
-                >
-                  <HugeiconsIcon
-                    icon={FilterMailCircleIcon}
-                    size={16}
-                    className="size-4"
-                    aria-hidden
-                  />
-                </span>
-              )}
+              <span className="max-w-full truncate text-xs text-muted-foreground">
+                {activeGrouping?.singularLabel ?? pagesLabel}
+              </span>
             </span>
+            <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" name="ChevronDown" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className={CONTENT_CLASS}>
-          <DropdownMenuRadioGroup value={selectedValue} onValueChange={handleFilterChange}>
-            <ThreadFilterItem
-              label={allLabel}
-              selectedValue={selectedValue}
-              value=""
-            >
-              <ProjectsAndSectionsIcon />
-            </ThreadFilterItem>
-          </DropdownMenuRadioGroup>
           {expandedGrouping ? (
             <>
-              <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DropdownMenuLabel>
-                  {expandedGrouping.pluralLabel}
-                </DropdownMenuLabel>
                 {groupingContents(expandedGrouping)}
               </DropdownMenuGroup>
-              {groupings.some(
-                ({ groupingKey }) =>
-                  groupingKey !== expandedGrouping.groupingKey,
-              ) ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuSeparator />
+              <DropdownMenuRadioGroup value={selectedValue} onValueChange={handleFilterChange}>
+                <ThreadFilterItem
+                  label={allLabel}
+                  selectedValue={selectedValue}
+                  value=""
+                >
+                  <ProjectsAndSectionsIcon />
+                </ThreadFilterItem>
+              </DropdownMenuRadioGroup>
               {groupings
                 .filter(
                   ({ groupingKey }) =>
@@ -449,33 +476,6 @@ export function ScopeFilter({
         </DropdownMenuContent>
       </DropdownMenu>
       </CompactViewportOverrideProvider>
-      <TooltipProvider>
-        <span
-          data-thread-filter-actions=""
-          data-testid="thread-filter-actions"
-          data-state={actionsOpen ? "open" : "closed"}
-          data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
-          data-sidebar-hover-actions-mobile="always"
-          className="bb-sidebar-hover-actions relative z-20 flex shrink-0 items-center gap-1 bg-sidebar pl-1 opacity-0 pointer-events-none group-hover/thread-filter:opacity-100 group-hover/thread-filter:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto data-[state=open]:opacity-100 data-[state=open]:pointer-events-auto max-md:pointer-coarse:opacity-100 max-md:pointer-coarse:pointer-events-auto"
-        >
-          <ThreadFilterAction
-            icon="SectionAdd"
-            label="New section"
-            onClick={onNewSection}
-          />
-          <ThreadFilterAction
-            disabled={newProjectDisabled}
-            icon="FolderPlus"
-            label="New project"
-            onClick={onNewProject}
-          />
-          <ThreadFilterOptionsMenu
-            onHide={onHide}
-            onOpenChange={setOptionsOpen}
-          />
-        </span>
-      </TooltipProvider>
-      </div>
     </div>
   );
 }
@@ -758,47 +758,6 @@ function ScopeOwnerIcon({
       ? { "data-ribbon-icons-section": id }
       : { "data-ribbon-icons-project": id };
   return <span aria-hidden data-ribbon-sidebar-icon={fallback} {...named} />;
-}
-
-function ThreadFilterAction({
-  disabled = false,
-  icon,
-  label,
-  onClick,
-}: {
-  disabled?: boolean;
-  icon: "FolderPlus" | "SectionAdd";
-  label: string;
-  onClick: () => void;
-}) {
-  function handleClick(event: ReactMouseEvent<HTMLButtonElement>) {
-    event.stopPropagation();
-    if (event.detail > 0) {
-      event.currentTarget.blur();
-    }
-    onClick();
-  }
-
-  const button = (
-    <button
-      type="button"
-      aria-label={label}
-      className={ACTION_CLASS}
-      disabled={disabled}
-      onClick={handleClick}
-    >
-      <Icon name={icon} className="size-4" aria-hidden />
-    </button>
-  );
-
-  return (
-    <Tooltip delayDuration={ACTION_TOOLTIP_DELAY_MS} disableHoverableContent>
-      <TooltipTrigger asChild>
-        {disabled ? <span className="inline-flex">{button}</span> : button}
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
-    </Tooltip>
-  );
 }
 
 function ThreadFilterItem({

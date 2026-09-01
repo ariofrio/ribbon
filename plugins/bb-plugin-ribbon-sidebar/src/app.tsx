@@ -29,11 +29,13 @@ import type { rpcContract } from "./server";
 import type { GroupingKey, PlacementRecordV1 } from "./placement-store";
 import {
   changeSidebarGrouping,
+  changeSidebarPagesGrouping,
   changeSidebarScope,
   loadSidebarPreferences,
   saveSidebarPreferences,
   type GroupRef,
   type SidebarPreferences,
+  type SidebarSort,
 } from "./view-state";
 import { Button } from "./vendor/components/ui/button";
 import {
@@ -58,6 +60,8 @@ import { usePersistentStringSet } from "./persistent-string-set";
 import { SplitPaneMiniMap } from "./split-pane-mini-map";
 import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
 import { ScopeFilter } from "./scope-filter";
+import { SidebarDisplayOptionsMenu } from "./sidebar-display-options-menu";
+import { SidebarTopControls } from "./sidebar-top-controls";
 import type { ScopeFilterValue } from "./scope-filter-value";
 import { orderedGroupings } from "./grouping-order";
 import { UnorganizedIcon } from "./unorganized-icon";
@@ -76,6 +80,9 @@ type SidebarSnapshot = z.output<
 >;
 type SearchThread = z.output<
   typeof rpcContract.searchThreadIdsV1.output
+>["threads"][number];
+type SupplementalThread = z.output<
+  typeof rpcContract.listThreadsV1.output
 >["threads"][number];
 type BuiltinGroupRef = {
   groupingKey: "builtin:projects" | "builtin:sections";
@@ -102,6 +109,22 @@ type DragDestination =
 
 function title(thread: PluginSidebarThread) {
   return thread.title ?? thread.titleFallback ?? "Untitled thread";
+}
+
+function compareSidebarThreads(
+  sort: SidebarSort,
+  left: PluginSidebarThread,
+  right: PluginSidebarThread,
+) {
+  if (sort === "updated") return right.updatedAt - left.updatedAt;
+  if (sort === "created") return right.createdAt - left.createdAt;
+  if (sort === "alphabetical") {
+    return title(left).localeCompare(title(right), undefined, {
+      sensitivity: "base",
+      numeric: true,
+    });
+  }
+  return 0;
 }
 
 function descendants(
@@ -157,6 +180,27 @@ function archivedSearchThread(thread: SearchThread): PluginSidebarThread {
     updatedAt: 0,
     lastReadAt: null,
     latestAttentionAt: 0,
+  };
+}
+
+function supplementalSidebarThread(
+  thread: SupplementalThread,
+): PluginSidebarThread {
+  return {
+    ...thread,
+    hasPendingInteraction: false,
+    activity: {
+      workflows: 0,
+      backgroundAgents: 0,
+      backgroundCommands: 0,
+      planMode: 0,
+      goals: 0,
+    },
+    indicator: "none",
+    indicatorLabel: null,
+    isUnread: false,
+    environment: null,
+    host: null,
   };
 }
 
@@ -453,6 +497,9 @@ function RibbonSidebarList({
   const [projectActionStates, setProjectActionStates] = useState<
     ReadonlyMap<string, { canAddLocalPath: boolean }>
   >(new Map());
+  const [supplementalThreads, setSupplementalThreads] = useState<
+    readonly SupplementalThread[]
+  >([]);
   const [collapsedThreadIds, setCollapsedThreadIds] =
     usePersistentStringSet(COLLAPSED_THREADS_STORAGE_KEY);
   const [threadRename, setThreadRename] = useState<{
@@ -659,10 +706,55 @@ function RibbonSidebarList({
     () => new Map(placements.map((placement) => [placement.threadId, placement])),
     [placements],
   );
-  const liveThreads = useMemo(
-    () => sidebar.threads.filter((thread) => !thread.isArchived),
-    [sidebar.threads],
-  );
+  useEffect(() => {
+    if (
+      preferences === null ||
+      (preferences.view.hide.archived && preferences.view.hide.hidden)
+    ) {
+      setSupplementalThreads((current) =>
+        current.length === 0 ? current : [],
+      );
+      return;
+    }
+    let canceled = false;
+    void rpc
+      .call("listThreadsV1", null)
+      .then(({ threads }) => {
+        if (!canceled) setSupplementalThreads(threads);
+      })
+      .catch(() => {
+        if (!canceled) setSupplementalThreads([]);
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [preferences?.view.hide.archived, preferences?.view.hide.hidden, rpc]);
+  const liveThreads = useMemo(() => {
+    if (preferences === null) return [];
+    const visibility = new Map(
+      supplementalThreads.map((thread) => [thread.id, thread.visibility]),
+    );
+    const known = new Set(sidebar.threads.map(({ id }) => id));
+    const combined = [
+      ...sidebar.threads,
+      ...supplementalThreads
+        .filter(({ id }) => !known.has(id))
+        .map(supplementalSidebarThread),
+    ];
+    return combined.filter((thread) => {
+      if (
+        thread.isArchived
+          ? preferences.view.hide.archived
+          : preferences.view.hide.notArchived
+      ) {
+        return false;
+      }
+      const threadVisibility = visibility.get(thread.id) ?? "visible";
+      return threadVisibility === "hidden"
+        ? !preferences.view.hide.hidden
+        : !preferences.view.hide.visible;
+    });
+  }, [preferences, sidebar.threads, supplementalThreads]);
   const liveThreadIds = useMemo(
     () => new Set(liveThreads.map(({ id }) => id)),
     [liveThreads],
@@ -733,6 +825,7 @@ function RibbonSidebarList({
     setPreviewsLoaded(false);
     if (
       sidebar.status !== "ready" ||
+      preferences === null ||
       settings.values?.showMessagePreviews === false
     ) {
       setPreviews(new Map());
@@ -754,7 +847,13 @@ function RibbonSidebarList({
       .catch(() => {
         if (previewRequest.current === request) setPreviewsLoaded(true);
       });
-  }, [liveThreads, rpc, settings.values?.showMessagePreviews, sidebar.status]);
+  }, [
+    liveThreads,
+    preferences,
+    rpc,
+    settings.values?.showMessagePreviews,
+    sidebar.status,
+  ]);
   useEffect(() => {
     refreshPreviews();
     return () => {
@@ -776,8 +875,15 @@ function RibbonSidebarList({
       list.push(child);
       result.set(child.parentThreadId!, list);
     }
+    if (preferences !== null && preferences.view.sort !== "manual") {
+      for (const children of result.values()) {
+        children.sort((left, right) =>
+          compareSidebarThreads(preferences.view.sort, left, right),
+        );
+      }
+    }
     return result;
-  }, [liveThreadIds, liveThreads]);
+  }, [liveThreadIds, liveThreads, preferences]);
   useEffect(() => {
     if (!normalizedSearch) {
       setSearchResult({
@@ -835,6 +941,10 @@ function RibbonSidebarList({
     () => new Set(placements.map(({ threadId }) => threadId)),
     [placements],
   );
+  const supplementalThreadIds = useMemo(
+    () => new Set(supplementalThreads.map(({ id }) => id)),
+    [supplementalThreads],
+  );
   const hasGroupScope = preferences?.view.scope.kind === "group";
   // Pinned membership and ordering come directly from bb. An active Ribbon
   // scope still controls which pinned roots are visible.
@@ -862,18 +972,28 @@ function RibbonSidebarList({
   const displayGroupId = (thread: PluginSidebarThread) =>
     grouping
       ? placementByThread.get(thread.id)?.groupId ??
-        (normalizedSearch && thread.isArchived
-          ? grouping.defaultGroupId
-          : undefined)
+        (grouping.groupingKey === "builtin:projects"
+          ? thread.projectId
+          : grouping.groupingKey === "builtin:sections"
+            ? (thread.sectionId ?? "unsectioned")
+            : (normalizedSearch && thread.isArchived) ||
+                supplementalThreadIds.has(thread.id)
+              ? grouping.defaultGroupId
+              : undefined)
       : "ungrouped";
   const unpinnedRoots = displayRootThreads.filter(
     (thread) =>
       !thread.isPinned &&
       (visiblePlacementIds.has(thread.id) ||
+        supplementalThreadIds.has(thread.id) ||
         (Boolean(normalizedSearch) && thread.isArchived)) &&
       matchesSearch(thread),
   );
-  if (grouping) {
+  if (preferences?.view.sort !== "manual") {
+    unpinnedRoots.sort((left, right) =>
+      compareSidebarThreads(preferences?.view.sort ?? "updated", left, right),
+    );
+  } else if (grouping) {
     unpinnedRoots.sort(
       (left, right) =>
         (placementOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
@@ -1180,7 +1300,11 @@ function RibbonSidebarList({
         ? (groupIndicator([root, ...descendants(root.id, childrenByParent)]) ?? root)
         : root;
     const reorderable =
-      depth === 0 && !normalizedSearch && !root.isArchived && rowContext !== undefined;
+      depth === 0 &&
+      preferences.view.sort === "manual" &&
+      !normalizedSearch &&
+      !root.isArchived &&
+      rowContext !== undefined;
     return (
       <Fragment key={root.id}>
         <ThreadRow
@@ -1374,95 +1498,144 @@ function RibbonSidebarList({
       }
     >
       {settings.values?.showProjectsAndSections !== false ? (
-        <ScopeFilter
-          filterGroupingKey={preferences.view.filterGroupingKey}
-          groupings={orderedGroupings(
-            snapshot.groupings.filter(({ available }) => available),
-          )}
-          onAddProjectLocalPath={(project) => {
-            void rpc
-              .call("addProjectLocalPathV1", { projectId: project.id })
-              .then(() => synchronize())
-              .catch((error: unknown) =>
-                setMutationError(
-                  error instanceof Error
-                    ? error.message
-                    : "Could not add local path",
+        <SidebarTopControls>
+          <ScopeFilter
+            filterGroupingKey={preferences.view.filterGroupingKey}
+            groupings={orderedGroupings(
+              snapshot.groupings.filter(({ available }) => available),
+            )}
+            onAddProjectLocalPath={(project) => {
+              void rpc
+                .call("addProjectLocalPathV1", { projectId: project.id })
+                .then(() => synchronize())
+                .catch((error: unknown) =>
+                  setMutationError(
+                    error instanceof Error
+                      ? error.message
+                      : "Could not add local path",
+                  ),
+                );
+            }}
+            onChange={(next) =>
+              changePreferences((current) => ({
+                ...current,
+                view: changeSidebarScope(
+                  current.view,
+                  next === null
+                    ? { kind: "all" }
+                    : { kind: "group", group: next },
                 ),
+              }))
+            }
+            onNewProject={() => {
+              void rpc
+                .call("createProjectV1", null)
+                .then(() => synchronize())
+                .catch((error: unknown) =>
+                  setMutationError(
+                    error instanceof Error
+                      ? error.message
+                      : "Could not create project",
+                  ),
+                );
+            }}
+            onNewSection={() =>
+              setEntityDialog({ kind: "create-section", name: "" })
+            }
+            onOpenProjectSettings={(project) => {
+              window.location.assign(
+                `/projects/${encodeURIComponent(project.id)}/settings`,
               );
-          }}
-          onChange={(next) =>
-            changePreferences((current) => ({
-              ...current,
-              view: changeSidebarScope(
-                current.view,
-                next === null
-                  ? { kind: "all" }
-                  : { kind: "group", group: next },
-              ),
-            }))
-          }
-          onHide={() => {
-            void rpc.call("updateSettingsV1", {
-              showProjectsAndSections: false,
-            });
-          }}
-          onNewProject={() => {
-            void rpc
-              .call("createProjectV1", null)
-              .then(() => synchronize())
-              .catch((error: unknown) =>
-                setMutationError(
-                  error instanceof Error
-                    ? error.message
-                    : "Could not create project",
-                ),
-              );
-          }}
-          onNewSection={() =>
-            setEntityDialog({ kind: "create-section", name: "" })
-          }
-          onOpenProjectSettings={(project) => {
-            window.location.assign(
-              `/projects/${encodeURIComponent(project.id)}/settings`,
-            );
-            onNavigate();
-          }}
-          onRemoveProject={(project) =>
-            setEntityDialog({
-              kind: "delete",
-              scope: { groupingKey: "builtin:projects", groupId: project.id },
-              label: project.name,
-            })
-          }
-          onRemoveSection={(section) =>
-            setEntityDialog({
-              kind: "delete",
-              scope: { groupingKey: "builtin:sections", groupId: section.id },
-              label: section.name,
-            })
-          }
-          onRenameProject={(project) =>
-            setEntityDialog({
-              kind: "rename",
-              scope: { groupingKey: "builtin:projects", groupId: project.id },
-              label: project.name,
-              name: project.name,
-            })
-          }
-          onRenameSection={(section) =>
-            setEntityDialog({
-              kind: "rename",
-              scope: { groupingKey: "builtin:sections", groupId: section.id },
-              label: section.name,
-              name: section.name,
-            })
-          }
-          projectActionStates={projectActionStates}
-          projects={sidebar.projects}
-          sections={sections.map(({ id, label }) => ({ id, name: label }))}
-          value={scopeFilterValue}
-        />
+              onNavigate();
+            }}
+            onRemoveProject={(project) =>
+              setEntityDialog({
+                kind: "delete",
+                scope: {
+                  groupingKey: "builtin:projects",
+                  groupId: project.id,
+                },
+                label: project.name,
+              })
+            }
+            onRemoveSection={(section) =>
+              setEntityDialog({
+                kind: "delete",
+                scope: {
+                  groupingKey: "builtin:sections",
+                  groupId: section.id,
+                },
+                label: section.name,
+              })
+            }
+            onRenameProject={(project) =>
+              setEntityDialog({
+                kind: "rename",
+                scope: {
+                  groupingKey: "builtin:projects",
+                  groupId: project.id,
+                },
+                label: project.name,
+                name: project.name,
+              })
+            }
+            onRenameSection={(section) =>
+              setEntityDialog({
+                kind: "rename",
+                scope: {
+                  groupingKey: "builtin:sections",
+                  groupId: section.id,
+                },
+                label: section.name,
+                name: section.name,
+              })
+            }
+            projectActionStates={projectActionStates}
+            projects={sidebar.projects}
+            sections={sections.map(({ id, label }) => ({ id, name: label }))}
+            value={scopeFilterValue}
+          />
+          <SidebarDisplayOptionsMenu
+            groupings={orderedGroupings(
+              snapshot.groupings.filter(({ available }) => available),
+            )}
+            headingsGroupingKey={preferences.view.groupingKey}
+            hide={preferences.view.hide}
+            onHeadingsGroupingChange={(groupingKey) =>
+              changePreferences((current) =>
+                current.view.groupingKey === groupingKey
+                  ? current
+                  : {
+                      ...current,
+                      view: changeSidebarGrouping(current.view, groupingKey),
+                    },
+              )
+            }
+            onHideChange={(kind, hidden) =>
+              changePreferences((current) => ({
+                ...current,
+                view: {
+                  ...current.view,
+                  hide: { ...current.view.hide, [kind]: hidden },
+                },
+              }))
+            }
+            onPagesGroupingChange={(groupingKey) =>
+              changePreferences((current) => ({
+                ...current,
+                view: changeSidebarPagesGrouping(current.view, groupingKey),
+              }))
+            }
+            onSortChange={(sort) =>
+              changePreferences((current) => ({
+                ...current,
+                view: { ...current.view, sort },
+              }))
+            }
+            pagesGroupingKey={preferences.view.filterGroupingKey}
+            sort={preferences.view.sort}
+          />
+        </SidebarTopControls>
       ) : null}
       {mutationError ? (
         <div className="rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
