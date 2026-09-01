@@ -105,6 +105,20 @@ describe("sidebar page switcher", () => {
     fireEvent(viewport, new Event("scrollend"));
 
     expect(onPageChange).toHaveBeenCalledWith("release");
+
+    view.rerender(
+      <SidebarPageSwitcher
+        activePageId="release"
+        onPageChange={onPageChange}
+        pages={pages}
+        renderPage={renderPage}
+      />,
+    );
+    fireEvent.wheel(viewport, { deltaX: 1_200, deltaY: 0 });
+    viewport.scrollLeft = 640;
+    fireEvent.scroll(viewport);
+
+    expect(viewport.scrollLeft).toBe(640);
   });
 
   it.each([
