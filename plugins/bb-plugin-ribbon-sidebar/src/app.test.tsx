@@ -431,6 +431,20 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("adds four pixels between the navigator label and chevron", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    const switcher = await slot.findByRole("button", {
+      name: "All groups, Pages by Section",
+    });
+    const chevron = switcher.lastElementChild!;
+
+    expect(getComputedStyle(chevron).marginLeft).toBe("4px");
+    slot.lifecycle.unmount();
+  });
+
   it("uses the light icon-palette color behind a white scoped icon", async () => {
     storeSectionScope("section-a");
     const app = await loadPluginApp(() => import("./app"));

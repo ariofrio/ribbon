@@ -454,7 +454,13 @@ export function ScopeFilter({
                 {activeGrouping?.singularLabel ?? pagesLabel}
               </span>
             </span>
-            <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" name="ChevronDown" />
+            <span
+              aria-hidden
+              className="inline-flex shrink-0 text-muted-foreground"
+              style={{ marginLeft: 4 }}
+            >
+              <Icon aria-hidden className="size-3.5" name="ChevronDown" />
+            </span>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className={CONTENT_CLASS}>
