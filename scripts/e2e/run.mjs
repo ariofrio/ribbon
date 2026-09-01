@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyBreadcrumbChildBadge } from "./breadcrumbs/child-badge.mjs";
 import {
   verifyNewThreadRouting,
   waitForStageCatalog,
@@ -16,6 +17,14 @@ const scratch = join(repositoryRoot, ".scratch/e2e");
 const bb = BB_CLI_PATH;
 
 const suites = [
+  {
+    id: "breadcrumbs",
+    cases: ["child-badge"],
+    plugins: ["bb-plugin-breadcrumbs"],
+    async run({ stack, fixture }) {
+      await verifyBreadcrumbChildBadge({ stack, fixture });
+    },
+  },
   {
     id: "new-thread-routing",
     cases: ["project", "stage"],
@@ -90,12 +99,13 @@ try {
     );
   }
   for (const suite of selectedSuites) {
-    await suite.prepare({ cliEnv, cases: suite.selectedCases });
+    await suite.prepare?.({ cliEnv, cases: suite.selectedCases });
   }
   const fixture = seed({
     stack: { ...stack, env: cliEnv },
     workspaceRoot: join(scratch, "workspaces"),
     bb,
+    assignStages: plugins.has("bb-plugin-thread-stages"),
   });
 
   for (const suite of selectedSuites) {

@@ -1,15 +1,17 @@
 import { chromium } from "playwright";
-import { openApp, VIEWPORT } from "./capture.mjs";
-import { AGENT, FEATURED_PROJECT, FEATURED_THREAD } from "./fixture.mjs";
+import {
+  AGENT,
+  FEATURED_PROJECT,
+  FEATURED_THREAD,
+} from "../../screenshots/fixture.mjs";
 
 const PLUGIN_ID = "breadcrumbs";
 const CHILD_TITLE = "Check native child badge";
 
 /**
- * Verifies the integration against the bb version pinned by this harness.
- * The same child thread is first rendered by bb alone, then after Breadcrumbs
- * is enabled with ancestor crumbs, so a host markup change cannot be hidden by
- * a jsdom reproduction of that markup.
+ * Renders one child thread first with bb alone and then with Breadcrumbs, both
+ * against the bb version pinned by the E2E runner. The native control proves
+ * the targeted bb still owns the badge this plugin removes.
  */
 export async function verifyBreadcrumbChildBadge({ stack, fixture }) {
   const parent = fixture.threads.get(FEATURED_THREAD);
@@ -56,29 +58,34 @@ export async function verifyBreadcrumbChildBadge({ stack, fixture }) {
   let context;
   try {
     browser = await chromium.launch();
-    const opened = await openApp({
-      browser,
-      stack,
-      fixture,
-      theme: "dark",
-      viewport: VIEWPORT,
+    context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+      reducedMotion: "reduce",
     });
-    ({ context } = opened);
-    const { page, diagnostics } = opened;
+    const page = await context.newPage();
+    const diagnostics = [];
+    page.on("console", (message) => {
+      if (message.type() !== "error" && message.type() !== "warning") return;
+      diagnostics.push(`${message.type()}: ${message.text()}`);
+    });
+    page.on("pageerror", (error) => {
+      diagnostics.push(`pageerror: ${error.stack ?? error.message}`);
+    });
     const href = `/projects/${encodeURIComponent(project.id)}/threads/${encodeURIComponent(child.id)}`;
     await page.goto(new URL(href, stack.serverUrl).href, {
-      waitUntil: "networkidle",
+      waitUntil: "domcontentloaded",
     });
 
     const childBadge = page.locator("header").getByText("child", { exact: true });
     try {
       await childBadge.waitFor({ state: "visible", timeout: 120_000 });
-      if ((await childBadge.count()) !== 1) {
-        throw new Error(`Expected one native child badge, found ${await childBadge.count()}`);
+      const count = await childBadge.count();
+      if (count !== 1) {
+        throw new Error(`Expected one native child badge, found ${count}`);
       }
 
       fixture.run(["plugin", "enable", PLUGIN_ID]);
-      await page.reload({ waitUntil: "networkidle" });
+      await page.reload({ waitUntil: "domcontentloaded" });
       await page
         .locator("[data-breadcrumbs-root]")
         .getByTitle(FEATURED_THREAD)

@@ -2,7 +2,6 @@
 //
 //   npm run screenshots            capture every shot
 //   npm run screenshots -- --only icons
-//   npm run screenshots -- --verify-only
 //   npm run screenshots -- --keep  leave the seeded bb running for inspection
 //
 // Needs the Node in .nvmrc, Playwright's Chromium (npx playwright install
@@ -13,7 +12,6 @@ import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capture } from "./capture.mjs";
-import { verifyBreadcrumbChildBadge } from "./breadcrumbs.e2e.mjs";
 import { applyPluginState, seed, writeManagedConfig } from "./fixture.mjs";
 import { setupScreenshots, SHOTS } from "./shots.mjs";
 import { BB_CLI_PATH, startStack } from "./stack.mjs";
@@ -44,11 +42,10 @@ if (options.only !== undefined && shots.length === 0) {
 }
 
 function parseArguments(argv) {
-  const parsed = { keep: false, only: undefined, verifyOnly: false };
+  const parsed = { keep: false, only: undefined };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--keep") parsed.keep = true;
-    else if (argument === "--verify-only") parsed.verifyOnly = true;
     else if (argument === "--only") {
       index += 1;
       parsed.only = argv[index];
@@ -117,25 +114,18 @@ try {
   console.log("Applying the ChatGPT theme…");
   setupScreenshots({ fixture });
 
-  console.log("Verifying plugin integrations…");
-  await timePhase("verify integrations", () =>
-    verifyBreadcrumbChildBadge({ stack, fixture }),
+  console.log("Capturing…");
+  const captured = await timePhase("capture", () =>
+    capture({ stack, fixture, shots, shotFiles, repositoryRoot }),
   );
 
-  if (!options.verifyOnly) {
-    console.log("Capturing…");
-    const captured = await timePhase("capture", () =>
-      capture({ stack, fixture, shots, shotFiles, repositoryRoot }),
-    );
-
-    console.log(
-      `\nWrote ${captured.flatMap((shot) => shot.outputs).length} files:\n${captured
-        .flatMap((shot) =>
-          Object.values(shotFiles(shot)).map((path) => `  ${relative(repositoryRoot, path)}`),
-        )
-        .join("\n")}`,
-    );
-  }
+  console.log(
+    `\nWrote ${captured.flatMap((shot) => shot.outputs).length} files:\n${captured
+      .flatMap((shot) =>
+        Object.values(shotFiles(shot)).map((path) => `  ${relative(repositoryRoot, path)}`),
+      )
+      .join("\n")}`,
+  );
   if (options.keep) {
     console.log(
       `\nThe seeded bb is still running at ${stack.serverUrl}; the next run replaces it.`,
