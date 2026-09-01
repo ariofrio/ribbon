@@ -72,7 +72,8 @@ export async function archiveEligibleCompletedThreads(
     throw new Error("Auto-archive delay must be positive.");
   }
 
-  const candidates = await source.listCompletedBefore(now - delayMs);
+  const cutoff = now - delayMs;
+  const candidates = await source.listCompletedBefore(cutoff);
   if (candidates.length === 0) return [];
 
   const threads = await listAllThreads(({ limit, offset }) =>
@@ -103,6 +104,7 @@ export async function archiveEligibleCompletedThreads(
       continue;
     }
     const hierarchy = collectHierarchy(thread, childrenByParent);
+    if (hierarchy.some((entry) => entry.thread.updatedAt > cutoff)) continue;
     if (hierarchy.some((entry) => entry.thread.pinnedAt !== null)) continue;
     hierarchy.sort(
       (left, right) =>

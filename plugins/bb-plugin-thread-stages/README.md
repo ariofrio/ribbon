@@ -40,8 +40,11 @@ stages settings; nonempty disabled groups remain visible but stop accepting
 moves.
 
 Completed roots are auto-archived after seven days by default. Settings can
-change the delay to 1 or 30 days or disable it. The sweep skips a hierarchy
-when any member is pinned and otherwise archives descendants before ancestors.
+change the delay to 1 or 30 days or disable it. The timer starts when the root
+enters Completed and restarts whenever bb updates the root or a descendant. A
+standalone background command that does not update a thread does not restart
+it. The sweep skips a hierarchy when any member is pinned and otherwise
+archives descendants before ancestors.
 
 ## Keyboard shortcuts
 
