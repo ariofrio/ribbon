@@ -578,6 +578,104 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("moves an existing project scope to a newly opened thread", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.ribbon-sidebar.preferences.v1",
+      JSON.stringify({
+        view: {
+          scope: {
+            kind: "group",
+            group: {
+              groupingKey: "builtin:projects",
+              groupId: "project-a",
+            },
+          },
+          groupingKey: "plugin:thread-stages:stages",
+        },
+        collapsed: [],
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        projects: [
+          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-b", name: "Analytics", isPersonal: false },
+        ],
+        threads: [
+          thread({ id: "thread-a", title: "Design migration" }),
+          thread({
+            id: "thread-b",
+            projectId: "project-b",
+            title: "Ship analytics",
+          }),
+        ],
+      },
+    });
+    fixture.synchronizeV1.mockResolvedValue({
+      ...snapshot,
+      groupings: snapshot.groupings.map((grouping) =>
+        grouping.groupingKey === "builtin:projects"
+          ? {
+              ...grouping,
+              groups: [
+                ...grouping.groups,
+                {
+                  id: "project-b",
+                  label: "Analytics",
+                  visibleWhenEmpty: true,
+                  acceptsAssignments: true,
+                  defaultCollapsed: false,
+                },
+              ],
+            }
+          : grouping,
+      ),
+    });
+    fixture.value.rpc.listPlacementsV1 = vi.fn(async (raw: unknown) => {
+      const { groupingKey, threadIds } = raw as {
+        groupingKey: string;
+        threadIds?: string[];
+      };
+      const ids = (threadIds ?? ["thread-a", "thread-b"]).filter((id) =>
+        ["thread-a", "thread-b"].includes(id),
+      );
+      return {
+        ok: true as const,
+        value: {
+          groupingKey,
+          revision: 1,
+          items: ids.map((threadId) => ({
+            groupingKey,
+            groupId:
+              groupingKey === "builtin:projects"
+                ? threadId === "thread-b"
+                  ? "project-b"
+                  : "project-a"
+                : "Idle",
+            threadId,
+            enteredAtMs: groupingKey.startsWith("plugin:") ? 1 : null,
+            ...(groupingKey.startsWith("plugin:")
+              ? { origin: "auto" as const }
+              : {}),
+          })),
+        },
+      };
+    });
+    const slot = renderSlot(
+      app.threadLists[0]!,
+      { ...props, activeThreadId: "thread-b" },
+      fixture.value,
+    );
+
+    expect(
+      await slot.findByRole("button", { name: "Analytics, filtered" }),
+    ).toBeTruthy();
+    expect(await slot.findByText("Ship analytics")).toBeTruthy();
+    expect(slot.queryByText("Design migration")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
   it("moves an existing section scope to the root of a newly opened thread", async () => {
     window.localStorage.setItem(
       "bb.plugin.ribbon-sidebar.preferences.v1",
@@ -719,6 +817,54 @@ describe("Ribbon sidebar app", () => {
     expect(slot.queryByText("Ship UI")).toBeNull();
     expect(
       slot.getByRole("button", { name: "Expand Idle section" }).getAttribute(
+        "aria-expanded",
+      ),
+    ).toBe("false");
+    slot.lifecycle.unmount();
+  });
+
+  it("previews only the opened thread inside the collapsed Pinned section", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.ribbon-sidebar.preferences.v1",
+      JSON.stringify({
+        view: {
+          scope: { kind: "all" },
+          groupingKey: "plugin:thread-stages:stages",
+        },
+        collapsed: ["builtin:pinned"],
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        projects: [
+          { id: "project-a", name: "Storefront", isPersonal: false },
+        ],
+        threads: [
+          thread({
+            id: "thread-pin-open",
+            isPinned: true,
+            title: "Opened pinned thread",
+          }),
+          thread({
+            id: "thread-pin-other",
+            isPinned: true,
+            title: "Other pinned thread",
+          }),
+          thread({ id: "thread-a", title: "Design migration" }),
+        ],
+      },
+    });
+    const slot = renderSlot(
+      app.threadLists[0]!,
+      { ...props, activeThreadId: "thread-pin-open" },
+      fixture.value,
+    );
+
+    expect(await slot.findByText("Opened pinned thread")).toBeTruthy();
+    expect(slot.queryByText("Other pinned thread")).toBeNull();
+    expect(
+      slot.getByRole("button", { name: "Expand Pinned section" }).getAttribute(
         "aria-expanded",
       ),
     ).toBe("false");

@@ -1125,6 +1125,17 @@ function RibbonSidebarList({
   };
   const scopeFilterValue: ScopeFilterValue = activeScope;
   const hasDisplayedThreads = pinnedRoots.length + unpinnedRoots.length > 0;
+  const pinnedSectionCollapsed =
+    !normalizedSearch && preferences.collapsed.has("builtin:pinned");
+  const pinnedActivePreview =
+    pinnedSectionCollapsed && activeThreadId !== null
+      ? pinnedRoots
+          .flatMap((root) => [
+            root,
+            ...descendants(root.id, childrenByParent),
+          ])
+          .find(({ id }) => id === activeThreadId)
+      : undefined;
   const emptyMessage =
     normalizedSearch !== ""
       ? "No matching threads"
@@ -1642,22 +1653,14 @@ function RibbonSidebarList({
             <span className="flex min-w-0 flex-1 items-center">
               <span className="min-w-0 flex-1 truncate">Pinned</span>
               <button
-                aria-expanded={
-                  normalizedSearch
-                    ? true
-                    : !preferences.collapsed.has("builtin:pinned")
-                }
+                aria-expanded={!pinnedSectionCollapsed}
                 aria-label={
-                  !normalizedSearch &&
-                  preferences.collapsed.has("builtin:pinned")
+                  pinnedSectionCollapsed
                     ? "Expand Pinned section"
                     : "Collapse Pinned section"
                 }
                 className={`${
-                  !normalizedSearch &&
-                  preferences.collapsed.has("builtin:pinned")
-                    ? ""
-                    : "bb-sidebar-hover-actions"
+                  pinnedSectionCollapsed ? "" : "bb-sidebar-hover-actions"
                 } inline-flex size-6 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2`}
                 onClick={() =>
                   changePreferences((current) => {
@@ -1675,10 +1678,7 @@ function RibbonSidebarList({
                 <Icon
                   aria-hidden
                   className={`size-3 transition-transform duration-150 ${
-                    !normalizedSearch &&
-                    preferences.collapsed.has("builtin:pinned")
-                      ? ""
-                      : "rotate-90"
+                    pinnedSectionCollapsed ? "" : "rotate-90"
                   }`}
                   name="ChevronRight"
                 />
@@ -1702,7 +1702,7 @@ function RibbonSidebarList({
               }
             />
           </div>
-          {normalizedSearch || !preferences.collapsed.has("builtin:pinned") ? (
+          {!pinnedSectionCollapsed ? (
             <ul>
               {pinnedRoots.map((root) =>
                 renderRoot(root, 0, true, {
@@ -1711,6 +1711,8 @@ function RibbonSidebarList({
                 }),
               )}
             </ul>
+          ) : pinnedActivePreview ? (
+            <ul>{renderRoot(pinnedActivePreview, 0, false)}</ul>
           ) : null}
         </section>
       ) : null}
