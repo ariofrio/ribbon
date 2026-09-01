@@ -285,6 +285,10 @@ function ThreadRow({
   const iconSpansEntireItem = alignAdornmentsToEntireItem && preview !== null;
   const hasTrailingIndicator =
     layout !== null || indicatorThread.indicator !== "none";
+  const alignsTrailingIndicatorToTitle =
+    hasTrailingIndicator && !alignAdornmentsToEntireItem;
+  const reservesTrailingLane =
+    hasTrailingIndicator && alignAdornmentsToEntireItem;
   const commonMenuProps = {
     actions,
     assignments,
@@ -327,7 +331,7 @@ function ThreadRow({
       ) : null}
       <div
         className={`bb-sidebar-hover-actions-row group/thread-row relative grid w-full items-start rounded-md pr-0 text-sm transition-colors ${
-          hasTrailingIndicator
+          reservesTrailingLane
             ? "grid-cols-[minmax(0,1fr)_auto] gap-x-2"
             : "grid-cols-1"
         } ${
@@ -361,7 +365,11 @@ function ThreadRow({
           onClick={openThread}
         />
         <span
-          className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 py-[calc((var(--bb-sidebar-row-height)-1lh)/2)] max-md:pointer-coarse:py-[calc((var(--bb-sidebar-row-height-coarse)-1lh)/2)]"
+          className={`grid min-w-0 gap-x-2 py-[calc((var(--bb-sidebar-row-height)-1lh)/2)] max-md:pointer-coarse:py-[calc((var(--bb-sidebar-row-height-coarse)-1lh)/2)] ${
+            alignsTrailingIndicatorToTitle
+              ? "grid-cols-[auto_minmax(0,1fr)_auto]"
+              : "grid-cols-[auto_minmax(0,1fr)]"
+          }`}
           {...{ [ICON_LAYOUT_ATTRIBUTE]: "" }}
         >
           {/* Empty by design: the box names its project, and icon-styles.ts
@@ -379,7 +387,12 @@ function ThreadRow({
               gridRowStart: 1,
             }}
           />
-          <span className="col-start-2 row-start-1 flex min-w-0 items-center gap-1.5">
+          <span
+            className="col-start-2 row-start-1 flex min-w-0 items-center gap-1.5"
+            style={{
+              paddingRight: hasTrailingIndicator ? undefined : 8,
+            }}
+          >
             <span className="min-w-0 truncate" title={accessibleTitle}>
               {rowTitle}
             </span>
@@ -399,9 +412,20 @@ function ThreadRow({
               </button>
             ) : null}
           </span>
+          {alignsTrailingIndicatorToTitle ? (
+            <span
+              aria-hidden="true"
+              className="col-start-3 row-start-1 w-7 max-md:pointer-coarse:w-9"
+            />
+          ) : null}
           {preview ? (
             <span
-              className="col-start-2 row-start-2 truncate text-[11px] leading-4 text-subtle-foreground/75"
+              className={`col-start-2 row-start-2 truncate text-[11px] leading-4 text-subtle-foreground/75 ${
+                alignsTrailingIndicatorToTitle ? "col-end-4" : ""
+              }`}
+              style={{
+                paddingRight: reservesTrailingLane ? undefined : 8,
+              }}
               title={preview}
             >
               {preview}
@@ -410,13 +434,16 @@ function ThreadRow({
         </span>
         {hasTrailingIndicator ? (
           <span
-            className={`relative flex w-7 shrink-0 items-center justify-end max-md:pointer-coarse:w-9 ${
+            className={`flex w-7 shrink-0 items-center justify-end max-md:pointer-coarse:w-9 ${
               alignAdornmentsToEntireItem
-                ? "self-stretch"
-                : "h-[var(--bb-sidebar-row-height)] max-md:pointer-coarse:h-[var(--bb-sidebar-row-height-coarse)]"
+                ? "relative self-stretch"
+                : "absolute right-0 top-0 z-10 h-[var(--bb-sidebar-row-height)] max-md:pointer-coarse:h-[var(--bb-sidebar-row-height-coarse)]"
             }`}
             style={{
               alignSelf: alignAdornmentsToEntireItem ? "stretch" : "start",
+              position: alignAdornmentsToEntireItem ? "relative" : "absolute",
+              right: alignAdornmentsToEntireItem ? undefined : 0,
+              top: alignAdornmentsToEntireItem ? undefined : 0,
             }}
           >
             <span
