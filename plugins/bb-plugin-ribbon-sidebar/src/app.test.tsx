@@ -412,7 +412,7 @@ describe("Ribbon sidebar app", () => {
     expect(within(switcher).getByText("Section")).toBeTruthy();
 
     fireEvent.keyDown(
-      slot.getByRole("button", { name: "Sidebar display options" }),
+      await slot.findByRole("button", { name: "Sidebar display options" }),
       { key: "Enter" },
     );
     expect(await slot.findByText("Organize")).toBeTruthy();
@@ -428,6 +428,64 @@ describe("Ribbon sidebar app", () => {
       slot.getByRole("menuitem", { name: "Sort Last updated" }),
       { key: "Escape" },
     );
+    slot.lifecycle.unmount();
+  });
+
+  it("adds four pixels between the navigator label and chevron", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    const switcher = await slot.findByRole("button", {
+      name: "All groups, Pages by Section",
+    });
+    const chevron = switcher.lastElementChild!;
+
+    expect(getComputedStyle(chevron).marginLeft).toBe("4px");
+    slot.lifecycle.unmount();
+  });
+
+  it("uses the light icon-palette color behind a white scoped icon", async () => {
+    storeSectionScope("section-a");
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    await slot.findByText("Design migration");
+    const tile = slot.container.querySelector<HTMLElement>(
+      'button.thread-filter-trigger > [data-ribbon-icons-section="section-a"]',
+    );
+    const icon = tile?.querySelector<HTMLElement>(
+      '[data-ribbon-sidebar-icon="section"]',
+    );
+
+    expect(tile?.style.backgroundColor).toBe(
+      "var(--ribbon-icons-section-color-light, var(--primary))",
+    );
+    expect(icon?.style.backgroundColor).toBe(
+      "var(--ribbon-icons-section-on-color-light, var(--primary-foreground))",
+    );
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps grouping submenu icons decorative", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    fireEvent.keyDown(
+      await slot.findByRole("button", { name: "Sidebar display options" }),
+      { key: "Enter" },
+    );
+    const headings = await slot.findByRole("menuitem", {
+      name: "Headings Stages",
+    });
+    headings.focus();
+    fireEvent.keyDown(headings, { key: "ArrowRight" });
+
+    expect(
+      await slot.findByRole("menuitemcheckbox", { name: "Stages" }),
+    ).toBeTruthy();
     slot.lifecycle.unmount();
   });
 

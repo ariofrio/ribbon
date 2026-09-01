@@ -30,6 +30,10 @@ describe("SidebarTopControls", () => {
     expect(primaryActions.firstElementChild?.getAttribute("data-bb-plugin")).toBe(
       "ribbon-sidebar",
     );
+    expect(
+      getComputedStyle(primaryActions.firstElementChild as HTMLElement)
+        .marginBottom,
+    ).toBe("16px");
     expect(primaryActions.lastElementChild?.textContent).toBe("New thread");
   });
 });

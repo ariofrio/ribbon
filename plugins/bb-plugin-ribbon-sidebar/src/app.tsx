@@ -20,7 +20,6 @@ import {
   type DragEvent,
   type FormEvent,
   type MouseEvent,
-  type CSSProperties,
   type ReactNode,
 } from "react";
 import type { z } from "zod";
@@ -1652,12 +1651,6 @@ function RibbonSidebarList({
       onKeyDown={(event) => {
         if (event.key === "Escape") clearDrag();
       }}
-      style={
-        {
-          "--bb-sidebar-sticky-label-top":
-            "calc(var(--bb-sidebar-sticky-stack-padding-top) + 2.75rem)",
-        } as CSSProperties
-      }
     >
       {settings.values?.showProjectsAndSections !== false ? (
         <SidebarTopControls>

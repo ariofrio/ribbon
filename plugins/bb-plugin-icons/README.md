@@ -189,6 +189,12 @@ the only precedence there is.
 A color is set only where someone picked one, so an unpicked icon inherits the
 color of the label beside it.
 
+Colored owners also publish `--ribbon-icons-<kind>-color-light`, the palette's
+light-mode foreground anchor, and `--ribbon-icons-<kind>-on-color-light`, its
+white contrasting foreground. These let a compact filled tile keep the same
+dark-enough palette color and white glyph in either app mode while preserving
+its own fallback when no color was picked.
+
 `document.documentElement` carries `data-ribbon-icons-ready` once the
 stylesheet is in. Key off it for anything that should not exist without this
 plugin; Ribbon sidebar collapses its row icons that way.

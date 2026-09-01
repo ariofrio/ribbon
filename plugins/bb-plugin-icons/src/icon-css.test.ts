@@ -64,6 +64,8 @@ describe("iconStylesheet", () => {
     const section = css.slice(css.indexOf('[data-ribbon-icons-section="sec_x"]'));
 
     expect(project).toContain("--ribbon-icons-project-color:");
+    expect(project).toContain("--ribbon-icons-project-color-light:");
+    expect(project).toContain("--ribbon-icons-project-on-color-light:white");
     expect(section.slice(0, section.indexOf("}"))).not.toContain("color:");
   });
 
