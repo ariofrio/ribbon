@@ -47,13 +47,8 @@ export async function verifyPageSwitching({ stack }) {
     });
     const viewport = root.getByTestId("sidebar-page-viewport");
 
-    await navigation.getByRole("button", { name: "Show Atlas page" }).click();
-    await waitForActivePage(page, "Atlas");
-    await waitForPageAtRest(page, viewport, 1);
-    assert.match(
-      await root.getAttribute("data-ribbon-sidebar-scope-group-id"),
-      /^sec_/u,
-    );
+    await waitForActivePage(page, "All groups");
+    await waitForPageAtRest(page, viewport, 0);
 
     const navigationBox = await navigation.boundingBox();
     const parentBottom = await root.evaluate(
@@ -74,6 +69,47 @@ export async function verifyPageSwitching({ stack }) {
     await page.mouse.move(
       viewportBox.x + viewportBox.width / 2,
       viewportBox.y + viewportBox.height / 2,
+    );
+
+    await viewport.evaluate((element) => {
+      window.__ribbonEdgeFrame = null;
+      element.addEventListener(
+        "wheel",
+        (event) => {
+          requestAnimationFrame(() => {
+            const transform = getComputedStyle(element).transform;
+            const horizontalOffset =
+              transform === "none" ? 0 : new DOMMatrix(transform).m41;
+            window.__ribbonEdgeFrame = {
+              defaultPrevented: event.defaultPrevented,
+              horizontalOffset,
+            };
+          });
+        },
+        { once: true },
+      );
+    });
+    await page.mouse.wheel(-260, 0);
+    const edgeFrame = await page.waitForFunction(() => window.__ribbonEdgeFrame);
+    const edgeMotion = await edgeFrame.jsonValue();
+    assert.equal(edgeMotion.defaultPrevented, true);
+    assert.ok(
+      edgeMotion.horizontalOffset > 0 && edgeMotion.horizontalOffset < 260,
+      "An outward gesture should visibly move by a resisted distance",
+    );
+    await page.waitForFunction((element) => {
+      const transform = getComputedStyle(element).transform;
+      return transform === "none" || Math.abs(new DOMMatrix(transform).m41) < 1;
+    }, await viewport.elementHandle());
+    await waitForActivePage(page, "All groups");
+    await waitForPageAtRest(page, viewport, 0);
+
+    await page.mouse.wheel(1_800, 0);
+    await waitForActivePage(page, "Atlas");
+    await waitForPageAtRest(page, viewport, 1);
+    assert.match(
+      await root.getAttribute("data-ribbon-sidebar-scope-group-id"),
+      /^sec_/u,
     );
 
     await page.mouse.wheel(110, 0);

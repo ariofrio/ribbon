@@ -29,6 +29,9 @@ interface SidebarPageSwitcherProps {
 }
 
 const SCROLL_END_FALLBACK_MS = 120;
+const WHEEL_GESTURE_IDLE_MS = 160;
+const RUBBER_BAND_FACTOR = 0.55;
+const RUBBER_BAND_LIMIT = 0.32;
 
 function samePage(left: string | null, right: string | null) {
   return left === right;
@@ -41,6 +44,17 @@ function prefersReducedMotion() {
   );
 }
 
+function rubberBandDistance(distance: number, dimension: number) {
+  if (dimension <= 0 || distance === 0) return 0;
+  const magnitude = Math.abs(distance);
+  const resisted =
+    (magnitude * dimension * RUBBER_BAND_FACTOR) /
+    (dimension + RUBBER_BAND_FACTOR * magnitude);
+  return (
+    Math.sign(distance) * Math.min(resisted, dimension * RUBBER_BAND_LIMIT)
+  );
+}
+
 export function SidebarPageSwitcher({
   activePageId,
   onPageChange,
@@ -49,6 +63,9 @@ export function SidebarPageSwitcher({
 }: SidebarPageSwitcherProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const scrollEndFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wheelGestureEnd = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wheelGestureOrigin = useRef<number | null>(null);
+  const edgePull = useRef(0);
   const [paging, setPaging] = useState(false);
   const [pagingTargetIndex, setPagingTargetIndex] = useState<number | null>(
     null,
@@ -59,14 +76,32 @@ export function SidebarPageSwitcher({
     pages.findIndex(({ id }) => samePage(id, activePageId)),
   );
 
+  const releaseEdgePull = useCallback(() => {
+    const viewport = viewportRef.current;
+    edgePull.current = 0;
+    if (!viewport) return;
+    viewport.style.transition = prefersReducedMotion()
+      ? "none"
+      : "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)";
+    viewport.style.transform = "translate3d(0px, 0, 0)";
+  }, []);
+
   const settleOnNearestPage = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport || pages.length === 0) return;
     const width = viewport.clientWidth || viewport.getBoundingClientRect().width;
     if (width === 0) return;
+    const rawTargetIndex = Math.round(viewport.scrollLeft / width);
+    const gestureOrigin = wheelGestureOrigin.current;
+    const minimumTarget =
+      gestureOrigin === null ? 0 : Math.max(0, gestureOrigin - 1);
+    const maximumTarget =
+      gestureOrigin === null
+        ? pages.length - 1
+        : Math.min(pages.length - 1, gestureOrigin + 1);
     const targetIndex = Math.max(
-      0,
-      Math.min(pages.length - 1, Math.round(viewport.scrollLeft / width)),
+      minimumTarget,
+      Math.min(maximumTarget, rawTargetIndex),
     );
     if (targetIndex !== activeIndex) {
       onPageChange(pages[targetIndex]!.id);
@@ -90,6 +125,56 @@ export function SidebarPageSwitcher({
     }
   }, []);
 
+  const handleWheel = useCallback(
+    (event: WheelEvent) => {
+      if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+      if (wheelGestureOrigin.current === null) {
+        wheelGestureOrigin.current = activeIndex;
+      }
+      if (wheelGestureEnd.current !== null) {
+        clearTimeout(wheelGestureEnd.current);
+      }
+      wheelGestureEnd.current = setTimeout(() => {
+        const pulledPastEdge = edgePull.current !== 0;
+        wheelGestureOrigin.current = null;
+        wheelGestureEnd.current = null;
+        releaseEdgePull();
+        if (pulledPastEdge) {
+          setPaging(false);
+          setPagingTargetIndex(null);
+        }
+      }, WHEEL_GESTURE_IDLE_MS);
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      const maximumScroll = Math.max(
+        0,
+        viewport.scrollWidth - viewport.clientWidth,
+      );
+      const pullingPastStart = event.deltaX < 0 && viewport.scrollLeft <= 0.5;
+      const pullingPastEnd =
+        event.deltaX > 0 && viewport.scrollLeft >= maximumScroll - 0.5;
+      if (pullingPastStart || pullingPastEnd) {
+        event.preventDefault();
+        edgePull.current -= event.deltaX;
+        const distance = rubberBandDistance(
+          edgePull.current,
+          viewport.clientWidth,
+        );
+        viewport.style.transition = "none";
+        viewport.style.transform = `translate3d(${distance}px, 0, 0)`;
+      } else if (edgePull.current !== 0) {
+        releaseEdgePull();
+      }
+      if (!paging || pagingTargetIndex !== null) {
+        flushSync(() => {
+          setPaging(true);
+          setPagingTargetIndex(null);
+        });
+      }
+    },
+    [activeIndex, paging, pagingTargetIndex, releaseEdgePull],
+  );
+
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -107,32 +192,50 @@ export function SidebarPageSwitcher({
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
+    viewport.addEventListener("wheel", handleWheel, {
+      capture: true,
+      passive: false,
+    });
+    return () => {
+      viewport.removeEventListener("wheel", handleWheel, { capture: true });
+    };
+  }, [handleWheel]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
     viewport.addEventListener("scrollend", settleOnNearestPage);
     return () => {
       viewport.removeEventListener("scrollend", settleOnNearestPage);
       if (scrollEndFallback.current !== null) {
         clearTimeout(scrollEndFallback.current);
       }
+      if (wheelGestureEnd.current !== null) {
+        clearTimeout(wheelGestureEnd.current);
+      }
     };
   }, [settleOnNearestPage]);
 
   return (
-    <div className="relative flex min-w-0 flex-1 flex-col">
+    <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
       <div
         className="relative flex min-w-0 flex-1 overflow-x-auto overscroll-x-contain [&::-webkit-scrollbar]:hidden"
         data-testid="sidebar-page-viewport"
-        onWheelCapture={(event) => {
-          if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
-            if (!paging || pagingTargetIndex !== null) {
-              flushSync(() => {
-                setPaging(true);
-                setPagingTargetIndex(null);
-              });
-            }
-          }
-        }}
         onScroll={() => {
-          if ("onscrollend" in (viewportRef.current ?? {})) return;
+          const viewport = viewportRef.current;
+          const gestureOrigin = wheelGestureOrigin.current;
+          if (viewport && gestureOrigin !== null) {
+            const width =
+              viewport.clientWidth || viewport.getBoundingClientRect().width;
+            const minimum = Math.max(0, gestureOrigin - 1) * width;
+            const maximum =
+              Math.min(pages.length - 1, gestureOrigin + 1) * width;
+            viewport.scrollLeft = Math.max(
+              minimum,
+              Math.min(maximum, viewport.scrollLeft),
+            );
+          }
+          if (viewport && "onscrollend" in viewport) return;
           if (scrollEndFallback.current !== null) {
             clearTimeout(scrollEndFallback.current);
           }
@@ -189,6 +292,12 @@ export function SidebarPageSwitcher({
                       onClick={() => {
                         const targetIndex = pages.indexOf(page);
                         if (targetIndex !== activeIndex) {
+                          wheelGestureOrigin.current = null;
+                          if (wheelGestureEnd.current !== null) {
+                            clearTimeout(wheelGestureEnd.current);
+                            wheelGestureEnd.current = null;
+                          }
+                          releaseEdgePull();
                           flushSync(() => {
                             setPaging(true);
                             setPagingTargetIndex(targetIndex);

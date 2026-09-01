@@ -14,7 +14,10 @@ const renderPage = (page: (typeof pages)[number]) => (
   <div>{page.label} threads</div>
 );
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("sidebar page switcher", () => {
   it("renders the active and adjacent pages in one native snap track", () => {
@@ -78,6 +81,77 @@ describe("sidebar page switcher", () => {
 
     expect(onPageChange).toHaveBeenCalledWith("roadmap");
   });
+
+  it("limits one horizontal wheel gesture to the adjacent page", () => {
+    const onPageChange = vi.fn();
+    const view = render(
+      <SidebarPageSwitcher
+        activePageId={null}
+        onPageChange={onPageChange}
+        pages={pages}
+        renderPage={renderPage}
+      />,
+    );
+    const viewport = view.getByTestId("sidebar-page-viewport");
+    Object.defineProperty(viewport, "clientWidth", { value: 320 });
+    Object.defineProperty(viewport, "scrollWidth", { value: 960 });
+
+    fireEvent.wheel(viewport, { deltaX: 1_200, deltaY: 0 });
+    viewport.scrollLeft = 640;
+    fireEvent.scroll(viewport);
+
+    expect(viewport.scrollLeft).toBe(320);
+
+    fireEvent(viewport, new Event("scrollend"));
+
+    expect(onPageChange).toHaveBeenCalledWith("release");
+  });
+
+  it.each([
+    { activePageId: null, deltaX: -180, direction: 1, scrollLeft: 0 },
+    {
+      activePageId: "roadmap",
+      deltaX: 180,
+      direction: -1,
+      scrollLeft: 640,
+    },
+  ])(
+    "rubber bands an outward wheel gesture at either $activePageId edge",
+    ({ activePageId, deltaX, direction, scrollLeft }) => {
+      vi.useFakeTimers();
+      const view = render(
+        <SidebarPageSwitcher
+          activePageId={activePageId}
+          onPageChange={vi.fn()}
+          pages={pages}
+          renderPage={renderPage}
+        />,
+      );
+      const viewport = view.getByTestId("sidebar-page-viewport");
+      Object.defineProperty(viewport, "clientWidth", { value: 320 });
+      Object.defineProperty(viewport, "scrollWidth", { value: 960 });
+      viewport.scrollLeft = scrollLeft;
+      const wheel = new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        deltaX,
+        deltaY: 0,
+      });
+
+      fireEvent(viewport, wheel);
+
+      expect(wheel.defaultPrevented).toBe(true);
+      const resistedDistance = Number.parseFloat(
+        viewport.style.transform.match(/translate3d\(([^p]+)px/u)?.[1] ?? "0",
+      );
+      expect(Math.sign(resistedDistance)).toBe(direction);
+      expect(Math.abs(resistedDistance)).toBeLessThan(Math.abs(deltaX));
+
+      vi.runAllTimers();
+
+      expect(viewport.style.transform).toBe("translate3d(0px, 0, 0)");
+    },
+  );
 
   it("keeps the active page when native snapping returns to it", () => {
     const onPageChange = vi.fn();
