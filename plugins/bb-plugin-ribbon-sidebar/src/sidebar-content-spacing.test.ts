@@ -24,7 +24,7 @@ describe("mountSidebarContentSpacing", () => {
     document.body.append(nav, content);
 
     const dispose = mountSidebarContentSpacing(controller.signal);
-    await waitFor(() => expect(nav.style.paddingBottom).toBe("0px"));
+    await waitFor(() => expect(nav.style.paddingBottom).toBe("6px"));
     expect(
       getComputedStyle(root).getPropertyValue(
         "--bb-sidebar-sticky-stack-padding-top",

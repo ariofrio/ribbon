@@ -89,7 +89,7 @@ export function mountSidebarContentSpacing(signal: AbortSignal): () => void {
     nextContent.style.setProperty("overflow-x", "hidden");
     if (nextNav !== null) {
       previousNavPaddingBottom = readInlineStyle(nextNav, "padding-bottom");
-      nextNav.style.setProperty("padding-bottom", "0px");
+      nextNav.style.setProperty("padding-bottom", "6px");
     }
   }
 
