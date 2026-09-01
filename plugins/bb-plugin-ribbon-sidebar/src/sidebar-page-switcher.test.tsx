@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SidebarPageSwitcher } from "./sidebar-page-switcher";
@@ -10,125 +10,90 @@ const pages = [
   { id: "roadmap", label: "Roadmap", icon: createElement("span", null, "M") },
 ];
 
-afterEach(() => {
-  cleanup();
-  vi.useRealTimers();
-});
+const renderPage = (page: (typeof pages)[number]) => (
+  <div>{page.label} threads</div>
+);
+
+afterEach(cleanup);
 
 describe("sidebar page switcher", () => {
-  it("switches pages in their visual direction when an icon is activated", () => {
-    const onPageChange = vi.fn();
+  it("renders the active and adjacent pages in one native snap track", () => {
     const view = render(
       <SidebarPageSwitcher
         activePageId="release"
-        onPageChange={onPageChange}
+        onPageChange={vi.fn()}
         pages={pages}
-      >
-        <div>Release threads</div>
-      </SidebarPageSwitcher>,
+        renderPage={renderPage}
+      />,
+    );
+
+    expect(view.getByText("Release threads")).toBeTruthy();
+    expect(view.queryByText("All groups threads")).toBeNull();
+    const viewport = view.getByTestId("sidebar-page-viewport");
+
+    fireEvent.wheel(viewport, { deltaX: 80, deltaY: 0 });
+
+    expect(view.getByText("All groups threads")).toBeTruthy();
+    expect(view.getByText("Roadmap threads")).toBeTruthy();
+    expect(viewport.style.scrollSnapType).toBe("x mandatory");
+    expect(
+      view.getByText("Roadmap threads").closest("section")?.getAttribute("inert"),
+    ).not.toBeNull();
+  });
+
+  it("scrolls to a page when its icon is activated", () => {
+    const view = render(
+      <SidebarPageSwitcher
+        activePageId="release"
+        onPageChange={vi.fn()}
+        pages={pages}
+        renderPage={renderPage}
+      />,
     );
     const viewport = view.getByTestId("sidebar-page-viewport");
     Object.defineProperty(viewport, "clientWidth", { value: 320 });
+    const scrollTo = vi.fn();
+    viewport.scrollTo = scrollTo;
 
     fireEvent.click(view.getByRole("button", { name: "Show Roadmap page" }));
 
-    const panel = view.getByTestId("sidebar-page-panel");
-    expect(getComputedStyle(panel).transform).toBe(
-      "translate3d(-320px, 0, 0)",
-    );
-    expect(onPageChange).not.toHaveBeenCalled();
-
-    fireEvent.transitionEnd(panel, { propertyName: "transform" });
-
-    expect(onPageChange).toHaveBeenCalledWith("roadmap");
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: "smooth", left: 640 });
   });
 
-  it("tracks a horizontal touchpad gesture and settles to the projected page", () => {
-    vi.useFakeTimers();
+  it("commits the nearest page after native scrolling settles", () => {
     const onPageChange = vi.fn();
     const view = render(
       <SidebarPageSwitcher
         activePageId="release"
         onPageChange={onPageChange}
         pages={pages}
-      >
-        <div>Release threads</div>
-      </SidebarPageSwitcher>,
+        renderPage={renderPage}
+      />,
     );
     const viewport = view.getByTestId("sidebar-page-viewport");
-    const panel = view.getByTestId("sidebar-page-panel");
     Object.defineProperty(viewport, "clientWidth", { value: 320 });
+    viewport.scrollLeft = 500;
 
-    fireEvent.wheel(viewport, { deltaX: 58, deltaY: 2 });
-    fireEvent.wheel(viewport, { deltaX: 58, deltaY: 1 });
-
-    expect(
-      Number.parseFloat(getComputedStyle(panel).transform.slice(12)),
-    ).toBeLessThan(0);
-    expect(onPageChange).not.toHaveBeenCalled();
-
-    act(() => vi.advanceTimersByTime(100));
-    expect(getComputedStyle(panel).transform).toBe(
-      "translate3d(-320px, 0, 0)",
-    );
-    fireEvent.transitionEnd(panel, { propertyName: "transform" });
+    fireEvent(viewport, new Event("scrollend"));
 
     expect(onPageChange).toHaveBeenCalledWith("roadmap");
   });
 
-  it("moves to the previous page on a gesture in the opposite direction", () => {
-    vi.useFakeTimers();
-    const onPageChange = vi.fn();
-    const view = render(
-      <SidebarPageSwitcher
-        activePageId="roadmap"
-        onPageChange={onPageChange}
-        pages={pages}
-      >
-        <div>Roadmap threads</div>
-      </SidebarPageSwitcher>,
-    );
-    const viewport = view.getByTestId("sidebar-page-viewport");
-    const panel = view.getByTestId("sidebar-page-panel");
-    Object.defineProperty(viewport, "clientWidth", { value: 320 });
-
-    fireEvent.wheel(viewport, { deltaX: -180, deltaY: 0 });
-    act(() => vi.advanceTimersByTime(100));
-
-    expect(getComputedStyle(panel).transform).toBe(
-      "translate3d(320px, 0, 0)",
-    );
-    fireEvent.transitionEnd(panel, { propertyName: "transform" });
-    expect(onPageChange).toHaveBeenCalledWith("release");
-  });
-
-  it("leaves vertical scrolling alone and returns a short drag to its page", () => {
-    vi.useFakeTimers();
+  it("keeps the active page when native snapping returns to it", () => {
     const onPageChange = vi.fn();
     const view = render(
       <SidebarPageSwitcher
         activePageId="release"
         onPageChange={onPageChange}
         pages={pages}
-      >
-        <div>Release threads</div>
-      </SidebarPageSwitcher>,
+        renderPage={renderPage}
+      />,
     );
     const viewport = view.getByTestId("sidebar-page-viewport");
-    const panel = view.getByTestId("sidebar-page-panel");
     Object.defineProperty(viewport, "clientWidth", { value: 320 });
+    viewport.scrollLeft = 370;
 
-    fireEvent.wheel(viewport, { deltaX: 4, deltaY: 40 });
-    expect(getComputedStyle(panel).transform).toBe(
-      "translate3d(0px, 0, 0)",
-    );
-
-    fireEvent.wheel(viewport, { deltaX: 12, deltaY: 1 });
-    act(() => vi.advanceTimersByTime(100));
-    expect(getComputedStyle(panel).transform).toBe(
-      "translate3d(0px, 0, 0)",
-    );
-    fireEvent.transitionEnd(panel, { propertyName: "transform" });
+    fireEvent(viewport, new Event("scrollend"));
 
     expect(onPageChange).not.toHaveBeenCalled();
   });
