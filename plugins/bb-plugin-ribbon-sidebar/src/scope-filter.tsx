@@ -9,7 +9,6 @@ import {
 } from "react";
 import { FolderLibraryIcon } from "@hugeicons/core-free-icons";
 import type { IconDataV1 } from "./contracts";
-import type { IconFallback } from "./icon-styles";
 import type { GroupingKey } from "./placement-store";
 import {
   serializeScopeFilter,
@@ -18,7 +17,7 @@ import {
 import { cn } from "./vendor/lib/utils";
 import { Icon, type IconName } from "./vendor/components/ui/icon";
 import { ProviderIcon } from "./provider-icon";
-import { UnorganizedIcon } from "./unorganized-icon";
+import { ScopeGroupIcon } from "./scope-group-icon";
 import { CompactViewportOverrideProvider } from "./vendor/components/ui/hooks/use-compact-viewport";
 import {
   DropdownMenu,
@@ -169,23 +168,14 @@ export function ScopeFilter({
 
   function groupIcon(grouping: GroupsMenuGrouping, groupId: string) {
     const group = grouping.groups.find(({ id }) => id === groupId);
-    if (grouping.groupingKey === "builtin:projects") {
-      const project = projects.find(({ id }) => id === groupId);
-      return (
-        <ScopeOwnerIcon
-          id={groupId}
-          fallback={project?.isPersonal ? "personal" : "project"}
-        />
-      );
-    }
-    if (grouping.groupingKey === "builtin:sections") {
-      if (groupId === "unsectioned") return <UnorganizedIcon />;
-      return <ScopeOwnerIcon id={groupId} fallback="section" />;
-    }
-    return group?.icon ? (
-      <ProviderIcon icon={group.icon} label={`${group.label} icon`} />
+    return group ? (
+      <ScopeGroupIcon
+        group={group}
+        groupingKey={grouping.groupingKey}
+        projects={projects}
+      />
     ) : (
-      <Icon name="Workflow" className="size-4 shrink-0" aria-hidden />
+      <Icon aria-hidden className="size-4 shrink-0" name="Workflow" />
     );
   }
 
@@ -743,21 +733,6 @@ function FilterActionItem({
       <span>{label}</span>
     </DropdownMenuItem>
   );
-}
-
-/** Empty by design: the box names its owner, and icon-styles.ts paints it. */
-function ScopeOwnerIcon({
-  id,
-  fallback,
-}: {
-  id: string;
-  fallback: IconFallback;
-}) {
-  const named =
-    fallback === "section"
-      ? { "data-ribbon-icons-section": id }
-      : { "data-ribbon-icons-project": id };
-  return <span aria-hidden data-ribbon-sidebar-icon={fallback} {...named} />;
 }
 
 function ThreadFilterItem({
