@@ -2,8 +2,17 @@ import {
   createFakePluginHost,
   makeThreadResponse,
 } from "@get-bb/plugin-sdk/testing";
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { describe, expect, it, vi } from "vitest";
 import plugin from "./server";
+
+type RealtimeSubscribeArgs = Parameters<BbPluginApi["sdk"]["subscribe"]>[0];
+type ThreadChangedCallback = Extract<
+  RealtimeSubscribeArgs,
+  { event: "thread:changed" }
+>["callback"];
+type ThreadGet = BbPluginApi["sdk"]["threads"]["get"];
+type ThreadUpdate = BbPluginApi["sdk"]["threads"]["update"];
 
 const threadStagesCatalog = {
   protocolVersion: 1 as const,
@@ -37,6 +46,9 @@ function setup({
   includePersonalProject = false,
   includeThreadStages = true,
   migrationSnapshotFails = false,
+  subscribe: subscribeOverride,
+  threadGet,
+  threadUpdate,
   threads = [
     makeThreadResponse({
       id: "thread-a",
@@ -58,6 +70,9 @@ function setup({
   includePersonalProject?: boolean;
   includeThreadStages?: boolean;
   migrationSnapshotFails?: boolean;
+  subscribe?: BbPluginApi["sdk"]["subscribe"];
+  threadGet?: ThreadGet;
+  threadUpdate?: ThreadUpdate;
   threads?: ReturnType<typeof makeThreadResponse>[];
 } = {}) {
   let currentThreadStagesCatalog = threadStagesCatalog;
@@ -73,6 +88,27 @@ function setup({
     ],
   }));
   const updateSettings = vi.fn(async () => ({ values: {} }));
+  const get = vi.fn(
+    threadGet ??
+      (async ({ threadId }) => {
+        const thread = threads.find(({ id }) => id === threadId);
+        if (!thread) throw new Error(`Unknown thread: ${threadId}`);
+        return thread;
+      }),
+  );
+  const update = vi.fn(
+    threadUpdate ??
+      (async ({ threadId, sectionId }) =>
+        makeThreadResponse({
+          ...threads.find(({ id }) => id === threadId),
+          id: threadId,
+          sectionId: sectionId ?? null,
+        })),
+  );
+  const subscribe = vi.fn(
+    subscribeOverride ?? (() => () => undefined),
+  );
+  const list = vi.fn(async () => threads);
   const callRpc = vi.fn(async ({ pluginId, method }: {
     pluginId: string;
     method: string;
@@ -126,21 +162,17 @@ function setup({
   const host = createFakePluginHost({
     pluginId: "ribbon-sidebar",
     sdk: {
-      subscribe: () => () => undefined,
+      subscribe,
       threads: {
-        list: async () => threads,
+        get,
+        list,
         timeline,
         search: async () =>
           ({
             active: { results: [{ thread: threads[1] }] },
             archived: { results: [] },
           }) as never,
-        update: async ({ threadId, sectionId }) =>
-          makeThreadResponse({
-            ...threads.find(({ id }) => id === threadId),
-            id: threadId,
-            sectionId: sectionId ?? null,
-          }),
+        update,
         reorderPinned: async () => ({}) as never,
       },
       projects: {
@@ -200,6 +232,10 @@ function setup({
   return {
     ...host,
     callRpc,
+    get,
+    list,
+    subscribe,
+    update,
     timeline,
     updateSettings,
     setThreadStagesCatalog(catalog: typeof threadStagesCatalog) {
@@ -244,6 +280,434 @@ describe("Ribbon sidebar server", () => {
         default: true,
       },
     });
+  });
+
+  it("places a new fork in the nearest section on its fork source ancestry", async () => {
+    const threads = [
+      makeThreadResponse({
+        id: "thr_fork_source",
+        parentThreadId: "thr_parent",
+        sectionId: null,
+      }),
+      makeThreadResponse({
+        id: "thr_parent",
+        parentThreadId: null,
+        sectionId: "section_family",
+      }),
+    ];
+    const fixture = setup({ threads });
+    await plugin(fixture.bb);
+
+    await fixture.harness.behavior.emitThreadEvent("thread.created", {
+      thread: makeThreadResponse({
+        id: "thr_fork",
+        originKind: "fork",
+        sectionId: null,
+        sourceThreadId: "thr_fork_source",
+      }),
+    });
+
+    expect(fixture.get).toHaveBeenNthCalledWith(1, {
+      threadId: "thr_fork_source",
+    });
+    expect(fixture.get).toHaveBeenNthCalledWith(2, {
+      threadId: "thr_parent",
+    });
+    expect(fixture.update).toHaveBeenCalledWith({
+      threadId: "thr_fork",
+      sectionId: "section_family",
+    });
+  });
+
+  it("places a new fork in provider groups inherited from its fork source ancestry", async () => {
+    const threads = [
+      makeThreadResponse({
+        id: "thr_parent",
+        parentThreadId: null,
+        visibility: "visible",
+        archivedAt: null,
+      }),
+      makeThreadResponse({
+        id: "thr_fork_source",
+        parentThreadId: "thr_parent",
+        visibility: "visible",
+        archivedAt: null,
+      }),
+    ];
+    const fixture = setup({ threads });
+    await plugin(fixture.bb);
+    await fixture.harness.behavior.callRpc("updatePlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Active",
+      threadId: "thr_parent",
+      origin: "ui",
+    });
+    const fork = makeThreadResponse({
+      id: "thr_fork",
+      originKind: "fork",
+      sourceThreadId: "thr_fork_source",
+      parentThreadId: null,
+      visibility: "visible",
+      archivedAt: null,
+    });
+    threads.push(fork);
+
+    await fixture.harness.behavior.emitThreadEvent("thread.created", {
+      thread: fork,
+    });
+
+    await vi.waitFor(async () => {
+      await expect(
+        fixture.harness.behavior.callRpc("getPlacementV1", {
+          groupingKey: "plugin:thread-stages:stages",
+          threadId: "thr_fork",
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        value: { placement: { groupId: "Active" } },
+      });
+    });
+  });
+
+  it("preserves explicit sections and leaves non-fork spawns Unorganized", async () => {
+    const fixture = setup();
+    await plugin(fixture.bb);
+
+    await fixture.harness.behavior.emitThreadEvent("thread.created", {
+      thread: makeThreadResponse({
+        id: "thr_explicit_fork",
+        originKind: "fork",
+        sectionId: "section-a",
+        sourceThreadId: "thread-a",
+      }),
+    });
+    await fixture.harness.behavior.emitThreadEvent("thread.created", {
+      thread: makeThreadResponse({
+        id: "thr_spawned",
+        sectionId: null,
+        sourceThreadId: "thread-a",
+        originKind: null,
+      }),
+    });
+
+    expect(fixture.update).not.toHaveBeenCalled();
+  });
+
+  it("places a newly created UI thread without rescanning all threads", async () => {
+    const threads = [
+      makeThreadResponse({
+        id: "thread-a",
+        parentThreadId: null,
+        visibility: "visible",
+        archivedAt: null,
+      }),
+    ];
+    const fixture = setup({ threads });
+    await plugin(fixture.bb);
+    fixture.list.mockClear();
+    threads.push(
+      makeThreadResponse({
+        id: "thread-new",
+        projectId: "project-a",
+        sectionId: "section-a",
+        parentThreadId: null,
+        visibility: "visible",
+        archivedAt: null,
+      }),
+    );
+
+    await expect(
+      fixture.harness.behavior.callRpc("placeNewThreadV1", {
+        groupingKey: "plugin:thread-stages:stages",
+        groupId: "Active",
+        threadId: "thread-new",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { placement: { groupId: "Active", origin: "ui" } },
+    });
+    expect(fixture.list).not.toHaveBeenCalled();
+    expect(fixture.get).toHaveBeenCalledWith({ threadId: "thread-new" });
+    await expect(
+      fixture.harness.behavior.callRpc("getPlacementV1", {
+        groupingKey: "builtin:projects",
+        threadId: "thread-new",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { placement: { groupId: "project-a" } },
+    });
+    await expect(
+      fixture.harness.behavior.callRpc("getPlacementV1", {
+        groupingKey: "builtin:sections",
+        threadId: "thread-new",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { placement: { groupId: "section-a" } },
+    });
+  });
+
+  it("gives an unparented thread the nearest section from its former parent hierarchy", async () => {
+    let onThreadChanged: ThreadChangedCallback | undefined;
+    const unsubscribe = vi.fn();
+    const subscribe = vi.fn((args: RealtimeSubscribeArgs) => {
+      if (args.event === "thread:changed") onThreadChanged = args.callback;
+      return unsubscribe;
+    });
+    const threads = [
+      makeThreadResponse({
+        id: "thr_child",
+        parentThreadId: "thr_parent",
+        sectionId: null,
+      }),
+      makeThreadResponse({
+        id: "thr_parent",
+        parentThreadId: "thr_grandparent",
+        sectionId: null,
+      }),
+      makeThreadResponse({
+        id: "thr_grandparent",
+        parentThreadId: null,
+        sectionId: "section_family",
+      }),
+    ];
+    const fixture = setup({
+      subscribe,
+      threads,
+      threadGet: async ({ threadId }) => {
+        if (threadId === "thr_child") {
+          return makeThreadResponse({ id: threadId, parentThreadId: null });
+        }
+        const thread = threads.find(({ id }) => id === threadId);
+        if (!thread) throw new Error(`Unknown thread: ${threadId}`);
+        return thread;
+      },
+    });
+    await plugin(fixture.bb);
+    const service = fixture.harness.behavior.runService("group-inheritance");
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+    fixture.list.mockClear();
+
+    onThreadChanged?.({
+      type: "changed",
+      entity: "thread",
+      id: "thr_child",
+      changes: ["parent-changed"],
+    });
+
+    await vi.waitFor(() =>
+      expect(fixture.update).toHaveBeenCalledWith({
+        threadId: "thr_child",
+        sectionId: "section_family",
+      }),
+    );
+    expect(fixture.list).not.toHaveBeenCalled();
+    await expect(
+      fixture.harness.behavior.callRpc("getPlacementV1", {
+        groupingKey: "builtin:sections",
+        threadId: "thr_child",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { placement: { groupId: "section_family" } },
+    });
+    service.controller.abort();
+    await service.done;
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it("gives an unparented thread provider groups from its former parent hierarchy", async () => {
+    let onThreadChanged: ThreadChangedCallback | undefined;
+    const subscribe = vi.fn((args: RealtimeSubscribeArgs) => {
+      if (args.event === "thread:changed") onThreadChanged = args.callback;
+      return vi.fn();
+    });
+    const threads = [
+      makeThreadResponse({
+        id: "thr_child",
+        parentThreadId: "thr_parent",
+        visibility: "visible",
+        archivedAt: null,
+      }),
+      makeThreadResponse({
+        id: "thr_parent",
+        parentThreadId: null,
+        visibility: "visible",
+        archivedAt: null,
+      }),
+    ];
+    const fixture = setup({ subscribe, threads });
+    await plugin(fixture.bb);
+    await fixture.harness.behavior.callRpc("updatePlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Active",
+      threadId: "thr_parent",
+      origin: "ui",
+    });
+    const service = fixture.harness.behavior.runService("group-inheritance");
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+    fixture.list.mockClear();
+    threads[0] = makeThreadResponse({
+      id: "thr_child",
+      parentThreadId: null,
+      visibility: "visible",
+      archivedAt: null,
+    });
+
+    onThreadChanged?.({
+      type: "changed",
+      entity: "thread",
+      id: "thr_child",
+      changes: ["parent-changed"],
+    });
+
+    await vi.waitFor(async () => {
+      await expect(
+        fixture.harness.behavior.callRpc("getPlacementV1", {
+          groupingKey: "plugin:thread-stages:stages",
+          threadId: "thr_child",
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        value: { placement: { groupId: "Active" } },
+      });
+    });
+    service.controller.abort();
+    await service.done;
+  });
+
+  it("tracks a reparented thread without changing it, then inherits from that parent when unparented", async () => {
+    let onThreadChanged: ThreadChangedCallback | undefined;
+    const subscribe = vi.fn((args: RealtimeSubscribeArgs) => {
+      if (args.event === "thread:changed") onThreadChanged = args.callback;
+      return vi.fn();
+    });
+    let currentParentThreadId: string | null = "thr_old_parent";
+    const fixture = setup({
+      subscribe,
+      threads: [
+        makeThreadResponse({
+          id: "thr_child",
+          parentThreadId: "thr_old_parent",
+        }),
+      ],
+      threadGet: async ({ threadId }) => {
+        if (threadId === "thr_child") {
+          return makeThreadResponse({
+            id: threadId,
+            parentThreadId: currentParentThreadId,
+          });
+        }
+        return makeThreadResponse({
+          id: threadId,
+          parentThreadId: null,
+          sectionId:
+            threadId === "thr_new_parent" ? "section_new" : "section_old",
+        });
+      },
+    });
+    await plugin(fixture.bb);
+    const service = fixture.harness.behavior.runService("group-inheritance");
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+    fixture.list.mockClear();
+
+    currentParentThreadId = "thr_new_parent";
+    onThreadChanged?.({
+      type: "changed",
+      entity: "thread",
+      id: "thr_child",
+      changes: ["parent-changed"],
+    });
+    await vi.waitFor(() => expect(fixture.get).toHaveBeenCalledTimes(2));
+    expect(fixture.update).not.toHaveBeenCalled();
+    expect(fixture.list).not.toHaveBeenCalled();
+
+    currentParentThreadId = null;
+    onThreadChanged?.({
+      type: "changed",
+      entity: "thread",
+      id: "thr_child",
+      changes: ["parent-changed"],
+    });
+    await vi.waitFor(() =>
+      expect(fixture.update).toHaveBeenCalledWith({
+        threadId: "thr_child",
+        sectionId: "section_new",
+      }),
+    );
+    expect(fixture.list).not.toHaveBeenCalled();
+    service.controller.abort();
+    await service.done;
+  });
+
+  it("keeps a reparented thread as a root when its new parent is not live", async () => {
+    let onThreadChanged: ThreadChangedCallback | undefined;
+    const subscribe = vi.fn((args: RealtimeSubscribeArgs) => {
+      if (args.event === "thread:changed") onThreadChanged = args.callback;
+      return vi.fn();
+    });
+    let currentParentThreadId: string | null = null;
+    const fixture = setup({
+      subscribe,
+      threads: [
+        makeThreadResponse({
+          id: "thr_root",
+          parentThreadId: null,
+          visibility: "visible",
+          archivedAt: null,
+        }),
+      ],
+      threadGet: async ({ threadId }) => {
+        if (threadId === "thr_root") {
+          return makeThreadResponse({
+            id: threadId,
+            parentThreadId: currentParentThreadId,
+            visibility: "visible",
+            archivedAt: null,
+          });
+        }
+        return makeThreadResponse({
+          id: threadId,
+          parentThreadId: null,
+          visibility: "hidden",
+          archivedAt: null,
+        });
+      },
+    });
+    await plugin(fixture.bb);
+    await fixture.harness.behavior.callRpc("updatePlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Active",
+      threadId: "thr_root",
+      origin: "ui",
+    });
+    const service = fixture.harness.behavior.runService("group-inheritance");
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+    fixture.get.mockClear();
+    fixture.list.mockClear();
+
+    currentParentThreadId = "thr_hidden_parent";
+    onThreadChanged?.({
+      type: "changed",
+      entity: "thread",
+      id: "thr_root",
+      changes: ["parent-changed"],
+    });
+
+    await vi.waitFor(() => expect(fixture.get).toHaveBeenCalledTimes(2));
+    await expect(
+      fixture.harness.behavior.callRpc("getPlacementV1", {
+        groupingKey: "plugin:thread-stages:stages",
+        threadId: "thr_root",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { placement: { groupId: "Active" } },
+    });
+    expect(fixture.list).not.toHaveBeenCalled();
+    service.controller.abort();
+    await service.done;
   });
 
   it("hydrates built-in and provider placement state before serving RPCs", async () => {
@@ -337,6 +801,7 @@ describe("Ribbon sidebar server", () => {
       "listPlacementsV1",
       "listPreviewsV1",
       "listProjectActionStatesV1",
+      "placeNewThreadV1",
       "searchThreadIdsV1",
       "renameEntityV1",
       "reorderPinnedV1",
@@ -765,19 +1230,26 @@ describe("Ribbon sidebar server", () => {
   });
 
   it("publishes refreshed catalogs after provider invalidation", async () => {
-    const { bb, harness } = setup();
+    const { bb, harness, callRpc, list } = setup();
     await plugin(bb);
-    await harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: false });
+    callRpc.mockClear();
+    list.mockClear();
 
     await harness.behavior.callRpc("invalidateGroupingCatalogV1", {
       providerPluginId: "thread-stages",
     });
-    await vi.waitFor(() =>
-      expect(harness.inspection.realtimeSignals).toContainEqual({
-        channel: "catalog-changed",
-        payload: null,
+    expect(harness.inspection.realtimeSignals).toContainEqual({
+      channel: "catalog-changed",
+      payload: null,
+    });
+    expect(callRpc).toHaveBeenCalledOnce();
+    expect(callRpc).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pluginId: "thread-stages",
+        method: "getGroupingCatalogV1",
       }),
     );
+    expect(list).not.toHaveBeenCalled();
   });
 
   it("publishes provider catalog changes discovered by reconciliation", async () => {

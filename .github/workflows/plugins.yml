@@ -78,10 +78,28 @@ jobs:
       - run: npm ci --workspaces=false
       - run: npm run release:check
 
+  end-to-end:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Prepare the container
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq make g++
+      - run: npm ci
+      - run: npm run test:e2e
+
   # The one name this workflow is required by. release-check names its jobs
   # from a matrix, so requiring those would break whenever a plugin is renamed.
   plugins:
-    needs: [release-automation, discover, release-check]
+    needs: [release-automation, discover, release-check, end-to-end]
     # A check skipped along with its dependency never reports, which blocks the
     # pull request requiring it.
     if: always()

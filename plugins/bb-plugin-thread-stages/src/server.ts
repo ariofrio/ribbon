@@ -131,7 +131,7 @@ export const rpcContract = defineRpcContract({
   },
 });
 
-export default function plugin(bb: BbPluginApi) {
+export default async function plugin(bb: BbPluginApi) {
   const database = bb.storage.database();
   bb.storage.migrate(database, THREAD_STAGE_SOURCE_MIGRATIONS);
   const migrationSource = createThreadStageMigrationSource(database);
@@ -490,6 +490,16 @@ export default function plugin(bb: BbPluginApi) {
         );
       });
   });
+
+  try {
+    await ribbonSidebar.invalidateGroupingCatalogV1({
+      providerPluginId: "thread-stages",
+    });
+  } catch (error: unknown) {
+    bb.log.warn(
+      `Could not announce Thread stages to Ribbon sidebar: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 
   bb.log.info("Thread stages loaded; Ribbon sidebar owns placement and rendering");
 }

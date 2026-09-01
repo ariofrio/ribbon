@@ -1,5 +1,5 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import plugin from "./server";
 
 const disposers: Array<() => Promise<void>> = [];
@@ -15,16 +15,40 @@ function jsonResponse(result: unknown): Response {
   });
 }
 
-function createHarness(options: Parameters<typeof createFakePluginHost>[0] = {}) {
+async function createHarness(
+  options: Parameters<typeof createFakePluginHost>[0] = {},
+) {
   const host = createFakePluginHost({ pluginId: "thread-stages", ...options });
-  plugin(host.bb);
+  await plugin(host.bb);
   disposers.push(() => host.harness.lifecycle.dispose());
   return host.harness;
 }
 
+beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(null)));
+});
+
 describe("thread stages provider", () => {
-  it("registers only provider, shortcut, automation, retention, and CLI surfaces", () => {
-    const harness = createHarness();
+  it("announces its grouping catalog to Ribbon during startup", async () => {
+    const fetcher = vi.fn(async () => jsonResponse(null));
+    vi.stubGlobal("fetch", fetcher);
+    const host = createFakePluginHost({ pluginId: "thread-stages" });
+
+    await plugin(host.bb);
+    disposers.push(() => host.harness.lifecycle.dispose());
+
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "/ribbon-sidebar/rpc/invalidateGroupingCatalogV1",
+      ),
+      expect.objectContaining({
+        body: JSON.stringify({ providerPluginId: "thread-stages" }),
+      }),
+    );
+  });
+
+  it("registers only provider, shortcut, automation, retention, and CLI surfaces", async () => {
+    const harness = await createHarness();
 
     expect(harness.inspection.registrations.settingsDescriptors).toEqual({
       showDeferredStage: expect.objectContaining({ default: true }),
@@ -104,7 +128,7 @@ describe("thread stages provider", () => {
         ('thread-a', 'Active', 'B', 300),
         ('thread-b', 'Idle', 'B', 100);
     `);
-    plugin(host.bb);
+    await plugin(host.bb);
     disposers.push(() => host.harness.lifecycle.dispose());
     const { harness } = host;
 
@@ -236,7 +260,7 @@ describe("thread stages provider", () => {
       { ...thread, id: "thread-b", projectId: "project-b" },
       { ...thread, id: "thread-c" },
     ];
-    const harness = createHarness({
+    const harness = await createHarness({
       sdk: { threads: { list: vi.fn(async () => threads as never) } },
     });
 
@@ -275,7 +299,7 @@ describe("thread stages provider", () => {
     vi.stubGlobal("fetch", vi.fn(async () => {
       throw new Error("connection refused");
     }));
-    const harness = createHarness({
+    const harness = await createHarness({
       sdk: { threads: { list: vi.fn(async () => [] as never) } },
     });
 
