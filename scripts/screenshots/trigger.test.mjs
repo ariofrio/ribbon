@@ -130,6 +130,24 @@ test("the relevance gate runs outside the renderer container", () => {
   assert.doesNotMatch(workflow, /npm ci --prefix scripts\/screenshots/u);
 });
 
+test("a failed capture preserves the isolated bb log", () => {
+  const workflow = readFileSync(
+    join(repositoryRoot, ".github/workflows/screenshots.yml"),
+    "utf8",
+  );
+  const captureJob = workflow.slice(
+    workflow.indexOf("\n  capture:"),
+    workflow.indexOf("\n  recapture:"),
+  );
+
+  assert.match(captureJob, /name: Upload screenshot diagnostics/u);
+  assert.match(captureJob, /if: failure\(\)/u);
+  assert.match(captureJob, /uses: actions\/upload-artifact@v7/u);
+  assert.match(captureJob, /path: \.scratch\/screenshots\/bb\.log/u);
+  assert.match(captureJob, /if-no-files-found: error/u);
+  assert.match(captureJob, /include-hidden-files: true/u);
+});
+
 test("the required recapture job reports skipped captures as success", () => {
   const workflow = readFileSync(
     join(repositoryRoot, ".github/workflows/screenshots.yml"),

@@ -143,6 +143,10 @@ export interface PlacementStore {
     eligibleRootThreadIds: readonly string[],
     childThreadIds: readonly string[],
   ): { changedGroupingKeys: GroupingKey[] };
+  reconcileRoot(
+    threadId: string,
+    eligible: boolean,
+  ): { changedGroupingKeys: GroupingKey[] };
   deleteThread(threadId: string): { changedGroupingKeys: GroupingKey[] };
   deleteGroupOrder(
     groupingKey: GroupingKey,
@@ -231,6 +235,10 @@ export function createPlacementStore(
   );
   const insertEligibleRoot = database.prepare(`
     INSERT INTO eligible_root(thread_id, bb_order) VALUES (?, ?)
+  `);
+  const insertEligibleRootAtEnd = database.prepare(`
+    INSERT OR IGNORE INTO eligible_root(thread_id, bb_order)
+    SELECT ?, COALESCE(MAX(bb_order) + 1, 0) FROM eligible_root
   `);
   const removeChildAssignment = database.prepare(`
     DELETE FROM group_assignment WHERE thread_id = ?
@@ -483,6 +491,50 @@ export function createPlacementStore(
       return { changedGroupingKeys: [...changed] };
     },
   );
+  const reconcileOne = database.transaction(
+    (threadId: string, eligible: boolean) => {
+      const changed = new Set<GroupingKey>();
+      if (eligible) {
+        insertEligibleRootAtEnd.run(threadId);
+        for (const grouping of options.groupings()) {
+          ensureRevision.run(grouping.groupingKey);
+          if (
+            grouping.membership.kind !== "ribbon" ||
+            assignmentExists.get(grouping.groupingKey, threadId)
+          ) {
+            continue;
+          }
+          insertAssignment.run(
+            grouping.groupingKey,
+            threadId,
+            grouping.defaultGroupId,
+            now(),
+          );
+          changed.add(grouping.groupingKey);
+        }
+      } else {
+        const affectedAssignmentKeys = database
+          .prepare(
+            "SELECT grouping_key FROM group_assignment WHERE thread_id = ?",
+          )
+          .all(threadId) as Array<{ grouping_key: GroupingKey }>;
+        const affectedOrderKeys = database
+          .prepare("SELECT grouping_key FROM group_order WHERE thread_id = ?")
+          .all(threadId) as Array<{ grouping_key: GroupingKey }>;
+        deleteEligibleRoot.run(threadId);
+        removeChildAssignment.run(threadId);
+        removeChildOrder.run(threadId);
+        for (const row of [...affectedAssignmentKeys, ...affectedOrderKeys]) {
+          changed.add(row.grouping_key);
+        }
+      }
+      for (const groupingKey of changed) {
+        ensureRevision.run(groupingKey);
+        incrementRevision.run(groupingKey);
+      }
+      return { changedGroupingKeys: [...changed] };
+    },
+  );
 
   return {
     reconcileRoots(eligibleRootThreadIds, childThreadIds) {
@@ -493,6 +545,10 @@ export function createPlacementStore(
         throw new Error("A thread cannot be both an eligible root and a child.");
       }
       return reconcile.immediate(eligibleRootThreadIds, childThreadIds);
+    },
+    reconcileRoot(threadId, eligible) {
+      assertUniqueThreadIds([threadId], "Reconciled thread");
+      return reconcileOne.immediate(threadId, eligible);
     },
     deleteThread(threadId) {
       assertUniqueThreadIds([threadId], "Deleted thread");

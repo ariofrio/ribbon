@@ -123,12 +123,14 @@ describe("provider catalog discovery", () => {
     ).toMatchObject({ groups: [{ label: "New" }], available: true });
   });
 
-  it("keeps an invalidated cached catalog available until refresh resolves", async () => {
+  it("keeps a cached catalog available while a targeted refresh resolves", async () => {
     const call = vi.fn<ProviderCatalogCall>().mockResolvedValue(catalog("Idle"));
     const providers = setup(call);
     await providers.refresh(["thread-stages"]);
+    const refreshed = deferred<unknown>();
+    call.mockReturnValueOnce(refreshed.promise);
 
-    providers.invalidate("thread-stages");
+    const refresh = providers.refreshProvider("thread-stages");
 
     expect(providers.availableGroupings()).toMatchObject([
       {
@@ -137,6 +139,49 @@ describe("provider catalog discovery", () => {
         available: true,
       },
     ]);
+    refreshed.resolve(catalog("Active"));
+    await refresh;
+  });
+
+  it("refreshes one provider without marking unrelated providers unavailable", async () => {
+    const call = vi.fn<ProviderCatalogCall>(async (providerPluginId) =>
+      catalog(providerPluginId),
+    );
+    const providers = setup(call);
+    await providers.refresh(["provider-a", "provider-b"]);
+    call.mockClear();
+
+    await providers.refreshProvider("provider-a");
+
+    expect(call).toHaveBeenCalledOnce();
+    expect(call).toHaveBeenCalledWith("provider-a", expect.any(AbortSignal));
+    expect(
+      providers.getGrouping("plugin:provider-b:stages"),
+    ).toMatchObject({ available: true });
+  });
+
+  it("coalesces bursts into one active and one trailing provider refresh", async () => {
+    const first = deferred<unknown>();
+    const second = deferred<unknown>();
+    const call = vi
+      .fn<ProviderCatalogCall>()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const providers = setup(call, 10_000);
+
+    const initial = providers.refreshProvider("thread-stages");
+    const trailingA = providers.refreshProvider("thread-stages");
+    const trailingB = providers.refreshProvider("thread-stages");
+    expect(call).toHaveBeenCalledOnce();
+
+    first.resolve(catalog("Old"));
+    await vi.waitFor(() => expect(call).toHaveBeenCalledTimes(2));
+    second.resolve(catalog("New"));
+    await Promise.all([initial, trailingA, trailingB]);
+
+    expect(
+      providers.getGrouping("plugin:thread-stages:stages"),
+    ).toMatchObject({ groups: [{ label: "New" }], available: true });
   });
 
   it("soft-times out without discarding a valid cache and marks removal unavailable", async () => {

@@ -28,6 +28,113 @@ test("every screenshot uses Ribbon's sole thread-list replacement", () => {
   assert.equal(SIDEBAR_PROVIDER, "Ribbon sidebar");
 });
 
+test("the shortcut shot stops retrying when the late plugin handles the key", async () => {
+  const events = [];
+  const replyWaits = [];
+  let requestAttempts = 0;
+  const timeout = () => {
+    const error = new Error("Timeout");
+    error.name = "TimeoutError";
+    return error;
+  };
+  const locator = (name = "locator") => ({
+    click: async () => {},
+    elementHandle: async () => ({}),
+    evaluateAll: async () => {},
+    filter: () => locator(name),
+    first: () => locator(name),
+    getAttribute: async () => "/projects/proj_atlas/threads/thr_featured",
+    innerText: async () => SIDEBAR_PROVIDER,
+    waitFor: async (options) => {
+      if (name === "reply") {
+        replyWaits.push(options);
+        if (requestAttempts < 4) throw timeout();
+      }
+    },
+  });
+  const request = (method) => ({
+    method: () => "POST",
+    url: () =>
+      `http://127.0.0.1/api/v1/plugins/missing-keyboard-shortcuts/rpc/${method}`,
+  });
+  const response = (method) => ({
+    ok: () => true,
+    request: () => request(method),
+    status: () => 200,
+    url: () =>
+      `http://127.0.0.1/api/v1/plugins/missing-keyboard-shortcuts/rpc/${method}`,
+  });
+  const page = {
+    evaluate: async () => 0,
+    getByRole(role, options) {
+      return locator(
+        role === "textbox" && options?.name === "Reply…" ? "reply" : role,
+      );
+    },
+    getByText: () => locator("text"),
+    keyboard: {
+      press: async (keys) => events.push(["keyboard.press", keys]),
+      type: async () => {},
+    },
+    locator: () => locator(),
+    goto: async () => {},
+    url: () => "http://127.0.0.1/",
+    waitForFunction: async () => {},
+    waitForRequest: async (predicate, options) => {
+      const createRequest = request("createSideChat");
+      assert.ok(
+        predicate(createRequest),
+        "the shot waited for an unexpected request",
+      );
+      requestAttempts += 1;
+      events.push(["createSideChat.waitForRequest", options]);
+      if (requestAttempts < 4) throw timeout();
+      return createRequest;
+    },
+    waitForResponse: async (predicate, options) => {
+      const listResponse = response("listAppKeybindings");
+      if (predicate(listResponse)) return listResponse;
+      const createResponse = response("createSideChat");
+      assert.ok(
+        predicate(createResponse),
+        "the shot waited for an unexpected response",
+      );
+      events.push(["createSideChat.waitForResponse", options]);
+      if (options?.timeout === 10000) throw timeout();
+      return createResponse;
+    },
+  };
+  const shot = SHOTS.find(({ id }) => id === "missing-keyboard-shortcuts");
+  assert.ok(shot, "the shortcut shot is missing");
+
+  await shot.prepare({ page });
+
+  assert.equal(requestAttempts, 4);
+  assert.deepEqual(
+    events.filter(
+      ([event, keys]) =>
+        event === "createSideChat.waitForRequest" ||
+        event === "createSideChat.waitForResponse" ||
+        (event === "keyboard.press" && keys === "Shift+Meta+KeyL"),
+    ),
+    [
+      ["createSideChat.waitForResponse", { timeout: 120000 }],
+      ["createSideChat.waitForRequest", { timeout: 10000 }],
+      ["keyboard.press", "Shift+Meta+KeyL"],
+      ["createSideChat.waitForResponse", { timeout: 120000 }],
+      ["createSideChat.waitForRequest", { timeout: 10000 }],
+      ["keyboard.press", "Shift+Meta+KeyL"],
+      ["createSideChat.waitForResponse", { timeout: 120000 }],
+      ["createSideChat.waitForRequest", { timeout: 10000 }],
+      ["keyboard.press", "Shift+Meta+KeyL"],
+      ["createSideChat.waitForResponse", { timeout: 120000 }],
+      ["createSideChat.waitForRequest", { timeout: 10000 }],
+      ["keyboard.press", "Shift+Meta+KeyL"],
+    ],
+  );
+  assert.deepEqual(replyWaits, [{ timeout: 120000 }]);
+});
+
 function aspectOf(rectangle) {
   return rectangle.width / rectangle.height;
 }

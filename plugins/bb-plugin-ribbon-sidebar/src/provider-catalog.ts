@@ -26,7 +26,7 @@ interface ProviderState {
 
 export interface ProviderCatalog {
   refresh(providerPluginIds: readonly string[]): Promise<void>;
-  invalidate(providerPluginId: string): void;
+  refreshProvider(providerPluginId: string): Promise<void>;
   availableGroupings(): ProviderGroupingDescriptor[];
   allGroupings(): ProviderGroupingDescriptor[];
   getGrouping(groupingKey: GroupingKey): ProviderGroupingDescriptor | null;
@@ -59,6 +59,10 @@ export function createProviderCatalog(
 ): ProviderCatalog {
   const states = new Map<string, ProviderState>();
   const generations = new Map<string, number>();
+  const pendingRefreshes = new Map<
+    string,
+    { dirty: boolean; promise: Promise<void> }
+  >();
   const listRows = database.prepare(`
     SELECT provider_plugin_id, catalog_json, available FROM provider_catalog
     ORDER BY provider_plugin_id
@@ -97,7 +101,7 @@ export function createProviderCatalog(
     setAvailability.run(0, providerPluginId);
   }
 
-  async function refreshProvider(providerPluginId: string): Promise<void> {
+  async function runProviderRefresh(providerPluginId: string): Promise<void> {
     const generation = (generations.get(providerPluginId) ?? 0) + 1;
     generations.set(providerPluginId, generation);
     const controller = new AbortController();
@@ -142,13 +146,29 @@ export function createProviderCatalog(
       for (const providerPluginId of states.keys()) {
         if (!installed.has(providerPluginId)) markUnavailable(providerPluginId);
       }
-      await Promise.all(providerPluginIds.map(refreshProvider));
+      await Promise.all(providerPluginIds.map(runProviderRefresh));
     },
-    invalidate(providerPluginId) {
-      generations.set(
-        providerPluginId,
-        (generations.get(providerPluginId) ?? 0) + 1,
-      );
+    refreshProvider(providerPluginId) {
+      const pending = pendingRefreshes.get(providerPluginId);
+      if (pending !== undefined) {
+        pending.dirty = true;
+        return pending.promise;
+      }
+      const request = { dirty: false, promise: Promise.resolve() };
+      request.promise = (async () => {
+        try {
+          do {
+            request.dirty = false;
+            await runProviderRefresh(providerPluginId);
+          } while (request.dirty);
+        } finally {
+          if (pendingRefreshes.get(providerPluginId) === request) {
+            pendingRefreshes.delete(providerPluginId);
+          }
+        }
+      })();
+      pendingRefreshes.set(providerPluginId, request);
+      return request.promise;
     },
     availableGroupings() {
       return api.allGroupings().filter(({ available }) => available);
