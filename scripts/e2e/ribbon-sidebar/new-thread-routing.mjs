@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { chromium } from "playwright";
-import { AGENT } from "../screenshots/fixture.mjs";
+import { AGENT } from "../../screenshots/fixture.mjs";
 
 async function openScopedComposer({ browser, stack, group, path = "/" }) {
   const context = await browser.newContext({

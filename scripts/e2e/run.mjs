@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
   verifyNewThreadRouting,
   waitForStageCatalog,
-} from "./new-thread-routing.mjs";
+} from "./ribbon-sidebar/new-thread-routing.mjs";
 import { seed, writeManagedConfig } from "../screenshots/fixture.mjs";
 import { BB_CLI_PATH, startStack } from "../screenshots/stack.mjs";
 
@@ -20,10 +20,8 @@ const suites = [
     id: "new-thread-routing",
     cases: ["project", "stage"],
     plugins: ["bb-plugin-ribbon-sidebar", "bb-plugin-thread-stages"],
-    async prepare({ cliEnv, cases }) {
-      if (cases.includes("stage")) {
-        await waitForStageCatalog({ bb, cliEnv });
-      }
+    async prepare({ cliEnv }) {
+      await waitForStageCatalog({ bb, cliEnv });
     },
     async run({ stack, fixture, cases }) {
       await verifyNewThreadRouting({ stack, fixture, cases });
