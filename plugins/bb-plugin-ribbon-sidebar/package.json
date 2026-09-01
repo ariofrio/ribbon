@@ -19,7 +19,8 @@
     "dist",
     "src",
     "!src/**/*.test.ts",
-    "!src/**/*.test.tsx"
+    "!src/**/*.test.tsx",
+    "skills"
   ],
   "type": "module",
   "scripts": {
@@ -45,7 +46,9 @@
     },
     "server": "./src/server.ts",
     "app": "./src/app.tsx",
-    "skills": []
+    "skills": [
+      "skills"
+    ]
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.1.3",

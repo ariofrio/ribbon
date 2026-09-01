@@ -47,7 +47,7 @@ describe("thread stages provider", () => {
     );
   });
 
-  it("registers only provider, shortcut, automation, retention, and CLI surfaces", async () => {
+  it("registers only provider, shortcut, automation, and retention surfaces", async () => {
     const harness = await createHarness();
 
     expect(harness.inspection.registrations.settingsDescriptors).toEqual({
@@ -74,7 +74,7 @@ describe("thread stages provider", () => {
       { name: "stage-automation-reconciliation", cron: "* * * * *" },
       { name: "completed-auto-archive", cron: "17 * * * *" },
     ]);
-    expect(harness.inspection.registrations.cli?.name).toBe("thread-stages");
+    expect(harness.inspection.registrations.cli).toBeNull();
   });
 
   it("keeps legacy placement readable until Ribbon acknowledges a durable import", async () => {
@@ -299,17 +299,4 @@ describe("thread stages provider", () => {
     );
   });
 
-  it("reports the required Ribbon dependency through the existing CLI", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => {
-      throw new Error("connection refused");
-    }));
-    const harness = await createHarness({
-      sdk: { threads: { list: vi.fn(async () => [] as never) } },
-    });
-
-    await expect(harness.behavior.runCli(["list"])).resolves.toMatchObject({
-      exitCode: 1,
-      stderr: expect.stringContaining("Ribbon sidebar dependency problem"),
-    });
-  });
 });

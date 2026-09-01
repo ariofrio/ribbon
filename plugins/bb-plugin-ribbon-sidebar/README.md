@@ -69,20 +69,24 @@ new parent.
 Every group reference has the form `<grouping-key>/<group-id>`:
 
 ```sh
-bb ribbon-sidebar groupings
-bb ribbon-sidebar groups <grouping>
-bb ribbon-sidebar list [--scope <group-ref>] [--group-by <grouping>]
-bb ribbon-sidebar show [thread] [--self]
-bb ribbon-sidebar place [thread] [--self] --to <group-ref> [--before <thread>|--after <thread>]
-bb ribbon-sidebar migrate thread-stages
-bb ribbon-sidebar rekey --from <plugin-key> --to <plugin-key>
+bb sidebar groupings
+bb sidebar groups <grouping>
+bb sidebar list [--scope <group-ref>] [--include-archived] [--include-hidden]
+bb sidebar show [thread] [--self]
+bb sidebar place [thread] [--self] --to <group-ref> [--before <thread>|--after <thread>]
+bb sidebar migrate thread-stages
+bb sidebar rekey --from <plugin-key> --to <plugin-key>
 ```
 
-Add `--json` to any data command for machine-readable output. `migrate`
-explicitly retries the same idempotent import normally started by mounting the
-sidebar. `rekey`
-atomically moves placement when a provider intentionally changes a plugin
-grouping key.
+`list` joins each root's title and runtime status with its Section, Project,
+and every plugin-provided group. Human output uses group names. JSON preserves
+the complete thread object returned by bb and adds `project`, `section`, and
+`pluginGroups` with names and IDs. Archived and hidden roots are excluded by
+default; include either set explicitly with
+`--include-archived` or `--include-hidden`. Add `--json` to any data command for
+machine-readable output. `migrate` explicitly retries the same idempotent
+import normally started by mounting the sidebar. `rekey` atomically moves
+placement when a provider intentionally changes a plugin grouping key.
 
 ## Settings
 

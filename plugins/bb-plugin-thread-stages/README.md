@@ -4,7 +4,7 @@ Provide workflow stages, automation, and shortcuts to Ribbon sidebar.
 
 Thread stages supplies the **Deferred**, **Idle**, **Active**, **Blocked**, and
 **Completed** workflow to [Ribbon sidebar](../bb-plugin-ribbon-sidebar#readme).
-It owns the stage catalog, lifecycle automation, keyboard shortcuts, CLI, and
+It owns the stage catalog, lifecycle automation, keyboard shortcuts, and
 Completed retention policy. Ribbon owns the sidebar UI, placement, and manual
 order.
 
@@ -64,20 +64,6 @@ another sidebar is visible:
 The filing chords walk through Idle threads, preserve root hierarchies, reject
 child thread IDs, and ignore held-key repeats. Shortcuts for disabled stages
 are left unclaimed.
-
-## CLI
-
-The compatibility CLI remains available and reads and writes Ribbon's
-authoritative placement:
-
-```sh
-bb thread-stages list [--stage <stage>] [--json]
-bb thread-stages show [<thread-id> | --self] [--json]
-bb thread-stages update [<thread-id> | --self] [--stage <stage>] [--after <thread-id>] [--before <thread-id>] [--json]
-```
-
-If Ribbon sidebar is missing, these commands return an actionable dependency
-error instead of writing the read-only migration source.
 
 ## Development
 
