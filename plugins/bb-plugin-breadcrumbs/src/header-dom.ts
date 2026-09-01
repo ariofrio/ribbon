@@ -24,6 +24,50 @@ interface BreadcrumbPortalMount {
   cleanup(): void;
 }
 
+export function installChildPillHider(marker: HTMLElement): (() => void) | null {
+  const header = marker.closest("header");
+  const actionsMenu = header?.querySelector<HTMLElement>(
+    '[data-testid="thread-detail-header-actions-menu"]',
+  );
+  const center = actionsMenu?.parentElement;
+  if (center === undefined || center === null || actionsMenu === undefined) {
+    return null;
+  }
+
+  const previousDisplays = new Map<HTMLElement, string>();
+  const hideChildPill = () => {
+    const titleContainer = findTitleContainer(center);
+    const childPill = Array.from(center.children).find(
+      (child): child is HTMLElement =>
+        child instanceof HTMLElement &&
+        child !== titleContainer &&
+        child !== actionsMenu &&
+        child.dataset.bbPluginRoot === undefined &&
+        child.textContent?.trim() === "child",
+    );
+    if (childPill === undefined) return;
+    if (!previousDisplays.has(childPill)) {
+      previousDisplays.set(childPill, childPill.style.display);
+    }
+    childPill.style.display = "none";
+  };
+
+  hideChildPill();
+  const observer = new MutationObserver(hideChildPill);
+  observer.observe(center, {
+    characterData: true,
+    childList: true,
+    subtree: true,
+  });
+
+  return () => {
+    observer.disconnect();
+    for (const [childPill, display] of previousDisplays) {
+      childPill.style.display = display;
+    }
+  };
+}
+
 export function installBreadcrumbPortal(
   marker: HTMLElement,
 ): BreadcrumbPortalMount | null {

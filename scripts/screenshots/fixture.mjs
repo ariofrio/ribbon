@@ -185,7 +185,7 @@ export function writeManagedConfig({ dataDir, harnessDir }) {
   );
 }
 
-export function seed({ stack, workspaceRoot, bb }) {
+export function seed({ stack, workspaceRoot, bb, assignStages = true }) {
   const run = (args) =>
     execFileSync(bb, [...args], { env: stack.env, encoding: "utf8" });
   const runJson = (args) => JSON.parse(run([...args, "--json"]));
@@ -270,9 +270,11 @@ export function seed({ stack, workspaceRoot, bb }) {
     if (spec.stage === null) continue;
     run(["thread", "wait", threads.get(spec.title).id, "--status", "idle"]);
   }
-  for (const spec of THREADS) {
-    if (spec.stage === null) continue;
-    run(["thread-stages", "update", threads.get(spec.title).id, "--stage", spec.stage]);
+  if (assignStages) {
+    for (const spec of THREADS) {
+      if (spec.stage === null) continue;
+      run(["thread-stages", "update", threads.get(spec.title).id, "--stage", spec.stage]);
+    }
   }
 
   // Only an opened thread paints the "NEW" divider and then clears it moments

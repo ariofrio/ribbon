@@ -12,6 +12,7 @@ import { ProjectBreadcrumb } from "./ProjectBreadcrumb";
 import { SectionBreadcrumb } from "./SectionBreadcrumb";
 import {
   installBreadcrumbPortal,
+  installChildPillHider,
   navigateToProjectSettings,
 } from "./header-dom";
 import { createCrumbRoot, type CrumbRoot } from "./crumb-root";
@@ -68,6 +69,12 @@ function BreadcrumbsBridge({ threadId }: PluginThreadHeaderActionProps) {
   const ancestors = showAncestors ? (trail?.ancestors ?? []) : [];
   const shouldShow =
     section !== null || project !== null || ancestors.length > 0;
+
+  useLayoutEffect(() => {
+    const marker = markerRef.current;
+    if (!showAncestors || marker === null) return;
+    return installChildPillHider(marker) ?? undefined;
+  }, [showAncestors, shouldShow]);
 
   useLayoutEffect(() => {
     const marker = markerRef.current;
