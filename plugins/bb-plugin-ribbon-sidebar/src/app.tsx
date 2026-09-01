@@ -70,6 +70,13 @@ import {
   GroupHeaderMenu,
   type HeaderGroupActions,
 } from "./group-header-menu";
+import {
+  mountGroupAwareThreadCreation,
+  RIBBON_SIDEBAR_NEW_THREAD_GROUP_REQUESTED_EVENT,
+  RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
+  RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT,
+  RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT,
+} from "./new-thread-section";
 
 const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
 /** bb keeps project-less threads in the personal project, under a reserved id. */
@@ -470,6 +477,7 @@ function SidebarMessage({
 }
 
 function RibbonSidebarList({
+  activeProjectId,
   activeThreadId,
   experimental_Original: OriginalThreadList,
   onNavigate,
@@ -511,6 +519,14 @@ function RibbonSidebarList({
   const [previewsLoaded, setPreviewsLoaded] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [pendingNewThreadGroup, setPendingNewThreadGroup] = useState<{
+    group: GroupRef;
+    activeThreadIdAtSubmission: string | null;
+    knownThreadIds: ReadonlySet<string>;
+  } | null>(null);
+  const [pendingComposerProjectId, setPendingComposerProjectId] = useState<
+    string | null
+  >(null);
   const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
   const [dragDestination, setDragDestination] =
     useState<DragDestination | null>(null);
@@ -698,6 +714,141 @@ function RibbonSidebarList({
     },
     [],
   );
+
+  useEffect(() => {
+    if (preferences === null) return;
+    window.dispatchEvent(
+      new Event(RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT),
+    );
+  }, [preferences]);
+
+  useEffect(() => {
+    const capture = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (
+        typeof detail !== "object" ||
+        detail === null ||
+        !("groupingKey" in detail) ||
+        !("groupId" in detail) ||
+        typeof detail.groupingKey !== "string" ||
+        typeof detail.groupId !== "string"
+      ) {
+        return;
+      }
+      setPendingNewThreadGroup({
+        group: detail as GroupRef,
+        activeThreadIdAtSubmission: activeThreadId,
+        knownThreadIds: new Set(sidebar.threads.map(({ id }) => id)),
+      });
+    };
+    window.addEventListener(
+      RIBBON_SIDEBAR_NEW_THREAD_GROUP_REQUESTED_EVENT,
+      capture,
+    );
+    return () => {
+      window.removeEventListener(
+        RIBBON_SIDEBAR_NEW_THREAD_GROUP_REQUESTED_EVENT,
+        capture,
+      );
+    };
+  }, [activeThreadId, sidebar.threads]);
+
+  useEffect(() => {
+    if (
+      pendingNewThreadGroup === null ||
+      activeThreadId === null ||
+      activeThreadId === pendingNewThreadGroup.activeThreadIdAtSubmission ||
+      snapshot === null
+    ) {
+      return;
+    }
+    const { group } = pendingNewThreadGroup;
+    if (pendingNewThreadGroup.knownThreadIds.has(activeThreadId)) {
+      setPendingNewThreadGroup(null);
+      return;
+    }
+    const descriptor = snapshot.groupings.find(
+      ({ groupingKey }) => groupingKey === group.groupingKey,
+    );
+    const destination = descriptor?.groups.find(({ id }) => id === group.groupId);
+    setPendingNewThreadGroup(null);
+    if (
+      descriptor?.available !== true ||
+      !descriptor.membershipWritable ||
+      destination?.acceptsAssignments !== true
+    ) {
+      return;
+    }
+    void rpc
+      .call("placeNewThreadV1", {
+        ...group,
+        threadId: activeThreadId,
+      })
+      .then((result) => {
+        if (!result.ok) setMutationError(result.error.message);
+      })
+      .catch((error: unknown) => {
+        setMutationError(
+          error instanceof Error
+            ? error.message
+            : "Could not place the new thread",
+        );
+      });
+  }, [activeThreadId, pendingNewThreadGroup, rpc, snapshot]);
+
+  useEffect(() => {
+    const capture = (event: Event) => {
+      const projectId = (event as CustomEvent<unknown>).detail;
+      if (typeof projectId === "string" && projectId.length > 0) {
+        if (
+          document.documentElement.getAttribute(
+            RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
+          ) === projectId
+        ) {
+          document.documentElement.removeAttribute(
+            RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
+          );
+        }
+        setPendingComposerProjectId(projectId);
+      }
+    };
+    window.addEventListener(
+      RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT,
+      capture,
+    );
+    const pendingProjectId = document.documentElement.getAttribute(
+      RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
+    );
+    if (pendingProjectId !== null) {
+      capture(
+        new CustomEvent(RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT, {
+          detail: pendingProjectId,
+        }),
+      );
+    }
+    return () => {
+      window.removeEventListener(
+        RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT,
+        capture,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    if (pendingComposerProjectId === null || snapshot === null) return;
+    const projects = snapshot.groupings.find(
+      ({ groupingKey }) => groupingKey === "builtin:projects",
+    );
+    const projectExists = projects?.groups.some(
+      ({ id }) => id === pendingComposerProjectId,
+    );
+    setPendingComposerProjectId(null);
+    if (!projectExists || activeProjectId === pendingComposerProjectId) return;
+    actions.openNewThread({
+      projectId: pendingComposerProjectId,
+      focusPrompt: true,
+    });
+  }, [actions, activeProjectId, pendingComposerProjectId, snapshot]);
 
   const grouping = snapshot?.groupings.find(
     ({ groupingKey }) => groupingKey === preferences?.view.groupingKey,
@@ -1245,6 +1396,17 @@ function RibbonSidebarList({
   };
   const scopeFilterValue: ScopeFilterValue = activeScope;
   const hasDisplayedThreads = pinnedRoots.length + unpinnedRoots.length > 0;
+  const pinnedSectionCollapsed =
+    !normalizedSearch && preferences.collapsed.has("builtin:pinned");
+  const pinnedActivePreview =
+    pinnedSectionCollapsed && activeThreadId !== null
+      ? pinnedRoots
+          .flatMap((root) => [
+            root,
+            ...descendants(root.id, childrenByParent),
+          ])
+          .find(({ id }) => id === activeThreadId)
+      : undefined;
   const emptyMessage =
     normalizedSearch !== ""
       ? "No matching threads"
@@ -1815,22 +1977,14 @@ function RibbonSidebarList({
             <span className="flex min-w-0 flex-1 items-center">
               <span className="min-w-0 flex-1 truncate">Pinned</span>
               <button
-                aria-expanded={
-                  normalizedSearch
-                    ? true
-                    : !preferences.collapsed.has("builtin:pinned")
-                }
+                aria-expanded={!pinnedSectionCollapsed}
                 aria-label={
-                  !normalizedSearch &&
-                  preferences.collapsed.has("builtin:pinned")
+                  pinnedSectionCollapsed
                     ? "Expand Pinned section"
                     : "Collapse Pinned section"
                 }
                 className={`${
-                  !normalizedSearch &&
-                  preferences.collapsed.has("builtin:pinned")
-                    ? ""
-                    : "bb-sidebar-hover-actions"
+                  pinnedSectionCollapsed ? "" : "bb-sidebar-hover-actions"
                 } inline-flex size-6 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2`}
                 onClick={() =>
                   changePreferences((current) => {
@@ -1848,10 +2002,7 @@ function RibbonSidebarList({
                 <Icon
                   aria-hidden
                   className={`size-3 transition-transform duration-150 ${
-                    !normalizedSearch &&
-                    preferences.collapsed.has("builtin:pinned")
-                      ? ""
-                      : "rotate-90"
+                    pinnedSectionCollapsed ? "" : "rotate-90"
                   }`}
                   name="ChevronRight"
                 />
@@ -1875,7 +2026,7 @@ function RibbonSidebarList({
               }
             />
           </div>
-          {normalizedSearch || !preferences.collapsed.has("builtin:pinned") ? (
+          {!pinnedSectionCollapsed ? (
             <ul>
               {pinnedRoots.map((root) =>
                 renderRoot(root, 0, true, {
@@ -1884,6 +2035,8 @@ function RibbonSidebarList({
                 }),
               )}
             </ul>
+          ) : pinnedActivePreview ? (
+            <ul>{renderRoot(pinnedActivePreview, 0, false)}</ul>
           ) : null}
         </section>
       ) : null}
@@ -2182,6 +2335,14 @@ export default definePluginApp((app) => {
     title: "Ribbon sidebar",
     description: "Organize every thread grouping through one Ribbon sidebar.",
     component: RibbonSidebarList,
+  });
+  app.contentScripts.register({
+    id: "new-thread-group",
+    mount({ signal }) {
+      const dispose = mountGroupAwareThreadCreation(window);
+      signal.addEventListener("abort", dispose, { once: true });
+      return dispose;
+    },
   });
   app.contentScripts.register({
     id: "sidebar-content-spacing",
