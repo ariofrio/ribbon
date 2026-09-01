@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-ribbon-sidebar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Organize threads by projects, sections, and provider-defined groupings in one sidebar.",
   "license": "MIT",
   "repository": {
