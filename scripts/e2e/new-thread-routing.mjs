@@ -1,16 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { createWriteStream, mkdirSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { chromium } from "playwright";
-import { AGENT, seed, writeManagedConfig } from "./fixture.mjs";
-import { BB_CLI_PATH, startStack } from "./stack.mjs";
-
-const harnessDirectory = dirname(fileURLToPath(import.meta.url));
-const repositoryRoot = resolve(harnessDirectory, "../..");
-const scratch = join(repositoryRoot, ".scratch/routing-e2e");
-const bb = BB_CLI_PATH;
+import { AGENT } from "../screenshots/fixture.mjs";
 
 async function openScopedComposer({ browser, stack, group, path = "/" }) {
   const context = await browser.newContext({
@@ -200,7 +191,7 @@ export async function verifyNewThreadRouting({
   }
 }
 
-async function waitForStageCatalog(cliEnv) {
+export async function waitForStageCatalog({ bb, cliEnv }) {
   const deadline = Date.now() + 120_000;
   for (;;) {
     try {
@@ -224,49 +215,4 @@ async function waitForStageCatalog(cliEnv) {
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-}
-
-async function runStandalone() {
-  mkdirSync(scratch, { recursive: true });
-  const logStream = createWriteStream(join(scratch, "bb.log"));
-  const stack = await startStack({
-    dataDir: join(scratch, "data"),
-    logStream,
-  });
-  try {
-    const cliEnv = { ...stack.env, BB_CLI: bb };
-    writeManagedConfig({ dataDir: stack.dataDir, harnessDir: harnessDirectory });
-    for (const plugin of ["bb-plugin-ribbon-sidebar", "bb-plugin-thread-stages"]) {
-      execFileSync(
-        bb,
-        [
-          "plugin",
-          "install",
-          join(repositoryRoot, "plugins", plugin),
-          "--yes",
-        ],
-        { cwd: repositoryRoot, env: cliEnv, stdio: "inherit" },
-      );
-    }
-    await waitForStageCatalog(cliEnv);
-    const fixture = seed({
-      stack: { ...stack, env: cliEnv },
-      workspaceRoot: join(scratch, "workspaces"),
-      bb,
-    });
-    const requestedCase = process.argv.indexOf("--case");
-    const cases =
-      requestedCase === -1
-        ? undefined
-        : [process.argv[requestedCase + 1]].filter(Boolean);
-    await verifyNewThreadRouting({ stack, fixture, cases });
-    console.log("New-thread routing end-to-end checks passed.");
-  } finally {
-    await stack.stop();
-    logStream.end();
-  }
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await runStandalone();
 }
