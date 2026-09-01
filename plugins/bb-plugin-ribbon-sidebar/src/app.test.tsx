@@ -412,7 +412,7 @@ describe("Ribbon sidebar app", () => {
     expect(within(switcher).getByText("Section")).toBeTruthy();
 
     fireEvent.keyDown(
-      slot.getByRole("button", { name: "Sidebar display options" }),
+      await slot.findByRole("button", { name: "Sidebar display options" }),
       { key: "Enter" },
     );
     expect(await slot.findByText("Organize")).toBeTruthy();
@@ -428,6 +428,27 @@ describe("Ribbon sidebar app", () => {
       slot.getByRole("menuitem", { name: "Sort Last updated" }),
       { key: "Escape" },
     );
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps grouping submenu icons decorative", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    fireEvent.keyDown(
+      await slot.findByRole("button", { name: "Sidebar display options" }),
+      { key: "Enter" },
+    );
+    const headings = await slot.findByRole("menuitem", {
+      name: "Headings Stages",
+    });
+    headings.focus();
+    fireEvent.keyDown(headings, { key: "ArrowRight" });
+
+    expect(
+      await slot.findByRole("menuitemcheckbox", { name: "Stages" }),
+    ).toBeTruthy();
     slot.lifecycle.unmount();
   });
 

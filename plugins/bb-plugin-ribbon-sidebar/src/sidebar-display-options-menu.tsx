@@ -7,6 +7,11 @@ import type {
   SidebarSort,
 } from "./view-state";
 import { CHROME_SECTION_LABEL_CLASS } from "./chrome-style-tokens";
+import { Button } from "./vendor/components/ui/button";
+import {
+  COARSE_POINTER_ICON_SIZE_CLASS,
+  COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
+} from "./vendor/components/ui/coarse-pointer-sizing";
 import { Icon } from "./vendor/components/ui/icon";
 import { CompactViewportOverrideProvider } from "./vendor/components/ui/hooks/use-compact-viewport";
 import {
@@ -62,10 +67,15 @@ function GroupingIcon({ grouping }: { grouping: DisplayGrouping }) {
     return <Icon aria-hidden className="size-4 shrink-0" name="Folder" />;
   }
   return grouping.icon ? (
-    <ProviderIcon
-      icon={grouping.icon}
-      label={`${grouping.singularLabel} icon`}
-    />
+    <span
+      aria-hidden
+      className="inline-flex size-4 shrink-0 items-center justify-center"
+    >
+      <ProviderIcon
+        icon={grouping.icon}
+        label={`${grouping.singularLabel} icon`}
+      />
+    </span>
   ) : (
     <Icon aria-hidden className="size-4 shrink-0" name="Workflow" />
   );
@@ -73,9 +83,9 @@ function GroupingIcon({ grouping }: { grouping: DisplayGrouping }) {
 
 function MenuValueRow({ label, value }: { label: string; value: string }) {
   return (
-    <span className="flex min-w-48 flex-1 items-center justify-between gap-8">
+    <span className="flex flex-1 items-center justify-between gap-4">
       <span>{label}</span>
-      <span className="max-w-36 truncate text-muted-foreground">{value}</span>
+      <span className="whitespace-nowrap text-muted-foreground">{value}</span>
     </span>
   );
 }
@@ -103,8 +113,10 @@ function groupingMenuItems(
           key={grouping.groupingKey}
           onCheckedChange={() => onChange(grouping.groupingKey as GroupingKey)}
         >
-          <GroupingIcon grouping={grouping} />
-          {grouping.pluralLabel}
+          <span className="flex items-center gap-2">
+            <GroupingIcon grouping={grouping} />
+            <span>{grouping.pluralLabel}</span>
+          </span>
         </DropdownMenuCheckboxItem>
       ))}
     </>
@@ -143,15 +155,21 @@ export function SidebarDisplayOptionsMenu({
           <Tooltip delayDuration={350} disableHoverableContent>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
-                <button
+                <Button
                   aria-label="Sidebar display options"
-                  className="bb-sidebar-hover-actions inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none ring-sidebar-ring transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-foreground"
+                  className={`bb-sidebar-hover-actions shrink-0 cursor-pointer rounded-md p-0 text-sidebar-foreground/85 outline-none ring-sidebar-ring transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-foreground ${COARSE_POINTER_ROW_ACTION_SIZE_CLASS}`}
                   data-sidebar-hover-actions-mobile="always"
                   data-sidebar-hover-actions-open={open ? "true" : undefined}
+                  size="icon"
                   type="button"
+                  variant="ghost"
                 >
-                  <Icon aria-hidden className="size-4" name="SlidersHorizontal" />
-                </button>
+                  <Icon
+                    aria-hidden
+                    className={COARSE_POINTER_ICON_SIZE_CLASS}
+                    name="SlidersHorizontal"
+                  />
+                </Button>
               </DropdownMenuTrigger>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="px-2 py-1">
@@ -159,7 +177,7 @@ export function SidebarDisplayOptionsMenu({
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <DropdownMenuContent align="end" className="min-w-64" mobileTitle="Display options">
+        <DropdownMenuContent align="end" mobileTitle="Display options">
           <DropdownMenuLabel className={CHROME_SECTION_LABEL_CLASS}>
             Organize
           </DropdownMenuLabel>
