@@ -131,29 +131,27 @@ export async function verifyPageSwitching({ stack }) {
       element.addEventListener(
         "scroll",
         () => {
-          requestAnimationFrame(() => {
-            const adjacentContent = [...element.querySelectorAll("*")].find(
-              (candidate) =>
-                candidate.textContent?.trim() === "No threads in this section",
-            );
-            const viewportBox = element.getBoundingClientRect();
-            const adjacentBox = adjacentContent?.getBoundingClientRect();
-            if (
-              adjacentBox === undefined ||
-              adjacentBox.left >= viewportBox.right
-            ) {
-              return;
-            }
-            window.__ribbonAdjacentFrame = {
-              activeLabel: document
-                .querySelector(
-                  '[data-ribbon-sidebar-root] nav[aria-label="Sidebar pages"] [aria-current="page"]',
-                )
-                ?.getAttribute("aria-label"),
-              adjacentRendered: true,
-              adjacentEntered: true,
-            };
-          });
+          const adjacentContent = [...element.querySelectorAll("*")].find(
+            (candidate) =>
+              candidate.textContent?.trim() === "No threads in this section",
+          );
+          const viewportBox = element.getBoundingClientRect();
+          const adjacentBox = adjacentContent?.getBoundingClientRect();
+          if (
+            adjacentBox === undefined ||
+            adjacentBox.left >= viewportBox.right
+          ) {
+            return;
+          }
+          window.__ribbonAdjacentFrame = {
+            activeLabel: document
+              .querySelector(
+                '[data-ribbon-sidebar-root] nav[aria-label="Sidebar pages"] [aria-current="page"]',
+              )
+              ?.getAttribute("aria-label"),
+            adjacentRendered: true,
+            adjacentEntered: true,
+          };
         },
       );
     });
