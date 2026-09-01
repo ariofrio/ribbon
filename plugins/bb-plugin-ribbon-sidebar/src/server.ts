@@ -58,6 +58,26 @@ const sidebarGroupingSchema = z
 const sidebarSnapshotSchema = z
   .object({ groupings: z.array(sidebarGroupingSchema) })
   .strict();
+const ribbonThreadSchema = z
+  .object({
+    id: z.string(),
+    projectId: z.string(),
+    title: z.string().nullable(),
+    titleFallback: z.string().nullable(),
+    parentThreadId: z.string().nullable(),
+    sectionId: z.string().nullable(),
+    originKind: z.literal("fork").nullable(),
+    originPluginId: z.string().nullable(),
+    providerId: z.string(),
+    visibility: z.enum(["visible", "hidden"]),
+    isPinned: z.boolean(),
+    isArchived: z.boolean(),
+    createdAt: z.number(),
+    updatedAt: z.number(),
+    lastReadAt: z.number().nullable(),
+    latestAttentionAt: z.number(),
+  })
+  .strict();
 
 export const rpcContract = defineRpcContract({
   addProjectLocalPathV1: {
@@ -131,6 +151,10 @@ export const rpcContract = defineRpcContract({
         ),
       })
       .strict(),
+  },
+  listThreadsV1: {
+    input: z.null(),
+    output: z.object({ threads: z.array(ribbonThreadSchema) }).strict(),
   },
   placeNewThreadV1: {
     input: updatePlacementInputSchema.omit({
@@ -229,6 +253,43 @@ async function listAllThreads(bb: BbPluginApi): Promise<ThreadSummary[]> {
     if (page.length < limit) return threads;
   }
   throw new Error("Thread list exceeds 10000 entries.");
+}
+
+async function listSidebarThreads(bb: BbPluginApi) {
+  const list = async (archived: boolean) => {
+    const threads: Awaited<ReturnType<typeof bb.sdk.threads.list>> = [];
+    const limit = 100;
+    while (threads.length <= 10_000) {
+      const page = await bb.sdk.threads.list({
+        archived,
+        includeHidden: true,
+        limit,
+        offset: threads.length,
+      });
+      threads.push(...page);
+      if (page.length < limit) return threads;
+    }
+    throw new Error("Thread list exceeds 10000 entries.");
+  };
+  const [notArchived, archived] = await Promise.all([list(false), list(true)]);
+  return [...notArchived, ...archived].map((thread) => ({
+    id: thread.id,
+    projectId: thread.projectId,
+    title: thread.title,
+    titleFallback: thread.titleFallback,
+    parentThreadId: thread.parentThreadId,
+    sectionId: thread.sectionId,
+    originKind: thread.originKind === "fork" ? ("fork" as const) : null,
+    originPluginId: thread.originPluginId,
+    providerId: thread.providerId,
+    visibility: thread.visibility,
+    isPinned: thread.pinnedAt !== null,
+    isArchived: thread.archivedAt !== null,
+    createdAt: thread.createdAt,
+    updatedAt: thread.updatedAt,
+    lastReadAt: thread.lastReadAt,
+    latestAttentionAt: thread.latestAttentionAt,
+  }));
 }
 
 function fullGroup(group: GroupingDescriptor["groups"][number]) {
@@ -732,6 +793,9 @@ export default async function plugin(bb: BbPluginApi) {
               ),
           })),
       };
+    },
+    async listThreadsV1() {
+      return { threads: await listSidebarThreads(bb) };
     },
     async renameEntityV1({ groupingKey, id, name }) {
       if (groupingKey === "builtin:projects") {

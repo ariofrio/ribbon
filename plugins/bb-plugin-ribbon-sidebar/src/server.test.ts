@@ -108,7 +108,26 @@ function setup({
   const subscribe = vi.fn(
     subscribeOverride ?? (() => () => undefined),
   );
-  const list = vi.fn(async () => threads);
+  const list = vi.fn(
+    async ({
+      archived = false,
+      includeHidden = false,
+      limit = 100,
+      offset = 0,
+    }: {
+      archived?: boolean;
+      includeHidden?: boolean;
+      limit?: number;
+      offset?: number;
+    } = {}) =>
+      threads
+        .filter(
+          (thread) =>
+            (thread.archivedAt !== null) === archived &&
+            (includeHidden || thread.visibility !== "hidden"),
+        )
+        .slice(offset, offset + limit),
+  );
   const callRpc = vi.fn(async ({ pluginId, method }: {
     pluginId: string;
     method: string;
@@ -801,6 +820,7 @@ describe("Ribbon sidebar server", () => {
       "listPlacementsV1",
       "listPreviewsV1",
       "listProjectActionStatesV1",
+      "listThreadsV1",
       "placeNewThreadV1",
       "searchThreadIdsV1",
       "renameEntityV1",
@@ -816,6 +836,44 @@ describe("Ribbon sidebar server", () => {
     await expect(
       harness.behavior.runCli(["groupings", "--json"]),
     ).resolves.toMatchObject({ exitCode: 0 });
+  });
+
+  it("lists hidden and visible threads across both archival states", async () => {
+    const activeHidden = makeThreadResponse({
+      id: "active-hidden",
+      visibility: "hidden",
+      archivedAt: null,
+    });
+    const archivedVisible = makeThreadResponse({
+      id: "archived-visible",
+      visibility: "visible",
+      archivedAt: 100,
+    });
+    const { bb, harness, list } = setup({
+      threads: [activeHidden, archivedVisible],
+    });
+    await plugin(bb);
+
+    await expect(
+      harness.behavior.callRpc("listThreadsV1", null),
+    ).resolves.toMatchObject({
+      threads: [
+        { id: "active-hidden", visibility: "hidden", isArchived: false },
+        { id: "archived-visible", visibility: "visible", isArchived: true },
+      ],
+    });
+    expect(list).toHaveBeenCalledWith({
+      archived: false,
+      includeHidden: true,
+      limit: 100,
+      offset: 0,
+    });
+    expect(list).toHaveBeenCalledWith({
+      archived: true,
+      includeHidden: true,
+      limit: 100,
+      offset: 0,
+    });
   });
 
   it("serves previews from the durable background cache", async () => {

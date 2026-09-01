@@ -20,6 +20,68 @@ function storage(entries: Record<string, string> = {}): Storage {
 }
 
 describe("client-local sidebar preferences", () => {
+  it("defaults to the requested pages, headings, hide, and sort view", () => {
+    const preferences = loadSidebarPreferences(storage(), [
+      "builtin:projects",
+      "builtin:sections",
+      "plugin:thread-stages:stages",
+    ]);
+
+    expect(preferences.view).toEqual({
+      scope: { kind: "all" },
+      groupingKey: "plugin:thread-stages:stages",
+      filterGroupingKey: "builtin:sections",
+      hide: {
+        notArchived: false,
+        archived: true,
+        visible: false,
+        hidden: true,
+      },
+      sort: "updated",
+    });
+  });
+
+  it("migrates the existing v1 view without changing its pages or headings", () => {
+    const local = storage({
+      "bb.plugin.ribbon-sidebar.preferences.v1": JSON.stringify({
+        view: {
+          scope: {
+            kind: "group",
+            group: { groupingKey: "builtin:projects", groupId: "atlas" },
+          },
+          groupingKey: "plugin:thread-stages:stages",
+          filterGroupingKey: "builtin:projects",
+        },
+        collapsed: ["plugin:thread-stages:stages/Idle"],
+      }),
+    });
+
+    expect(
+      loadSidebarPreferences(local, [
+        "builtin:projects",
+        "builtin:sections",
+        "plugin:thread-stages:stages",
+      ]),
+    ).toEqual({
+      view: {
+        scope: {
+          kind: "group",
+          group: { groupingKey: "builtin:projects", groupId: "atlas" },
+        },
+        groupingKey: "plugin:thread-stages:stages",
+        filterGroupingKey: "builtin:projects",
+        hide: {
+          notArchived: false,
+          archived: true,
+          visible: false,
+          hidden: true,
+        },
+        sort: "updated",
+      },
+      collapsed: new Set(["plugin:thread-stages:stages/Idle"]),
+    });
+  });
+
   it("defaults a never-selected filter grouping to Sections", () => {
     const local = storage({
       "bb.plugin.ribbon-sidebar.preferences.v1": JSON.stringify({
@@ -42,6 +104,13 @@ describe("client-local sidebar preferences", () => {
       scope: { kind: "all" as const },
       groupingKey: "builtin:sections" as const,
       filterGroupingKey: "builtin:sections" as const,
+      hide: {
+        notArchived: false,
+        archived: true,
+        visible: false,
+        hidden: true,
+      },
+      sort: "updated" as const,
     };
 
     expect(
@@ -56,6 +125,13 @@ describe("client-local sidebar preferences", () => {
       },
       groupingKey: null,
       filterGroupingKey: "builtin:sections",
+      hide: {
+        notArchived: false,
+        archived: true,
+        visible: false,
+        hidden: true,
+      },
+      sort: "updated",
     });
     expect(
       changeSidebarGrouping(
@@ -66,6 +142,8 @@ describe("client-local sidebar preferences", () => {
           },
           groupingKey: "plugin:thread-stages:stages",
           filterGroupingKey: "builtin:sections",
+          hide: groupedBySections.hide,
+          sort: groupedBySections.sort,
         },
         "builtin:sections",
       ),
@@ -73,6 +151,8 @@ describe("client-local sidebar preferences", () => {
       scope: { kind: "all" },
       groupingKey: "builtin:sections",
       filterGroupingKey: "builtin:sections",
+      hide: groupedBySections.hide,
+      sort: groupedBySections.sort,
     });
     expect(
       changeSidebarGrouping(groupedBySections, "builtin:sections"),
@@ -80,6 +160,8 @@ describe("client-local sidebar preferences", () => {
       scope: { kind: "all" },
       groupingKey: null,
       filterGroupingKey: "builtin:sections",
+      hide: groupedBySections.hide,
+      sort: groupedBySections.sort,
     });
 
     const filteredByProject = changeSidebarScope(groupedBySections, {
@@ -119,6 +201,13 @@ describe("client-local sidebar preferences", () => {
       },
       groupingKey: null,
       filterGroupingKey: "builtin:sections",
+      hide: {
+        notArchived: false,
+        archived: true,
+        visible: false,
+        hidden: true,
+      },
+      sort: "updated",
     });
   });
 
@@ -144,6 +233,13 @@ describe("client-local sidebar preferences", () => {
         },
         groupingKey: "plugin:thread-stages:stages",
         filterGroupingKey: "builtin:sections",
+        hide: {
+          notArchived: false,
+          archived: true,
+          visible: false,
+          hidden: true,
+        },
+        sort: "updated",
       },
       collapsed: new Set([
         "builtin:pinned",
@@ -188,6 +284,13 @@ describe("client-local sidebar preferences", () => {
         },
         groupingKey: "builtin:projects",
         filterGroupingKey: "builtin:projects",
+        hide: {
+          notArchived: false,
+          archived: true,
+          visible: false,
+          hidden: true,
+        },
+        sort: "updated",
       },
       collapsed: new Set(["plugin:removed:status/Waiting"]),
     });

@@ -2,10 +2,19 @@ import type { GroupingKey } from "./placement-store";
 
 export type GroupRef = { groupingKey: GroupingKey; groupId: string };
 export type Scope = { kind: "all" } | { kind: "group"; group: GroupRef };
+export type SidebarSort = "updated" | "created" | "alphabetical" | "manual";
+export interface HiddenThreadKinds {
+  notArchived: boolean;
+  archived: boolean;
+  visible: boolean;
+  hidden: boolean;
+}
 export type SidebarView = {
   scope: Scope;
   groupingKey: GroupingKey | null;
   filterGroupingKey: GroupingKey;
+  hide: HiddenThreadKinds;
+  sort: SidebarSort;
 };
 export interface SidebarPreferences {
   view: SidebarView;
@@ -17,6 +26,14 @@ interface StoredSidebarPreferences {
   };
   collapsed: Set<string>;
 }
+
+export const DEFAULT_HIDDEN_THREAD_KINDS: HiddenThreadKinds = {
+  notArchived: false,
+  archived: true,
+  visible: false,
+  hidden: true,
+};
+export const DEFAULT_SIDEBAR_SORT: SidebarSort = "updated";
 
 export const SIDEBAR_PREFERENCES_KEY =
   "bb.plugin.ribbon-sidebar.preferences.v1";
@@ -31,6 +48,40 @@ const GROUPING_KEY = /^(?:builtin:(?:projects|sections)|plugin:[^:/]+:[^:/]+)$/u
 
 function isGroupingKey(value: unknown): value is GroupingKey {
   return typeof value === "string" && GROUPING_KEY.test(value);
+}
+
+function storedHide(value: unknown): HiddenThreadKinds {
+  if (typeof value !== "object" || value === null) {
+    return { ...DEFAULT_HIDDEN_THREAD_KINDS };
+  }
+  const record = value as Record<string, unknown>;
+  return {
+    notArchived:
+      typeof record.notArchived === "boolean"
+        ? record.notArchived
+        : DEFAULT_HIDDEN_THREAD_KINDS.notArchived,
+    archived:
+      typeof record.archived === "boolean"
+        ? record.archived
+        : DEFAULT_HIDDEN_THREAD_KINDS.archived,
+    visible:
+      typeof record.visible === "boolean"
+        ? record.visible
+        : DEFAULT_HIDDEN_THREAD_KINDS.visible,
+    hidden:
+      typeof record.hidden === "boolean"
+        ? record.hidden
+        : DEFAULT_HIDDEN_THREAD_KINDS.hidden,
+  };
+}
+
+function storedSort(value: unknown): SidebarSort {
+  return value === "updated" ||
+    value === "created" ||
+    value === "alphabetical" ||
+    value === "manual"
+    ? value
+    : DEFAULT_SIDEBAR_SORT;
 }
 
 function storedPreferences(raw: string | null): StoredSidebarPreferences | null {
@@ -77,6 +128,8 @@ function storedPreferences(raw: string | null): StoredSidebarPreferences | null 
         filterGroupingKey: isGroupingKey(view.filterGroupingKey)
           ? view.filterGroupingKey
           : null,
+        hide: storedHide(view.hide),
+        sort: storedSort(view.sort),
       },
       collapsed: new Set(collapsed),
     };
@@ -117,14 +170,26 @@ export function changeSidebarGrouping(
       ? null
       : groupingKey;
   return {
+    ...view,
     groupingKey: nextGroupingKey,
-    filterGroupingKey: view.filterGroupingKey,
     scope:
       nextGroupingKey !== null &&
       view.scope.kind === "group" &&
       view.scope.group.groupingKey === nextGroupingKey
         ? { kind: "all" }
         : view.scope,
+  };
+}
+
+export function changeSidebarPagesGrouping(
+  view: SidebarView,
+  filterGroupingKey: GroupingKey,
+): SidebarView {
+  if (view.filterGroupingKey === filterGroupingKey) return view;
+  return {
+    ...view,
+    filterGroupingKey,
+    scope: { kind: "all" },
   };
 }
 
@@ -219,6 +284,8 @@ export function loadSidebarPreferences(
         scope: { kind: "all" },
         groupingKey: fallback,
         filterGroupingKey: filterFallback,
+        hide: { ...DEFAULT_HIDDEN_THREAD_KINDS },
+        sort: DEFAULT_SIDEBAR_SORT,
       },
       collapsed: new Set(),
     };
@@ -245,6 +312,8 @@ export function loadSidebarPreferences(
         scope: legacyScope(storage),
         groupingKey: fallback,
         filterGroupingKey: filterFallback,
+        hide: { ...DEFAULT_HIDDEN_THREAD_KINDS },
+        sort: DEFAULT_SIDEBAR_SORT,
       },
       collapsed: legacyCollapsed(storage, defaultCollapsed),
     };
@@ -254,6 +323,8 @@ export function loadSidebarPreferences(
         scope: { kind: "all" },
         groupingKey: fallback,
         filterGroupingKey: filterFallback,
+        hide: { ...DEFAULT_HIDDEN_THREAD_KINDS },
+        sort: DEFAULT_SIDEBAR_SORT,
       },
       collapsed: new Set(),
     };

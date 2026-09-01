@@ -74,6 +74,24 @@ const activity = {
   planMode: 0,
   goals: 0,
 };
+interface ListedThread {
+  id: string;
+  projectId: string;
+  title: string | null;
+  titleFallback: string | null;
+  parentThreadId: string | null;
+  sectionId: string | null;
+  originKind: "fork" | null;
+  originPluginId: string | null;
+  providerId: string;
+  visibility: "visible" | "hidden";
+  isPinned: boolean;
+  isArchived: boolean;
+  createdAt: number;
+  updatedAt: number;
+  lastReadAt: number | null;
+  latestAttentionAt: number;
+}
 const thread = (value: Partial<Record<string, unknown>> & { id: string }) => {
   const { id, ...overrides } = value;
   return {
@@ -291,6 +309,9 @@ function options(overrides: Record<string, unknown> = {}) {
   const listProjectActionStatesV1 = vi.fn(async () => ({
     projects: [{ id: "project-a", canAddLocalPath: true }],
   }));
+  const listThreadsV1 = vi.fn(
+    async (): Promise<{ threads: ListedThread[] }> => ({ threads: [] }),
+  );
   const updateSettingsV1 = vi.fn(async () => ({ ok: true as const }));
   return {
     synchronizeV1,
@@ -304,6 +325,7 @@ function options(overrides: Record<string, unknown> = {}) {
     addProjectLocalPathV1,
     reorderPinnedV1,
     listProjectActionStatesV1,
+    listThreadsV1,
     updateSettingsV1,
     value: {
       settings: {
@@ -321,6 +343,7 @@ function options(overrides: Record<string, unknown> = {}) {
           ],
         })),
         listProjectActionStatesV1,
+        listThreadsV1,
         searchThreadIdsV1: vi.fn(async (raw: unknown) => ({
           threadIds: (raw as { query: string }).query
             .toLocaleLowerCase()
@@ -355,7 +378,169 @@ function options(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function useManualSort(groupingKey = "plugin:thread-stages:stages") {
+  window.localStorage.setItem(
+    "bb.plugin.ribbon-sidebar.preferences.v1",
+    JSON.stringify({
+      view: {
+        scope: { kind: "all" },
+        groupingKey,
+        filterGroupingKey: "builtin:sections",
+        hide: {
+          notArchived: false,
+          archived: true,
+          visible: false,
+          hidden: true,
+        },
+        sort: "manual",
+      },
+      collapsed: [],
+    }),
+  );
+}
+
 describe("Ribbon sidebar app", () => {
+  it("renders a workspace-style page switcher and the requested display menu", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+
+    const switcher = await slot.findByRole("button", {
+      name: "All groups, Pages by Section",
+    });
+    expect(within(switcher).getByText("All groups")).toBeTruthy();
+    expect(within(switcher).getByText("Section")).toBeTruthy();
+
+    fireEvent.keyDown(
+      slot.getByRole("button", { name: "Sidebar display options" }),
+      { key: "Enter" },
+    );
+    expect(await slot.findByText("Organize")).toBeTruthy();
+    expect(slot.getByRole("menuitem", { name: "Pages Sections" })).toBeTruthy();
+    expect(slot.getByRole("menuitem", { name: "Headings Stages" })).toBeTruthy();
+    expect(
+      slot.getByRole("menuitem", { name: "Hide Hidden, Archived" }),
+    ).toBeTruthy();
+    expect(
+      slot.getByRole("menuitem", { name: "Sort Last updated" }),
+    ).toBeTruthy();
+    fireEvent.keyDown(
+      slot.getByRole("menuitem", { name: "Sort Last updated" }),
+      { key: "Escape" },
+    );
+    slot.lifecycle.unmount();
+  });
+
+  it("changes sort order from the display menu", async () => {
+    window.localStorage.setItem(
+      "bb.plugin.ribbon-sidebar.preferences.v1",
+      JSON.stringify({
+        view: {
+          scope: { kind: "all" },
+          groupingKey: null,
+          filterGroupingKey: "builtin:sections",
+          hide: {
+            notArchived: false,
+            archived: true,
+            visible: false,
+            hidden: true,
+          },
+          sort: "updated",
+        },
+        collapsed: [],
+      }),
+    );
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        projects: [
+          { id: "project-a", name: "Storefront", isPersonal: false },
+        ],
+        threads: [
+          thread({ id: "thread-a", title: "Zebra", updatedAt: 20 }),
+          thread({ id: "thread-b", title: "Alpha", updatedAt: 10 }),
+        ],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Zebra");
+
+    const displayedIds = () =>
+      Array.from(
+        slot.container.querySelectorAll<HTMLElement>("[data-thread-id]"),
+      )
+        .map((row) => row.dataset.threadId)
+        .filter((id) => id === "thread-a" || id === "thread-b");
+    expect(displayedIds()).toEqual(["thread-a", "thread-b"]);
+
+    fireEvent.keyDown(
+      slot.getByRole("button", { name: "Sidebar display options" }),
+      { key: "Enter" },
+    );
+    const sort = await slot.findByRole("menuitem", {
+      name: "Sort Last updated",
+    });
+    sort.focus();
+    fireEvent.keyDown(sort, { key: "ArrowRight" });
+    fireEvent.click(
+      await slot.findByRole("menuitemcheckbox", {
+        name: "Alphabetically",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(displayedIds()).toEqual(["thread-b", "thread-a"]),
+    );
+    slot.lifecycle.unmount();
+  });
+
+  it("shows archived threads when Archived is removed from Hide", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    fixture.listThreadsV1.mockResolvedValue({
+      threads: [
+        {
+          id: "thread-archived",
+          projectId: "project-a",
+          title: "Archived planning",
+          titleFallback: null,
+          parentThreadId: null,
+          sectionId: "section-a",
+          originKind: null,
+          originPluginId: null,
+          providerId: "codex",
+          visibility: "visible" as const,
+          isPinned: false,
+          isArchived: true,
+          createdAt: 1,
+          updatedAt: 3,
+          lastReadAt: 2,
+          latestAttentionAt: 1,
+        },
+      ],
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+    expect(slot.queryByText("Archived planning")).toBeNull();
+
+    fireEvent.keyDown(
+      slot.getByRole("button", { name: "Sidebar display options" }),
+      { key: "Enter" },
+    );
+    const hide = await slot.findByRole("menuitem", {
+      name: "Hide Hidden, Archived",
+    });
+    hide.focus();
+    fireEvent.keyDown(hide, { key: "ArrowRight" });
+    fireEvent.click(
+      await slot.findByRole("menuitemcheckbox", { name: "Archived" }),
+    );
+
+    expect(await slot.findByText("Archived planning")).toBeTruthy();
+    expect(fixture.listThreadsV1).toHaveBeenCalledWith(null);
+    slot.lifecycle.unmount();
+  });
+
   it("registers the exclusive list and starts migration only when mounted", async () => {
     const app = await loadPluginApp(() => import("./app"));
     expect(app.threadLists).toHaveLength(1);
@@ -1294,6 +1479,7 @@ describe("Ribbon sidebar app", () => {
   });
 
   it("renders unpinned roots in Ribbon's stored within-group order", async () => {
+    useManualSort();
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     fixture.value.rpc.listPlacementsV1 = vi.fn(async () => ({
@@ -1376,10 +1562,12 @@ describe("Ribbon sidebar app", () => {
     await slot.findByText("Design migration");
 
     fireEvent.keyDown(
-      slot.getByRole("button", { name: "Groups" }),
+      slot.getByRole("button", { name: /^All groups, Pages by/u }),
       { key: "Enter" },
     );
-    expect(await slot.findByText("All groups")).toBeTruthy();
+    expect(await slot.findByRole("menuitemradio", {
+      name: "All groups",
+    })).toBeTruthy();
     fireEvent.click(await slot.findByRole("menuitemradio", { name: /Release/u }));
     expect(await slot.findByRole("button", { name: "Release, filtered" }))
       .toBeTruthy();
@@ -1394,20 +1582,21 @@ describe("Ribbon sidebar app", () => {
     expect(slot.queryByRole("menuitem", { name: "Group by section" })).toBeNull();
     const projects = slot.getByRole("menuitem", { name: "Projects" });
     const stages = slot.getByRole("menuitem", { name: "Stages" });
-    const sectionHeader = slot.getByText("Sections");
+    const release = slot.getByRole("menuitemradio", { name: /Release/u });
+    const newSection = slot.getByRole("menuitem", { name: "New section" });
     expect(
-      allGroups.compareDocumentPosition(sectionHeader) &
+      release.compareDocumentPosition(allGroups) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      sectionHeader.compareDocumentPosition(projects) &
+      allGroups.compareDocumentPosition(projects) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
       projects.compareDocumentPosition(stages) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(allGroups.parentElement?.nextElementSibling?.getAttribute("role"))
+    expect(newSection.parentElement?.nextElementSibling?.getAttribute("role"))
       .toBe("separator");
     expect(slot.getByRole("menuitemradio", { name: /Release/u })).toBeTruthy();
     slot.lifecycle.unmount();
@@ -1419,7 +1608,7 @@ describe("Ribbon sidebar app", () => {
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Design migration");
 
-    fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
+    fireEvent.keyDown(slot.getByRole("button", { name: /^All groups, Pages by/u }), {
       key: "Enter",
     });
 
@@ -1454,7 +1643,7 @@ describe("Ribbon sidebar app", () => {
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Design migration");
 
-    fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
+    fireEvent.keyDown(slot.getByRole("button", { name: /^All groups, Pages by/u }), {
       key: "Enter",
     });
     fireEvent.keyDown(slot.getByRole("menuitem", { name: "Projects" }), {
@@ -1470,7 +1659,7 @@ describe("Ribbon sidebar app", () => {
     fireEvent.click(
       await slot.findByRole("menuitemradio", { name: "All groups" }),
     );
-    fireEvent.keyDown(await slot.findByRole("button", { name: "Groups" }), {
+    fireEvent.keyDown(await slot.findByRole("button", { name: /^All groups, Pages by/u }), {
       key: "Enter",
     });
 
@@ -1647,7 +1836,7 @@ describe("Ribbon sidebar app", () => {
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Design migration");
 
-    fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
+    fireEvent.keyDown(slot.getByRole("button", { name: /^All groups, Pages by/u }), {
       key: "Enter",
     });
     const sectionRows = slot.getByRole("menuitemradio", { name: /Release/u })
@@ -1690,7 +1879,7 @@ describe("Ribbon sidebar app", () => {
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Design migration");
 
-    fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
+    fireEvent.keyDown(slot.getByRole("button", { name: /^All groups, Pages by/u }), {
       key: "Enter",
     });
     fireEvent.click(slot.getByRole("menuitemradio", { name: /Release/u }));
@@ -1713,6 +1902,13 @@ describe("Ribbon sidebar app", () => {
       },
       groupingKey: null,
       filterGroupingKey: "builtin:sections",
+      hide: {
+        notArchived: false,
+        archived: true,
+        visible: false,
+        hidden: true,
+      },
+      sort: "updated",
     });
     fireEvent.keyDown(
       slot.getByRole("button", { name: "Release, filtered" }),
@@ -1866,7 +2062,7 @@ describe("Ribbon sidebar app", () => {
       expect(slot.queryByRole("menuitem", { name: "Group by" })).toBeNull(),
     );
 
-    fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
+    fireEvent.keyDown(slot.getByRole("button", { name: /^All groups, Pages by/u }), {
       key: "Enter",
     });
     fireEvent.keyDown(slot.getByRole("menuitem", { name: "Projects" }), {
@@ -1889,11 +2085,11 @@ describe("Ribbon sidebar app", () => {
 
     fireEvent.click(slot.getByText("Idle"));
     expect(
-      slot.getByRole("button", { name: "Groups" }),
+      slot.getByRole("button", { name: /^All groups, Pages by/u }),
     ).toBeTruthy();
     expect(slot.queryByRole("button", { name: /Group by/u })).toBeNull();
 
-    fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
+    fireEvent.keyDown(slot.getByRole("button", { name: /^All groups, Pages by/u }), {
       key: "Enter",
     });
     expect(await slot.findByRole("menuitemradio", { name: "All groups" }))
@@ -1929,7 +2125,7 @@ describe("Ribbon sidebar app", () => {
     expect(
       await slot.findByRole("region", { name: "Release group" }),
     ).toBeTruthy();
-    expect(slot.getByRole("button", { name: "Groups" })).toBeTruthy();
+    expect(slot.getByRole("button", { name: /^All groups, Pages by/u })).toBeTruthy();
     slot.lifecycle.unmount();
   });
 
@@ -1940,19 +2136,13 @@ describe("Ribbon sidebar app", () => {
     await slot.findByText("Design migration");
 
     const management = slot.getByRole("button", {
-      name: "Groups",
+      name: /^All groups, Pages by/u,
     });
-    const managementRow = management.parentElement!;
-    fireEvent.mouseEnter(managementRow);
-    expect(
-      slot.getByRole("button", { name: "New section" }),
-    ).toBeTruthy();
-    expect(
-      slot.getByRole("button", { name: "New project" }),
-    ).toBeTruthy();
-    expect(
-      slot.getByRole("button", { name: "Groups options" }),
-    ).toBeTruthy();
+    expect(slot.getByRole("button", {
+      name: "Sidebar display options",
+    })).toBeTruthy();
+    expect(slot.queryByRole("button", { name: "New section" })).toBeNull();
+    expect(slot.queryByRole("button", { name: "New project" })).toBeNull();
 
     fireEvent.keyDown(management, { key: "Enter" });
     expect(
@@ -1960,6 +2150,7 @@ describe("Ribbon sidebar app", () => {
         name: "All groups",
       }),
     ).toBeTruthy();
+    expect(slot.getByRole("menuitem", { name: "New section" })).toBeTruthy();
     const section = await slot.findByRole("menuitemradio", { name: /Release/u });
     expect(section.querySelector("svg")).toBeTruthy();
     fireEvent.click(section);
@@ -2008,7 +2199,7 @@ describe("Ribbon sidebar app", () => {
       slot.getByRole("button", { name: "Collapse Idle section" }),
     ).toBeTruthy();
     expect(
-      slot.queryByRole("button", { name: "Groups" }),
+      slot.queryByRole("button", { name: /^All groups, Pages by/u }),
     ).toBeNull();
     expect(slot.queryByRole("button", { name: /Group by/u })).toBeNull();
     expect(slot.queryByText("A useful preview")).toBeNull();
@@ -2257,12 +2448,17 @@ describe("Ribbon sidebar app", () => {
     await slot.findByText("Design migration");
 
     const management = slot.getByRole("button", {
-      name: "Groups",
+      name: /^All groups, Pages by/u,
     });
-    fireEvent.click(slot.getByRole("button", { name: "New project" }));
+    fireEvent.keyDown(management, { key: "Enter" });
+    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Projects" }), {
+      key: "ArrowRight",
+    });
+    fireEvent.click(await slot.findByRole("menuitem", { name: "New project" }));
     await waitFor(() => expect(fixture.createProjectV1).toHaveBeenCalled());
 
-    fireEvent.click(slot.getByRole("button", { name: "New section" }));
+    fireEvent.keyDown(management, { key: "Enter" });
+    fireEvent.click(await slot.findByRole("menuitem", { name: "New section" }));
     expect(await slot.findByText("Create a section for threads.")).toBeTruthy();
     const createName = await slot.findByRole("textbox", {
       name: "Section name",
@@ -2313,7 +2509,7 @@ describe("Ribbon sidebar app", () => {
     await slot.findByText("Design migration");
 
     const management = slot.getByRole("button", {
-      name: "Groups",
+      name: /^All groups, Pages by/u,
     });
     fireEvent.keyDown(management, { key: "Enter" });
     fireEvent.keyDown(slot.getByRole("menuitem", { name: "Projects" }), {
@@ -2430,6 +2626,7 @@ describe("Ribbon sidebar app", () => {
   });
 
   it("uses released invisible group drop targets without move placeholders or handles", async () => {
+    useManualSort();
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
@@ -2470,13 +2667,7 @@ describe("Ribbon sidebar app", () => {
   });
 
   it("allows order within Projects but rejects cross-project drag targets", async () => {
-    window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
-      JSON.stringify({
-        view: { scope: { kind: "all" }, groupingKey: "builtin:projects" },
-        collapsed: [],
-      }),
-    );
+    useManualSort("builtin:projects");
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({
       sidebarThreads: {
@@ -2545,13 +2736,7 @@ describe("Ribbon sidebar app", () => {
   });
 
   it("allows cross-group drops when the grouping membership is writable", async () => {
-    window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
-      JSON.stringify({
-        view: { scope: { kind: "all" }, groupingKey: "builtin:sections" },
-        collapsed: [],
-      }),
-    );
+    useManualSort("builtin:sections");
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
@@ -2579,6 +2764,7 @@ describe("Ribbon sidebar app", () => {
   });
 
   it("keeps pinned reorder bb-owned and exposes drag feedback", async () => {
+    useManualSort();
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({
       sidebarThreads: {
@@ -2684,6 +2870,7 @@ describe("Ribbon sidebar app", () => {
   });
 
   it("ignores self-drops and retries one revision conflict", async () => {
+    useManualSort();
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     fixture.updatePlacementV1.mockResolvedValueOnce({
@@ -2784,7 +2971,7 @@ describe("Ribbon sidebar app", () => {
     await slot.findByText("Design migration");
 
     await slot.behavior.emitRealtime("catalog-changed", null);
-    fireEvent.keyDown(slot.getByRole("button", { name: "Groups" }), {
+    fireEvent.keyDown(slot.getByRole("button", { name: /^All groups, Pages by/u }), {
       key: "Enter",
     });
     expect(
