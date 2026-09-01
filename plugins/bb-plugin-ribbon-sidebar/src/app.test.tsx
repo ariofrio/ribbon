@@ -335,6 +335,7 @@ function options(overrides: Record<string, unknown> = {}) {
       settings: {
         showProjectsAndSections: true,
         showMessagePreviews: true,
+        threadAdornmentAlignment: "Title row",
         showCollapsedGroupIndicators: false,
         showGroupHeaderIcons: true,
       },
@@ -844,6 +845,77 @@ describe("Ribbon sidebar app", () => {
 
     await waitFor(() => expect(fixture.synchronizeV1).toHaveBeenCalled());
     expect(fixture.placeNewThreadV1).not.toHaveBeenCalled();
+    slot.lifecycle.unmount();
+  });
+
+  it("aligns thread icons and indicators with the title row by default", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        projects: [
+          { id: "project-a", name: "Storefront", isPersonal: false },
+        ],
+        threads: [
+          thread({
+            id: "thread-a",
+            title: "Design migration",
+            indicator: "runtime",
+            indicatorLabel: "Thread working",
+          }),
+          thread({ id: "thread-b", title: "Ship UI" }),
+        ],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const title = await slot.findByText("Design migration");
+    const row = title.closest("[data-thread-id]")!;
+    const icon = row.querySelector<HTMLElement>(
+      '[data-ribbon-icons-project="project-a"]',
+    )!;
+    const indicator = row.querySelector<HTMLElement>(
+      "[data-sidebar-thread-trailing-indicator]",
+    )!;
+    const indicatorLane = indicator.parentElement!.parentElement!;
+
+    expect(getComputedStyle(icon).gridRowStart).toBe("1");
+    expect(getComputedStyle(icon).gridRowEnd).toBe("auto");
+    expect(getComputedStyle(indicatorLane).alignSelf).toBe("start");
+    slot.lifecycle.unmount();
+  });
+
+  it("centers thread icons and indicators across the entire item when configured", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      settings: { threadAdornmentAlignment: "Entire item" },
+      sidebarThreads: {
+        projects: [
+          { id: "project-a", name: "Storefront", isPersonal: false },
+        ],
+        threads: [
+          thread({
+            id: "thread-a",
+            title: "Design migration",
+            indicator: "runtime",
+            indicatorLabel: "Thread working",
+          }),
+          thread({ id: "thread-b", title: "Ship UI" }),
+        ],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const title = await slot.findByText("Design migration");
+    const row = title.closest("[data-thread-id]")!;
+    const icon = row.querySelector<HTMLElement>(
+      '[data-ribbon-icons-project="project-a"]',
+    )!;
+    const indicator = row.querySelector<HTMLElement>(
+      "[data-sidebar-thread-trailing-indicator]",
+    )!;
+    const indicatorLane = indicator.parentElement!.parentElement!;
+
+    expect(getComputedStyle(icon).gridRowStart).toBe("1");
+    expect(getComputedStyle(icon).gridRowEnd).toBe("span 2");
+    expect(getComputedStyle(indicatorLane).alignSelf).toBe("stretch");
     slot.lifecycle.unmount();
   });
 

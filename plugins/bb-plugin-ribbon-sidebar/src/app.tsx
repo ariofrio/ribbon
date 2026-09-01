@@ -217,6 +217,7 @@ function supplementalSidebarThread(
 
 function ThreadRow({
   active,
+  alignAdornmentsToEntireItem,
   actions,
   assignments,
   childrenCollapsed,
@@ -242,6 +243,7 @@ function ThreadRow({
   thread,
 }: {
   active: boolean;
+  alignAdornmentsToEntireItem: boolean;
   actions: ReturnType<typeof experimental_useSidebarThreadActions>;
   assignments: readonly {
     groupingKey: string;
@@ -280,6 +282,7 @@ function ThreadRow({
   const rowTitle = title(thread);
   const accessibleTitle = preview ? `${rowTitle} — ${preview}` : rowTitle;
   const actionsOpen = dropdownOpen || contextOpen;
+  const iconSpansEntireItem = alignAdornmentsToEntireItem && preview !== null;
   const hasTrailingIndicator =
     layout !== null || indicatorThread.indicator !== "none";
   const commonMenuProps = {
@@ -371,6 +374,10 @@ function ThreadRow({
               thread.projectId === PERSONAL_PROJECT_ID ? "personal" : "project"
             }
             data-ribbon-sidebar-icon-optional=""
+            style={{
+              gridRowEnd: iconSpansEntireItem ? "span 2" : "auto",
+              gridRowStart: 1,
+            }}
           />
           <span className="col-start-2 row-start-1 flex min-w-0 items-center gap-1.5">
             <span className="min-w-0 truncate" title={accessibleTitle}>
@@ -402,7 +409,16 @@ function ThreadRow({
           ) : null}
         </span>
         {hasTrailingIndicator ? (
-          <span className="relative flex h-[var(--bb-sidebar-row-height)] w-7 shrink-0 items-center justify-end max-md:pointer-coarse:h-[var(--bb-sidebar-row-height-coarse)] max-md:pointer-coarse:w-9">
+          <span
+            className={`relative flex w-7 shrink-0 items-center justify-end max-md:pointer-coarse:w-9 ${
+              alignAdornmentsToEntireItem
+                ? "self-stretch"
+                : "h-[var(--bb-sidebar-row-height)] max-md:pointer-coarse:h-[var(--bb-sidebar-row-height-coarse)]"
+            }`}
+            style={{
+              alignSelf: alignAdornmentsToEntireItem ? "stretch" : "start",
+            }}
+          >
             <span
               className="bb-sidebar-hover-actions-fade absolute inset-0 flex items-center justify-center text-subtle-foreground"
               data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
@@ -1502,6 +1518,9 @@ function RibbonSidebarList({
       <Fragment key={root.id}>
         <ThreadRow
           active={activeThreadId === root.id}
+          alignAdornmentsToEntireItem={
+            settings.values?.threadAdornmentAlignment === "Entire item"
+          }
           actions={actions}
           assignments={
             depth === 0
