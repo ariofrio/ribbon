@@ -91,6 +91,9 @@ try {
       { cwd: repositoryRoot, env: cliEnv, stdio: "inherit" },
     );
   }
+  for (const suite of selectedSuites) {
+    await suite.prepare({ cliEnv, cases: suite.selectedCases });
+  }
   const fixture = seed({
     stack: { ...stack, env: cliEnv },
     workspaceRoot: join(scratch, "workspaces"),
@@ -99,7 +102,6 @@ try {
 
   for (const suite of selectedSuites) {
     console.log(`Running ${suite.id} E2E cases: ${suite.selectedCases.join(", ")}`);
-    await suite.prepare({ cliEnv, cases: suite.selectedCases });
     await suite.run({
       stack,
       fixture,
