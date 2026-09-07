@@ -17,8 +17,17 @@ async function waitForPageAtRest(page, viewport, pageIndex) {
   const element = await viewport.elementHandle();
   assert.ok(element, "The page viewport did not render");
   await page.waitForFunction(
-    ([candidate, index]) =>
-      Math.abs(candidate.scrollLeft - candidate.clientWidth * index) <= 1,
+    ([candidate, index]) => {
+      const firstPage = candidate.firstElementChild?.firstElementChild;
+      return (
+        firstPage instanceof HTMLElement &&
+        Math.abs(
+          candidate.getBoundingClientRect().left -
+            firstPage.getBoundingClientRect().left -
+            candidate.clientWidth * index,
+        ) <= 1
+      );
+    },
     [element, pageIndex],
     { timeout: 120_000 },
   );
@@ -40,7 +49,8 @@ async function performTrackpadSwipe(page, viewport, packets) {
       { capture: true },
     );
     requestAnimationFrame(function sample(time) {
-      const firstPage = element.firstElementChild;
+      const firstPage = element.firstElementChild?.firstElementChild;
+      if (!(firstPage instanceof HTMLElement)) return;
       window.__ribbonSwipeFrames.push({
         progress:
           element.getBoundingClientRect().left -
@@ -69,10 +79,30 @@ async function performTrackpadSwipe(page, viewport, packets) {
     const gestureFrames = window.__ribbonSwipeFrames.filter(
       ({ time }) => time >= firstWheelTime && time <= lastWheelTime,
     );
+    const motionFrames = window.__ribbonSwipeFrames.filter(
+      ({ time }) => time >= firstWheelTime,
+    );
     const frameSteps = gestureFrames.slice(1).map(
       ({ progress }, index) => progress - gestureFrames[index].progress,
     );
+    const finalProgress = element.clientWidth;
+    const lastUnsettledFrame = motionFrames.findLastIndex(
+      ({ progress }) => Math.abs(progress - finalProgress) > 1,
+    );
+    const unsettledSteps = motionFrames
+      .slice(1, lastUnsettledFrame + 1)
+      .map(({ progress }, index) => progress - motionFrames[index].progress);
+    let stationaryRun = 0;
+    let maximumUnsettledStationaryRun = 0;
+    for (const step of unsettledSteps) {
+      stationaryRun = Math.abs(step) < 0.25 ? stationaryRun + 1 : 0;
+      maximumUnsettledStationaryRun = Math.max(
+        maximumUnsettledStationaryRun,
+        stationaryRun,
+      );
+    }
     return {
+      maximumUnsettledStationaryRun,
       minimumFrameStep: Math.min(...frameSteps),
       maxGestureProgress: Math.max(
         ...gestureFrames.map(({ progress }) => progress),
@@ -136,30 +166,50 @@ export async function verifyPageSwitching({ stack }) {
       element.addEventListener(
         "wheel",
         (event) => {
-          requestAnimationFrame(() => {
-            const transform = getComputedStyle(element).transform;
-            const horizontalOffset =
-              transform === "none" ? 0 : new DOMMatrix(transform).m41;
+          let frames = 0;
+          requestAnimationFrame(function sample() {
+            frames += 1;
+            const firstPage = element.firstElementChild?.firstElementChild;
+            if (!(firstPage instanceof HTMLElement)) return;
+            const progress =
+              element.getBoundingClientRect().left -
+              firstPage.getBoundingClientRect().left;
+            if (Math.abs(progress) < 0.25 && frames < 12) {
+              requestAnimationFrame(sample);
+              return;
+            }
             window.__ribbonEdgeFrame = {
               defaultPrevented: event.defaultPrevented,
-              horizontalOffset,
+              progress,
             };
           });
         },
         { once: true },
       );
     });
-    await page.mouse.wheel(-260, 0);
+    const edgePackets = [-12, -24, -40, -60, -40, -24, -12];
+    for (const deltaX of edgePackets) {
+      await page.mouse.wheel(deltaX, 0);
+      await page.evaluate(() => new Promise(requestAnimationFrame));
+    }
     const edgeFrame = await page.waitForFunction(() => window.__ribbonEdgeFrame);
     const edgeMotion = await edgeFrame.jsonValue();
     assert.equal(edgeMotion.defaultPrevented, true);
     assert.ok(
-      edgeMotion.horizontalOffset > 0 && edgeMotion.horizontalOffset < 260,
-      "An outward gesture should visibly move by a resisted distance",
+      edgeMotion.progress < 0 &&
+        Math.abs(edgeMotion.progress) <
+          Math.abs(edgePackets.reduce((sum, delta) => sum + delta, 0)),
+      `An outward gesture should visibly move by a resisted distance: ${JSON.stringify(edgeMotion)}`,
     );
     await page.waitForFunction((element) => {
-      const transform = getComputedStyle(element).transform;
-      return transform === "none" || Math.abs(new DOMMatrix(transform).m41) < 1;
+      const firstPage = element.firstElementChild?.firstElementChild;
+      return (
+        firstPage instanceof HTMLElement &&
+        Math.abs(
+          element.getBoundingClientRect().left -
+            firstPage.getBoundingClientRect().left,
+        ) < 1
+      );
     }, await viewport.elementHandle());
     await waitForActivePage(page, "All groups");
     await waitForPageAtRest(page, viewport, 0);
@@ -179,8 +229,12 @@ export async function verifyPageSwitching({ stack }) {
       "Swipe motion should not snap backward between input packets",
     );
     assert.ok(
-      swipeMotion.maxGestureProgress > swipeMotion.width + 3,
-      "A strong swipe should resist beyond one page instead of freezing",
+      swipeMotion.maximumUnsettledStationaryRun <= 2,
+      `Swipe motion paused for ${swipeMotion.maximumUnsettledStationaryRun} frames before reaching its snap point`,
+    );
+    assert.ok(
+      swipeMotion.maxGestureProgress > swipeMotion.width * 0.25,
+      "A strong swipe should visibly follow the input before settling",
     );
     await waitForActivePage(page, "Atlas");
     await waitForPageAtRest(page, viewport, 1);
@@ -190,10 +244,15 @@ export async function verifyPageSwitching({ stack }) {
     );
 
     await page.mouse.wheel(110, 0);
-    await page.waitForFunction(
-      (element) => element.scrollLeft > element.clientWidth + 20,
-      await viewport.elementHandle(),
-    );
+    await page.waitForFunction((element) => {
+      const firstPage = element.firstElementChild?.firstElementChild;
+      return (
+        firstPage instanceof HTMLElement &&
+        element.getBoundingClientRect().left -
+          firstPage.getBoundingClientRect().left >
+          element.clientWidth + 20
+      );
+    }, await viewport.elementHandle());
     await waitForPageAtRest(page, viewport, 1);
     assert.equal(
       await navigation
@@ -205,9 +264,8 @@ export async function verifyPageSwitching({ stack }) {
 
     await viewport.evaluate((element) => {
       window.__ribbonAdjacentFrame = null;
-      element.addEventListener(
-        "scroll",
-        () => {
+      requestAnimationFrame(function sample() {
+        if (window.__ribbonAdjacentFrame === null) {
           const adjacentContent = [...element.querySelectorAll("*")].find(
             (candidate) =>
               candidate.textContent?.trim() === "No threads in this section",
@@ -218,6 +276,7 @@ export async function verifyPageSwitching({ stack }) {
             adjacentBox === undefined ||
             adjacentBox.left >= viewportBox.right
           ) {
+            requestAnimationFrame(sample);
             return;
           }
           window.__ribbonAdjacentFrame = {
@@ -229,8 +288,8 @@ export async function verifyPageSwitching({ stack }) {
             adjacentRendered: true,
             adjacentEntered: true,
           };
-        },
-      );
+        }
+      });
     });
     await page.mouse.wheel(220, 0);
     const adjacentFrame = await page.waitForFunction(

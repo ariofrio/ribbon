@@ -1,8 +1,38 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { createElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarPageSwitcher } from "./sidebar-page-switcher";
+
+const embla = vi.hoisted(() => {
+  const handlers = new Map<string, () => void>();
+  const selectedScrollSnap = vi.fn(() => 1);
+  const scrollTo = vi.fn();
+  const api = {
+    off: vi.fn(),
+    on: vi.fn((event: string, handler: () => void) => {
+      handlers.set(event, handler);
+    }),
+    scrollTo,
+    selectedScrollSnap,
+  };
+  return {
+    api,
+    handlers,
+    selectedScrollSnap,
+    scrollTo,
+    useEmblaCarousel: vi.fn(() => [vi.fn(), api]),
+    wheelGesturesPlugin: vi.fn(() => ({ name: "wheelGestures" })),
+  };
+});
+
+vi.mock("embla-carousel-react", () => ({
+  default: embla.useEmblaCarousel,
+}));
+
+vi.mock("embla-carousel-wheel-gestures", () => ({
+  WheelGesturesPlugin: embla.wheelGesturesPlugin,
+}));
 
 const pages = [
   { id: null, label: "All groups", icon: createElement("span", null, "All") },
@@ -14,13 +44,44 @@ const renderPage = (page: (typeof pages)[number]) => (
   <div>{page.label} threads</div>
 );
 
-afterEach(() => {
-  cleanup();
-  vi.useRealTimers();
+beforeEach(() => {
+  embla.handlers.clear();
+  vi.clearAllMocks();
+  embla.selectedScrollSnap.mockReturnValue(1);
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: vi.fn(() => ({ matches: false })),
+  });
 });
 
+afterEach(cleanup);
+
 describe("sidebar page switcher", () => {
-  it("renders neighboring pages when a gesture starts", async () => {
+  it("configures one-snap Embla wheel gestures", () => {
+    render(
+      <SidebarPageSwitcher
+        activePageId="release"
+        onPageChange={vi.fn()}
+        pages={pages}
+        renderPage={renderPage}
+      />,
+    );
+
+    expect(embla.wheelGesturesPlugin).toHaveBeenCalledWith({
+      forceWheelAxis: "x",
+    });
+    expect(embla.useEmblaCarousel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dragFree: false,
+        loop: false,
+        skipSnaps: false,
+        slidesToScroll: 1,
+      }),
+      [expect.objectContaining({ name: "wheelGestures" })],
+    );
+  });
+
+  it("renders neighboring pages before a horizontal wheel gesture moves", () => {
     const view = render(
       <SidebarPageSwitcher
         activePageId="release"
@@ -32,23 +93,20 @@ describe("sidebar page switcher", () => {
 
     expect(view.getByText("Release threads")).toBeTruthy();
     expect(view.queryByText("All groups threads")).toBeNull();
-    const viewport = view.getByTestId("sidebar-page-viewport");
-    Object.defineProperty(viewport, "clientWidth", { value: 320 });
-    Object.defineProperty(viewport, "scrollWidth", { value: 960 });
 
-    await act(async () => {
-      fireEvent.wheel(viewport, { deltaX: 80, deltaY: 0 });
+    fireEvent.wheel(view.getByTestId("sidebar-page-viewport"), {
+      deltaX: 80,
+      deltaY: 0,
     });
 
     expect(view.getByText("All groups threads")).toBeTruthy();
     expect(view.getByText("Roadmap threads")).toBeTruthy();
-    expect(viewport.style.scrollSnapType).toBe("none");
     expect(
       view.getByText("Roadmap threads").closest("section")?.getAttribute("inert"),
     ).not.toBeNull();
   });
 
-  it("scrolls to a page when its icon is activated", () => {
+  it("uses Embla to animate icon navigation", () => {
     const view = render(
       <SidebarPageSwitcher
         activePageId="release"
@@ -57,19 +115,16 @@ describe("sidebar page switcher", () => {
         renderPage={renderPage}
       />,
     );
-    const viewport = view.getByTestId("sidebar-page-viewport");
-    Object.defineProperty(viewport, "clientWidth", { value: 320 });
-    const scrollTo = vi.fn();
-    viewport.scrollTo = scrollTo;
 
     fireEvent.click(view.getByRole("button", { name: "Show Roadmap page" }));
 
-    expect(scrollTo).toHaveBeenCalledWith({ behavior: "smooth", left: 640 });
+    expect(embla.scrollTo).toHaveBeenCalledWith(2, false);
+    expect(view.getByText("Roadmap threads")).toBeTruthy();
   });
 
-  it("commits the nearest page after native scrolling settles", () => {
+  it("commits Embla's selected page only after settling", () => {
     const onPageChange = vi.fn();
-    const view = render(
+    render(
       <SidebarPageSwitcher
         activePageId="release"
         onPageChange={onPageChange}
@@ -77,129 +132,72 @@ describe("sidebar page switcher", () => {
         renderPage={renderPage}
       />,
     );
-    const viewport = view.getByTestId("sidebar-page-viewport");
-    Object.defineProperty(viewport, "clientWidth", { value: 320 });
-    viewport.scrollLeft = 500;
+    embla.selectedScrollSnap.mockReturnValue(2);
 
-    fireEvent(viewport, new Event("scrollend"));
+    act(() => embla.handlers.get("settle")?.());
 
     expect(onPageChange).toHaveBeenCalledWith("roadmap");
   });
 
-  it("accumulates wheel packets continuously and settles one page away", () => {
-    vi.useFakeTimers();
-    const onPageChange = vi.fn();
+  it("removes neighboring page content when a gesture settles in place", () => {
     const view = render(
       <SidebarPageSwitcher
-        activePageId={null}
-        onPageChange={onPageChange}
+        activePageId="release"
+        onPageChange={vi.fn()}
         pages={pages}
         renderPage={renderPage}
       />,
     );
-    const viewport = view.getByTestId("sidebar-page-viewport");
-    Object.defineProperty(viewport, "clientWidth", { value: 320 });
-    Object.defineProperty(viewport, "scrollWidth", { value: 960 });
-    const scrollTo = vi.fn();
-    viewport.scrollTo = scrollTo;
+    fireEvent.wheel(view.getByTestId("sidebar-page-viewport"), {
+      deltaX: 80,
+      deltaY: 0,
+    });
+    expect(view.getByText("Roadmap threads")).toBeTruthy();
 
-    for (const deltaX of [40, 60, 80, 90, 70]) {
-      fireEvent.wheel(viewport, { deltaX, deltaY: 0 });
-    }
-    act(() => vi.advanceTimersByTime(20));
+    act(() => embla.handlers.get("settle")?.());
 
-    expect(viewport.scrollLeft).toBeGreaterThan(320);
-    expect(viewport.scrollLeft).toBeLessThan(640);
-    expect(viewport.style.scrollSnapType).toBe("none");
-    expect(onPageChange).not.toHaveBeenCalled();
+    expect(view.queryByText("Roadmap threads")).toBeNull();
+  });
 
-    vi.runAllTimers();
-
-    expect(scrollTo).toHaveBeenCalledWith({ behavior: "smooth", left: 320 });
-    expect(viewport.style.scrollSnapType).toBe("x mandatory");
-    viewport.scrollLeft = 320;
-    fireEvent(viewport, new Event("scrollend"));
-
-    expect(onPageChange).toHaveBeenCalledWith("release");
+  it("jumps Embla to an externally selected page", () => {
+    const view = render(
+      <SidebarPageSwitcher
+        activePageId="release"
+        onPageChange={vi.fn()}
+        pages={pages}
+        renderPage={renderPage}
+      />,
+    );
+    embla.scrollTo.mockClear();
 
     view.rerender(
       <SidebarPageSwitcher
-        activePageId="release"
-        onPageChange={onPageChange}
+        activePageId="roadmap"
+        onPageChange={vi.fn()}
         pages={pages}
         renderPage={renderPage}
       />,
     );
-    fireEvent.wheel(viewport, { deltaX: 1_200, deltaY: 0 });
-    vi.runAllTimers();
 
-    expect(viewport.scrollLeft).toBe(640);
-    expect(onPageChange).toHaveBeenLastCalledWith("roadmap");
+    expect(embla.scrollTo).toHaveBeenCalledWith(2, true);
   });
 
-  it.each([
-    { activePageId: null, deltaX: -180, direction: 1, scrollLeft: 0 },
-    {
-      activePageId: "roadmap",
-      deltaX: 180,
-      direction: -1,
-      scrollLeft: 640,
-    },
-  ])(
-    "rubber bands an outward wheel gesture at either $activePageId edge",
-    ({ activePageId, deltaX, direction, scrollLeft }) => {
-      vi.useFakeTimers();
-      const view = render(
-        <SidebarPageSwitcher
-          activePageId={activePageId}
-          onPageChange={vi.fn()}
-          pages={pages}
-          renderPage={renderPage}
-        />,
-      );
-      const viewport = view.getByTestId("sidebar-page-viewport");
-      Object.defineProperty(viewport, "clientWidth", { value: 320 });
-      Object.defineProperty(viewport, "scrollWidth", { value: 960 });
-      viewport.scrollLeft = scrollLeft;
-      const wheel = new WheelEvent("wheel", {
-        bubbles: true,
-        cancelable: true,
-        deltaX,
-        deltaY: 0,
-      });
-
-      fireEvent(viewport, wheel);
-      act(() => vi.advanceTimersByTime(20));
-
-      expect(wheel.defaultPrevented).toBe(true);
-      const resistedDistance = Number.parseFloat(
-        viewport.style.transform.match(/translate3d\(([^p]+)px/u)?.[1] ?? "0",
-      );
-      expect(Math.sign(resistedDistance)).toBe(direction);
-      expect(Math.abs(resistedDistance)).toBeLessThan(Math.abs(deltaX));
-
-      vi.runAllTimers();
-
-      expect(viewport.style.transform).toBe("translate3d(0px, 0, 0)");
-    },
-  );
-
-  it("keeps the active page when native snapping returns to it", () => {
-    const onPageChange = vi.fn();
+  it("jumps immediately for reduced-motion icon navigation", () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn(() => ({ matches: true })),
+    });
     const view = render(
       <SidebarPageSwitcher
         activePageId="release"
-        onPageChange={onPageChange}
+        onPageChange={vi.fn()}
         pages={pages}
         renderPage={renderPage}
       />,
     );
-    const viewport = view.getByTestId("sidebar-page-viewport");
-    Object.defineProperty(viewport, "clientWidth", { value: 320 });
-    viewport.scrollLeft = 370;
 
-    fireEvent(viewport, new Event("scrollend"));
+    fireEvent.click(view.getByRole("button", { name: "Show Roadmap page" }));
 
-    expect(onPageChange).not.toHaveBeenCalled();
+    expect(embla.scrollTo).toHaveBeenCalledWith(2, true);
   });
 });
