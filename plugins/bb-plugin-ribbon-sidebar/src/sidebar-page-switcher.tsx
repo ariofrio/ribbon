@@ -29,9 +29,14 @@ interface SidebarPageSwitcherProps {
 }
 
 const SCROLL_END_FALLBACK_MS = 120;
-const WHEEL_GESTURE_IDLE_MS = 160;
+const WHEEL_GESTURE_IDLE_MS = 90;
 const RUBBER_BAND_FACTOR = 0.55;
 const RUBBER_BAND_LIMIT = 0.32;
+
+interface WheelGesture {
+  distance: number;
+  originIndex: number;
+}
 
 function samePage(left: string | null, right: string | null) {
   return left === right;
@@ -64,8 +69,8 @@ export function SidebarPageSwitcher({
   const viewportRef = useRef<HTMLDivElement>(null);
   const scrollEndFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wheelGestureEnd = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wheelGestureOrigin = useRef<number | null>(null);
-  const edgePull = useRef(0);
+  const wheelFrame = useRef<number | null>(null);
+  const wheelGesture = useRef<WheelGesture | null>(null);
   const [paging, setPaging] = useState(false);
   const [pagingTargetIndex, setPagingTargetIndex] = useState<number | null>(
     null,
@@ -76,9 +81,8 @@ export function SidebarPageSwitcher({
     pages.findIndex(({ id }) => samePage(id, activePageId)),
   );
 
-  const releaseEdgePull = useCallback(() => {
+  const releaseViewportTransform = useCallback(() => {
     const viewport = viewportRef.current;
-    edgePull.current = 0;
     if (!viewport) return;
     viewport.style.transition = prefersReducedMotion()
       ? "none"
@@ -88,22 +92,14 @@ export function SidebarPageSwitcher({
 
   const settleOnNearestPage = useCallback(() => {
     const viewport = viewportRef.current;
-    if (!viewport || pages.length === 0) return;
+    if (!viewport || pages.length === 0 || wheelGesture.current !== null) return;
     const width = viewport.clientWidth || viewport.getBoundingClientRect().width;
     if (width === 0) return;
     const rawTargetIndex = Math.round(viewport.scrollLeft / width);
-    const gestureOrigin = wheelGestureOrigin.current;
-    const minimumTarget =
-      gestureOrigin === null ? 0 : Math.max(0, gestureOrigin - 1);
-    const maximumTarget =
-      gestureOrigin === null
-        ? pages.length - 1
-        : Math.min(pages.length - 1, gestureOrigin + 1);
     const targetIndex = Math.max(
-      minimumTarget,
-      Math.min(maximumTarget, rawTargetIndex),
+      0,
+      Math.min(pages.length - 1, rawTargetIndex),
     );
-    wheelGestureOrigin.current = null;
     if (targetIndex !== activeIndex) {
       onPageChange(pages[targetIndex]!.id);
     } else {
@@ -129,51 +125,113 @@ export function SidebarPageSwitcher({
   const handleWheel = useCallback(
     (event: WheelEvent) => {
       if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
-      if (wheelGestureOrigin.current === null) {
-        wheelGestureOrigin.current = activeIndex;
+      const viewport = viewportRef.current;
+      if (!viewport || pages.length === 0) return;
+      event.preventDefault();
+
+      const width =
+        viewport.clientWidth || viewport.getBoundingClientRect().width;
+      if (width === 0) return;
+      if (wheelGesture.current === null) {
+        wheelGesture.current = { distance: 0, originIndex: activeIndex };
+        setPaging(true);
+        setPagingTargetIndex(null);
+        viewport.style.scrollBehavior = "auto";
+        viewport.style.scrollSnapType = "none";
+        viewport.style.transition = "none";
       }
+
+      const gesture = wheelGesture.current;
+      const deltaScale =
+        event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? width : 1;
+      gesture.distance += event.deltaX * deltaScale;
+      if (wheelFrame.current === null) {
+        wheelFrame.current = requestAnimationFrame(() => {
+          wheelFrame.current = null;
+          const activeGesture = wheelGesture.current;
+          if (!activeGesture) return;
+          const currentWidth =
+            viewport.clientWidth || viewport.getBoundingClientRect().width;
+          const minimumIndex = Math.max(0, activeGesture.originIndex - 1);
+          const maximumIndex = Math.min(
+            pages.length - 1,
+            activeGesture.originIndex + 1,
+          );
+          const minimumPosition = minimumIndex * currentWidth;
+          const maximumPosition = maximumIndex * currentWidth;
+          const rawPosition =
+            activeGesture.originIndex * currentWidth + activeGesture.distance;
+          let visualPosition = rawPosition;
+          if (rawPosition < minimumPosition) {
+            visualPosition =
+              minimumPosition -
+              rubberBandDistance(minimumPosition - rawPosition, currentWidth);
+          } else if (rawPosition > maximumPosition) {
+            visualPosition =
+              maximumPosition +
+              rubberBandDistance(rawPosition - maximumPosition, currentWidth);
+          }
+
+          const maximumScroll = Math.max(
+            0,
+            viewport.scrollWidth - viewport.clientWidth,
+          );
+          const scrollPosition = Math.max(
+            0,
+            Math.min(maximumScroll, visualPosition),
+          );
+          viewport.scrollLeft = scrollPosition;
+          const edgeOffset = scrollPosition - visualPosition;
+          viewport.style.transform = `translate3d(${edgeOffset}px, 0, 0)`;
+        });
+      }
+
       if (wheelGestureEnd.current !== null) {
         clearTimeout(wheelGestureEnd.current);
       }
       wheelGestureEnd.current = setTimeout(() => {
-        const pulledPastEdge = edgePull.current !== 0;
-        wheelGestureOrigin.current = null;
+        const finishedGesture = wheelGesture.current;
+        wheelGesture.current = null;
         wheelGestureEnd.current = null;
-        releaseEdgePull();
-        if (pulledPastEdge) {
-          setPaging(false);
-          setPagingTargetIndex(null);
+        viewport.style.scrollBehavior = prefersReducedMotion()
+          ? "auto"
+          : "smooth";
+        viewport.style.scrollSnapType = "x mandatory";
+        releaseViewportTransform();
+        if (!finishedGesture) return;
+
+        const rawTargetIndex = Math.round(
+          finishedGesture.originIndex + finishedGesture.distance / width,
+        );
+        const targetIndex = Math.max(
+          Math.max(0, finishedGesture.originIndex - 1),
+          Math.min(
+            Math.min(pages.length - 1, finishedGesture.originIndex + 1),
+            rawTargetIndex,
+          ),
+        );
+        const targetPosition = targetIndex * width;
+        setPagingTargetIndex(targetIndex);
+        if (Math.abs(viewport.scrollLeft - targetPosition) <= 1) {
+          if (targetIndex !== activeIndex) {
+            onPageChange(pages[targetIndex]!.id);
+          } else {
+            setPaging(false);
+            setPagingTargetIndex(null);
+          }
+          return;
+        }
+        if (typeof viewport.scrollTo === "function") {
+          viewport.scrollTo({
+            behavior: prefersReducedMotion() ? "auto" : "smooth",
+            left: targetPosition,
+          });
+        } else {
+          viewport.scrollLeft = targetPosition;
         }
       }, WHEEL_GESTURE_IDLE_MS);
-      const viewport = viewportRef.current;
-      if (!viewport) return;
-      const maximumScroll = Math.max(
-        0,
-        viewport.scrollWidth - viewport.clientWidth,
-      );
-      const pullingPastStart = event.deltaX < 0 && viewport.scrollLeft <= 0.5;
-      const pullingPastEnd =
-        event.deltaX > 0 && viewport.scrollLeft >= maximumScroll - 0.5;
-      if (pullingPastStart || pullingPastEnd) {
-        event.preventDefault();
-        edgePull.current -= event.deltaX;
-        const distance = rubberBandDistance(
-          edgePull.current,
-          viewport.clientWidth,
-        );
-        viewport.style.transition = "none";
-        viewport.style.transform = `translate3d(${distance}px, 0, 0)`;
-      } else if (edgePull.current !== 0) {
-        releaseEdgePull();
-      }
-      if (!paging || pagingTargetIndex !== null) {
-        flushSync(() => {
-          setPaging(true);
-          setPagingTargetIndex(null);
-        });
-      }
     },
-    [activeIndex, paging, pagingTargetIndex, releaseEdgePull],
+    [activeIndex, onPageChange, pages, releaseViewportTransform],
   );
 
   useLayoutEffect(() => {
@@ -214,6 +272,9 @@ export function SidebarPageSwitcher({
       if (wheelGestureEnd.current !== null) {
         clearTimeout(wheelGestureEnd.current);
       }
+      if (wheelFrame.current !== null) {
+        cancelAnimationFrame(wheelFrame.current);
+      }
     };
   }, [settleOnNearestPage]);
 
@@ -224,18 +285,6 @@ export function SidebarPageSwitcher({
         data-testid="sidebar-page-viewport"
         onScroll={() => {
           const viewport = viewportRef.current;
-          const gestureOrigin = wheelGestureOrigin.current;
-          if (viewport && gestureOrigin !== null) {
-            const width =
-              viewport.clientWidth || viewport.getBoundingClientRect().width;
-            const minimum = Math.max(0, gestureOrigin - 1) * width;
-            const maximum =
-              Math.min(pages.length - 1, gestureOrigin + 1) * width;
-            viewport.scrollLeft = Math.max(
-              minimum,
-              Math.min(maximum, viewport.scrollLeft),
-            );
-          }
           if (viewport && "onscrollend" in viewport) return;
           if (scrollEndFallback.current !== null) {
             clearTimeout(scrollEndFallback.current);
@@ -257,7 +306,7 @@ export function SidebarPageSwitcher({
           const renderContent =
             active ||
             (paging &&
-              (Math.abs(index - activeIndex) <= 1 ||
+              (Math.abs(index - activeIndex) <= 2 ||
                 index === pagingTargetIndex));
           return (
             <section
@@ -293,12 +342,20 @@ export function SidebarPageSwitcher({
                       onClick={() => {
                         const targetIndex = pages.indexOf(page);
                         if (targetIndex !== activeIndex) {
-                          wheelGestureOrigin.current = null;
+                          wheelGesture.current = null;
                           if (wheelGestureEnd.current !== null) {
                             clearTimeout(wheelGestureEnd.current);
                             wheelGestureEnd.current = null;
                           }
-                          releaseEdgePull();
+                          if (wheelFrame.current !== null) {
+                            cancelAnimationFrame(wheelFrame.current);
+                            wheelFrame.current = null;
+                          }
+                          const viewport = viewportRef.current;
+                          if (viewport) {
+                            viewport.style.scrollSnapType = "x mandatory";
+                          }
+                          releaseViewportTransform();
                           flushSync(() => {
                             setPaging(true);
                             setPagingTargetIndex(targetIndex);

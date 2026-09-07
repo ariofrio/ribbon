@@ -24,6 +24,66 @@ async function waitForPageAtRest(page, viewport, pageIndex) {
   );
 }
 
+async function performTrackpadSwipe(page, viewport, packets) {
+  await viewport.evaluate((element) => {
+    window.__ribbonSwipeFrames = [];
+    window.__ribbonSwipeWheels = [];
+    window.__ribbonSwipeStop = false;
+    element.addEventListener(
+      "wheel",
+      (event) => {
+        window.__ribbonSwipeWheels.push({
+          time: performance.now(),
+          trusted: event.isTrusted,
+        });
+      },
+      { capture: true },
+    );
+    requestAnimationFrame(function sample(time) {
+      const firstPage = element.firstElementChild;
+      window.__ribbonSwipeFrames.push({
+        progress:
+          element.getBoundingClientRect().left -
+          firstPage.getBoundingClientRect().left,
+        time,
+      });
+      if (!window.__ribbonSwipeStop) requestAnimationFrame(sample);
+    });
+  });
+
+  for (const deltaX of packets) {
+    await page.mouse.wheel(deltaX, 0);
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+  }
+
+  await page.waitForFunction(() => {
+    const wheels = window.__ribbonSwipeWheels;
+    return wheels.length > 0 && performance.now() - wheels.at(-1).time > 250;
+  });
+
+  return viewport.evaluate((element) => {
+    window.__ribbonSwipeStop = true;
+    const wheels = window.__ribbonSwipeWheels;
+    const firstWheelTime = wheels[0].time;
+    const lastWheelTime = wheels.at(-1).time;
+    const gestureFrames = window.__ribbonSwipeFrames.filter(
+      ({ time }) => time >= firstWheelTime && time <= lastWheelTime,
+    );
+    const frameSteps = gestureFrames.slice(1).map(
+      ({ progress }, index) => progress - gestureFrames[index].progress,
+    );
+    return {
+      minimumFrameStep: Math.min(...frameSteps),
+      maxGestureProgress: Math.max(
+        ...gestureFrames.map(({ progress }) => progress),
+      ),
+      trustedPackets: wheels.filter(({ trusted }) => trusted).length,
+      wheelPackets: wheels.length,
+      width: element.clientWidth,
+    };
+  });
+}
+
 export async function verifyPageSwitching({ stack }) {
   const browser = await chromium.launch();
   const context = await browser.newContext({
@@ -104,7 +164,24 @@ export async function verifyPageSwitching({ stack }) {
     await waitForActivePage(page, "All groups");
     await waitForPageAtRest(page, viewport, 0);
 
-    await page.mouse.wheel(1_800, 0);
+    const swipePackets = [
+      8, 14, 22, 34, 50, 68, 82, 88, 82, 70, 54, 40, 28, 18, 10, 6,
+    ];
+    const swipeMotion = await performTrackpadSwipe(
+      page,
+      viewport,
+      swipePackets,
+    );
+    assert.equal(swipeMotion.wheelPackets, swipePackets.length);
+    assert.equal(swipeMotion.trustedPackets, swipePackets.length);
+    assert.ok(
+      swipeMotion.minimumFrameStep >= -2,
+      "Swipe motion should not snap backward between input packets",
+    );
+    assert.ok(
+      swipeMotion.maxGestureProgress > swipeMotion.width + 3,
+      "A strong swipe should resist beyond one page instead of freezing",
+    );
     await waitForActivePage(page, "Atlas");
     await waitForPageAtRest(page, viewport, 1);
     assert.match(

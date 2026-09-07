@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SidebarPageSwitcher } from "./sidebar-page-switcher";
@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe("sidebar page switcher", () => {
-  it("renders the active and adjacent pages in one native snap track", () => {
+  it("renders neighboring pages when a gesture starts", async () => {
     const view = render(
       <SidebarPageSwitcher
         activePageId="release"
@@ -33,12 +33,16 @@ describe("sidebar page switcher", () => {
     expect(view.getByText("Release threads")).toBeTruthy();
     expect(view.queryByText("All groups threads")).toBeNull();
     const viewport = view.getByTestId("sidebar-page-viewport");
+    Object.defineProperty(viewport, "clientWidth", { value: 320 });
+    Object.defineProperty(viewport, "scrollWidth", { value: 960 });
 
-    fireEvent.wheel(viewport, { deltaX: 80, deltaY: 0 });
+    await act(async () => {
+      fireEvent.wheel(viewport, { deltaX: 80, deltaY: 0 });
+    });
 
     expect(view.getByText("All groups threads")).toBeTruthy();
     expect(view.getByText("Roadmap threads")).toBeTruthy();
-    expect(viewport.style.scrollSnapType).toBe("x mandatory");
+    expect(viewport.style.scrollSnapType).toBe("none");
     expect(
       view.getByText("Roadmap threads").closest("section")?.getAttribute("inert"),
     ).not.toBeNull();
@@ -82,7 +86,8 @@ describe("sidebar page switcher", () => {
     expect(onPageChange).toHaveBeenCalledWith("roadmap");
   });
 
-  it("limits one horizontal wheel gesture to the adjacent page", () => {
+  it("accumulates wheel packets continuously and settles one page away", () => {
+    vi.useFakeTimers();
     const onPageChange = vi.fn();
     const view = render(
       <SidebarPageSwitcher
@@ -95,13 +100,24 @@ describe("sidebar page switcher", () => {
     const viewport = view.getByTestId("sidebar-page-viewport");
     Object.defineProperty(viewport, "clientWidth", { value: 320 });
     Object.defineProperty(viewport, "scrollWidth", { value: 960 });
+    const scrollTo = vi.fn();
+    viewport.scrollTo = scrollTo;
 
-    fireEvent.wheel(viewport, { deltaX: 1_200, deltaY: 0 });
-    viewport.scrollLeft = 640;
-    fireEvent.scroll(viewport);
+    for (const deltaX of [40, 60, 80, 90, 70]) {
+      fireEvent.wheel(viewport, { deltaX, deltaY: 0 });
+    }
+    act(() => vi.advanceTimersByTime(20));
 
-    expect(viewport.scrollLeft).toBe(320);
+    expect(viewport.scrollLeft).toBeGreaterThan(320);
+    expect(viewport.scrollLeft).toBeLessThan(640);
+    expect(viewport.style.scrollSnapType).toBe("none");
+    expect(onPageChange).not.toHaveBeenCalled();
 
+    vi.runAllTimers();
+
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: "smooth", left: 320 });
+    expect(viewport.style.scrollSnapType).toBe("x mandatory");
+    viewport.scrollLeft = 320;
     fireEvent(viewport, new Event("scrollend"));
 
     expect(onPageChange).toHaveBeenCalledWith("release");
@@ -115,10 +131,10 @@ describe("sidebar page switcher", () => {
       />,
     );
     fireEvent.wheel(viewport, { deltaX: 1_200, deltaY: 0 });
-    viewport.scrollLeft = 640;
-    fireEvent.scroll(viewport);
+    vi.runAllTimers();
 
     expect(viewport.scrollLeft).toBe(640);
+    expect(onPageChange).toHaveBeenLastCalledWith("roadmap");
   });
 
   it.each([
@@ -153,6 +169,7 @@ describe("sidebar page switcher", () => {
       });
 
       fireEvent(viewport, wheel);
+      act(() => vi.advanceTimersByTime(20));
 
       expect(wheel.defaultPrevented).toBe(true);
       const resistedDistance = Number.parseFloat(
