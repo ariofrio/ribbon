@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyPluginUpgrade } from "./plugin-upgrade.mjs";
 import { verifyBreadcrumbChildBadge } from "./breadcrumbs/child-badge.mjs";
 import {
   verifyNewThreadRouting,
@@ -17,6 +18,22 @@ const scratch = join(repositoryRoot, ".scratch/e2e");
 const bb = BB_CLI_PATH;
 
 const suites = [
+  {
+    id: "plugin-upgrade",
+    cases: ["public-api"],
+    plugins: [
+      "bb-plugin-icons",
+      "bb-plugin-missing-keyboard-shortcuts",
+      "bb-plugin-chatgpt-theme",
+      "bb-plugin-ribbon-sidebar",
+      "bb-plugin-thread-stages",
+      "bb-plugin-breadcrumbs",
+    ],
+    async prepare({ cliEnv }) {
+      await waitForStageCatalog({ bb, cliEnv });
+    },
+    run: verifyPluginUpgrade,
+  },
   {
     id: "breadcrumbs",
     cases: ["child-badge"],
@@ -82,14 +99,12 @@ const logStream = createWriteStream(join(scratch, "bb.log"));
 const stack = await startStack({
   dataDir: join(scratch, "data"),
   logStream,
+  prepare: ({ dataDir }) =>
+    writeManagedConfig({ dataDir, harnessDir: screenshotHarnessDirectory }),
 });
 
 try {
   const cliEnv = { ...stack.env, BB_CLI: bb };
-  writeManagedConfig({
-    dataDir: stack.dataDir,
-    harnessDir: screenshotHarnessDirectory,
-  });
   const plugins = new Set(selectedSuites.flatMap((suite) => suite.plugins));
   for (const plugin of plugins) {
     execFileSync(
@@ -109,7 +124,9 @@ try {
   });
 
   for (const suite of selectedSuites) {
-    console.log(`Running ${suite.id} E2E cases: ${suite.selectedCases.join(", ")}`);
+    console.log(
+      `Running ${suite.id} E2E cases: ${suite.selectedCases.join(", ")}`,
+    );
     await suite.run({
       stack,
       fixture,

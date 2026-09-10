@@ -95,8 +95,7 @@ export const rpcContract = defineRpcContract({
     output: iconsSchema,
   },
   /**
-   * The sidebar half runs in a content script, where useSettings() does not
-   * reach, so it reads its placement over the same RPC it reads icons on.
+   * Retained for clients opened before the app overlay used useSettings().
    */
   listPlacements: {
     input: z.null(),
@@ -252,12 +251,8 @@ export default function plugin(bb: BbPluginApi) {
 
   bb.rpc.register(rpcContract, {
     listIconCatalog: () => catalog,
-    // Deliberately not waiting on the read above. bb holds a plugin attributed
-    // across `await`, and this plugin's content script already awaits its own
-    // backend before it places anything — so every round-trip on this path
-    // lengthens the window in which bb refuses *any* plugin's renders, which
-    // is how the icons cost Breadcrumbs its crumb. The service below fills the
-    // list at plugin start, and a client that beats it looks again.
+    // The startup service fills the project list; a client that beats it
+    // retries while projectsRead is false.
     listIcons: () => view(),
     async listPlacements() {
       const { showInThreadHeader, showInSidebar, showInComposer } =

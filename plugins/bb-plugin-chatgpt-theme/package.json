@@ -30,8 +30,8 @@
     "typecheck": "tsc --noEmit"
   },
   "engines": {
-    "bb": ">=0.39",
-    "bbPluginSdk": "^0.4.8"
+    "bb": ">=0.42.1",
+    "bbPluginSdk": "^0.4.47"
   },
   "bb": {
     "name": "ChatGPT theme",
@@ -51,9 +51,9 @@
     ]
   },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "0.4.8",
+    "@get-bb/plugin-sdk": "0.4.47",
     "@types/node": "^22.0.0",
-    "bb-app": "0.39.0",
+    "bb-app": "0.42.1",
     "typescript": "^5.7.0"
   }
 }

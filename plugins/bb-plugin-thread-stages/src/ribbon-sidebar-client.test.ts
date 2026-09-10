@@ -4,16 +4,16 @@ import {
   createRibbonSidebarClient,
 } from "./ribbon-sidebar-client";
 
-function rpcResponse(result: unknown, status = 200): Response {
-  return new Response(JSON.stringify({ ok: true, result }), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
+function rpcResponse(result: unknown): unknown {
+  return result;
+}
+function httpError(status: number) {
+  return Object.assign(new Error("unavailable"), { status });
 }
 
 describe("Ribbon sidebar forwarding client", () => {
   it("forwards a strict placement update to Ribbon sidebar", async () => {
-    const fetcher = vi.fn(async () =>
+    const callRpc = vi.fn(async () =>
       rpcResponse({
         ok: true,
         value: {
@@ -30,8 +30,7 @@ describe("Ribbon sidebar forwarding client", () => {
       }),
     );
     const client = createRibbonSidebarClient({
-      baseUrl: "http://127.0.0.1:38886",
-      fetcher,
+      callRpc,
     });
 
     await expect(
@@ -43,25 +42,21 @@ describe("Ribbon sidebar forwarding client", () => {
         origin: "ui",
       }),
     ).resolves.toMatchObject({ ok: true, value: { revision: 8 } });
-    expect(fetcher).toHaveBeenCalledWith(
-      "http://127.0.0.1:38886/api/v1/plugins/ribbon-sidebar/rpc/updatePlacementV1",
+    expect(callRpc).toHaveBeenCalledWith(
+      "updatePlacementV1",
       expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          groupingKey: "plugin:thread-stages:stages",
-          groupId: "Completed",
-          threadId: "thr_1",
-          anchor: { kind: "end" },
-          origin: "ui",
-        }),
+        groupingKey: "plugin:thread-stages:stages",
+        groupId: "Completed",
+        threadId: "thr_1",
+        anchor: { kind: "end" },
+        origin: "ui",
       }),
     );
   });
 
   it("validates successful RPC output instead of trusting the dependency", async () => {
     const client = createRibbonSidebarClient({
-      baseUrl: "http://127.0.0.1:38886",
-      fetcher: async () => rpcResponse({ ok: true, value: { revision: "8" } }),
+      callRpc: async () => rpcResponse({ ok: true, value: { revision: "8" } }),
     });
 
     await expect(
@@ -76,8 +71,7 @@ describe("Ribbon sidebar forwarding client", () => {
 
   it("rejects domain errors that do not belong to the called operation", async () => {
     const client = createRibbonSidebarClient({
-      baseUrl: "http://127.0.0.1:38886",
-      fetcher: async () =>
+      callRpc: async () =>
         rpcResponse({
           ok: false,
           error: {
@@ -97,24 +91,20 @@ describe("Ribbon sidebar forwarding client", () => {
 
   it("reports missing and failed dependencies with one stable error type", async () => {
     const failures = [
-      async () => new Response("not found", { status: 404 }),
-      async () =>
-        new Response(
-          JSON.stringify({
-            ok: false,
-            error: { code: "handler_error", message: "offline" },
-          }),
-          { status: 500 },
-        ),
+      async () => {
+        throw httpError(404);
+      },
+      async () => {
+        throw httpError(500);
+      },
       async () => {
         throw new TypeError("fetch failed");
       },
     ];
 
-    for (const fetcher of failures) {
+    for (const callRpc of failures) {
       const client = createRibbonSidebarClient({
-        baseUrl: "http://127.0.0.1:38886",
-        fetcher,
+        callRpc,
       });
       await expect(
         client.invalidateGroupingCatalogV1({
@@ -126,8 +116,9 @@ describe("Ribbon sidebar forwarding client", () => {
 
   it("tells users how to restore the missing Ribbon dependency", async () => {
     const client = createRibbonSidebarClient({
-      baseUrl: "http://127.0.0.1:38886",
-      fetcher: async () => new Response("not found", { status: 404 }),
+      callRpc: async () => {
+        throw httpError(404);
+      },
     });
 
     await expect(
@@ -139,20 +130,23 @@ describe("Ribbon sidebar forwarding client", () => {
 
   it("tells users how to restore a disabled or starting Ribbon dependency", async () => {
     const client = createRibbonSidebarClient({
-      baseUrl: "http://127.0.0.1:38886",
-      fetcher: async () => new Response("unavailable", { status: 503 }),
+      callRpc: async () => {
+        throw httpError(503);
+      },
     });
 
     await expect(
       client.invalidateGroupingCatalogV1({
         providerPluginId: "thread-stages",
       }),
-    ).rejects.toThrow("Enable Ribbon sidebar or wait for it to finish starting");
+    ).rejects.toThrow(
+      "Enable Ribbon sidebar or wait for it to finish starting",
+    );
   });
 
   it("retries one placement revision conflict with the returned revision", async () => {
-    const fetcher = vi
-      .fn<typeof fetch>()
+    const callRpc = vi
+      .fn<(...args: unknown[]) => Promise<unknown>>()
       .mockResolvedValueOnce(
         rpcResponse({
           ok: false,
@@ -179,8 +173,7 @@ describe("Ribbon sidebar forwarding client", () => {
         }),
       );
     const client = createRibbonSidebarClient({
-      baseUrl: "http://127.0.0.1:38886",
-      fetcher,
+      callRpc,
     });
 
     await expect(
@@ -192,14 +185,14 @@ describe("Ribbon sidebar forwarding client", () => {
         origin: "ui",
       }),
     ).resolves.toMatchObject({ ok: true, value: { revision: 10 } });
-    expect(fetcher).toHaveBeenCalledTimes(2);
-    expect(JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body))).toMatchObject({
+    expect(callRpc).toHaveBeenCalledTimes(2);
+    expect(callRpc.mock.calls[1]?.[1]).toMatchObject({
       expectedRevision: 9,
     });
   });
 
   it("does not retry an automated placement whose precondition became stale", async () => {
-    const fetcher = vi.fn<typeof fetch>(async () =>
+    const callRpc = vi.fn(async () =>
       rpcResponse({
         ok: false,
         error: {
@@ -210,8 +203,7 @@ describe("Ribbon sidebar forwarding client", () => {
       }),
     );
     const client = createRibbonSidebarClient({
-      baseUrl: "http://127.0.0.1:38886",
-      fetcher,
+      callRpc,
     });
 
     await expect(
@@ -226,12 +218,12 @@ describe("Ribbon sidebar forwarding client", () => {
       ok: false,
       error: { code: "REVISION_CONFLICT", revision: 9 },
     });
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(callRpc).toHaveBeenCalledTimes(1);
   });
 
   it("reads authoritative placements for compatibility policy", async () => {
-    const fetcher = vi
-      .fn<typeof fetch>()
+    const callRpc = vi
+      .fn<(...args: unknown[]) => Promise<unknown>>()
       .mockResolvedValueOnce(
         rpcResponse({
           ok: true,
@@ -267,8 +259,7 @@ describe("Ribbon sidebar forwarding client", () => {
         }),
       );
     const client = createRibbonSidebarClient({
-      baseUrl: "http://127.0.0.1:38886",
-      fetcher,
+      callRpc,
     });
 
     await expect(
@@ -288,9 +279,9 @@ describe("Ribbon sidebar forwarding client", () => {
       ok: true,
       value: { items: [{ threadId: "thr_2" }] },
     });
-    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
-      expect.stringContaining("/getPlacementV1"),
-      expect.stringContaining("/listPlacementsV1"),
+    expect(callRpc.mock.calls.map(([url]) => url)).toEqual([
+      "getPlacementV1",
+      "listPlacementsV1",
     ]);
   });
 });

@@ -1,88 +1,53 @@
 // @vitest-environment jsdom
-import {
-  loadPluginApp,
-  mountPluginContentScripts,
-} from "@get-bb/plugin-sdk/testing/app";
+import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { cleanup } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => {
-  vi.unstubAllGlobals();
+  cleanup();
   window.history.replaceState({}, "", "/");
   document.body.replaceChildren();
 });
 
-function jsonResponse(value: unknown): Response {
-  return new Response(JSON.stringify(value), {
-    headers: { "content-type": "application/json" },
-  });
-}
-
-describe("thread stages app registration", () => {
-  it("registers shortcuts without replacing the sidebar", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-
-    expect(app.threadLists).toHaveLength(0);
-    expect(app.contentScripts.map(({ id }) => id)).toEqual([
-      "workflow-shortcuts",
-    ]);
-  });
-
-  it("keeps stage shortcuts active with Ribbon as the sidebar", async () => {
-    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      if (url.endsWith("/settings")) {
-        return jsonResponse({ values: {} });
-      }
-      if (url.endsWith("/rpc/listAppKeybindings")) {
-        return jsonResponse({ ok: true, result: { keybindings: [] } });
-      }
-      if (url.endsWith("/rpc/setWorkflowStage")) {
-        return jsonResponse({
-          ok: true,
-          result: { destination: { kind: "stay" } },
-        });
-      }
-      throw new Error(`Unexpected request: ${url}`);
-    });
-    vi.stubGlobal("fetch", fetcher);
+describe("thread stages overlay", () => {
+  it("moves the scoped thread through SDK RPC and stops listening on unmount", async () => {
     window.history.replaceState({}, "", "/threads/thread-a");
-    document.body.innerHTML = `
-      <div
-        data-ribbon-sidebar-root
-        data-ribbon-sidebar-scope-grouping-key="builtin:projects"
-        data-ribbon-sidebar-scope-group-id="project-a"
-      ></div>
-    `;
+    document.body.innerHTML = `<div data-ribbon-sidebar-root
+      data-ribbon-sidebar-scope-grouping-key="builtin:projects"
+      data-ribbon-sidebar-scope-group-id="project-a"></div>`;
     const app = await loadPluginApp(() => import("./app"));
-    const mounted = await mountPluginContentScripts(app, {
-      pluginId: "thread-stages",
-      generation: 1,
-    });
-
-    window.dispatchEvent(
-      new KeyboardEvent("keydown", {
-        bubbles: true,
-        code: "Period",
-        key: ".",
-        metaKey: true,
-      }),
+    expect(app.threadLists).toHaveLength(0);
+    expect(app.contentScripts).toHaveLength(0);
+    const setWorkflowStage = vi.fn(() => ({ destination: { kind: "stay" } }));
+    const slot = renderSlot(
+      app.appOverlays[0]!,
+      {},
+      {
+        rpc: {
+          listAppKeybindings: () => ({ keybindings: [] }),
+          setWorkflowStage,
+        },
+      },
     );
-
-    await vi.waitFor(() => {
-      expect(fetcher).toHaveBeenCalledWith(
-        "/api/v1/plugins/thread-stages/rpc/setWorkflowStage",
-        expect.objectContaining({
-          body: JSON.stringify({
-            workflowStage: "Completed",
-            threadId: "thread-a",
-            scope: {
-              groupingKey: "builtin:projects",
-              groupId: "project-a",
-            },
-          }),
+    const shortcut = () =>
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          code: "Period",
+          key: ".",
+          metaKey: true,
         }),
       );
-    });
-    await mounted.lifecycle.dispose();
+    shortcut();
+    await vi.waitFor(() =>
+      expect(setWorkflowStage).toHaveBeenCalledWith({
+        workflowStage: "Completed",
+        threadId: "thread-a",
+        scope: { groupingKey: "builtin:projects", groupId: "project-a" },
+      }),
+    );
+    slot.lifecycle.unmount();
+    shortcut();
+    expect(setWorkflowStage).toHaveBeenCalledTimes(1);
   });
 });

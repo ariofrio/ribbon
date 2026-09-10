@@ -159,7 +159,9 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
   const ribbonSidebar = createRibbonSidebarClient({
-    baseUrl: bb.server.loopbackBaseUrl,
+    callRpc: (method, input) => bb.sdk.plugins.callRpc({
+      pluginId: "ribbon-sidebar", method, input, outputSchema: z.unknown(),
+    }),
   });
 
   async function updatePlacement(

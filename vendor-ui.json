@@ -1,6 +1,6 @@
 {
   "$comment": "Single source of truth for the bb UI components each plugin vendors. scripts/vendor-ui.mjs owns plugins/*/src/vendor/ outright and is its only writer; a hand-edit, or any file in there no closure explains, fails npm run check:ui. Compose around a component instead of editing it — bb exports the seams (CompactViewportOverrideProvider, ResponsiveDrawerShell, MobileTrigger, stripRadixContentProps, MENU_ITEM_LAST_HOVERED_CLASS, LIST_HOVER_TRANSITION).",
-  "registry": "https://raw.githubusercontent.com/get-bb/bb/desktop-v0.39.0/packages/plugin-registry/r/{name}.json",
+  "registry": "https://raw.githubusercontent.com/get-bb/bb/desktop-v0.42.1/packages/plugin-registry/r/{name}.json",
   "plugins": {
     "plugins/bb-plugin-breadcrumbs": [
       "button",
@@ -35,7 +35,7 @@
     {
       "file": "plugins/bb-plugin-ribbon-sidebar/src/thread-actions-menu.tsx",
       "symbol": "DESTRUCTIVE_CONTEXT_ITEM_CLASS",
-      "upstream": "apps/app/src/components/thread/ThreadActionsMenu.tsx",
+      "upstream": "apps/app/src/components/ui/action-menu-items.tsx",
       "why": "bb gives ContextMenuItem no destructive variant and styles its own by className"
     }
   ]

@@ -122,9 +122,10 @@ belong between the crumbs. Unfilled the span occupies nothing. An anchor React
 owns is also a container bb's foreign-DOM guard admits a fresh node into, which
 bb's header is not.
 
-bb offers a plugin one slot in the thread header and none anywhere else, so
-everything but that slot is drawn from a content script that watches the
-document. `placements.ts` is the whole list of places, one entry each, and
+The thread-header slot and the public app-overlay slot share bb's SDK context.
+The overlay reads icons through `useRpc` and placement settings through
+`useSettings`. It watches the document for icon placements that bb does not
+expose as slots. `placements.ts` is the whole list of places, one entry each, and
 `decorate.ts` is the single piece of machinery behind them: finding, inserting,
 and cleaning up all live there, so a new place costs an entry rather than a
 module.

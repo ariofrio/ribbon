@@ -98,8 +98,8 @@ async function verifyProjectComposerIsStable({ browser, stack, fixture }) {
     );
     assert.equal(
       mounts,
-      2,
-      `Project-scoped New thread mounted its composer ${mounts} times instead of once before and once after project selection`,
+      1,
+      `Project-scoped New thread mounted its composer ${mounts} times instead of preserving it through project selection`,
     );
   } finally {
     await context.close();
@@ -134,13 +134,13 @@ async function verifyStagePlacement({ browser, stack, fixture }) {
       name: /Provider, model and reasoning/,
     });
     await modelButton.filter({ hasText: AGENT.modelName }).waitFor();
-    await composer.getByRole("button", { name: "Submit (Enter)" }).waitFor();
     const editor = composer.locator('[contenteditable="true"]');
     const prompt =
       "Investigate why webhook retries stall after the third attempt.";
     await editor.click();
     await editor.pressSequentially(prompt, { delay: 10 });
     assert.equal(await editor.textContent(), prompt);
+    await composer.getByRole("button", { name: "Submit (Enter)" }).waitFor();
     await composer
       .locator('[data-promptbox-submit-action][type="submit"]')
       .click({ timeout: 120_000 });

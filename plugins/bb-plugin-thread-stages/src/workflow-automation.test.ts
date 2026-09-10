@@ -148,6 +148,7 @@ describe("stage automation", () => {
     ["active", true],
     ["stopping", true],
     ["idle", false],
+    ["pending", false],
     ["error", false],
   ] as const)("maps %s to isActive=%s", (status, expected) => {
     expect(isActiveThreadLifecycle(status)).toBe(expected);

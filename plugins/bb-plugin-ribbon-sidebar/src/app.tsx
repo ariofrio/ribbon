@@ -60,7 +60,7 @@ import { SplitPaneMiniMap } from "./split-pane-mini-map";
 import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
 import { ScopeFilter } from "./scope-filter";
 import { SidebarDisplayOptionsMenu } from "./sidebar-display-options-menu";
-import { SidebarTopControls } from "./sidebar-top-controls";
+import { SidebarNavigation, SidebarTopControls } from "./sidebar-top-controls";
 import type { ScopeFilterValue } from "./scope-filter-value";
 import { orderedGroupings } from "./grouping-order";
 import { UnorganizedIcon } from "./unorganized-icon";
@@ -478,7 +478,7 @@ function SidebarMessage({
 function RibbonSidebarList({
   activeProjectId,
   activeThreadId,
-  experimental_Original: OriginalThreadList,
+  Original: OriginalThreadList,
   onNavigate,
   searchQuery,
 }: PluginThreadListProps) {
@@ -2323,6 +2323,11 @@ function RibbonSidebarList({
 }
 
 export default definePluginApp((app) => {
+  app.slots.experimental_sidebarNavigation({
+    id: "ribbon-navigation",
+    title: "Ribbon navigation",
+    component: SidebarNavigation,
+  });
   app.slots.experimental_threadList({
     id: "ribbon-sidebar",
     title: "Ribbon sidebar",

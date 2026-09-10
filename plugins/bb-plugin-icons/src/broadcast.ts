@@ -1,9 +1,4 @@
-/**
- * This plugin draws from two places that cannot hear each other: a React slot
- * in the thread header, and a content script outside bb's provider tree. Neither
- * can join the other's realtime channel, so an edit is announced here — which
- * also carries it to other windows of the same client.
- */
+/** Notify the header, app overlay, and other windows of local icon edits. */
 export const ICONS_CHANNEL = "bb.icons";
 
 export function announceIconsChanged(): void {
