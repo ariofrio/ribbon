@@ -1,8 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "paths": { "@/*": ["./src/*"] },
-    "skipLibCheck": true
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src", "vitest.config.ts"]
 }

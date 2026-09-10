@@ -15,35 +15,6 @@ import {
 } from "./new-thread-section";
 import { SIDEBAR_PREFERENCES_KEY } from "./view-state";
 
-const embla = vi.hoisted(() => {
-  let selectedIndex = 0;
-  const handlers = new Map<string, () => void>();
-  const api = {
-    off: vi.fn((event: string) => handlers.delete(event)),
-    on: vi.fn((event: string, handler: () => void) => {
-      handlers.set(event, handler);
-    }),
-    scrollTo: vi.fn((index: number, jump?: boolean) => {
-      selectedIndex = index;
-      if (!jump) queueMicrotask(() => handlers.get("settle")?.());
-    }),
-    selectedScrollSnap: vi.fn(() => selectedIndex),
-  };
-  return {
-    api,
-    useEmblaCarousel: vi.fn(() => [vi.fn(), api]),
-    wheelGesturesPlugin: vi.fn(() => ({ name: "wheelGestures" })),
-  };
-});
-
-vi.mock("embla-carousel-react", () => ({
-  default: embla.useEmblaCarousel,
-}));
-
-vi.mock("embla-carousel-wheel-gestures", () => ({
-  WheelGesturesPlugin: embla.wheelGesturesPlugin,
-}));
-
 afterEach(() => {
   cleanup();
   document.body.innerHTML = "";

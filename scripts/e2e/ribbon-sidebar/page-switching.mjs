@@ -61,10 +61,19 @@ async function performTrackpadSwipe(page, viewport, packets) {
     });
   });
 
-  for (const deltaX of packets) {
-    await page.mouse.wheel(deltaX, 0);
-    await page.evaluate(() => new Promise(requestAnimationFrame));
-  }
+  const viewportBox = await viewport.boundingBox();
+  assert.ok(viewportBox, "The page viewport did not render a box");
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.synthesizeScrollGesture", {
+    gestureSourceType: "mouse",
+    preventFling: false,
+    speed: 2_400,
+    x: viewportBox.x + viewportBox.width / 2,
+    xDistance: -packets.reduce((sum, delta) => sum + delta, 0),
+    y: viewportBox.y + viewportBox.height / 2,
+    yDistance: 0,
+  });
+  await cdp.detach();
 
   await page.waitForFunction(() => {
     const wheels = window.__ribbonSwipeWheels;
@@ -104,6 +113,9 @@ async function performTrackpadSwipe(page, viewport, packets) {
     return {
       maximumUnsettledStationaryRun,
       minimumFrameStep: Math.min(...frameSteps),
+      maximumMotionProgress: Math.max(
+        ...motionFrames.map(({ progress }) => progress),
+      ),
       maxGestureProgress: Math.max(
         ...gestureFrames.map(({ progress }) => progress),
       ),
@@ -167,6 +179,7 @@ export async function verifyPageSwitching({ stack }) {
         "wheel",
         (event) => {
           let frames = 0;
+          const progressFrames = [];
           requestAnimationFrame(function sample() {
             frames += 1;
             const firstPage = element.firstElementChild?.firstElementChild;
@@ -174,13 +187,14 @@ export async function verifyPageSwitching({ stack }) {
             const progress =
               element.getBoundingClientRect().left -
               firstPage.getBoundingClientRect().left;
-            if (Math.abs(progress) < 0.25 && frames < 12) {
+            progressFrames.push(progress);
+            if (frames < 12) {
               requestAnimationFrame(sample);
               return;
             }
             window.__ribbonEdgeFrame = {
               defaultPrevented: event.defaultPrevented,
-              progress,
+              progressFrames,
             };
           });
         },
@@ -195,9 +209,10 @@ export async function verifyPageSwitching({ stack }) {
     const edgeFrame = await page.waitForFunction(() => window.__ribbonEdgeFrame);
     const edgeMotion = await edgeFrame.jsonValue();
     assert.equal(edgeMotion.defaultPrevented, true);
+    const furthestEdgeOffset = Math.min(...edgeMotion.progressFrames);
     assert.ok(
-      edgeMotion.progress < 0 &&
-        Math.abs(edgeMotion.progress) <
+      furthestEdgeOffset < 0 &&
+        Math.abs(furthestEdgeOffset) <
           Math.abs(edgePackets.reduce((sum, delta) => sum + delta, 0)),
       `An outward gesture should visibly move by a resisted distance: ${JSON.stringify(edgeMotion)}`,
     );
@@ -222,8 +237,8 @@ export async function verifyPageSwitching({ stack }) {
       viewport,
       swipePackets,
     );
-    assert.equal(swipeMotion.wheelPackets, swipePackets.length);
-    assert.equal(swipeMotion.trustedPackets, swipePackets.length);
+    assert.ok(swipeMotion.wheelPackets > 1);
+    assert.equal(swipeMotion.trustedPackets, swipeMotion.wheelPackets);
     assert.ok(
       swipeMotion.minimumFrameStep >= -2,
       "Swipe motion should not snap backward between input packets",
@@ -235,6 +250,10 @@ export async function verifyPageSwitching({ stack }) {
     assert.ok(
       swipeMotion.maxGestureProgress > swipeMotion.width * 0.25,
       "A strong swipe should visibly follow the input before settling",
+    );
+    assert.ok(
+      swipeMotion.maximumMotionProgress <= swipeMotion.width + 1,
+      `One swipe crossed beyond its adjacent page: ${JSON.stringify(swipeMotion)}`,
     );
     await waitForActivePage(page, "Atlas");
     await waitForPageAtRest(page, viewport, 1);
