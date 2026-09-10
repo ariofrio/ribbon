@@ -5,7 +5,7 @@
 <p align="center">A suite of <a href="https://getbb.app">bb</a> plugins for managing large amounts of agents.</p>
 
 <p align="center">
-  <a href="https://getbb.app"><img src="https://img.shields.io/badge/bb-0.39%2B-656D76?style=flat-square" alt="bb 0.39+"></a>
+  <a href="https://getbb.app"><img src="https://img.shields.io/badge/bb-0.42.1%2B-656D76?style=flat-square" alt="bb 0.42.1+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/ariofrio/ribbon?style=flat-square&color=656D76" alt="MIT license"></a>
   <a href="https://github.com/ariofrio/ribbon/actions/workflows/plugins.yml"><img src="https://img.shields.io/github/actions/workflow/status/ariofrio/ribbon/plugins.yml?branch=main&style=flat-square&label=CI" alt="CI status"></a>
 </p>

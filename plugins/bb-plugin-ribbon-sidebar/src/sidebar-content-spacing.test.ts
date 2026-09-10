@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe("mountSidebarContentSpacing", () => {
-  it("keeps the first group inset and prevents horizontal list overflow", async () => {
+  it("prevents horizontal list overflow without changing host navigation spacing", async () => {
     const controller = new AbortController();
     const nav = document.createElement("div");
     nav.dataset.testid = "plugin-nav-sidebar-items";
@@ -24,7 +24,7 @@ describe("mountSidebarContentSpacing", () => {
     document.body.append(nav, content);
 
     const dispose = mountSidebarContentSpacing(controller.signal);
-    await waitFor(() => expect(nav.style.paddingBottom).toBe("6px"));
+    expect(getComputedStyle(nav).paddingBottom).toBe("3px");
     expect(
       getComputedStyle(root).getPropertyValue(
         "--bb-sidebar-sticky-stack-padding-top",

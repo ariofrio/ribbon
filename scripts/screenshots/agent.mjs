@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// A scripted stand-in for a coding agent, spawned by bb as a custom ACP agent.
+// A scripted stand-in for a coding agent, spawned through bb's ACP bridge.
 // It replays a canned transcript for each prompt instead of calling a model, so
 // seeded threads cost nothing, run offline, and read the same in every capture.
 //

@@ -243,7 +243,7 @@ const props = {
   isCompactViewport: false,
   onNavigate: vi.fn(),
   searchQuery: "",
-  experimental_Original: () => <div>BB original list</div>,
+  Original: () => <div>BB original list</div>,
 };
 
 function options(overrides: Record<string, unknown> = {}) {

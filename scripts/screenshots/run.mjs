@@ -12,7 +12,7 @@ import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capture } from "./capture.mjs";
-import { applyPluginState, seed, writeManagedConfig } from "./fixture.mjs";
+import { applyPluginState, seed, writeFixtureProvider } from "./fixture.mjs";
 import { setupScreenshots, SHOTS } from "./shots.mjs";
 import { BB_CLI_PATH, startStack } from "./stack.mjs";
 
@@ -74,7 +74,12 @@ const workspaceRoot = join(scratch, "workspaces");
 
 console.log("Starting an isolated bb…");
 const stack = await timePhase("start stack", () =>
-  startStack({ dataDir, logStream }),
+  startStack({
+    dataDir,
+    logStream,
+    prepare: () =>
+      writeFixtureProvider({ dataDir, harnessDir: harnessDirectory }),
+  }),
 );
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
@@ -82,8 +87,6 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
   });
 }
 try {
-  writeManagedConfig({ dataDir, harnessDir: harnessDirectory });
-
   console.log("Installing this repository's plugins…");
   await timePhase("install plugins", () =>
     execFileSync(
@@ -122,7 +125,9 @@ try {
   console.log(
     `\nWrote ${captured.flatMap((shot) => shot.outputs).length} files:\n${captured
       .flatMap((shot) =>
-        Object.values(shotFiles(shot)).map((path) => `  ${relative(repositoryRoot, path)}`),
+        Object.values(shotFiles(shot)).map(
+          (path) => `  ${relative(repositoryRoot, path)}`,
+        ),
       )
       .join("\n")}`,
   );
