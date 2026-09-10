@@ -3,6 +3,7 @@ import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifyPluginUpgrade } from "./plugin-upgrade.mjs";
+import { verifyScreenshotAnimations } from "./screenshot-animations.mjs";
 import { verifyBreadcrumbChildBadge } from "./breadcrumbs/child-badge.mjs";
 import {
   verifyNewThreadRouting,
@@ -18,6 +19,12 @@ const scratch = join(repositoryRoot, ".scratch/e2e");
 const bb = BB_CLI_PATH;
 
 const suites = [
+  {
+    id: "screenshots",
+    cases: ["animations"],
+    plugins: [],
+    run: verifyScreenshotAnimations,
+  },
   {
     id: "plugin-upgrade",
     cases: ["public-api"],

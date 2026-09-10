@@ -660,13 +660,30 @@ export async function capture({ stack, fixture, shots, shotFiles }) {
  * animations that run once, and pausing those leaves an empty box where the
  * menu should be.
  */
-async function freezeLoopingAnimations(page) {
+export async function freezeLoopingAnimations(page) {
   await page.evaluate(async () => {
-    for (const animation of document.getAnimations()) {
-      if (animation.effect?.getTiming().iterations !== Infinity) continue;
-      animation.pause();
-      animation.currentTime = 0;
-    }
+    const pending = new WeakSet();
+    const freeze = async () => {
+      await Promise.all(document.getAnimations().map(async (animation) => {
+        if (animation.effect?.getTiming().iterations !== Infinity || pending.has(animation)) return;
+        pending.add(animation);
+        animation.pause();
+        await animation.ready.catch(() => {});
+        animation.currentTime = 0;
+        pending.delete(animation);
+      }));
+    };
+    // Sidebar updates can replace an indicator after the first freeze. Keep
+    // new looping animations frozen until this capture's context closes.
+    const observer = new MutationObserver(() => void freeze());
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "style"],
+    });
+    document.addEventListener("animationstart", () => void freeze(), true);
+    await freeze();
     // Setting currentTime updates animation state synchronously, but Chromium's
     // compositor may still hold the previous frame. Wait for that reset to be
     // painted before the screenshot can race it.
