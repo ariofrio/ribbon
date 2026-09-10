@@ -714,6 +714,7 @@ async function render({ browser, stack, fixture, shot, theme, viewport, style, t
     ];
     return await take({ page, focusBoxes });
   } catch (error) {
+    error.message += `\n\nCapture: ${shot.id} (${theme}), ${page.url()}\n${await page.locator("body").ariaSnapshot().catch(() => "Accessibility snapshot unavailable.")}`;
     // What the page said while it was failing, which is the only record of an
     // error React swallowed or a warning bb logged on its way to a timeout.
     if (diagnostics.length > 0) {

@@ -85,17 +85,6 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
       );
     });
 
-    // The shortcut handler now lives in an overlay. It still opens a real
-    // host terminal via the SDK and the existing panel integration.
-    const terminalResponse = page.waitForResponse((response) =>
-      response
-        .url()
-        .endsWith("/plugins/missing-keyboard-shortcuts/rpc/openTerminal"),
-    );
-    await page.keyboard.press("Control+Backquote");
-    assert.equal((await (await terminalResponse).json()).ok, true);
-    await page.locator(".xterm-screen").waitFor({ timeout: 120_000 });
-
     const sideChatResponse = page.waitForResponse((response) =>
       response.url().endsWith("/plugins/missing-keyboard-shortcuts/rpc/createSideChat"),
     );
@@ -109,6 +98,17 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
     );
     await page.keyboard.type("Side chat focus check");
     assert.equal(await reply.innerText(), "Side chat focus check");
+
+    // The shortcut handler now lives in an overlay. It still opens a real
+    // host terminal via the SDK and the existing panel integration.
+    const terminalResponse = page.waitForResponse((response) =>
+      response
+        .url()
+        .endsWith("/plugins/missing-keyboard-shortcuts/rpc/openTerminal"),
+    );
+    await page.keyboard.press("Control+Backquote");
+    assert.equal((await (await terminalResponse).json()).ok, true);
+    await page.locator(".xterm-screen").waitFor({ timeout: 120_000 });
 
     const stageResponse = page.waitForResponse((response) =>
       response.url().endsWith("/plugins/thread-stages/rpc/setWorkflowStage"),
