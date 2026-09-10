@@ -156,6 +156,12 @@ function ComposerNavigationBridge() {
     }
     return registerSecondaryComposer(context.threadId, composerThreadId, {
       focus: composer.focus,
+      observeReadiness(listener) {
+        // The rich-text editor mounts after the shell and its plugin banners.
+        const observer = new MutationObserver(listener);
+        observer.observe(composerElement, { childList: true, subtree: true });
+        return () => observer.disconnect();
+      },
       isFocused: () => composerElement.contains(document.activeElement),
       isVisible: () => {
         const bounds = composerElement.getBoundingClientRect();

@@ -8,7 +8,7 @@ import {
   verifyNewThreadRouting,
   waitForStageCatalog,
 } from "./ribbon-sidebar/new-thread-routing.mjs";
-import { seed, writeManagedConfig } from "../screenshots/fixture.mjs";
+import { seed, writeFixtureProvider } from "../screenshots/fixture.mjs";
 import { BB_CLI_PATH, startStack } from "../screenshots/stack.mjs";
 
 const e2eDirectory = dirname(fileURLToPath(import.meta.url));
@@ -100,7 +100,7 @@ const stack = await startStack({
   dataDir: join(scratch, "data"),
   logStream,
   prepare: ({ dataDir }) =>
-    writeManagedConfig({ dataDir, harnessDir: screenshotHarnessDirectory }),
+    writeFixtureProvider({ dataDir, harnessDir: screenshotHarnessDirectory }),
 });
 
 try {

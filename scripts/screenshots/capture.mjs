@@ -525,7 +525,7 @@ function mkdirFor(output) {
 const TEXT_RENDERING = ["--font-render-hinting=none", "--disable-lcd-text"];
 
 export async function capture({ stack, fixture, shots, shotFiles }) {
-  const browser = await chromium.launch({ args: TEXT_RENDERING });
+  const browser = await chromium.launch({ args: [...TEXT_RENDERING, "--mute-audio"] });
   const captured = [];
   try {
     for (const shot of shots) {

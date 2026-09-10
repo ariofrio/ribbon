@@ -12,7 +12,7 @@ import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capture } from "./capture.mjs";
-import { applyPluginState, seed, writeManagedConfig } from "./fixture.mjs";
+import { applyPluginState, seed, writeFixtureProvider } from "./fixture.mjs";
 import { setupScreenshots, SHOTS } from "./shots.mjs";
 import { BB_CLI_PATH, startStack } from "./stack.mjs";
 
@@ -78,7 +78,7 @@ const stack = await timePhase("start stack", () =>
     dataDir,
     logStream,
     prepare: () =>
-      writeManagedConfig({ dataDir, harnessDir: harnessDirectory }),
+      writeFixtureProvider({ dataDir, harnessDir: harnessDirectory }),
   }),
 );
 for (const signal of ["SIGINT", "SIGTERM"]) {

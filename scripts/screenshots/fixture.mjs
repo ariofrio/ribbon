@@ -158,30 +158,72 @@ export const AGENT = {
   modelName: "Demo",
 };
 
-export function writeManagedConfig({ dataDir, harnessDir }) {
+export function writeFixtureProvider({ dataDir, harnessDir }) {
   const transcriptsPath = join(dataDir, "transcripts.json");
   writeFileSync(transcriptsPath, JSON.stringify(TRANSCRIPTS, null, 2));
+  // Custom ACP agents in bb 0.42 cannot fork. Register the scripted agent
+  // through the public provider API so Side chat can exercise a real fork.
+  const providerDir = join(dataDir, "fixture-provider");
+  mkdirSync(providerDir, { recursive: true });
   writeFileSync(
-    join(dataDir, "config.json"),
-    `${JSON.stringify(
-      {
-        customAcpAgents: [
-          {
-            id: AGENT.id,
-            displayName: AGENT.displayName,
-            command: process.execPath,
-            args: [join(harnessDir, "agent.mjs")],
-            env: {
-              BB_SCREENSHOT_TRANSCRIPTS: transcriptsPath,
-              BB_SCREENSHOT_MODEL_ID: AGENT.modelId,
-              BB_SCREENSHOT_MODEL_NAME: AGENT.modelName,
-            },
-          },
-        ],
+    join(providerDir, "package.json"),
+    JSON.stringify({
+      name: "bb-plugin-screenshot-provider",
+      version: "0.0.0",
+      private: true,
+      type: "module",
+      bb: {
+        name: "Screenshot provider",
+        description: "Scripted ACP transcripts for isolated screenshots and tests.",
+        branding: { icon: "Toolbox" },
+        server: "./server.ts",
+        host: "./host.ts",
       },
-      null,
-      2,
-    )}\n`,
+    }),
+  );
+  writeFileSync(
+    join(providerDir, "host.ts"),
+    'export { experimental_acpProviderBridge as experimental_providerBridge } from "@get-bb/plugin-sdk/provider-bridge/acp";\n',
+  );
+  const declaration = {
+    id: `acp-${AGENT.id}`,
+    displayName: AGENT.displayName,
+    family: "acp",
+    icon: "Toolbox",
+    experimental_visibility: "always",
+    experimental_bridgeOptions: {
+      acpLaunchSpec: {
+        displayName: AGENT.displayName,
+        command: process.execPath,
+        args: [join(harnessDir, "agent.mjs")],
+        env: {
+          BB_SCREENSHOT_TRANSCRIPTS: transcriptsPath,
+          BB_SCREENSHOT_MODEL_ID: AGENT.modelId,
+          BB_SCREENSHOT_MODEL_NAME: AGENT.modelName,
+        },
+      },
+    },
+    models: { scope: "host" },
+    serviceTiers: [
+      { id: "default", label: "Default" },
+      { id: "fast", label: "Fast" },
+    ],
+    maintenance: { health: true, usage: false, installation: false },
+    capabilities: {
+      supportsServiceTier: true,
+      supportsNativeUserQuestion: false,
+      supportsManualCompaction: false,
+      supportsThreadArchive: false,
+      supportsThreadRename: false,
+      fork: "tip",
+      permissionModes: ["accept-edits", "full"],
+      reasoningLevels: ["low", "medium", "high", "xhigh", "max"],
+    },
+    composerActions: [],
+  };
+  writeFileSync(
+    join(providerDir, "server.ts"),
+    `import type { BbPluginApi } from "@get-bb/plugin-sdk";\nexport default function(bb: BbPluginApi) { bb.providers.register(${JSON.stringify(declaration)}); }\n`,
   );
 }
 
@@ -190,7 +232,7 @@ export function seed({ stack, workspaceRoot, bb, assignStages = true }) {
     execFileSync(bb, [...args], { env: stack.env, encoding: "utf8" });
   const runJson = (args) => JSON.parse(run([...args, "--json"]));
 
-  run(["settings", "reload"]);
+  run(["plugin", "install", join(stack.env.BB_DATA_DIR, "fixture-provider"), "--yes"]);
 
   // Each run rebuilds the workspaces so a repeat run commits the same history.
   rmSync(workspaceRoot, { recursive: true, force: true });

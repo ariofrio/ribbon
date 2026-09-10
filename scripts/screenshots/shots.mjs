@@ -144,8 +144,9 @@ async function openFeaturedThread(page, knownHref) {
   // between differs from the same shot taken after. Named inside the timeline
   // panel because the thread's details panel carries the same chip.
   await page
-    .locator('#thread-detail-timeline-panel [title^="Copy branch name"]')
-    .waitFor();
+    .locator('#thread-detail-timeline-panel [data-promptbox-hide-branch-compact]')
+    .filter({ hasText: /^main$/ })
+    .waitFor({ timeout: 120000 });
   // The crumbs arrive later still: their backend is asked for the trail after
   // the header has already painted, and they mount into a React root of their
   // own on an animation frame. Only the breadcrumbs shot clicks the crumb, so

@@ -95,6 +95,21 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
     await page.keyboard.press("Control+Backquote");
     assert.equal((await (await terminalResponse).json()).ok, true);
     await page.locator(".xterm-screen").waitFor({ timeout: 120_000 });
+
+    const sideChatResponse = page.waitForResponse((response) =>
+      response.url().endsWith("/plugins/missing-keyboard-shortcuts/rpc/createSideChat"),
+    );
+    await page.keyboard.press("Shift+Meta+KeyL");
+    assert.equal((await (await sideChatResponse).json()).ok, true);
+    const reply = page.getByRole("textbox", { name: "Reply…" });
+    await reply.waitFor({ timeout: 120_000 });
+    await page.waitForFunction(
+      (composer) => document.activeElement === composer,
+      await reply.elementHandle(),
+    );
+    await page.keyboard.type("Side chat focus check");
+    assert.equal(await reply.innerText(), "Side chat focus check");
+
     const stageResponse = page.waitForResponse((response) =>
       response.url().endsWith("/plugins/thread-stages/rpc/setWorkflowStage"),
     );

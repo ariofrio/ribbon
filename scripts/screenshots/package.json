@@ -6,5 +6,8 @@
   "license": "MIT",
   "dependencies": {
     "bb-app": "0.42.1"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "0.4.47"
   }
 }

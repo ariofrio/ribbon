@@ -21,6 +21,7 @@ interface SecondaryComposerRegistration {
   focus: FocusComposer;
   isFocused: () => boolean;
   isVisible: () => boolean;
+  observeReadiness?: (listener: () => void) => () => void;
 }
 
 const primaryComposersByThread = new Map<
@@ -99,12 +100,17 @@ export function registerSecondaryComposer(
   const registrations = byChild.get(childThreadId) ?? [];
   registrations.push(registration);
   byChild.set(childThreadId, registrations);
-  for (const listener of secondaryComposerReadyListeners
-    .get(parentThreadId)
-    ?.get(childThreadId) ?? []) {
-    listener();
-  }
+  const notifyReady = () => {
+    for (const listener of secondaryComposerReadyListeners
+      .get(parentThreadId)
+      ?.get(childThreadId) ?? []) {
+      listener();
+    }
+  };
+  const stopObserving = registration.observeReadiness?.(notifyReady);
+  notifyReady();
   return () => {
+    stopObserving?.();
     const index = registrations.lastIndexOf(registration);
     if (index !== -1) registrations.splice(index, 1);
     if (registrations.length === 0) byChild?.delete(childThreadId);
