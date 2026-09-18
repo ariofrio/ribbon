@@ -29,6 +29,9 @@ describe("missing keyboard shortcuts app registration", () => {
       {},
       { context: { projectId: "project-a", threadId: "thread-a" } },
     );
+    expect(
+      document.querySelector("[data-missing-keyboard-shortcuts-ready]"),
+    ).not.toBeNull();
 
     window.dispatchEvent(
       new KeyboardEvent("keydown", {

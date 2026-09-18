@@ -8,7 +8,13 @@ import {
   useComposer,
   useComposerView,
 } from "@get-bb/plugin-sdk/app";
-import { createElement, useEffect, useLayoutEffect, useRef } from "react";
+import {
+  createElement,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import {
   focusedSecondaryComposerThreadId,
@@ -306,6 +312,7 @@ function MissingKeyboardShortcuts() {
   const contextRef = useRef(context);
   contextRef.current = context;
   const sidebarActions = experimental_useSidebarThreadActions();
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
@@ -580,9 +587,13 @@ function MissingKeyboardShortcuts() {
       },
       { capture: true, signal },
     );
+    setReady(true);
     return () => controller.abort();
   }, [rpc, sidebarActions]);
-  return null;
+  return createElement("span", {
+    "data-missing-keyboard-shortcuts-ready": ready ? "" : undefined,
+    hidden: true,
+  });
 }
 
 export default definePluginApp((app) => {

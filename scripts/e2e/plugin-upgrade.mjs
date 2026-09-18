@@ -18,14 +18,6 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    const keybindingsReady = page.waitForResponse(
-      (response) =>
-        response
-          .url()
-          .endsWith(
-            "/plugins/missing-keyboard-shortcuts/rpc/listAppKeybindings",
-          ) && response.ok(),
-    );
     await page.goto(
       new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl)
         .href,
@@ -33,7 +25,9 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
     await page
       .locator("[data-ribbon-sidebar-ready]")
       .waitFor({ timeout: 120_000 });
-    await keybindingsReady;
+    await page
+      .locator("[data-missing-keyboard-shortcuts-ready]")
+      .waitFor({ state: "attached", timeout: 120_000 });
 
     // These controls are now mounted by the public navigation slot. Verify
     // their rendered position, then use a real pointer to open their menu.
