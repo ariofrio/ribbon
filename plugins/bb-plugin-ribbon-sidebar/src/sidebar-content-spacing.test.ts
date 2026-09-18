@@ -9,13 +9,14 @@ afterEach(() => {
 });
 
 describe("mountSidebarContentSpacing", () => {
-  it("compacts spacing only when bb's plugin navigation is present", async () => {
+  it("keeps the first group inset and prevents horizontal list overflow", async () => {
     const controller = new AbortController();
     const nav = document.createElement("div");
     nav.dataset.testid = "plugin-nav-sidebar-items";
     nav.style.paddingBottom = "3px";
     const content = document.createElement("div");
     content.dataset.sidebar = "content";
+    content.style.overflowX = "auto";
     const root = document.createElement("div");
     root.dataset.ribbonSidebarRoot = "";
     root.style.setProperty("--bb-sidebar-sticky-stack-padding-top", "5px");
@@ -23,12 +24,13 @@ describe("mountSidebarContentSpacing", () => {
     document.body.append(nav, content);
 
     const dispose = mountSidebarContentSpacing(controller.signal);
-    await waitFor(() => expect(nav.style.paddingBottom).toBe("0px"));
+    await waitFor(() => expect(nav.style.paddingBottom).toBe("6px"));
     expect(
       getComputedStyle(root).getPropertyValue(
         "--bb-sidebar-sticky-stack-padding-top",
       ),
-    ).toBe("0px");
+    ).toBe("5px");
+    expect(getComputedStyle(content).overflowX).toBe("hidden");
 
     root.remove();
     await waitFor(() => expect(nav.style.paddingBottom).toBe("3px"));
@@ -37,6 +39,7 @@ describe("mountSidebarContentSpacing", () => {
         "--bb-sidebar-sticky-stack-padding-top",
       ),
     ).toBe("5px");
+    expect(getComputedStyle(content).overflowX).toBe("auto");
 
     dispose();
   });

@@ -79,10 +79,23 @@ const ICON_ANCHORS: Record<IconColor, ColorAnchor> = {
   },
 };
 
+function anchorColor(
+  anchor: ColorAnchor["light"] | ColorAnchor["dark"],
+  hue: number,
+): string {
+  return `oklch(${anchor.lightness} ${anchor.chroma} ${hue})`;
+}
+
 export function iconColor(color: IconColor | null): string | null {
   if (color === null) return null;
   const { hue, light, dark } = ICON_ANCHORS[color];
-  return `light-dark(oklch(${light.lightness} ${light.chroma} ${hue}), oklch(${dark.lightness} ${dark.chroma} ${hue}))`;
+  return `light-dark(${anchorColor(light, hue)}, ${anchorColor(dark, hue)})`;
+}
+
+export function lightIconColor(color: IconColor | null): string | null {
+  if (color === null) return null;
+  const { hue, light } = ICON_ANCHORS[color];
+  return anchorColor(light, hue);
 }
 
 /** Inline so it survives outside the plugin's `@scope` root, such as bb's header. */

@@ -12,7 +12,6 @@ import {
   AUTO_ARCHIVE_OPTIONS,
   registerCompletedAutoArchive,
 } from "./auto-archive";
-import { runForwardedThreadWorkflowCli } from "./cli";
 import { listAllThreads } from "./list-all-threads";
 import {
   RibbonSidebarDependencyError,
@@ -408,49 +407,6 @@ export default async function plugin(bb: BbPluginApi) {
     },
     acknowledgePlacementMigrationV1(input) {
       return migrationSource.acknowledge(input);
-    },
-  });
-
-  bb.cli.register({
-    name: "thread-stages",
-    summary: "Organize root threads into stages",
-    commands: [
-      {
-        name: "list",
-        summary: "List threads by stage",
-        usage: "bb thread-stages list [--stage <stage>] [--json]",
-      },
-      {
-        name: "show",
-        summary: "Show stage details",
-        usage: "bb thread-stages show [id] [--self] [--json]",
-      },
-      {
-        name: "update",
-        summary: "Update a stage or position",
-        usage:
-          "bb thread-stages update [id] [--self] [--stage <stage>] [--after <id>] [--before <id>] [--json]",
-      },
-    ],
-    async run(argv, context) {
-      let listThreadIds: string[] | undefined;
-      let rootIdsByThreadId: ReadonlyMap<string, string | null> | undefined;
-      if (["list", "show", "update"].includes(argv[0] ?? "")) {
-        const threads = await listAllThreads(({ limit, offset }) =>
-          bb.sdk.threads.list({ archived: false, limit, offset }),
-        );
-        const partition = partitionWorkflowThreads(threads);
-        rootIdsByThreadId = rootThreadIdByThreadId(threads);
-        if (argv[0] === "list") {
-          listThreadIds = partition.rootThreads.map((thread) => thread.id);
-        }
-      }
-      return runForwardedThreadWorkflowCli(ribbonSidebar, argv, {
-        enabledStages: enabledWorkflowStages(await settings.get()),
-        ...(listThreadIds ? { listThreadIds } : {}),
-        ...(rootIdsByThreadId ? { rootIdsByThreadId } : {}),
-        ...(context.threadId ? { threadId: context.threadId } : {}),
-      });
     },
   });
 

@@ -24,7 +24,9 @@ export function SidebarTopControls({ children }: { children: ReactNode }) {
       currentHost = marker.ownerDocument.createElement("div");
       currentHost.dataset.bbPlugin = "ribbon-sidebar";
       currentHost.dataset.ribbonSidebarTopControls = "";
-      currentHost.className = "mb-2 flex min-w-0 items-center gap-1";
+      currentHost.className =
+        "bb-sidebar-hover-actions-row flex min-w-0 items-center gap-0.5";
+      currentHost.style.marginBottom = "16px";
       primaryActions.prepend(currentHost);
       setPortalHost(currentHost);
     }

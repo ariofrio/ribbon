@@ -1,5 +1,11 @@
 # bb-plugin-project-breadcrumbs
 
+## 0.6.1
+
+### Patch Changes
+
+- acd8adf: Hide bb's redundant child pill when parent and ancestor thread breadcrumbs are enabled.
+
 ## 0.6.0
 
 ### Minor Changes

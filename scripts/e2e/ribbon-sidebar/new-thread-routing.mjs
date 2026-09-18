@@ -152,7 +152,7 @@ async function verifyStagePlacement({ browser, stack, fixture }) {
     let stage = null;
     while (Date.now() <= deadline) {
       const placements = fixture.runJson([
-        "ribbon-sidebar",
+        "sidebar",
         "show",
         threadId,
         "--json",
@@ -197,7 +197,7 @@ export async function waitForStageCatalog({ bb, cliEnv }) {
     try {
       const output = execFileSync(
         bb,
-        ["ribbon-sidebar", "groupings", "--json"],
+        ["sidebar", "groupings", "--json"],
         { env: cliEnv, encoding: "utf8" },
       );
       if (

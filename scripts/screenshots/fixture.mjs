@@ -22,7 +22,7 @@ export const SECTION = { name: "Atlas", icon: "globe", color: "purple" };
 /** bb's own project for threads that belong to no repository. */
 export const PERSONAL_PROJECT_ID = "proj_personal";
 
-// Stage names match the Thread stages plugin's CLI vocabulary. The spread —
+// Stage names match the Thread stages grouping's group IDs. The spread —
 // two deferred, one each idle, active and blocked, five completed — fills every
 // stage while keeping the collapsed ones worth collapsing.
 export const THREADS = [
@@ -273,7 +273,13 @@ export function seed({ stack, workspaceRoot, bb, assignStages = true }) {
   if (assignStages) {
     for (const spec of THREADS) {
       if (spec.stage === null) continue;
-      run(["thread-stages", "update", threads.get(spec.title).id, "--stage", spec.stage]);
+      run([
+        "sidebar",
+        "place",
+        threads.get(spec.title).id,
+        "--to",
+        `plugin:thread-stages:stages/${spec.stage}`,
+      ]);
     }
   }
 

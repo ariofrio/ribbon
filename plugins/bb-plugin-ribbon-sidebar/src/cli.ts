@@ -1,3 +1,4 @@
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type {
   GroupingDescriptor,
   GroupingKey,
@@ -14,6 +15,12 @@ interface CliResult {
 export interface RibbonSidebarCliContext {
   store: PlacementStore;
   groupings(): readonly GroupingDescriptor[];
+  threads(options: {
+    includeArchived: boolean;
+    includeHidden: boolean;
+  }):
+    | readonly RibbonSidebarThread[]
+    | Promise<readonly RibbonSidebarThread[]>;
   updatePlacement(
     input: Parameters<PlacementStore["updatePlacement"]>[0],
   ):
@@ -26,6 +33,10 @@ export interface RibbonSidebarCliContext {
   }>;
 }
 
+export type RibbonSidebarThread = Awaited<
+  ReturnType<BbPluginApi["sdk"]["threads"]["list"]>
+>[number];
+
 export interface RibbonSidebarCliInvocation {
   threadId?: string;
 }
@@ -33,19 +44,19 @@ export interface RibbonSidebarCliInvocation {
 const GROUPING_KEY = /^(?:builtin:(?:projects|sections)|plugin:[^:/]+:[^:/]+)$/u;
 const PLUGIN_KEY = /^plugin:[^:/]+:[^:/]+$/u;
 const USAGE = {
-  groupings: "Usage: bb ribbon-sidebar groupings [--json]\n",
-  groups: "Usage: bb ribbon-sidebar groups <grouping> [--json]\n",
+  groupings: "Usage: bb sidebar groupings [--json]\n",
+  groups: "Usage: bb sidebar groups <grouping> [--json]\n",
   list:
-    "Usage: bb ribbon-sidebar list [--scope <group-ref>] [--group-by <grouping>] [--json]\n",
+    "Usage: bb sidebar list [--scope <group-ref>] [--include-archived] [--include-hidden] [--json]\n",
   show:
-    "Usage: bb ribbon-sidebar show [thread] [--self] [--json]\n",
+    "Usage: bb sidebar show [thread] [--self] [--json]\n",
   place:
-    "Usage: bb ribbon-sidebar place [thread] [--self] --to <group-ref> [--before <thread>|--after <thread>] [--json]\n",
-  migrate: "Usage: bb ribbon-sidebar migrate thread-stages [--json]\n",
+    "Usage: bb sidebar place [thread] [--self] --to <group-ref> [--before <thread>|--after <thread>] [--json]\n",
+  migrate: "Usage: bb sidebar migrate thread-stages [--json]\n",
   rekey:
-    "Usage: bb ribbon-sidebar rekey --from <plugin-key> --to <plugin-key> [--json]\n",
+    "Usage: bb sidebar rekey --from <plugin-key> --to <plugin-key> [--json]\n",
 } as const;
-const HELP = `Usage: bb ribbon-sidebar [options] [command]
+const HELP = `Usage: bb sidebar [options] [command]
 
 Inspect and change Ribbon sidebar placement
 
@@ -65,7 +76,7 @@ Commands:
 const COMMAND_HELP: Record<keyof typeof USAGE, string> = {
   groupings: `${USAGE.groupings}\nList groupings\n\nOptions:\n  --json      Print machine-readable JSON output\n  -h, --help  display help for command\n`,
   groups: `${USAGE.groups}\nList groups\n\nArguments:\n  grouping    Grouping key\n\nOptions:\n  --json      Print machine-readable JSON output\n  -h, --help  display help for command\n`,
-  list: `${USAGE.list}\nList threads\n\nOptions:\n  --scope <group-ref>    Filter by group\n  --group-by <grouping>  Grouping shown for each thread\n  --json                 Print machine-readable JSON output\n  -h, --help             display help for command\n`,
+  list: `${USAGE.list}\nList threads with their Ribbon groups\n\nOptions:\n  --scope <group-ref>  Filter by group\n  --include-archived   Include archived roots\n  --include-hidden     Include hidden roots\n  --json               Print machine-readable JSON output\n  -h, --help           display help for command\n`,
   show: `${USAGE.show}\nShow thread placement\n\nOptions:\n  --self      Target the current thread\n  --json      Print machine-readable JSON output\n  -h, --help  display help for command\n`,
   place: `${USAGE.place}\nPlace a thread\n\nOptions:\n  --self             Target the current thread\n  --to <group-ref>   Destination group\n  --before <thread>  Next thread\n  --after <thread>   Previous thread\n  --json             Print machine-readable JSON output\n  -h, --help         display help for command\n`,
   migrate: `${USAGE.migrate}\nMigrate legacy Thread stages placement\n\nOptions:\n  --json      Print machine-readable JSON output\n  -h, --help  display help for command\n`,
@@ -177,15 +188,19 @@ function humanPlacements(
   placements: readonly { groupingKey: GroupingKey; groupId: string }[],
   groupings: readonly GroupingDescriptor[],
 ): string {
-  const labels = new Map(
+  const descriptors = new Map(
     groupings.map((grouping) => [
       grouping.groupingKey,
-      grouping.singularLabel,
+      grouping,
     ]),
   );
   const details = placements.map(
-    (placement) =>
-      `  ${labels.get(placement.groupingKey) ?? "Group"}: ${placement.groupId}`,
+    (placement) => {
+      const descriptor = descriptors.get(placement.groupingKey);
+      return `  ${descriptor?.singularLabel ?? "Group"}: ${
+        descriptor ? groupName(descriptor, placement.groupId) : placement.groupId
+      }`;
+    },
   );
   return `Thread: ${threadId}${details.length > 0 ? `\n${details.join("\n")}` : ""}\n`;
 }
@@ -206,6 +221,103 @@ function groupJson(group: GroupingDescriptor["groups"][number]) {
       ? {}
       : { defaultCollapsed: group.defaultCollapsed }),
   };
+}
+
+function groupName(
+  grouping: GroupingDescriptor,
+  groupId: string,
+): string {
+  return grouping.groups.find(({ id }) => id === groupId)?.label ?? groupId;
+}
+
+function richThreadRows(
+  context: RibbonSidebarCliContext,
+  groupings: readonly GroupingDescriptor[],
+  candidates: readonly RibbonSidebarThread[],
+  threadIds: readonly string[],
+) {
+  const threads = new Map(candidates.map((thread) => [thread.id, thread]));
+  const groupIds = new Map<GroupingKey, Map<string, string>>();
+  for (const grouping of groupings) {
+    const listed = context.store.listPlacements({
+      groupingKey: grouping.groupingKey,
+      threadIds,
+    });
+    if (!listed.ok) throw new Error(listed.error.message);
+    const ids = new Map(
+      listed.value.items.map(({ threadId, groupId }) => [threadId, groupId]),
+    );
+    for (const threadId of threadIds) {
+      if (ids.has(threadId)) continue;
+      const groupId = grouping.membership.kind === "ribbon"
+        ? grouping.defaultGroupId
+        : grouping.membership.groupIdForThread(threadId);
+      if (groupId !== null) ids.set(threadId, groupId);
+    }
+    groupIds.set(grouping.groupingKey, ids);
+  }
+  const projects = groupings.find(
+    ({ groupingKey: key }) => key === "builtin:projects",
+  );
+  const sections = groupings.find(
+    ({ groupingKey: key }) => key === "builtin:sections",
+  );
+  const pluginGroupings = groupings.filter(({ groupingKey: key }) =>
+    key.startsWith("plugin:"),
+  );
+
+  return threadIds.flatMap((threadId) => {
+    const thread = threads.get(threadId);
+    if (!thread) return [];
+    const projectId = projects
+      ? groupIds.get(projects.groupingKey)?.get(threadId)
+      : undefined;
+    const sectionId = sections
+      ? groupIds.get(sections.groupingKey)?.get(threadId)
+      : undefined;
+    return [{
+      ...thread,
+      project:
+        projects && projectId
+          ? { id: projectId, name: groupName(projects, projectId) }
+          : null,
+      section:
+        sections && sectionId
+          ? { id: sectionId, name: groupName(sections, sectionId) }
+          : null,
+      pluginGroups: pluginGroupings.flatMap((grouping) => {
+        const groupId = groupIds.get(grouping.groupingKey)?.get(threadId);
+        if (!groupId) return [];
+        const [, pluginId, groupingId] = grouping.groupingKey.split(":");
+        return [{
+          pluginId: pluginId ?? "",
+          groupingId: groupingId ?? "",
+          groupingName: grouping.pluralLabel,
+          groupId,
+          groupName: groupName(grouping, groupId),
+        }];
+      }),
+    }];
+  });
+}
+
+function rowMatchesScope(
+  row: ReturnType<typeof richThreadRows>[number],
+  scope: { groupingKey: GroupingKey; groupId: string },
+) {
+  if (scope.groupingKey === "builtin:projects") {
+    return row.project?.id === scope.groupId;
+  }
+  if (scope.groupingKey === "builtin:sections") {
+    return row.section?.id === scope.groupId;
+  }
+  const [, pluginId, groupingId] = scope.groupingKey.split(":");
+  return row.pluginGroups.some(
+    (group) =>
+      group.pluginId === pluginId &&
+      group.groupingId === groupingId &&
+      group.groupId === scope.groupId,
+  );
 }
 
 function commandHelp(command: string | undefined): string | null {
@@ -276,46 +388,94 @@ export async function runRibbonSidebarCli(
       );
     }
     if (command === "list") {
-      const { options, positionals } = parse(args.slice(1), [
-        "--scope",
-        "--group-by",
-      ]);
+      const { options, positionals } = parse(
+        args.slice(1),
+        ["--scope"],
+        ["--include-archived", "--include-hidden"],
+      );
       if (positionals.length > 0) {
         return { exitCode: 2, stderr: USAGE.list };
       }
       const available = availableGroupings();
-      const displayKey = groupingKey(
-        stringOption(options, "--group-by") ?? available[0]?.groupingKey,
-      );
-      const displayGrouping = available.find(
-        (grouping) => grouping.groupingKey === displayKey,
-      );
-      let threadIds: string[] | undefined;
       const rawScope = stringOption(options, "--scope");
-      if (rawScope !== undefined) {
-        const scope = groupRef(rawScope);
-        const scoped = context.store.listPlacements({
-          groupingKey: scope.groupingKey,
-          groupIds: [scope.groupId],
-        });
-        if (!scoped.ok) return domainFailure(scoped);
-        threadIds = scoped.value.items.map(({ threadId }) => threadId);
+      const scope = rawScope === undefined ? undefined : groupRef(rawScope);
+      if (scope !== undefined) {
+        const scopedGrouping = available.find(
+          ({ groupingKey: key }) => key === scope.groupingKey,
+        );
+        if (!scopedGrouping) {
+          throw new Error(`Grouping not found: ${scope.groupingKey}`);
+        }
+        if (!scopedGrouping.groups.some(({ id }) => id === scope.groupId)) {
+          throw new Error(
+            `Group not found: ${scope.groupingKey}/${scope.groupId}`,
+          );
+        }
       }
+      const orderKey = scope?.groupingKey ??
+        available.find(({ groupingKey: key }) => key === "builtin:sections")
+          ?.groupingKey ?? available[0]?.groupingKey;
+      if (!orderKey) throw new Error("No sidebar groupings are available.");
       const listed = context.store.listPlacements({
-        groupingKey: displayKey,
-        ...(threadIds === undefined ? {} : { threadIds }),
+        groupingKey: orderKey,
       });
       if (!listed.ok) return domainFailure(listed);
-      const human = listed.value.items.length === 0
+      const candidates = await context.threads({
+        includeArchived: options.get("--include-archived") === true,
+        includeHidden: options.get("--include-hidden") === true,
+      });
+      const candidateIds = new Set(candidates.map(({ id }) => id));
+      const orderedIds = listed.value.items
+        .map(({ threadId }) => threadId)
+        .filter((threadId) => candidateIds.has(threadId));
+      const seen = new Set(orderedIds);
+      orderedIds.push(
+        ...candidates
+          .map(({ id }) => id)
+          .filter((threadId) => !seen.has(threadId)),
+      );
+      const allRows = richThreadRows(
+        context,
+        available,
+        candidates,
+        orderedIds,
+      );
+      const rows = scope === undefined
+        ? allRows
+        : allRows.filter((row) => rowMatchesScope(row, scope));
+      const pluginGroupings = available.filter(({ groupingKey: key }) =>
+        key.startsWith("plugin:"),
+      );
+      const human = rows.length === 0
         ? "No threads found\n"
         : humanTable([
-            ["ID", displayGrouping?.singularLabel ?? "Group"],
-            ...listed.value.items.map(({ threadId, groupId }) => [
-              threadId,
-              groupId,
+            [
+              "ID",
+              "TITLE",
+              "STATUS",
+              "SECTION",
+              "PROJECT",
+              ...pluginGroupings.map(({ singularLabel }) =>
+                singularLabel.toUpperCase(),
+              ),
+            ],
+            ...rows.map((thread) => [
+              thread.id,
+              thread.title ?? thread.titleFallback ?? "",
+              thread.status,
+              thread.section?.name ?? "",
+              thread.project?.name ?? "",
+              ...pluginGroupings.map((grouping) => {
+                const [, pluginId, groupingId] = grouping.groupingKey.split(":");
+                return thread.pluginGroups.find(
+                  (group) =>
+                    group.pluginId === pluginId &&
+                    group.groupingId === groupingId,
+                )?.groupName ?? "";
+              }),
             ]),
           ]);
-      return success(listed.value, human, wantsJson);
+      return success(rows, human, wantsJson);
     }
     if (command === "show") {
       const { options, positionals } = parse(args.slice(1), [], ["--self"]);

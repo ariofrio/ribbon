@@ -1,0 +1,16 @@
+{
+  "skill_name": "ribbon-sidebar",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Check which plugin owns the generic bb sidebar command in this environment and tell me whether it is Ribbon. If it is not Ribbon, tell me how you would explicitly invoke Ribbon instead. Do not change any state.",
+      "expected_output": "The agent runs the generic sidebar command first, checks its output for Ribbon, and uses or recommends the plugin-qualified Ribbon invocation only when Ribbon did not answer.",
+      "files": [],
+      "expectations": [
+        "The agent invokes `bb sidebar` before any plugin-qualified sidebar command.",
+        "The agent determines ownership from whether the command output identifies Ribbon.",
+        "When Ribbon does not answer, the agent identifies `bb plugin run ribbon-sidebar` as the explicit fallback."
+      ]
+    }
+  ]
+}

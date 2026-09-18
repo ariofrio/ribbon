@@ -1,5 +1,5 @@
 import type { IconSvgElement } from "@hugeicons/react";
-import { iconColor } from "./icon-colors";
+import { iconColor, lightIconColor } from "./icon-colors";
 import { PERSONAL_PROJECT_ID, type IconColor, type IconOwnerKind } from "./store";
 
 /**
@@ -61,9 +61,16 @@ export function iconStylesheet(view: IconsView): string {
   return view.icons
     .map((icon) => {
       const color = iconColor(icon.color);
+      const lightColor = lightIconColor(icon.color);
       const declarations = [
         `--ribbon-icons-${icon.kind}-glyph:${glyphDataUrl(icon.glyph)}`,
-        ...(color === null ? [] : [`--ribbon-icons-${icon.kind}-color:${color}`]),
+        ...(color === null || lightColor === null
+          ? []
+          : [
+              `--ribbon-icons-${icon.kind}-color:${color}`,
+              `--ribbon-icons-${icon.kind}-color-light:${lightColor}`,
+              `--ribbon-icons-${icon.kind}-on-color-light:white`,
+            ]),
       ].join(";");
       return `[data-ribbon-icons-${icon.kind}="${cssEscape(icon.id)}"]{${declarations}}`;
     })

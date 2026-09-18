@@ -1,5 +1,22 @@
 # bb-plugin-thread-stages
 
+## 0.11.0
+
+### Minor Changes
+
+- 0af2a5b: Rename Ribbon's CLI to `bb sidebar`. Its list output now joins thread metadata
+  with every sidebar grouping and can explicitly include archived or hidden
+  roots. Remove the Thread Stages compatibility CLI, add a conflict-aware Ribbon
+  Sidebar skill, and focus the Thread Stages skill on stage semantics, with
+  Completed roots out of scope by default.
+
+### Patch Changes
+
+- 705cfbf: Keep filing-shortcut navigation within the threads displayed by Ribbon's active filter.
+- 0bfb73c: Index thread activity locally so ordinary stage transitions update one hierarchy without rescanning every thread and timeline.
+- 9727272: Restart Completed auto-archive retention when bb updates the root thread or any descendant.
+- 5a71b03: Treat a pending user interaction as Idle even while that thread has a running background command.
+
 ## 0.10.0
 
 ### Minor Changes
