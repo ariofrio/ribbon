@@ -96,7 +96,7 @@ function ActiveIcon({
   );
 }
 
-// bb-app@0.39.0 provides each computed indicator and label, but does not export
+// bb-app@0.42.1 provides each computed indicator and label, but does not export
 // aggregate precedence. Keep the replacement sidebar aligned with bb and the
 // compatible Thread stages renderer, including omission of unread-success.
 const INDICATOR_PRIORITY: readonly PluginSidebarThreadIndicator[] = [

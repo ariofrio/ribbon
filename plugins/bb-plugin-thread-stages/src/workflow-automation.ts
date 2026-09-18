@@ -4,6 +4,7 @@ import { rootThreadIdByThreadId } from "./root-thread-ownership";
 import type { WorkflowStage } from "./workflow-stage";
 
 export type ThreadLifecycleStatus =
+  | "pending"
   | "idle"
   | "active"
   | "starting"

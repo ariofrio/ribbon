@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   composerShortcutTarget,
-  currentThreadId,
   historyDirection,
   isTerminalShortcut,
   newThreadTarget,
@@ -78,34 +77,31 @@ describe("composerShortcutTarget", () => {
 describe("newThreadTarget", () => {
   it("targets no project for Command-N", () => {
     expect(
-      newThreadTarget({ ...baseChord, key: "n" }, "/projects/proj_one"),
+      newThreadTarget(
+        { ...baseChord, key: "n" },
+        { projectId: "proj_one", threadId: null },
+      ),
     ).toEqual({ projectId: "proj_personal" });
   });
 
   it("targets the selected thread's project for Command-Shift-N", () => {
     const chord = { ...baseChord, key: "N", shiftKey: true };
     expect(
-      newThreadTarget(chord, "/projects/proj_one/threads/thr_standard"),
+      newThreadTarget(chord, {
+        projectId: "proj_one",
+        threadId: "thr_standard",
+      }),
     ).toEqual({ projectId: "proj_one" });
-    expect(newThreadTarget(chord, "/threads/thr_personal")).toEqual({
-      projectId: "proj_personal",
-    });
-  });
-
-  it("decodes project IDs from thread routes", () => {
     expect(
-      newThreadTarget(
-        { ...baseChord, key: "n", shiftKey: true },
-        "/projects/proj%2Fone/threads/thr_standard",
-      ),
-    ).toEqual({ projectId: "proj/one" });
+      newThreadTarget(chord, { projectId: null, threadId: "thr_personal" }),
+    ).toEqual({ projectId: "proj_personal" });
   });
 
   it("targets the last selected thread's project when no thread is selected", () => {
     expect(
       newThreadTarget(
         { ...baseChord, key: "n", shiftKey: true },
-        "/",
+        { projectId: null, threadId: null },
         "proj_last_selected",
       ),
     ).toEqual({ projectId: "proj_last_selected" });
@@ -115,7 +111,7 @@ describe("newThreadTarget", () => {
     expect(
       newThreadTarget(
         { ...baseChord, key: "n", shiftKey: true },
-        "/",
+        { projectId: null, threadId: null },
         null,
       ),
     ).toEqual({ projectId: "proj_personal" });
@@ -123,26 +119,11 @@ describe("newThreadTarget", () => {
 
   it("rejects extra modifiers, held-key repeats, and other keys", () => {
     const chord = { ...baseChord, key: "n" };
-    expect(newThreadTarget({ ...chord, altKey: true }, "/threads/thr")).toBeNull();
-    expect(newThreadTarget({ ...chord, ctrlKey: true }, "/threads/thr")).toBeNull();
-    expect(newThreadTarget({ ...chord, repeat: true }, "/threads/thr")).toBeNull();
-    expect(newThreadTarget({ ...chord, key: "m" }, "/threads/thr")).toBeNull();
-    expect(newThreadTarget({ ...chord, metaKey: false }, "/threads/thr")).toBeNull();
-  });
-});
-
-describe("currentThreadId", () => {
-  it("reads projectless and project-scoped thread routes", () => {
-    expect(currentThreadId("/threads/thr_personal")).toBe("thr_personal");
-    expect(currentThreadId("/projects/proj_one/threads/thr_standard")).toBe(
-      "thr_standard",
-    );
-  });
-
-  it("decodes thread IDs and ignores non-thread routes", () => {
-    expect(currentThreadId("/threads/thr%5Fencoded")).toBe("thr_encoded");
-    expect(currentThreadId("/projects/proj_one")).toBeNull();
-    expect(currentThreadId("/settings/archived")).toBeNull();
-    expect(currentThreadId("/threads/thr_one/extra")).toBeNull();
+    const context = { projectId: "proj_one", threadId: "thr_one" };
+    expect(newThreadTarget({ ...chord, altKey: true }, context)).toBeNull();
+    expect(newThreadTarget({ ...chord, ctrlKey: true }, context)).toBeNull();
+    expect(newThreadTarget({ ...chord, repeat: true }, context)).toBeNull();
+    expect(newThreadTarget({ ...chord, key: "m" }, context)).toBeNull();
+    expect(newThreadTarget({ ...chord, metaKey: false }, context)).toBeNull();
   });
 });

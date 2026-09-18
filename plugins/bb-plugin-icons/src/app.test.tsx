@@ -1,9 +1,6 @@
 // @vitest-environment jsdom
 import { CircleIcon } from "@hugeicons/core-free-icons";
-import {
-  loadPluginApp,
-  renderSlot,
-} from "@get-bb/plugin-sdk/testing/app";
+import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -69,7 +66,11 @@ describe("project icon app registration", () => {
         rpc: {
           listIcons: () => ({
             icons: [],
-            defaults: { project: CircleIcon, personal: CircleIcon, section: CircleIcon },
+            defaults: {
+              project: CircleIcon,
+              personal: CircleIcon,
+              section: CircleIcon,
+            },
           }),
         },
         sidebarThreads: {
@@ -99,138 +100,89 @@ describe("project icon app registration", () => {
   });
 });
 
-describe("sidebar icon registration", () => {
-  it("registers the content script that draws bb's own group headers", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-
-    expect(app.contentScripts.map(({ id }) => id)).toEqual(["sidebar-icons"]);
-  });
-});
-
-describe("the window the sidebar script leaves open", () => {
-  const originalFetch = globalThis.fetch;
-  // Every mount leaves a MutationObserver watching the document, so one left
-  // running would place an anchor in the next test's sidebar.
-  const mounted: Array<{ controller: AbortController; result: unknown }> = [];
-  // A mount left waiting on an answer never resolves, so teardown answers
-  // first and only then waits for what it returned.
-  const unanswered: Array<(showInSidebar: boolean) => void> = [];
-
-  afterEach(async () => {
-    for (const answer of unanswered.splice(0)) answer(false);
-    for (const { controller, result } of mounted.splice(0)) {
-      controller.abort();
-      const dispose = await result;
-      if (typeof dispose === "function") dispose();
-    }
-    globalThis.fetch = originalFetch;
-    document.body.innerHTML = "";
-  });
-
-  /** A `listPlacements` that answers only when the test says so. */
-  function pendingPlacements() {
-    let answer!: (showInSidebar: boolean) => void;
-    const settled = new Promise<{ showInSidebar: boolean }>((resolve) => {
-      answer = (showInSidebar) => resolve({ showInSidebar });
-    });
-    unanswered.push(answer);
-    const answered = (body: unknown) =>
-      new Response(JSON.stringify(body), {
-        headers: { "content-type": "application/json" },
-      });
-    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
-      // Only the placements call is answered. The script's other reads say no,
-      // which is what `iconsRpc` turns into a null state — the same thing a
-      // backend hiccup gives it, and the path SidebarIcons has to survive.
-      if (!String(input).endsWith("/listPlacements")) return answered({ ok: false });
-      const placements = await settled;
-      return answered({
-        ok: true,
-        result: { showInThreadHeader: true, showInSidebar: placements.showInSidebar },
-      });
-    }) as unknown as typeof fetch;
-    // The fetch, its body, the caller resuming, and the observer's first read
-    // are each a turn of their own.
-    const settle = async (showInSidebar: boolean) => {
-      answer(showInSidebar);
-      for (let turn = 0; turn < 5; turn += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-    };
-    return { settle };
-  }
-
-  function sidebarFixture() {
+describe("sidebar icon overlay", () => {
+  it("draws through SDK RPC and removes its icons and stylesheet on unmount", async () => {
     document.body.innerHTML = `
       <div data-sidebar-project-id="proj_1">
         <div data-sidebar="group-label"><span><span title="Storefront">Storefront</span></span></div>
-      </div>
-    `;
-  }
-
-  async function mountSidebarScript() {
+      </div>`;
     const app = await loadPluginApp(() => import("./app"));
-    const script = app.contentScripts[0]!;
-    const controller = new AbortController();
-    const result = script.mount({
-      pluginId: "icons",
-      generation: 1,
-      signal: controller.signal,
+    expect(app.appOverlays).toHaveLength(1);
+    expect(app.contentScripts).toHaveLength(0);
+    const slot = renderSlot(
+      app.appOverlays[0]!,
+      {},
+      {
+        settings: { showInSidebar: true },
+        rpc: {
+          listIcons: () => ({
+            icons: [],
+            defaults: {
+              project: CircleIcon,
+              personal: CircleIcon,
+              section: CircleIcon,
+            },
+          }),
+        },
+      },
+    );
+    await screen.findByRole("button", { name: "Icon for Storefront" });
+    await vi.waitFor(() =>
+      expect(document.head.querySelector("[data-ribbon-icons]")).not.toBeNull(),
+    );
+    slot.lifecycle.unmount();
+    expect(
+      screen.queryByRole("button", { name: "Icon for Storefront" }),
+    ).toBeNull();
+    expect(document.head.querySelector("[data-ribbon-icons]")).toBeNull();
+  });
+  it("refreshes icons from realtime even when no thread header is mounted", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    let icons: Array<{
+      kind: "project";
+      id: string;
+      icon: string;
+      color: "blue";
+      glyph: typeof CircleIcon;
+    }> = [];
+    const slot = renderSlot(
+      app.appOverlays[0]!,
+      {},
+      {
+        settings: { showInSidebar: false },
+        rpc: {
+          listIcons: () => ({
+            icons,
+            defaults: {
+              project: CircleIcon,
+              personal: CircleIcon,
+              section: CircleIcon,
+            },
+          }),
+        },
+      },
+    );
+    await vi.waitFor(() =>
+      expect(document.head.querySelector("[data-ribbon-icons]")).not.toBeNull(),
+    );
+    icons = [
+      {
+        kind: "project",
+        id: "remote-project",
+        icon: "circle",
+        color: "blue",
+        glyph: CircleIcon,
+      },
+    ];
+    await slot.behavior.emitRealtime("icons-changed", {
+      kind: "project",
+      id: "remote-project",
     });
-    mounted.push({ controller, result });
-    return { result, controller };
-  }
-
-  it("hands bb a disposer before it asks its backend anything", async () => {
-    sidebarFixture();
-    const placements = pendingPlacements();
-
-    const { result } = await mountSidebarScript();
-
-    // bb holds a plugin attributed until `mount` settles, and every plugin's
-    // portal is refused for as long as it does. Answering with the disposer
-    // rather than a promise is what keeps that window shut.
-    expect(typeof result).toBe("function");
-    await placements.settle(true);
-  });
-
-  it("still asks before it places an anchor in bb's sidebar", async () => {
-    sidebarFixture();
-    const placements = pendingPlacements();
-
-    await mountSidebarScript();
-
-    // An anchor left in bb's group label spaces it out even with nothing drawn
-    // in it, so nothing is placed until the answer arrives.
-    expect(document.querySelector("[data-icons-sidebar-root]")).toBeNull();
-    await placements.settle(true);
-    const anchor = document.querySelector("[data-icons-sidebar-root]");
-    expect(anchor).not.toBeNull();
-    // Drawn into, not merely placed. The anchor is put there by the DOM scan,
-    // so asserting only its presence would pass while the render that fills it
-    // was throwing — which is how this test first went green locally and red in
-    // CI, on a machine that got one animation frame further.
-    await vi.waitFor(() => expect(anchor!.childElementCount).toBeGreaterThan(0));
-  });
-
-  it("places nothing when the answer says the sidebar is off", async () => {
-    sidebarFixture();
-    const placements = pendingPlacements();
-
-    await mountSidebarScript();
-    await placements.settle(false);
-
-    expect(document.querySelector("[data-icons-sidebar-root]")).toBeNull();
-  });
-
-  it("places nothing when bb gives up on it before the answer arrives", async () => {
-    sidebarFixture();
-    const placements = pendingPlacements();
-
-    const { controller } = await mountSidebarScript();
-    controller.abort();
-    await placements.settle(true);
-
-    expect(document.querySelector("[data-icons-sidebar-root]")).toBeNull();
+    await vi.waitFor(() =>
+      expect(
+        document.head.querySelector("[data-ribbon-icons]")?.textContent,
+      ).toContain("remote-project"),
+    );
+    slot.lifecycle.unmount();
   });
 });

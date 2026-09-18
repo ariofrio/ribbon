@@ -243,7 +243,7 @@ const props = {
   isCompactViewport: false,
   onNavigate: vi.fn(),
   searchQuery: "",
-  experimental_Original: () => <div>BB original list</div>,
+  Original: () => <div>BB original list</div>,
 };
 
 function options(overrides: Record<string, unknown> = {}) {
@@ -720,65 +720,23 @@ describe("Ribbon sidebar app", () => {
     await scripts.lifecycle.dispose();
   });
 
-  it("requests the selected Project when a New thread composer appears", async () => {
+  it("selects the scoped Project through the public New thread action", async () => {
     storeGroupScope("builtin:projects", "project-a");
-    const requested: unknown[] = [];
-    window.addEventListener("bb.ribbon-sidebar.new-thread-project-requested", (event) => {
-      requested.push((event as CustomEvent).detail);
-    });
     const app = await loadPluginApp(() => import("./app"));
-    const scripts = await mountPluginContentScripts(app, {
-      pluginId: "ribbon-sidebar",
-      generation: 1,
-    });
-
-    appendNewThreadComposer();
-
-    await waitFor(() => expect(requested).toEqual(["project-a"]));
-    await scripts.lifecycle.dispose();
-  });
-
-  it("requests a selected Project only once across composer remounts", async () => {
-    storeGroupScope("builtin:projects", "project-a");
-    const requested: unknown[] = [];
-    const capture = (event: Event) => {
-      const projectId = (event as CustomEvent).detail;
-      requested.push(projectId);
-    };
-    window.addEventListener(
-      "bb.ribbon-sidebar.new-thread-project-requested",
-      capture,
+    const slot = renderSlot(
+      app.composerCustomizations[0]!.banners![0]!,
+      {},
+      {
+        composer: {
+          scope: { kind: "new-thread", projectId: "project-b" },
+        },
+        sidebarThreads: {
+          projects: [
+            { id: "project-a", name: "Storefront", isPersonal: false },
+          ],
+        },
+      },
     );
-    const app = await loadPluginApp(() => import("./app"));
-    const scripts = await mountPluginContentScripts(app, {
-      pluginId: "ribbon-sidebar",
-      generation: 1,
-    });
-
-    for (let mount = 0; mount < 2; mount += 1) {
-      document.body.replaceChildren();
-      appendNewThreadComposer();
-      await new Promise<void>((resolve) => queueMicrotask(resolve));
-    }
-
-    expect(requested).toEqual(["project-a"]);
-    await scripts.lifecycle.dispose();
-    window.removeEventListener(
-      "bb.ribbon-sidebar.new-thread-project-requested",
-      capture,
-    );
-  });
-
-  it("delivers a pending Project request when Ribbon mounts later", async () => {
-    storeGroupScope("builtin:projects", "project-a");
-    appendNewThreadComposer();
-    const app = await loadPluginApp(() => import("./app"));
-    const scripts = await mountPluginContentScripts(app, {
-      pluginId: "ribbon-sidebar",
-      generation: 1,
-    });
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
 
     await waitFor(() =>
       expect(slot.inspection.sidebarActionCalls).toContainEqual({
@@ -786,13 +744,7 @@ describe("Ribbon sidebar app", () => {
         options: { projectId: "project-a", focusPrompt: true },
       }),
     );
-    expect(
-      document.documentElement.hasAttribute(
-        "data-ribbon-sidebar-pending-new-thread-project",
-      ),
-    ).toBe(false);
     slot.lifecycle.unmount();
-    await scripts.lifecycle.dispose();
   });
 
   it("does not rescan the document for unrelated DOM mutations", async () => {
@@ -811,28 +763,6 @@ describe("Ribbon sidebar app", () => {
     expect(querySelectorAll).not.toHaveBeenCalled();
     querySelectorAll.mockRestore();
     await scripts.lifecycle.dispose();
-  });
-
-  it("selects the requested Project through bb's New thread action", async () => {
-    storeGroupScope("builtin:projects", "project-a");
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    expect(await slot.findByRole("button", { name: "Storefront, filtered" })).toBeTruthy();
-
-    window.dispatchEvent(
-      new CustomEvent("bb.ribbon-sidebar.new-thread-project-requested", {
-        detail: "project-a",
-      }),
-    );
-
-    await waitFor(() =>
-      expect(slot.inspection.sidebarActionCalls).toContainEqual({
-        method: "openNewThread",
-        options: { projectId: "project-a", focusPrompt: true },
-      }),
-    );
-    slot.lifecycle.unmount();
   });
 
   it("places the newly active thread in the provider group captured at submission", async () => {
@@ -1170,6 +1100,10 @@ describe("Ribbon sidebar app", () => {
     expect(slot.inspection.sidebarActionCalls).not.toContainEqual(
       expect.objectContaining({ method: "open", threadId: "thread-archived" }),
     );
+    expect(slot.inspection.navigateCalls).toContainEqual({
+      method: "toThread",
+      threadId: "thread-archived",
+    });
     expect(onNavigate).toHaveBeenCalledOnce();
     slot.lifecycle.unmount();
   });

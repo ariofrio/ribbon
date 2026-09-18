@@ -1,53 +1,46 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import type { ExperimentalSidebarNavigationProps } from "@get-bb/plugin-sdk/app";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-const PRIMARY_ACTIONS_SELECTOR = '[data-testid="app-sidebar-primary-actions"]';
-const SIDEBAR_SELECTOR = '[data-sidebar="sidebar"]';
+// The navigation and thread list are separate host slots. Publish the
+// plugin-owned container so the list can keep its controls' React context.
+let target: HTMLDivElement | null = null;
+const listeners = new Set<() => void>();
+function setTarget(next: HTMLDivElement | null) {
+  target = next;
+  for (const listener of listeners) listener();
+}
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+function snapshot() {
+  return target;
+}
+
+export function SidebarNavigation({
+  experimental_Original: Original,
+}: ExperimentalSidebarNavigationProps) {
+  return (
+    <div>
+      <div ref={setTarget} />
+      <Original />
+    </div>
+  );
+}
 
 export function SidebarTopControls({ children }: { children: ReactNode }) {
-  const markerRef = useRef<HTMLSpanElement>(null);
-  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
-
-  useLayoutEffect(() => {
-    if (markerRef.current === null) return;
-    const marker = markerRef.current as HTMLSpanElement;
-    let currentHost: HTMLElement | null = null;
-
-    function sync() {
-      const sidebar = marker.closest<HTMLElement>(SIDEBAR_SELECTOR);
-      const primaryActions = sidebar?.querySelector<HTMLElement>(
-        PRIMARY_ACTIONS_SELECTOR,
-      );
-      if (primaryActions === null || primaryActions === undefined) return;
-      if (currentHost?.parentElement === primaryActions) return;
-      currentHost?.remove();
-      currentHost = marker.ownerDocument.createElement("div");
-      currentHost.dataset.bbPlugin = "ribbon-sidebar";
-      currentHost.dataset.ribbonSidebarTopControls = "";
-      currentHost.className =
-        "bb-sidebar-hover-actions-row flex min-w-0 items-center gap-0.5";
-      currentHost.style.marginBottom = "16px";
-      primaryActions.prepend(currentHost);
-      setPortalHost(currentHost);
-    }
-
-    const observer = new MutationObserver(sync);
-    observer.observe(marker.ownerDocument.documentElement, {
-      childList: true,
-      subtree: true,
-    });
-    sync();
-    return () => {
-      observer.disconnect();
-      currentHost?.remove();
-      setPortalHost(null);
-    };
-  }, []);
-
-  return (
-    <>
-      <span aria-hidden data-ribbon-sidebar-top-controls-marker ref={markerRef} />
-      {portalHost === null ? children : createPortal(children, portalHost)}
-    </>
+  const container = useSyncExternalStore(subscribe, snapshot);
+  const controls = (
+    <div
+      data-ribbon-sidebar-top-controls=""
+      className="bb-sidebar-hover-actions-row flex min-w-0 items-center gap-0.5"
+      style={{ marginBottom: 16 }}
+    >
+      {children}
+    </div>
   );
+  return container === null ? controls : createPortal(controls, container);
 }

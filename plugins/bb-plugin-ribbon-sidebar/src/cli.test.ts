@@ -60,6 +60,7 @@ function thread(
     projectId: "project-a",
     environmentId: "environment-a",
     providerId: "codex",
+    queuedWork: "none",
     title: "Thread title",
     titleFallback: null,
     sectionId: "section-a",

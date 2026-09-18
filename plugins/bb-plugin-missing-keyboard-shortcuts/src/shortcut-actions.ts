@@ -13,6 +13,11 @@ export interface NewThreadTarget {
   projectId: string;
 }
 
+export interface ShortcutContext {
+  projectId: string | null;
+  threadId: string | null;
+}
+
 export type ComposerShortcutTarget = "primary" | "secondary";
 
 function exactCommandChord(event: ShortcutKeyEvent): boolean {
@@ -56,7 +61,7 @@ export function composerShortcutTarget(
 
 export function newThreadTarget(
   event: ShortcutKeyEvent,
-  pathname: string,
+  context: ShortcutContext,
   lastThreadProjectId: string | null = null,
 ): NewThreadTarget | null {
   if (!exactCommandChord(event) || event.key.toLowerCase() !== "n") {
@@ -67,50 +72,11 @@ export function newThreadTarget(
     return { projectId: PERSONAL_PROJECT_ID };
   }
 
-  const route = currentThreadRoute(pathname);
-  if (route === null) {
+  if (context.threadId === null) {
     return { projectId: lastThreadProjectId ?? PERSONAL_PROJECT_ID };
   }
-  if (route.projectId === null) {
+  if (context.projectId === null) {
     return { projectId: PERSONAL_PROJECT_ID };
   }
-  return { projectId: route.projectId };
-}
-
-interface CurrentThreadRoute {
-  projectId: string | null;
-  threadId: string;
-}
-
-function decodePathSegment(segment: string | undefined): string | null {
-  if (!segment) return null;
-  try {
-    return decodeURIComponent(segment) || null;
-  } catch {
-    return null;
-  }
-}
-
-function currentThreadRoute(pathname: string): CurrentThreadRoute | null {
-  const segments = pathname.split("/").filter(Boolean);
-  if (segments.length === 2 && segments[0] === "threads") {
-    const threadId = decodePathSegment(segments[1]);
-    return threadId === null ? null : { projectId: null, threadId };
-  }
-  if (
-    segments.length === 4 &&
-    segments[0] === "projects" &&
-    segments[2] === "threads"
-  ) {
-    const projectId = decodePathSegment(segments[1]);
-    const threadId = decodePathSegment(segments[3]);
-    return projectId === null || threadId === null
-      ? null
-      : { projectId, threadId };
-  }
-  return null;
-}
-
-export function currentThreadId(pathname: string): string | null {
-  return currentThreadRoute(pathname)?.threadId ?? null;
+  return { projectId: context.projectId };
 }

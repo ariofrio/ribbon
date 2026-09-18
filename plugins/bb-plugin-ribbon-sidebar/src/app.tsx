@@ -3,6 +3,8 @@ import {
   experimental_useSidebarThreadActions,
   experimental_useSidebarThreadSplit,
   experimental_useSidebarThreads,
+  useBbNavigate,
+  useComposerView,
   useRealtime,
   useRealtimeConnectionState,
   useRpc,
@@ -60,7 +62,7 @@ import { SplitPaneMiniMap } from "./split-pane-mini-map";
 import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
 import { ScopeFilter } from "./scope-filter";
 import { SidebarDisplayOptionsMenu } from "./sidebar-display-options-menu";
-import { SidebarTopControls } from "./sidebar-top-controls";
+import { SidebarNavigation, SidebarTopControls } from "./sidebar-top-controls";
 import type { ScopeFilterValue } from "./scope-filter-value";
 import { orderedGroupings } from "./grouping-order";
 import { UnorganizedIcon } from "./unorganized-icon";
@@ -72,9 +74,8 @@ import {
 import {
   mountGroupAwareThreadCreation,
   RIBBON_SIDEBAR_NEW_THREAD_GROUP_REQUESTED_EVENT,
-  RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
-  RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT,
   RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT,
+  selectedGroup,
 } from "./new-thread-section";
 
 const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
@@ -475,14 +476,54 @@ function SidebarMessage({
   );
 }
 
+function NewThreadProjectSync() {
+  const view = useComposerView();
+  const actions = experimental_useSidebarThreadActions();
+  const sidebar = experimental_useSidebarThreads();
+  const [preferenceVersion, setPreferenceVersion] = useState(0);
+  const requestedProjectId = useRef<string | null>(null);
+
+  useEffect(() => {
+    const refresh = () => setPreferenceVersion((version) => version + 1);
+    window.addEventListener(RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT, refresh);
+    return () => {
+      window.removeEventListener(
+        RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT,
+        refresh,
+      );
+    };
+  }, []);
+
+  const currentProjectId =
+    view.scope.kind === "new-thread" ? view.scope.projectId : null;
+  useEffect(() => {
+    const group = selectedGroup(window.localStorage);
+    const projectId =
+      group?.groupingKey === "builtin:projects" ? group.groupId : null;
+    if (
+      projectId === null ||
+      projectId === currentProjectId ||
+      !sidebar.projects.some(({ id }) => id === projectId)
+    ) {
+      requestedProjectId.current = null;
+      return;
+    }
+    if (requestedProjectId.current === projectId) return;
+    requestedProjectId.current = projectId;
+    actions.openNewThread({ projectId, focusPrompt: true });
+  }, [actions, currentProjectId, preferenceVersion, sidebar.projects]);
+
+  return null;
+}
+
 function RibbonSidebarList({
-  activeProjectId,
   activeThreadId,
-  experimental_Original: OriginalThreadList,
+  Original: OriginalThreadList,
   onNavigate,
   searchQuery,
 }: PluginThreadListProps) {
   const rpc = useRpc<typeof rpcContract>();
+  const navigate = useBbNavigate();
   const sidebar = experimental_useSidebarThreads();
   const actions = experimental_useSidebarThreadActions();
   const settings = useSettings();
@@ -523,9 +564,6 @@ function RibbonSidebarList({
     activeThreadIdAtSubmission: string | null;
     knownThreadIds: ReadonlySet<string>;
   } | null>(null);
-  const [pendingComposerProjectId, setPendingComposerProjectId] = useState<
-    string | null
-  >(null);
   const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
   const [dragDestination, setDragDestination] =
     useState<DragDestination | null>(null);
@@ -794,60 +832,6 @@ function RibbonSidebarList({
         );
       });
   }, [activeThreadId, pendingNewThreadGroup, rpc, snapshot]);
-
-  useEffect(() => {
-    const capture = (event: Event) => {
-      const projectId = (event as CustomEvent<unknown>).detail;
-      if (typeof projectId === "string" && projectId.length > 0) {
-        if (
-          document.documentElement.getAttribute(
-            RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
-          ) === projectId
-        ) {
-          document.documentElement.removeAttribute(
-            RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
-          );
-        }
-        setPendingComposerProjectId(projectId);
-      }
-    };
-    window.addEventListener(
-      RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT,
-      capture,
-    );
-    const pendingProjectId = document.documentElement.getAttribute(
-      RIBBON_SIDEBAR_PENDING_NEW_THREAD_PROJECT_ATTRIBUTE,
-    );
-    if (pendingProjectId !== null) {
-      capture(
-        new CustomEvent(RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT, {
-          detail: pendingProjectId,
-        }),
-      );
-    }
-    return () => {
-      window.removeEventListener(
-        RIBBON_SIDEBAR_NEW_THREAD_PROJECT_REQUESTED_EVENT,
-        capture,
-      );
-    };
-  }, []);
-
-  useEffect(() => {
-    if (pendingComposerProjectId === null || snapshot === null) return;
-    const projects = snapshot.groupings.find(
-      ({ groupingKey }) => groupingKey === "builtin:projects",
-    );
-    const projectExists = projects?.groups.some(
-      ({ id }) => id === pendingComposerProjectId,
-    );
-    setPendingComposerProjectId(null);
-    if (!projectExists || activeProjectId === pendingComposerProjectId) return;
-    actions.openNewThread({
-      projectId: pendingComposerProjectId,
-      focusPrompt: true,
-    });
-  }, [actions, activeProjectId, pendingComposerProjectId, snapshot]);
 
   const grouping = snapshot?.groupings.find(
     ({ groupingKey }) => groupingKey === preferences?.view.groupingKey,
@@ -1591,9 +1575,7 @@ function RibbonSidebarList({
           }
           onOpen={(split) => {
             if (root.isArchived) {
-              window.location.assign(
-                `/projects/${encodeURIComponent(root.projectId)}/threads/${encodeURIComponent(root.id)}`,
-              );
+              navigate.toThread(root.id);
             } else {
               actions.open(root.id, { split });
             }
@@ -2323,6 +2305,22 @@ function RibbonSidebarList({
 }
 
 export default definePluginApp((app) => {
+  app.composer.customize({
+    id: "new-thread-project-sync",
+    scopes: ["new-thread"],
+    banners: [
+      {
+        id: "new-thread-project-sync",
+        chrome: "bare",
+        component: NewThreadProjectSync,
+      },
+    ],
+  });
+  app.slots.experimental_sidebarNavigation({
+    id: "ribbon-navigation",
+    title: "Ribbon navigation",
+    component: SidebarNavigation,
+  });
   app.slots.experimental_threadList({
     id: "ribbon-sidebar",
     title: "Ribbon sidebar",

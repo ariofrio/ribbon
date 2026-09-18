@@ -1,3 +1,4 @@
+import type { JsonValue } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { placementOriginSchema } from "./contracts";
 
@@ -40,14 +41,16 @@ const placementRecordSchema = z
     origin: placementOriginSchema.optional(),
   })
   .strict();
-function placementErrorSchema<const Codes extends readonly [string, ...string[]]>(
-  codes: Codes,
-) {
-  return z.object({
-    code: z.enum(codes),
-    message: z.string(),
-    revision: z.number().int().nonnegative().optional(),
-  }).strict();
+function placementErrorSchema<
+  const Codes extends readonly [string, ...string[]],
+>(codes: Codes) {
+  return z
+    .object({
+      code: z.enum(codes),
+      message: z.string(),
+      revision: z.number().int().nonnegative().optional(),
+    })
+    .strict();
 }
 
 const getPlacementInputSchema = z
@@ -71,10 +74,7 @@ const getPlacementOutputSchema = z.discriminatedUnion("ok", [
   z
     .object({
       ok: z.literal(false),
-      error: placementErrorSchema([
-        "GROUPING_NOT_FOUND",
-        "THREAD_INELIGIBLE",
-      ]),
+      error: placementErrorSchema(["GROUPING_NOT_FOUND", "THREAD_INELIGIBLE"]),
     })
     .strict(),
 ]);
@@ -136,22 +136,6 @@ const updatePlacementOutputSchema = z.discriminatedUnion("ok", [
     .strict(),
 ]);
 
-const rpcEnvelopeSchema = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true), result: z.unknown() }).strict(),
-  z
-    .object({
-      ok: z.literal(false),
-      error: z
-        .object({
-          code: z.string(),
-          message: z.string(),
-          issues: z.array(z.unknown()).optional(),
-        })
-        .strict(),
-    })
-    .strict(),
-]);
-
 export class RibbonSidebarDependencyError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(`Ribbon sidebar dependency problem: ${message}`, options);
@@ -175,56 +159,26 @@ export interface RibbonSidebarClient {
 }
 
 export function createRibbonSidebarClient({
-  baseUrl,
-  fetcher = fetch,
+  callRpc,
 }: {
-  baseUrl: string;
-  fetcher?: typeof fetch;
+  callRpc: (method: string, input: JsonValue) => Promise<unknown>;
 }): RibbonSidebarClient {
-  async function call(method: string, input: unknown): Promise<unknown> {
-    let response: Response;
+  async function call(method: string, input: JsonValue): Promise<unknown> {
     try {
-      response = await fetcher(
-        `${baseUrl}/api/v1/plugins/ribbon-sidebar/rpc/${method}`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(input),
-        },
-      );
+      return await callRpc(method, input);
     } catch (cause) {
-      throw new RibbonSidebarDependencyError(
-        cause instanceof Error ? cause.message : "request failed",
-        { cause },
-      );
+      const status =
+        cause !== null && typeof cause === "object" && "status" in cause
+          ? cause.status
+          : undefined;
+      const message =
+        status === 404
+          ? "Install and enable Ribbon sidebar, then retry."
+          : status === 503
+            ? "Enable Ribbon sidebar or wait for it to finish starting, then retry."
+            : `RPC ${method} failed: ${cause instanceof Error ? cause.message : "request failed"}`;
+      throw new RibbonSidebarDependencyError(message, { cause });
     }
-    if (response.status === 404) {
-      throw new RibbonSidebarDependencyError(
-        "Install and enable Ribbon sidebar, then retry.",
-      );
-    }
-    if (response.status === 503) {
-      throw new RibbonSidebarDependencyError(
-        "Enable Ribbon sidebar or wait for it to finish starting, then retry.",
-      );
-    }
-
-    let envelope: z.output<typeof rpcEnvelopeSchema>;
-    try {
-      envelope = rpcEnvelopeSchema.parse(await response.json());
-    } catch (cause) {
-      throw new RibbonSidebarDependencyError(
-        `RPC ${method} returned an invalid response (${response.status}).`,
-        { cause },
-      );
-    }
-    if (!response.ok || !envelope.ok) {
-      const detail = envelope.ok
-        ? `HTTP ${response.status}`
-        : `${envelope.error.code}: ${envelope.error.message}`;
-      throw new RibbonSidebarDependencyError(`RPC ${method} failed: ${detail}`);
-    }
-    return envelope.result;
   }
 
   return {

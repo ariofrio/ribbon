@@ -86,12 +86,13 @@ function stopPreviousRun(pidPath) {
   }
 }
 
-export async function startStack({ dataDir, logStream }) {
+export async function startStack({ dataDir, logStream, prepare }) {
   const paths = resolveAppPaths();
   const pidPath = join(dirname(dataDir), "stack-pids.json");
   stopPreviousRun(pidPath);
   await rm(dataDir, { recursive: true, force: true });
   await mkdir(dataDir, { recursive: true });
+  await prepare?.({ dataDir });
 
   const serverPort = await freePort();
   const hostDaemonPort = await freePort();
