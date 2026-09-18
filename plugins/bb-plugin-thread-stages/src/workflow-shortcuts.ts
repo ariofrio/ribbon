@@ -99,27 +99,3 @@ export function reorderTargetId(
       anchorPosition === -1 ? null : (orderedIds[anchorPosition + 1] ?? null),
   };
 }
-
-function decodePathSegment(segment: string | undefined): string | null {
-  if (!segment) return null;
-  try {
-    return decodeURIComponent(segment) || null;
-  } catch {
-    return null;
-  }
-}
-
-export function currentThreadId(pathname: string): string | null {
-  const segments = pathname.split("/").filter(Boolean);
-  if (segments.length === 2 && segments[0] === "threads") {
-    return decodePathSegment(segments[1]);
-  }
-  if (
-    segments.length === 4 &&
-    segments[0] === "projects" &&
-    segments[2] === "threads"
-  ) {
-    return decodePathSegment(segments[3]);
-  }
-  return null;
-}

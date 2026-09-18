@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  currentThreadId,
   reorderTargetId,
   workflowReorderShortcut,
   workflowStageShortcut,
@@ -189,21 +188,5 @@ describe("reorderTargetId", () => {
     expect(reorderTargetId(ordered, siblings, "thr_a", "edge", 1)).toEqual({
       beforeThreadId: "thr_c1",
     });
-  });
-});
-
-describe("currentThreadId", () => {
-  it("reads projectless and project-scoped thread routes", () => {
-    expect(currentThreadId("/threads/thr_personal")).toBe("thr_personal");
-    expect(currentThreadId("/projects/proj_one/threads/thr_standard")).toBe(
-      "thr_standard",
-    );
-  });
-
-  it("decodes thread IDs and ignores non-thread routes", () => {
-    expect(currentThreadId("/threads/thr%5Fencoded")).toBe("thr_encoded");
-    expect(currentThreadId("/projects/proj_one")).toBeNull();
-    expect(currentThreadId("/settings/archived")).toBeNull();
-    expect(currentThreadId("/threads/thr_one/extra")).toBeNull();
   });
 });

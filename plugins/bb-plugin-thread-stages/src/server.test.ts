@@ -56,7 +56,6 @@ describe("thread stages provider", () => {
     expect(harness.inspection.registrations.rpcMethods).toEqual([
       "setWorkflowStage",
       "reorderThread",
-      "listAppKeybindings",
       "getGroupingCatalogV1",
       "getPlacementMigrationSnapshotV1",
       "acknowledgePlacementMigrationV1",

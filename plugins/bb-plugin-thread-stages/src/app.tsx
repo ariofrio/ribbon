@@ -1,5 +1,6 @@
 import {
   definePluginApp,
+  useBbContext,
   useRpc,
   useSettings,
   useBbNavigate,
@@ -8,11 +9,9 @@ import {
 import { useEffect, useRef } from "react";
 import type { rpcContract } from "./server";
 import { toast } from "sonner";
-import { createNativeCommandDelegate } from "./native-command-delegation";
 import { notifyNativeShortcutHandled } from "./native-command-hints";
 import { enabledWorkflowStages } from "./workflow-stage";
 import {
-  currentThreadId,
   workflowReorderShortcut,
   workflowStageShortcut,
 } from "./workflow-shortcuts";
@@ -46,11 +45,10 @@ function rpcErrorMessage(error: unknown, fallback: string): string {
 function goTo(
   destination: ChordDestination,
   navigate: BbNavigate,
-  openComposer: () => void,
 ): void {
   if (destination.kind === "stay") return;
   if (destination.kind === "compose") {
-    openComposer();
+    navigate.toCompose({ focusPrompt: true });
     return;
   }
   navigate.toThread(destination.threadId);
@@ -73,6 +71,9 @@ function activeRibbonScope(): RibbonScope | null {
 function WorkflowShortcuts() {
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
+  const context = useBbContext();
+  const contextRef = useRef(context);
+  contextRef.current = context;
   const settings = useSettings();
   const shortcutStages = useRef(enabledWorkflowStages(settings.values));
   shortcutStages.current = enabledWorkflowStages(settings.values);
@@ -81,26 +82,16 @@ function WorkflowShortcuts() {
     const { signal } = controller;
     const createKeyboardEvent = (type: string, init: KeyboardEventInit) =>
       new KeyboardEvent(type, init);
-    const newThreadCommand = createNativeCommandDelegate({
-      command: "thread.new",
-      createEvent: createKeyboardEvent,
-      fetchConfig: () => rpc.call("listAppKeybindings", null),
-      isMac: /Mac|iPhone|iPad|iPod/u.test(navigator.platform),
-      target: window,
-    });
-    void newThreadCommand.prefetch();
-
     window.addEventListener(
       "keydown",
       (event) => {
-        if (newThreadCommand.isDelegatedEvent(event)) return;
         const workflowStage = workflowStageShortcut(
           event,
           shortcutStages.current,
         );
         const reorder = workflowReorderShortcut(event);
         if (workflowStage === null && reorder === null) return;
-        const threadId = currentThreadId(window.location.pathname);
+        const threadId = contextRef.current.threadId;
         if (threadId === null) return;
 
         event.preventDefault();
@@ -115,11 +106,7 @@ function WorkflowShortcuts() {
                   scope: activeRibbonScope(),
                 })
                 .then(({ destination }) => {
-                  goTo(
-                    destination,
-                    navigate,
-                    () => void newThreadCommand.dispatch(),
-                  );
+                  goTo(destination, navigate);
                 })
             : reorder !== null
               ? rpc.call("reorderThread", {

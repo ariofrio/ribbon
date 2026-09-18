@@ -58,22 +58,6 @@ async function removeThreadTab(
 const SIDE_CHAT_PLUGIN_ID = "side-chat";
 /** What the Side chat plugin answers `createSideChat` with. */
 const sideChatThreadSchema = z.object({ threadId: z.string().min(1) });
-/** The part of bb's keybinding table a delegate needs to replay a command. */
-const appKeybindingSchema = z.object({
-  command: z.string(),
-  desktopOnly: z.boolean(),
-  shortcut: z.object({
-    alt: z.boolean(),
-    control: z.boolean(),
-    key: z.string().min(1),
-    meta: z.boolean(),
-    mod: z.boolean(),
-    shift: z.boolean(),
-  }),
-});
-const appKeybindingsSchema = z.object({
-  keybindings: z.array(appKeybindingSchema),
-});
 
 export const rpcContract = defineRpcContract({
   openTerminal: {
@@ -100,10 +84,6 @@ export const rpcContract = defineRpcContract({
   createSideChat: {
     input: z.object({ sourceThreadId: z.string().min(1) }).strict(),
     output: sideChatThreadSchema,
-  },
-  listAppKeybindings: {
-    input: z.null(),
-    output: appKeybindingsSchema,
   },
 });
 
@@ -140,21 +120,6 @@ export default function plugin(bb: BbPluginApi) {
         child.visibility === "hidden";
       if (!reusable) await removeThreadTab(bb, parentThreadId, tabId);
       return { reusable };
-    },
-    // bb makes the call between plugins, so the shortcut does not have to
-    // know the Side chat plugin's route.
-    // Replaying a native shortcut means knowing which keys bb listens for;
-    // the SDK reads that on the server, so the frontend need not fetch it.
-    async listAppKeybindings() {
-      const { keybindings } = await bb.sdk.system.config();
-      // Drop only the row bb changed; the delegate reading this already
-      // ignores rows it cannot parse.
-      return {
-        keybindings: keybindings.flatMap((binding) => {
-          const parsed = appKeybindingSchema.safeParse(binding);
-          return parsed.success ? [parsed.data] : [];
-        }),
-      };
     },
     async createSideChat({ sourceThreadId }) {
       const { threadId } = await bb.sdk.plugins.callRpc({

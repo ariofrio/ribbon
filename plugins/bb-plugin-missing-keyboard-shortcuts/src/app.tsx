@@ -1,6 +1,7 @@
 import type { rpcContract } from "./server";
 import {
   definePluginApp,
+  experimental_useSidebarThreadActions,
   useBbContext,
   useRpc,
   type PluginRpcClient,
@@ -25,13 +26,10 @@ import {
 } from "./last-thread-project";
 import {
   composerShortcutTarget,
-  currentThreadId,
   historyDirection,
   isTerminalShortcut,
   newThreadTarget,
 } from "./shortcut-actions";
-import { openNewThread, type NewThreadHost } from "./new-thread-navigation";
-import { createNativeCommandDelegate } from "./native-command-delegation";
 import {
   focusVisibleTerminal,
   isTerminalFocused,
@@ -56,8 +54,6 @@ import {
   type PanelStorageChange,
   type SideChatPanelTabDefinition,
 } from "./terminal-panel-state";
-
-const ROOT_COMPOSE_PROJECT_ID_STORAGE_KEY = "bb.root-compose.project-id";
 
 interface OpenTerminalResult {
   created: boolean;
@@ -217,8 +213,9 @@ function activateAndFocusTerminal(
   signal: AbortSignal,
   threadId: string,
   terminalId: string,
+  isCurrentThread: (threadId: string) => boolean,
 ): () => void {
-  if (currentThreadId(window.location.pathname) !== threadId) return () => {};
+  if (!isCurrentThread(threadId)) return () => {};
   const panel = readTerminalPanelSnapshot(window.localStorage, threadId);
   if (!panel.isOpen || panel.activeTerminalId !== terminalId) {
     notifyPanelStateChanged(
@@ -231,7 +228,7 @@ function activateAndFocusTerminal(
           window.localStorage,
           threadId,
         ).terminalIds.indexOf(terminalId),
-      isCurrent: () => currentThreadId(window.location.pathname) === threadId,
+      isCurrent: () => isCurrentThread(threadId),
       signal,
     });
   }
@@ -245,8 +242,9 @@ function focusSideChatComposer(
   parentThreadId: string,
   childThreadId: string,
   tab: SideChatPanelTabDefinition | null,
+  isCurrentThread: (threadId: string) => boolean,
 ): () => void {
-  if (currentThreadId(window.location.pathname) !== parentThreadId) {
+  if (!isCurrentThread(parentThreadId)) {
     return () => {};
   }
   const panel = readSideChatPanelSnapshot(window.localStorage, parentThreadId);
@@ -273,8 +271,7 @@ function focusSideChatComposer(
       ).sideChats.findIndex(
         ({ childThreadId: candidate }) => candidate === childThreadId,
       ),
-    isCurrent: () =>
-      currentThreadId(window.location.pathname) === parentThreadId,
+    isCurrent: () => isCurrentThread(parentThreadId),
     signal,
   });
   const stopFocusingComposer = focusSecondaryComposerWhenReady(
@@ -282,7 +279,7 @@ function focusSideChatComposer(
     childThreadId,
     {
       isCurrent: () => {
-        if (currentThreadId(window.location.pathname) !== parentThreadId) {
+        if (!isCurrentThread(parentThreadId)) {
           return false;
         }
         const currentPanel = readSideChatPanelSnapshot(
@@ -305,6 +302,10 @@ function focusSideChatComposer(
 
 function MissingKeyboardShortcuts() {
   const rpc = useRpc<typeof rpcContract>();
+  const context = useBbContext();
+  const contextRef = useRef(context);
+  contextRef.current = context;
+  const sidebarActions = experimental_useSidebarThreadActions();
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
@@ -331,50 +332,23 @@ function MissingKeyboardShortcuts() {
     );
     const createKeyboardEvent = (type: string, init: KeyboardEventInit) =>
       new KeyboardEvent(type, init);
-    const nativeThreadNewCommand = createNativeCommandDelegate({
-      command: "thread.new",
-      createEvent: createKeyboardEvent,
-      fetchConfig: () => rpc.call("listAppKeybindings", null),
-      isMac: /Mac|iPhone|iPad|iPod/u.test(navigator.platform),
-      target: window,
-    });
-    void nativeThreadNewCommand.prefetch();
-    const newThreadHost: NewThreadHost = {
-      getSelectedProjectId() {
-        return window.localStorage.getItem(ROOT_COMPOSE_PROJECT_ID_STORAGE_KEY);
-      },
-      selectProject(projectId) {
-        window.localStorage.setItem(
-          ROOT_COMPOSE_PROJECT_ID_STORAGE_KEY,
-          projectId,
-        );
-      },
-      notifyProjectChanged(oldProjectId, newProjectId) {
-        // BB's root composer also observes this event when it is already
-        // mounted, such as Command-N pressed from the compose route itself.
-        window.dispatchEvent(
-          new StorageEvent("storage", {
-            key: ROOT_COMPOSE_PROJECT_ID_STORAGE_KEY,
-            newValue: newProjectId,
-            oldValue: oldProjectId,
-            storageArea: window.localStorage,
-            url: window.location.href,
-          }),
-        );
-      },
-      openComposer() {
-        void nativeThreadNewCommand.dispatch();
-      },
-    };
+    const isCurrentThread = (threadId: string) =>
+      contextRef.current.threadId === threadId;
     const focusExistingSideChat = (
       parentThreadId: string,
       childThreadId: string,
     ) => {
-      if (currentThreadId(window.location.pathname) !== parentThreadId) return;
+      if (!isCurrentThread(parentThreadId)) return;
       stopPendingAction(pendingSideChatActions, parentThreadId);
       pendingSideChatActions.set(
         parentThreadId,
-        focusSideChatComposer(signal, parentThreadId, childThreadId, null),
+        focusSideChatComposer(
+          signal,
+          parentThreadId,
+          childThreadId,
+          null,
+          isCurrentThread,
+        ),
       );
     };
     const createAndFocusSideChat = async (parentThreadId: string) => {
@@ -382,13 +356,19 @@ function MissingKeyboardShortcuts() {
         rpc,
         parentThreadId,
       );
-      if (currentThreadId(window.location.pathname) !== parentThreadId) return;
+      if (!isCurrentThread(parentThreadId)) return;
       const tab = createSideChatPanelTab(parentThreadId, childThreadId);
       rememberRecentSideChatTabId(window.localStorage, parentThreadId, tab.id);
       stopPendingAction(pendingSideChatActions, parentThreadId);
       pendingSideChatActions.set(
         parentThreadId,
-        focusSideChatComposer(signal, parentThreadId, childThreadId, tab),
+        focusSideChatComposer(
+          signal,
+          parentThreadId,
+          childThreadId,
+          tab,
+          isCurrentThread,
+        ),
       );
     };
 
@@ -396,7 +376,7 @@ function MissingKeyboardShortcuts() {
       "focusin",
       (event) => {
         if (!(event.target instanceof Element)) return;
-        const threadId = currentThreadId(window.location.pathname);
+        const threadId = contextRef.current.threadId;
         if (threadId === null) return;
         if (isWithinTerminal(event.target)) {
           const { activeTerminalId } = readTerminalPanelSnapshot(
@@ -439,23 +419,25 @@ function MissingKeyboardShortcuts() {
     window.addEventListener(
       "keydown",
       (event) => {
-        if (nativeThreadNewCommand.isDelegatedEvent(event)) return;
         const target = newThreadTarget(
           event,
-          window.location.pathname,
+          contextRef.current,
           readLastThreadProjectId(window.localStorage),
         );
         if (target !== null) {
           // Claim the chord everywhere so BB's native menu cannot reuse it.
           event.preventDefault();
           event.stopPropagation();
-          openNewThread(newThreadHost, target.projectId);
+          sidebarActions.openNewThread({
+            focusPrompt: true,
+            projectId: target.projectId,
+          });
           return;
         }
 
         const composerTarget = composerShortcutTarget(event);
         if (composerTarget === "primary") {
-          const threadId = currentThreadId(window.location.pathname);
+          const threadId = contextRef.current.threadId;
           if (!hasPrimaryComposer(threadId)) return;
           event.preventDefault();
           event.stopPropagation();
@@ -464,7 +446,7 @@ function MissingKeyboardShortcuts() {
           return;
         }
         if (composerTarget === "secondary") {
-          const threadId = currentThreadId(window.location.pathname);
+          const threadId = contextRef.current.threadId;
           if (threadId === null) return;
 
           event.preventDefault();
@@ -532,7 +514,7 @@ function MissingKeyboardShortcuts() {
         }
 
         if (isTerminalShortcut(event)) {
-          const threadId = currentThreadId(window.location.pathname);
+          const threadId = contextRef.current.threadId;
           if (threadId === null) return;
 
           event.preventDefault();
@@ -570,7 +552,12 @@ function MissingKeyboardShortcuts() {
               );
               pendingTerminalActions.set(
                 threadId,
-                activateAndFocusTerminal(signal, threadId, terminalId),
+                activateAndFocusTerminal(
+                  signal,
+                  threadId,
+                  terminalId,
+                  isCurrentThread,
+                ),
               );
             })
             .catch((error: unknown) => {
@@ -594,7 +581,7 @@ function MissingKeyboardShortcuts() {
       { capture: true, signal },
     );
     return () => controller.abort();
-  }, [rpc]);
+  }, [rpc, sidebarActions]);
   return null;
 }
 

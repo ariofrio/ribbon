@@ -18,13 +18,13 @@ describe("thread stages overlay", () => {
     const app = await loadPluginApp(() => import("./app"));
     expect(app.threadLists).toHaveLength(0);
     expect(app.contentScripts).toHaveLength(0);
-    const setWorkflowStage = vi.fn(() => ({ destination: { kind: "stay" } }));
+    const setWorkflowStage = vi.fn(() => ({ destination: { kind: "compose" } }));
     const slot = renderSlot(
       app.appOverlays[0]!,
       {},
       {
+        context: { projectId: "project-a", threadId: "thread-a" },
         rpc: {
-          listAppKeybindings: () => ({ keybindings: [] }),
           setWorkflowStage,
         },
       },
@@ -44,6 +44,12 @@ describe("thread stages overlay", () => {
         workflowStage: "Completed",
         threadId: "thread-a",
         scope: { groupingKey: "builtin:projects", groupId: "project-a" },
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(slot.inspection.navigateCalls).toContainEqual({
+        method: "toCompose",
+        options: { focusPrompt: true },
       }),
     );
     slot.lifecycle.unmount();
