@@ -947,7 +947,9 @@ describe("Ribbon sidebar app", () => {
     const title = await slot.findByText("Design migration");
     const preview = await slot.findByText("A useful preview");
 
-    expect(getComputedStyle(title.parentElement!).paddingRight).toBe("8px");
+    expect(getComputedStyle(title.parentElement!.parentElement!).paddingRight).toBe(
+      "8px",
+    );
     expect(getComputedStyle(preview).paddingRight).toBe("8px");
     slot.lifecycle.unmount();
   });
