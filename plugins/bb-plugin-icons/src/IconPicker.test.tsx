@@ -132,6 +132,7 @@ describe("IconPicker", () => {
     fireEvent.pointerLeave(firstVariant);
     await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
 
+    fireEvent.keyDown(document.body, { key: "Tab" });
     secondVariant.focus();
     expect(document.activeElement).toBe(secondVariant);
     const focusTooltip = await screen.findByRole("tooltip");

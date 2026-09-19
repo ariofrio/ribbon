@@ -1,6 +1,8 @@
+import type { ComponentType } from "react";
 import type { IconSvgElement } from "@hugeicons/react";
 
 export const EXTENDED_ICON_NAMES = [
+  "AiBrain01",
   "AiBrowser",
   "AiContentGenerator01",
   "AlignLeft",
@@ -34,8 +36,10 @@ export const EXTENDED_ICON_NAMES = [
   "CornerDownLeft",
   "CornerDownRight",
   "Discord",
+  "DiscordLogo",
   "DateTime",
   "Github",
+  "GithubLogo",
   "DragDropHorizontal",
   "DragDropVertical",
   "EditFile",
@@ -71,7 +75,9 @@ export const EXTENDED_ICON_NAMES = [
   "Maximize2",
   "Mic",
   "Minimize2",
+  "MoveTo",
   "NewTab",
+  "News01",
   "PackageReceive",
   "Palette",
   "PanelBottom",
@@ -81,6 +87,7 @@ export const EXTENDED_ICON_NAMES = [
   "Pin",
   "PinOff",
   "Play",
+  "Plug02",
   "Plus",
   "Puzzle",
   "Repeat",
@@ -124,5 +131,50 @@ export function subscribeExtendedIcons(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
+  };
+}
+
+interface AppIconDefinition {
+  component: ComponentType<{ className?: string }>;
+  key: string;
+}
+
+let appIcons: ReadonlyMap<string, AppIconDefinition> = new Map();
+const appIconListeners = new Set<() => void>();
+
+export function setAppIcons(
+  next: ReadonlyMap<string, AppIconDefinition>,
+): void {
+  appIcons = next;
+  for (const listener of appIconListeners) listener();
+}
+
+export function getAppIcon(name: string): AppIconDefinition | undefined {
+  return appIcons.get(name);
+}
+
+export function subscribeAppIcons(listener: () => void): () => void {
+  appIconListeners.add(listener);
+  return () => {
+    appIconListeners.delete(listener);
+  };
+}
+
+let pluginAssetIcons: ReadonlyMap<string, string> = new Map();
+const pluginAssetIconListeners = new Set<() => void>();
+
+export function setPluginAssetIcons(next: ReadonlyMap<string, string>): void {
+  pluginAssetIcons = next;
+  for (const listener of pluginAssetIconListeners) listener();
+}
+
+export function getPluginAssetIcon(glyph: string): string | undefined {
+  return pluginAssetIcons.get(glyph);
+}
+
+export function subscribePluginAssetIcons(listener: () => void): () => void {
+  pluginAssetIconListeners.add(listener);
+  return () => {
+    pluginAssetIconListeners.delete(listener);
   };
 }

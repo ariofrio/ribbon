@@ -6,7 +6,7 @@ const RECENT_SIDE_CHAT_STORAGE_PREFIX =
   "bb.plugin.missing-keyboard-shortcuts.recent-side-chat";
 const SIDE_CHAT_PLUGIN_ID = "side-chat";
 const SIDE_CHAT_ACTION_ID = "side-chat";
-const SIDE_CHAT_TITLE = "Side chat";
+const SHORTCUTS_PLUGIN_ID = "missing-keyboard-shortcuts";
 
 export interface StringStorage {
   getItem(key: string): string | null;
@@ -47,14 +47,6 @@ export interface SideChatPanelTab {
   id: string;
 }
 
-export interface SideChatPanelTabDefinition extends SideChatPanelTab {
-  actionId: "side-chat";
-  kind: "plugin-panel";
-  paramsJson: string;
-  pluginId: "side-chat";
-  title: "Side chat";
-}
-
 export interface SideChatPanelSnapshot {
   activeSideChat: SideChatPanelTab | null;
   isOpen: boolean;
@@ -90,14 +82,6 @@ function recentSideChatStorageKey(threadId: string): string {
 
 function terminalTabId(terminalId: string): string {
   return `terminal:${encodeURIComponent(terminalId)}:none`;
-}
-
-function pluginPanelTabId(
-  pluginId: string,
-  actionId: string,
-  paramsJson: string,
-): string {
-  return `plugin-panel:${encodeURIComponent(`${pluginId}:${actionId}:${paramsJson}`)}:none`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -147,7 +131,8 @@ function sideChatForTab(
 ): SideChatPanelTab | null {
   if (
     tab.kind !== "plugin-panel" ||
-    tab.pluginId !== SIDE_CHAT_PLUGIN_ID ||
+    (tab.pluginId !== SIDE_CHAT_PLUGIN_ID &&
+      tab.pluginId !== SHORTCUTS_PLUGIN_ID) ||
     tab.actionId !== SIDE_CHAT_ACTION_ID ||
     typeof tab.id !== "string" ||
     typeof tab.paramsJson !== "string"
@@ -219,81 +204,6 @@ export function readSideChatPanelSnapshot(
   const activeSideChat =
     sideChats.find(({ id }) => id === state.secondary.activeTabId) ?? null;
   return { activeSideChat, isOpen: state.secondary.isOpen, sideChats };
-}
-
-export function createSideChatPanelTab(
-  parentThreadId: string,
-  childThreadId: string,
-): SideChatPanelTabDefinition {
-  const paramsJson = JSON.stringify({
-    threadId: childThreadId,
-    sourceThreadId: parentThreadId,
-    sourceMessageText: "",
-    sourceSeqEnd: null,
-  });
-  return {
-    actionId: SIDE_CHAT_ACTION_ID,
-    childThreadId,
-    id: pluginPanelTabId(
-      SIDE_CHAT_PLUGIN_ID,
-      SIDE_CHAT_ACTION_ID,
-      paramsJson,
-    ),
-    kind: "plugin-panel",
-    paramsJson,
-    pluginId: SIDE_CHAT_PLUGIN_ID,
-    title: SIDE_CHAT_TITLE,
-  };
-}
-
-export function activateSideChatPanel(
-  storage: StringStorage,
-  threadId: string,
-  tab: SideChatPanelTabDefinition,
-  now = Date.now(),
-): PanelStorageChange {
-  const state = parsePanelState(storage.getItem(panelStorageKey(threadId)));
-  const storedTab = {
-    actionId: tab.actionId,
-    id: tab.id,
-    kind: tab.kind,
-    paramsJson: tab.paramsJson,
-    pluginId: tab.pluginId,
-    title: tab.title,
-  };
-  const tabs = state.secondary.tabs.some(({ id }) => id === tab.id)
-    ? state.secondary.tabs
-    : [...state.secondary.tabs, storedTab];
-  return writePanelState(storage, threadId, {
-    ...state,
-    secondary: {
-      ...state.secondary,
-      tabs,
-      activeTabId: tab.id,
-      isOpen: true,
-    },
-    lastUsedAt: now,
-  });
-}
-
-export function activateExistingSideChatPanel(
-  storage: StringStorage,
-  threadId: string,
-  tabId: string,
-  now = Date.now(),
-): PanelStorageChange | null {
-  const state = parsePanelState(storage.getItem(panelStorageKey(threadId)));
-  const tab = state.secondary.tabs.find(({ id }) => id === tabId);
-  if (tab === undefined || sideChatForTab(tab, threadId) === null) return null;
-  return writePanelState(storage, threadId, {
-    ...state,
-    secondary: {
-      ...state.secondary,
-      activeTabId: tabId,
-      isOpen: true,
-    },
-    lastUsedAt: now,
-  });
 }
 
 export function removeSideChatPanelTab(

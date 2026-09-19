@@ -87,9 +87,13 @@ function thread(
     pinSortKey: null,
     environmentBranchName: "main",
     environmentHostId: "host-a",
+    environmentIsWorktree: true,
     environmentName: null,
+    environmentPath: null,
+    environmentProviderId: null,
     environmentWorkspaceDisplayKind: "managed-worktree",
     hasPendingInteraction: false,
+    lifecycleOwnerThreadId: null,
     runtime: {
       displayStatus: "idle",
       hostReconnectGraceExpiresAt: null,
@@ -156,13 +160,13 @@ describe("Ribbon sidebar CLI", () => {
     expect(topLevel).toMatchObject({
       exitCode: 0,
       stdout: expect.stringContaining(
-        "Usage: bb sidebar [options] [command]",
+        "bb sidebar <command> [options]",
       ),
     });
     expect(topLevel.stdout).toContain(
       "Inspect and change Ribbon sidebar placement",
     );
-    expect(topLevel.stdout).toContain("help [command]");
+    expect(topLevel.stdout).toContain("bb sidebar migrate thread-stages");
 
     const placeHelp = await runRibbonSidebarCli(fixture.context, [
       "help",
@@ -171,7 +175,7 @@ describe("Ribbon sidebar CLI", () => {
     expect(placeHelp).toMatchObject({
       exitCode: 0,
       stdout: expect.stringContaining(
-        "Usage: bb sidebar place [thread] [--self] --to <group-ref>",
+        "bb sidebar place [<thread>] [--self] --to <group-ref>",
       ),
     });
     expect(placeHelp.stdout).toContain("--self");
@@ -200,7 +204,7 @@ describe("Ribbon sidebar CLI", () => {
       ]),
     ).resolves.toMatchObject({
       exitCode: 0,
-      stdout: expect.stringContaining("Arguments:\n  grouping"),
+      stdout: expect.stringContaining("Arguments:\n  <grouping>"),
     });
   });
 
@@ -436,15 +440,36 @@ describe("Ribbon sidebar CLI", () => {
     const fixture = setup();
     databases.push(fixture.database);
 
-    await expect(
-      runRibbonSidebarCli(fixture.context, [
-        "list",
-        "--group-by",
-        stages.groupingKey,
-      ]),
-    ).resolves.toEqual({
-      exitCode: 1,
-      stderr: "Unknown option: --group-by\n",
+    const result = await runRibbonSidebarCli(fixture.context, [
+      "list",
+      "--group-by",
+      stages.groupingKey,
+      "--json",
+    ]);
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("unknown option '--group-by'");
+    expect(JSON.parse(result.stdout ?? "")).toMatchObject({
+      ok: false,
+      error: { code: "unknown_option" },
+    });
+  });
+
+  it("uses bb's shared command suggestions", async () => {
+    const fixture = setup();
+    databases.push(fixture.database);
+
+    const result = await runRibbonSidebarCli(fixture.context, [
+      "gropings",
+      "--json",
+    ]);
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("Did you mean groupings?");
+    expect(JSON.parse(result.stdout ?? "")).toMatchObject({
+      ok: false,
+      error: {
+        code: "unknown_command",
+        hint: "Did you mean groupings?",
+      },
     });
   });
 
@@ -545,10 +570,10 @@ describe("Ribbon sidebar CLI", () => {
   it("returns failure for invalid values and usage errors for malformed invocations", async () => {
     const fixture = setup();
     databases.push(fixture.database);
-    for (const argv of [
-      ["groups", "thread-stages"],
-      ["place", "thread-a", "--to", "plugin:thread-stages:stages"],
-      [
+    for (const [argv, exitCode] of [
+      [["groups", "thread-stages"], 1],
+      [["place", "thread-a", "--to", "plugin:thread-stages:stages"], 1],
+      [[
         "place",
         "thread-a",
         "--to",
@@ -557,18 +582,20 @@ describe("Ribbon sidebar CLI", () => {
         "thread-b",
         "--after",
         "thread-b",
-      ],
-      ["show", "thread-a", "--self"],
+      ], 2],
+      [["show", "thread-a", "--self"], 1],
     ]) {
-      expect((await runRibbonSidebarCli(fixture.context, argv)).exitCode).toBe(1);
+      expect((await runRibbonSidebarCli(fixture.context, argv as string[])).exitCode)
+        .toBe(exitCode);
     }
 
-    await expect(
-      runRibbonSidebarCli(fixture.context, ["show", "thread-a", "thread-b"]),
-    ).resolves.toEqual({
-      exitCode: 2,
-      stderr:
-        "Usage: bb sidebar show [thread] [--self] [--json]\n",
-    });
+    const malformed = await runRibbonSidebarCli(fixture.context, [
+      "show",
+      "thread-a",
+      "thread-b",
+    ]);
+    expect(malformed.exitCode).toBe(2);
+    expect(malformed.stderr).toContain("unexpected argument 'thread-b'");
+    expect(malformed.stderr).toContain("bb sidebar show [<thread>]");
   });
 });

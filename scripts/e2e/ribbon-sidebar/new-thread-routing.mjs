@@ -121,14 +121,14 @@ async function verifyStagePlacement({ browser, stack, fixture }) {
     const environmentButton = composer.getByRole("button", {
       name: "Environment",
     });
-    const environmentChoice = page.getByRole("menuitem", {
-      name: /^Work (locally|remotely)/,
-    });
+    const environmentChoice = page
+      .locator('[role="menuitem"], [role="menuitemradio"], [role="option"]')
+      .filter({ hasText: /^Project checkout$/ });
     await environmentButton.click();
     await environmentChoice.click();
     await environmentChoice.waitFor({ state: "hidden" });
     await environmentButton
-      .filter({ hasText: /Work (locally|remotely)/ })
+      .filter({ hasText: "Project checkout" })
       .waitFor();
     const modelButton = composer.getByRole("button", {
       name: /Provider, model and reasoning/,
@@ -155,7 +155,6 @@ async function verifyStagePlacement({ browser, stack, fixture }) {
         "sidebar",
         "show",
         threadId,
-        "--json",
       ]);
       stage = placements.find(
         ({ placement }) => placement.groupingKey === groupingKey,

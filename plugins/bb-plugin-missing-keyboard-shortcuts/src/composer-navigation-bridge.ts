@@ -8,6 +8,7 @@ import {
 type FocusComposer = () => void;
 
 interface PrimaryPanelTabHost {
+  closePanel?(): boolean;
   createObserver(callback: () => void): PanelTabObserver;
   root: PanelTabRoot;
 }
@@ -60,6 +61,15 @@ export function registerPrimaryComposerFocus(
 
 export function hasPrimaryComposer(threadId: string | null): boolean {
   return (primaryComposersByThread.get(threadId)?.length ?? 0) > 0;
+}
+
+export function closePrimaryPanel(threadId: string): boolean {
+  return (
+    primaryComposersByThread
+      .get(threadId)
+      ?.at(-1)
+      ?.panelTabHost?.closePanel?.() ?? false
+  );
 }
 
 export function focusPrimaryComposer(threadId: string | null): boolean {

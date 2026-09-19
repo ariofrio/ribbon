@@ -1,36 +1,85 @@
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { createSideChatPanelTab } from "./terminal-panel-state";
 import { selectReusableTerminalId } from "./terminal-selection";
 
 const DEFAULT_TERMINAL_COLS = 100;
 const DEFAULT_TERMINAL_ROWS = 30;
+const SHORTCUTS_PLUGIN_ID = "missing-keyboard-shortcuts";
+const SIDE_CHAT_ACTION_ID = "side-chat";
 
-async function ensureThreadSideChatTab(
+function sideChatChildThreadId(
+  tab: unknown,
+  parentThreadId: string,
+): string | null {
+  if (tab === null || typeof tab !== "object" || Array.isArray(tab)) {
+    return null;
+  }
+  const candidate = tab as Record<string, unknown>;
+  if (
+    candidate.kind !== "plugin-panel" ||
+    candidate.actionId !== SIDE_CHAT_ACTION_ID ||
+    (candidate.pluginId !== SIDE_CHAT_PLUGIN_ID &&
+      candidate.pluginId !== SHORTCUTS_PLUGIN_ID) ||
+    typeof candidate.paramsJson !== "string"
+  ) {
+    return null;
+  }
+  try {
+    const params: unknown = JSON.parse(candidate.paramsJson);
+    if (
+      params === null ||
+      typeof params !== "object" ||
+      Array.isArray(params)
+    ) {
+      return null;
+    }
+    const values = params as Record<string, unknown>;
+    return values.sourceThreadId === parentThreadId &&
+      typeof values.threadId === "string" &&
+      values.threadId.length > 0
+      ? values.threadId
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function isReusableSideChat(
+  child: {
+    archivedAt: number | null;
+    originKind: string | null;
+    originPluginId: string | null;
+    sourceThreadId: string | null;
+    visibility: string;
+  },
+  parentThreadId: string,
+): boolean {
+  return (
+    child.archivedAt === null &&
+    child.originKind === "fork" &&
+    child.originPluginId === SIDE_CHAT_PLUGIN_ID &&
+    child.sourceThreadId === parentThreadId &&
+    child.visibility === "hidden"
+  );
+}
+
+async function findReusableSideChat(
   bb: BbPluginApi,
   parentThreadId: string,
-  childThreadId: string,
-): Promise<string> {
-  const { childThreadId: _childThreadId, ...tab } = createSideChatPanelTab(
-    parentThreadId,
-    childThreadId,
-  );
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const current = await bb.sdk.threads.tabs.get({ threadId: parentThreadId });
-    if (current.tabs.some(({ id }) => id === tab.id)) return tab.id;
-
+): Promise<string | null> {
+  const { tabs } = await bb.sdk.threads.tabs.get({ threadId: parentThreadId });
+  for (const tab of [...tabs].reverse()) {
+    const childThreadId = sideChatChildThreadId(tab, parentThreadId);
+    if (childThreadId === null) continue;
     try {
-      await bb.sdk.threads.tabs.update({
-        expectedRevision: current.revision,
-        tabs: [...current.tabs, tab],
-        threadId: parentThreadId,
-      });
-      return tab.id;
-    } catch (error) {
-      if (attempt === 1) throw error;
+      const child = await bb.sdk.threads.get({ threadId: childThreadId });
+      if (isReusableSideChat(child, parentThreadId)) return childThreadId;
+    } catch {
+      // A stale durable tab is ignored; validateSideChat removes it when the
+      // client selects it.
     }
   }
-  return tab.id;
+  return null;
 }
 
 async function removeThreadTab(
@@ -58,6 +107,7 @@ async function removeThreadTab(
 const SIDE_CHAT_PLUGIN_ID = "side-chat";
 /** What the Side chat plugin answers `createSideChat` with. */
 const sideChatThreadSchema = z.object({ threadId: z.string().min(1) });
+const sideChatSendSchema = z.object({ ok: z.literal(true) });
 
 export const rpcContract = defineRpcContract({
   openTerminal: {
@@ -84,6 +134,16 @@ export const rpcContract = defineRpcContract({
   createSideChat: {
     input: z.object({ sourceThreadId: z.string().min(1) }).strict(),
     output: sideChatThreadSchema,
+  },
+  sendToMain: {
+    input: z
+      .object({
+        senderThreadId: z.string().min(1),
+        sourceThreadId: z.string().min(1),
+        text: z.string().trim().min(1),
+      })
+      .strict(),
+    output: sideChatSendSchema,
   },
 });
 
@@ -112,26 +172,28 @@ export default function plugin(bb: BbPluginApi) {
     },
     async validateSideChat({ childThreadId, parentThreadId, tabId }) {
       const child = await bb.sdk.threads.get({ threadId: childThreadId });
-      const reusable =
-        child.archivedAt === null &&
-        child.originKind === "fork" &&
-        child.originPluginId === "side-chat" &&
-        child.sourceThreadId === parentThreadId &&
-        child.visibility === "hidden";
+      const reusable = isReusableSideChat(child, parentThreadId);
       if (!reusable) await removeThreadTab(bb, parentThreadId, tabId);
       return { reusable };
     },
     async createSideChat({ sourceThreadId }) {
+      const existingThreadId = await findReusableSideChat(bb, sourceThreadId);
+      if (existingThreadId !== null) return { threadId: existingThreadId };
       const { threadId } = await bb.sdk.plugins.callRpc({
         pluginId: SIDE_CHAT_PLUGIN_ID,
         method: "createSideChat",
         input: { sourceThreadId, anchorText: "" },
         outputSchema: sideChatThreadSchema,
       });
-      // bb rebuilds a thread's panel from its own tab list, so a side chat
-      // that lives only in this client's storage is gone by the next reload.
-      await ensureThreadSideChatTab(bb, sourceThreadId, threadId);
       return { threadId };
+    },
+    async sendToMain({ senderThreadId, sourceThreadId, text }) {
+      return bb.sdk.plugins.callRpc({
+        pluginId: SIDE_CHAT_PLUGIN_ID,
+        method: "sendToMain",
+        input: { senderThreadId, sourceThreadId, text },
+        outputSchema: sideChatSendSchema,
+      });
     },
   });
 

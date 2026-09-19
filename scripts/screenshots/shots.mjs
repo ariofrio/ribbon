@@ -6,6 +6,8 @@ import {
 } from "./fixture.mjs";
 import { settleAnimations } from "./settle.mjs";
 
+export const MODIFIER = process.platform === "darwin" ? "Meta" : "Control";
+
 // What each plugin's screenshot pictures. Every shot starts from the same
 // seeded bb and is captured twice: the whole window, for the plugin's own
 // README, and a card cropped to what the plugin adds, for the table in the
@@ -45,36 +47,44 @@ async function openSideChatByShortcut(page) {
     new URL(request.url()).pathname ===
       "/api/v1/plugins/missing-keyboard-shortcuts/rpc/createSideChat";
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    let response;
-    const responsePromise = page.waitForResponse(
-      (candidate) => isCreateSideChatRequest(candidate.request()),
-      { timeout: readinessTimeout },
-    );
-    void responsePromise.catch(() => {});
+    const requestPromise = page.waitForRequest(isCreateSideChatRequest, {
+      timeout: retryTimeout,
+    });
+    void requestPromise.catch(() => {});
     try {
-      await Promise.all([
-        page.waitForRequest(
-          isCreateSideChatRequest,
-          { timeout: retryTimeout },
-        ),
-        page.keyboard.press("Shift+Meta+KeyL"),
+      await page.keyboard.press(`Shift+${MODIFIER}+KeyL`);
+      const observed = await Promise.any([
+        requestPromise.then((request) => ({ request })),
+        reply
+          .waitFor({ timeout: retryTimeout })
+          .then(() => ({ request: null })),
       ]);
+      if (observed.request !== null) {
+        const response = await observed.request.response();
+        if (response === null || !response.ok()) {
+          throw new Error(
+            `createSideChat failed${
+              response === null ? " without a response" : ` with HTTP ${response.status()}`
+            }`,
+          );
+        }
+        await reply.waitFor({ timeout: readinessTimeout });
+      }
+      return reply;
     } catch (error) {
       // A full navigation remounts the shortcut plugin, so keep delivering the
-      // key until the outgoing RPC proves its listener handled one. Never
-      // retry after that point: a late composer could receive the next key as
-      // a request to close its newly opened panel.
-      if (error?.name !== "TimeoutError" || attempt === maxAttempts - 1) {
+      // key until either its RPC or the reusable panel proves the listener
+      // handled one. Never retry after either point: the next key could close
+      // the newly opened panel.
+      if (
+        !(error instanceof AggregateError) ||
+        error.errors.some((candidate) => candidate?.name !== "TimeoutError") ||
+        attempt === maxAttempts - 1
+      ) {
         throw error;
       }
       continue;
     }
-    response = await responsePromise;
-    if (!response.ok()) {
-      throw new Error(`createSideChat failed with HTTP ${response.status()}`);
-    }
-    await reply.waitFor({ timeout: readinessTimeout });
-    return reply;
   }
 }
 

@@ -6,6 +6,8 @@ import {
   FEATURED_THREAD,
 } from "../screenshots/fixture.mjs";
 
+const MODIFIER = process.platform === "darwin" ? "Meta" : "Control";
+
 export async function verifyPluginUpgrade({ stack, fixture }) {
   const thread = fixture.threads.get(FEATURED_THREAD);
   const project = fixture.projects.get(FEATURED_PROJECT);
@@ -82,7 +84,7 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
     const sideChatResponse = page.waitForResponse((response) =>
       response.url().endsWith("/plugins/missing-keyboard-shortcuts/rpc/createSideChat"),
     );
-    await page.keyboard.press("Shift+Meta+KeyL");
+    await page.keyboard.press(`Shift+${MODIFIER}+KeyL`);
     assert.equal((await (await sideChatResponse).json()).ok, true);
     const reply = page.getByRole("textbox", { name: "Reply…" });
     await reply.waitFor({ timeout: 120_000 });
@@ -93,8 +95,8 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
     await page.keyboard.type("Side chat focus check");
     assert.equal(await reply.innerText(), "Side chat focus check");
 
-    // The shortcut handler now lives in an overlay. It still opens a real
-    // host terminal via the SDK and the existing panel integration.
+    // The public command invokes the overlay's UI action. It still opens a
+    // real host terminal through the SDK and existing panel integration.
     const terminalResponse = page.waitForResponse((response) =>
       response
         .url()
@@ -104,10 +106,24 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
     assert.equal((await (await terminalResponse).json()).ok, true);
     await page.locator(".xterm-screen").waitFor({ timeout: 120_000 });
 
+    await page.locator("body").evaluate((body) => {
+      body.tabIndex = -1;
+      body.focus();
+    });
+    await page.keyboard.press(`${MODIFIER}+Shift+KeyP`);
+    const commandSearch = page.getByRole("combobox", {
+      name: "Search commands",
+    });
+    await commandSearch.waitFor();
+    await commandSearch.fill(">file thread as completed");
+    const completeCommand = page.getByText("File thread as Completed", {
+      exact: true,
+    });
+    await completeCommand.waitFor();
     const stageResponse = page.waitForResponse((response) =>
       response.url().endsWith("/plugins/thread-stages/rpc/setWorkflowStage"),
     );
-    await page.keyboard.press("Meta+Period");
+    await completeCommand.click();
     const response = await stageResponse;
     const stageResult = await response.json();
     assert.equal(stageResult.ok, true);

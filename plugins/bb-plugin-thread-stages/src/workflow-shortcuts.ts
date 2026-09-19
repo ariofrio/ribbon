@@ -1,67 +1,8 @@
-import { WORKFLOW_STAGES, type WorkflowStage } from "./workflow-stage";
-
-export interface ShortcutKeyEvent {
-  altKey: boolean;
-  code: string;
-  ctrlKey: boolean;
-  key: string;
-  metaKey: boolean;
-  repeat: boolean;
-  shiftKey: boolean;
-}
-
-interface StageChord {
-  altKey: boolean;
-  ctrlKey: boolean;
-  shiftKey: boolean;
-  stage: WorkflowStage;
-}
-
-// Active is omitted because automatic stage handling assigns it.
-const STAGE_CHORDS: readonly StageChord[] = [
-  { altKey: false, ctrlKey: false, shiftKey: false, stage: "Completed" },
-  { altKey: false, ctrlKey: false, shiftKey: true, stage: "Idle" },
-  { altKey: false, ctrlKey: true, shiftKey: true, stage: "Blocked" },
-  { altKey: false, ctrlKey: true, shiftKey: false, stage: "Deferred" },
-  { altKey: true, ctrlKey: false, shiftKey: false, stage: "Completed" },
-];
-
-export function workflowStageShortcut(
-  event: ShortcutKeyEvent,
-  enabledStages: readonly WorkflowStage[] = WORKFLOW_STAGES,
-): WorkflowStage | null {
-  if (!event.metaKey || event.repeat || event.code !== "Period") return null;
-  const stage =
-    STAGE_CHORDS.find(
-      (chord) =>
-        chord.altKey === event.altKey &&
-        chord.ctrlKey === event.ctrlKey &&
-        chord.shiftKey === event.shiftKey,
-    )?.stage ?? null;
-  return stage !== null && enabledStages.includes(stage) ? stage : null;
-}
-
 export type ReorderScope = "step" | "edge" | "stage";
 
 export interface ReorderIntent {
   scope: ReorderScope;
   direction: -1 | 1;
-}
-
-export function workflowReorderShortcut(
-  event: ShortcutKeyEvent,
-): ReorderIntent | null {
-  if (!event.metaKey || event.repeat) return null;
-  const direction =
-    event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : null;
-  if (direction === null) return null;
-  if (event.altKey && !event.ctrlKey) {
-    return { scope: event.shiftKey ? "edge" : "step", direction };
-  }
-  if (event.ctrlKey && !event.altKey && !event.shiftKey) {
-    return { scope: "stage", direction };
-  }
-  return null;
 }
 
 /**

@@ -48,8 +48,9 @@ archives descendants before ancestors.
 
 ## Keyboard shortcuts
 
-Stage shortcuts remain active while Ribbon sidebar is selected, and also while
-another sidebar is visible:
+Stage commands appear in bb's command palette and Keyboard settings, where
+every shortcut can be rebound or cleared. Their default shortcuts remain
+active while Ribbon sidebar is selected and while another sidebar is visible:
 
 | Shortcut | Action |
 | ---: | --- |
@@ -61,9 +62,8 @@ another sidebar is visible:
 | ⌥⇧⌘↑ / ⌥⇧⌘↓ | Move to the stage edge |
 | ⌃⌘↑ / ⌃⌘↓ | Move to the adjacent enabled stage |
 
-The filing chords walk through Idle threads, preserve root hierarchies, reject
-child thread IDs, and ignore held-key repeats. Shortcuts for disabled stages
-are left unclaimed.
+The filing commands walk through Idle threads, preserve root hierarchies, and
+reject child thread IDs. Commands for disabled stages are unavailable.
 
 ## Development
 

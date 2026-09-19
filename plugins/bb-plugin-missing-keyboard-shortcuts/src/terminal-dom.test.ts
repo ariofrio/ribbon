@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   findVisibleTerminal,
   focusVisibleTerminal,
+  isSecondaryComposerDomFocused,
   isTerminalFocused,
   isWithinTerminal,
 } from "./terminal-dom";
@@ -28,6 +29,17 @@ afterEach(() => {
 });
 
 describe("bb's terminal panel, as this plugin reads it", () => {
+  it("knows when focus is inside a secondary composer", () => {
+    document.body.innerHTML = `
+      <div data-app-composer-role="secondary">
+        <div role="textbox" tabindex="0"></div>
+      </div>
+    `;
+    document.querySelector<HTMLElement>("[role=textbox]")?.focus();
+
+    expect(isSecondaryComposerDomFocused(document)).toBe(true);
+  });
+
   it("finds the laid-out terminal and skips one left behind at zero size", () => {
     const hidden = terminal({ visible: false, input: "xterm-helper-textarea" });
     const shown = terminal({ visible: true, input: "xterm-helper-textarea" });

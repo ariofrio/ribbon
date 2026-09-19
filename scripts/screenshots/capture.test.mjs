@@ -5,6 +5,7 @@ import test from "node:test";
 import { ASPECT_RATIO, cropRectangle, unionBox } from "./capture.mjs";
 import { KEY_GLYPHS } from "./key-glyphs.mjs";
 import {
+  MODIFIER,
   setupScreenshots,
   SHOTS,
   SIDEBAR_PROVIDER,
@@ -54,6 +55,7 @@ test("the shortcut shot stops retrying when the late plugin handles the key", as
   });
   const request = (method) => ({
     method: () => "POST",
+    response: async () => response(method),
     url: () =>
       `http://127.0.0.1/api/v1/plugins/missing-keyboard-shortcuts/rpc/${method}`,
   });
@@ -91,16 +93,6 @@ test("the shortcut shot stops retrying when the late plugin handles the key", as
       if (requestAttempts < 4) throw timeout();
       return createRequest;
     },
-    waitForResponse: async (predicate, options) => {
-      const createResponse = response("createSideChat");
-      assert.ok(
-        predicate(createResponse),
-        "the shot waited for an unexpected response",
-      );
-      events.push(["createSideChat.waitForResponse", options]);
-      if (options?.timeout === 10000) throw timeout();
-      return createResponse;
-    },
   };
   const shot = SHOTS.find(({ id }) => id === "missing-keyboard-shortcuts");
   assert.ok(shot, "the shortcut shot is missing");
@@ -112,25 +104,26 @@ test("the shortcut shot stops retrying when the late plugin handles the key", as
     events.filter(
       ([event, keys]) =>
         event === "createSideChat.waitForRequest" ||
-        event === "createSideChat.waitForResponse" ||
-        (event === "keyboard.press" && keys === "Shift+Meta+KeyL"),
+        (event === "keyboard.press" && keys === `Shift+${MODIFIER}+KeyL`),
     ),
     [
-      ["createSideChat.waitForResponse", { timeout: 120000 }],
       ["createSideChat.waitForRequest", { timeout: 10000 }],
-      ["keyboard.press", "Shift+Meta+KeyL"],
-      ["createSideChat.waitForResponse", { timeout: 120000 }],
+      ["keyboard.press", `Shift+${MODIFIER}+KeyL`],
       ["createSideChat.waitForRequest", { timeout: 10000 }],
-      ["keyboard.press", "Shift+Meta+KeyL"],
-      ["createSideChat.waitForResponse", { timeout: 120000 }],
+      ["keyboard.press", `Shift+${MODIFIER}+KeyL`],
       ["createSideChat.waitForRequest", { timeout: 10000 }],
-      ["keyboard.press", "Shift+Meta+KeyL"],
-      ["createSideChat.waitForResponse", { timeout: 120000 }],
+      ["keyboard.press", `Shift+${MODIFIER}+KeyL`],
       ["createSideChat.waitForRequest", { timeout: 10000 }],
-      ["keyboard.press", "Shift+Meta+KeyL"],
+      ["keyboard.press", `Shift+${MODIFIER}+KeyL`],
     ],
   );
-  assert.deepEqual(replyWaits, [{ timeout: 120000 }]);
+  assert.deepEqual(replyWaits, [
+    { timeout: 10000 },
+    { timeout: 10000 },
+    { timeout: 10000 },
+    { timeout: 10000 },
+    { timeout: 120000 },
+  ]);
 });
 
 function aspectOf(rectangle) {
