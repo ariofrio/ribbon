@@ -302,6 +302,7 @@ function ThreadRow({
     </span>
   ) : null;
   const actionsOpen = dropdownOpen || contextOpen;
+  const showChildToggleAtRest = hasChildren && childrenCollapsed;
   const hasIcon = icon !== null;
   const iconSpansEntireItem = alignAdornmentsToEntireItem && preview !== null;
   const hasTrailingIndicator =
@@ -341,7 +342,7 @@ function ThreadRow({
       <div
         className={`bb-sidebar-hover-actions-row group/thread-row relative grid w-full items-start rounded-md pr-0 text-sm transition-colors ${
           reservesTrailingLane
-            ? "grid-cols-[minmax(0,1fr)_auto] gap-x-2"
+            ? "grid-cols-[minmax(0,1fr)_auto] gap-x-1"
             : "grid-cols-1"
         } ${
           active ? "bg-sidebar-accent" : "cursor-pointer hover:bg-sidebar-accent"
@@ -403,9 +404,11 @@ function ThreadRow({
             </span>
           ) : null}
           <span
-            className={`row-start-1 flex min-w-0 items-center gap-1.5 ${
+            className={`row-start-1 flex min-w-0 items-center ${
               !hasTrailingIndicator && !thread.isArchived
-                ? "pr-2 group-hover/thread-row:pr-9 group-has-[:focus-visible]/thread-row:pr-9 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-9 max-md:pointer-coarse:pr-2!"
+                ? showChildToggleAtRest
+                  ? "pr-8 max-md:pointer-coarse:pr-2!"
+                  : "pr-2 group-hover/thread-row:pr-8 group-has-[:focus-visible]/thread-row:pr-8 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-8 max-md:pointer-coarse:pr-2!"
                 : ""
             }`}
             style={{
@@ -422,10 +425,22 @@ function ThreadRow({
               {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
             </span>
             {hasChildren ? (
-              <button
+              <Button
                 aria-expanded={!childrenCollapsed}
                 aria-label={childrenCollapsed ? `Expand ${rowTitle} threads` : `Collapse ${rowTitle} threads`}
-                className="bb-sidebar-hover-actions relative z-20 inline-flex size-5 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
+                variant="ghost"
+                size="icon"
+                className={`relative z-20 size-5 shrink-0 overflow-hidden p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3 ${
+                  showChildToggleAtRest
+                    ? "ml-2"
+                    : "bb-sidebar-hover-actions w-0 group-hover/thread-row:ml-2 group-hover/thread-row:w-5 group-has-[:focus-visible]/thread-row:ml-2 group-has-[:focus-visible]/thread-row:w-5 max-md:pointer-coarse:group-[:not(:has(:focus-visible))]/thread-row:ml-0! max-md:pointer-coarse:group-[:not(:has(:focus-visible))]/thread-row:w-0!"
+                } ${
+                  !thread.isArchived
+                    ? showChildToggleAtRest
+                      ? "-mr-1 max-md:pointer-coarse:mr-0!"
+                      : "group-hover/thread-row:-mr-1 group-has-[:focus-visible]/thread-row:-mr-1 max-md:pointer-coarse:mr-0!"
+                    : ""
+                }`}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -434,13 +449,13 @@ function ThreadRow({
                 type="button"
               >
                 <Icon name="ChevronRight" className={`size-3 transition-transform duration-150 ${childrenCollapsed ? "" : "rotate-90"}`} aria-hidden />
-              </button>
+              </Button>
             ) : null}
           </span>
           {alignsTrailingIndicatorToTitle ? (
             <span
               aria-hidden="true"
-              className="row-start-1 w-7 max-md:pointer-coarse:w-9"
+              className="row-start-1 -ml-1 w-7 max-md:pointer-coarse:w-9"
               style={{ gridColumnStart: hasIcon ? 3 : 2 }}
               {...{ [ICON_INDICATOR_SPACE_ATTRIBUTE]: "" }}
             />
@@ -2089,7 +2104,9 @@ function RibbonSidebarList({
           >
             <span className="flex min-w-0 flex-1 items-center">
               <span className="min-w-0 truncate">Pinned</span>
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 aria-expanded={!pinnedSectionCollapsed}
                 aria-label={
                   pinnedSectionCollapsed
@@ -2098,7 +2115,7 @@ function RibbonSidebarList({
                 }
                 className={`${
                   pinnedSectionCollapsed ? "" : "bb-sidebar-hover-actions"
-                } inline-flex size-6 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2`}
+                } mx-2 size-5 shrink-0 p-0 text-subtle-foreground focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
                 onClick={() =>
                   changePreferences((current) => {
                     const collapsed = new Set(current.collapsed);
@@ -2119,7 +2136,7 @@ function RibbonSidebarList({
                   }`}
                   name="ChevronRight"
                 />
-              </button>
+              </Button>
             </span>
             <GroupHeaderMenu
               actions={null}
@@ -2295,7 +2312,7 @@ function RibbonSidebarList({
                 data-sidebar="group-label"
                 data-sidebar-sticky-tier="label"
               >
-                <span className="relative z-10 flex min-w-0 flex-1 items-center gap-1 text-left">
+                <span className="relative z-10 flex min-w-0 flex-1 items-center text-left">
                   <span className="flex min-w-0 items-center gap-2 text-left">
                     {settings.values?.showGroupHeaderIcons !== false &&
                     unorganizedGroup ? (
@@ -2320,14 +2337,16 @@ function RibbonSidebarList({
                       {group.label}
                     </span>
                   </span>
-                  {grouping ? <button
+                  {grouping ? <Button
+                    variant="ghost"
+                    size="icon"
                     aria-expanded={!collapsed}
                     aria-label={
                       collapsed
                         ? `Expand ${group.label} section`
                         : `Collapse ${group.label} section`
                     }
-                    className={`${collapsed ? "" : "bb-sidebar-hover-actions"} relative z-20 inline-flex size-6 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2`}
+                    className={`${collapsed ? "" : "bb-sidebar-hover-actions"} relative z-20 mx-2 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
@@ -2345,7 +2364,7 @@ function RibbonSidebarList({
                       className={`size-3 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
                       name="ChevronRight"
                     />
-                  </button> : null}
+                  </Button> : null}
                 </span>
                 <GroupHeaderMenu
                   actions={headerActions}

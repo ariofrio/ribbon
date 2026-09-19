@@ -101,14 +101,14 @@ export function ThreadActionsDropdown({
         <DropdownMenuTrigger asChild>
           <Button
             aria-label="Thread actions"
-            className="relative m-0 h-7 w-7 shrink-0 cursor-pointer rounded-md p-0 text-subtle-foreground outline-none ring-sidebar-ring hover:bg-state-hover hover:text-muted-foreground focus-visible:bg-state-hover focus-visible:text-muted-foreground focus-visible:ring-2 active:bg-state-active data-[state=open]:bg-state-active data-[state=open]:text-muted-foreground data-[state=open]:hover:bg-state-active data-[state=open]:focus-visible:bg-state-active max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-9"
+            className="relative m-1 size-5 shrink-0 cursor-pointer rounded-md p-0 text-subtle-foreground outline-none ring-sidebar-ring hover:bg-state-hover hover:text-muted-foreground focus-visible:bg-state-hover focus-visible:text-muted-foreground focus-visible:ring-2 active:bg-state-active data-[state=open]:bg-state-active data-[state=open]:text-muted-foreground data-[state=open]:hover:bg-state-active data-[state=open]:focus-visible:bg-state-active"
             onClick={(event) => event.stopPropagation()}
             onDragStart={(event) => event.preventDefault()}
             size="icon"
             type="button"
             variant="ghost"
           >
-            <Icon name="MoreHorizontal" className="size-4 max-md:pointer-coarse:size-5" aria-hidden />
+            <Icon name="MoreHorizontal" className="size-4" aria-hidden />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className={MENU_LAYER_CLASS}>

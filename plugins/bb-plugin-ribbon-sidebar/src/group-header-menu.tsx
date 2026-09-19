@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useState, type ReactNode } from "react";
 import type { IconDataV1 } from "./contracts";
 import { ProviderIcon } from "./provider-icon";
+import { Button } from "./vendor/components/ui/button";
 import {
   ProjectGroupActionItems,
   SectionGroupActionItems,
@@ -95,13 +96,15 @@ export function GroupHeaderMenu({
         <CompactViewportOverrideProvider isCompactViewport={false}>
           <DropdownMenu onOpenChange={setOpen}>
             <DropdownMenuTrigger asChild>
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 aria-label={`${label} options`}
-                className="relative m-1 flex size-5 cursor-pointer items-center justify-center rounded-md p-0 text-subtle-foreground outline-none ring-sidebar-ring after:absolute after:left-1/2 after:top-1/2 after:size-7 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] hover:text-foreground focus-visible:ring-2 data-[state=open]:bg-state-active data-[state=open]:text-foreground"
+                className="relative m-1 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2"
                 type="button"
               >
                 <Icon aria-hidden className="size-4" name="MoreHorizontal" />
-              </button>
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuSub>

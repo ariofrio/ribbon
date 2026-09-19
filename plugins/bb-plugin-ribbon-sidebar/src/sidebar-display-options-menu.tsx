@@ -9,10 +9,6 @@ import type {
 } from "./view-state";
 import { CHROME_SECTION_LABEL_CLASS } from "./chrome-style-tokens";
 import { Button } from "./vendor/components/ui/button";
-import {
-  COARSE_POINTER_ICON_SIZE_CLASS,
-  COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-} from "./vendor/components/ui/coarse-pointer-sizing";
 import { Icon } from "./vendor/components/ui/icon";
 import { CompactViewportOverrideProvider } from "./vendor/components/ui/hooks/use-compact-viewport";
 import {
@@ -178,7 +174,7 @@ export function SidebarDisplayOptionsMenu({
               <DropdownMenuTrigger asChild>
                 <Button
                   aria-label="Sidebar display options"
-                  className={`bb-sidebar-hover-actions shrink-0 cursor-pointer rounded-md p-0 text-sidebar-foreground/85 outline-none ring-sidebar-ring transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-foreground ${COARSE_POINTER_ROW_ACTION_SIZE_CLASS}`}
+                  className="bb-sidebar-hover-actions m-1 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2"
                   data-sidebar-hover-actions-mobile="always"
                   data-sidebar-hover-actions-open={open ? "true" : undefined}
                   size="icon"
@@ -187,7 +183,7 @@ export function SidebarDisplayOptionsMenu({
                 >
                   <Icon
                     aria-hidden
-                    className={COARSE_POINTER_ICON_SIZE_CLASS}
+                    className="size-4"
                     name="SlidersHorizontal"
                   />
                 </Button>
