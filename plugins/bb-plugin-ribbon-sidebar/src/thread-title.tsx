@@ -20,7 +20,7 @@ export function ThreadTitle({ title }: { title: string }) {
   return (
     <span
       ref={containerRef}
-      className="min-w-0 overflow-hidden whitespace-nowrap"
+      className="pointer-events-none min-w-0 overflow-hidden whitespace-nowrap"
       style={{
         maskImage: overflowing
           ? "linear-gradient(to right, black calc(100% - 16px), transparent)"

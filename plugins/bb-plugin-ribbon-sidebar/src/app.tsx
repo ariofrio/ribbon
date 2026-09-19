@@ -365,7 +365,7 @@ function ThreadRow({
             ? "grid-cols-[minmax(0,1fr)_auto] gap-x-1"
             : "grid-cols-1"
         } ${
-          active ? "bg-state-active" : "cursor-pointer hover:bg-sidebar-accent"
+          active ? "bg-sidebar-accent" : "cursor-pointer hover:bg-sidebar-accent"
         } ${
           muted
             ? "text-subtle-foreground/75"

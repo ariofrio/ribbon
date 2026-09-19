@@ -230,8 +230,8 @@
   color: color-mix(in srgb, var(--sidebar-foreground) 85%, transparent);
 }
 
-.bb-sidebar-hover-actions-row[class~="group/thread-row"].bg-state-active,
-.bb-sidebar-hover-actions-row[class~="group/thread-row"].bg-state-active:hover {
+.bb-sidebar-hover-actions-row[class~="group/thread-row"]:has(> a[aria-current="page"]),
+.bb-sidebar-hover-actions-row[class~="group/thread-row"]:has(> a[aria-current="page"]):hover {
   background-color: var(--sidebar-accent);
   color: var(--sidebar-foreground);
 }
