@@ -221,6 +221,7 @@ function ThreadRow({
   indicatorThread,
   icon,
   dragging,
+  muted,
   onDragEnd,
   onDragOver,
   onDragStart,
@@ -254,6 +255,7 @@ function ThreadRow({
   indicatorThread: PluginSidebarThread;
   icon: ReactNode;
   dragging: boolean;
+  muted: boolean;
   onDragEnd(): void;
   onDragOver(event: DragEvent<HTMLElement>): void;
   onDragStart(event: DragEvent<HTMLElement>): void;
@@ -320,9 +322,13 @@ function ThreadRow({
       ) : null}
       <div
         className={`bb-sidebar-hover-actions-row group/thread-row relative flex w-full items-center gap-2 rounded-md py-1 pr-0 text-sm transition-colors max-md:pointer-coarse:py-2.5 ${
-          active
-            ? "bg-state-active text-sidebar-foreground"
-            : "cursor-pointer text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:text-sidebar-foreground"
+          active ? "bg-state-active" : "cursor-pointer hover:bg-sidebar-accent"
+        } ${
+          muted
+            ? "text-subtle-foreground/75"
+            : active
+              ? "text-sidebar-foreground"
+              : "text-sidebar-foreground/85 hover:text-sidebar-accent-foreground dark:text-sidebar-foreground"
         } ${layout !== null && !active ? "bg-sidebar-accent/50" : ""} ${
           dragging ? "opacity-40" : ""
         } ${reorderable ? "select-none" : ""}`}
@@ -1492,6 +1498,12 @@ function RibbonSidebarList({
       childrenCollapsed && children.length > 0
         ? (groupIndicator([root, ...descendants(root.id, childrenByParent)]) ?? root)
         : root;
+    const stageOwner = root.parentThreadId
+      ? rootForThread(root.id, liveThreads) ?? root
+      : root;
+    const stage = assignmentPlacements
+      .get("plugin:thread-stages:stages")
+      ?.get(stageOwner.id)?.groupId;
     const reorderable =
       depth === 0 &&
       preferences.view.sort === "manual" &&
@@ -1542,6 +1554,7 @@ function RibbonSidebarList({
           indicatorThread={indicatorThread}
           icon={threadIcon(root)}
           dragging={draggingThreadId === root.id}
+          muted={stage === "Deferred" || stage === "Blocked" || stage === "Completed"}
           onDragEnd={clearDrag}
           onDragOver={(event) => {
             if (
