@@ -2058,6 +2058,7 @@ describe("Ribbon sidebar app", () => {
       groupingKey: null,
       filterGroupingKey: "builtin:sections",
       iconGroupingKey: "builtin:projects",
+      pullRequestNumberPosition: "right",
       hide: {
         notArchived: false,
         archived: true,

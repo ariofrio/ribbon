@@ -90,6 +90,10 @@ placement when a provider intentionally changes a plugin grouping key.
 
 ## Settings
 
+Use **Display options → PR number** to place the linked GitHub PR number to
+the Left or Right of each thread title, or choose Hidden. Right is the default.
+The choice is saved on this client and persists across reloads.
+
 Use **Display options → Icons** to choose the grouping that supplies each
 thread's leading icon: Projects (the default), Sections, any available provider
 grouping such as Stages, or No icons. This client-local choice is independent
