@@ -14,6 +14,7 @@ import {
 } from "./ribbon-sidebar/optional-icon-layout.mjs";
 import { verifyThreadIcons } from "./ribbon-sidebar/thread-icons.mjs";
 import { verifyPrNumber } from "./ribbon-sidebar/pr-number.mjs";
+import { verifySelectedTitleColor } from "./ribbon-sidebar/selected-title-color.mjs";
 import { seed, writeFixtureProvider } from "../screenshots/fixture.mjs";
 import { BB_CLI_PATH, startStack } from "../screenshots/stack.mjs";
 
@@ -87,6 +88,12 @@ const suites = [
     async run({ stack, fixture }) {
       await verifyOptionalIconLayout({ stack, fixture });
     },
+  },
+  {
+    id: "selected-title-color",
+    cases: ["chatgpt-theme"],
+    plugins: ["bb-plugin-ribbon-sidebar", "bb-plugin-chatgpt-theme"],
+    run: verifySelectedTitleColor,
   },
 ];
 

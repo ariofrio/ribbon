@@ -20,6 +20,10 @@ test("a plugin's own source recaptures", () => {
   }
 });
 
+test("a plugin's theme stylesheet recaptures", () => {
+  assert.ok(captures("plugins/bb-plugin-chatgpt-theme/themes/chatgpt.css"));
+});
+
 // A dependency bump can move what a plugin draws.
 test("a plugin's manifest recaptures", () => {
   for (const plugin of plugins) {
