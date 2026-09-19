@@ -83,6 +83,13 @@ const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
 /** bb keeps project-less threads in the personal project, under a reserved id. */
 const PERSONAL_PROJECT_ID = "proj_personal";
 
+const PR_STATE_ICONS = {
+  open: { name: "GitPullRequestArrow", className: "text-success" },
+  closed: { name: "GitPullRequestClosed", className: "text-destructive" },
+  merged: { name: "GitMerge", className: "text-pr-merged" },
+  draft: { name: "GitPullRequestDraft", className: "text-muted-foreground" },
+} as const;
+
 type SidebarSnapshot = z.output<
   typeof rpcContract.sidebarSnapshotV1.output
 >;
@@ -363,7 +370,12 @@ function ThreadRow({
             <span className="flex min-w-0 items-center gap-2 leading-5" title={accessibleTitle}>
               <span className="truncate">{rowTitle}</span>
               {pullRequest ? (
-                <span className="shrink-0 text-subtle-foreground/75" title={pullRequest.title}>
+                <span className="inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75" title={pullRequest.title}>
+                  <Icon
+                    name={PR_STATE_ICONS[pullRequest.state].name}
+                    className={`size-4 shrink-0 ${PR_STATE_ICONS[pullRequest.state].className}`}
+                    aria-hidden
+                  />
                   #{pullRequest.number}
                 </span>
               ) : null}
