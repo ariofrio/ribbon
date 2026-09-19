@@ -1,3 +1,7 @@
+import {
+  verifyThreadReordering,
+  verifyHeadingBoundary,
+} from "./ribbon-sidebar/thread-reordering.mjs";
 import { execFileSync } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -36,6 +40,15 @@ const suites = [
       await waitForStageCatalog({ bb, cliEnv });
     },
     run: verifyCompletedPlacement,
+  },
+  {
+    id: "thread-reordering",
+    cases: ["interaction", "heading-boundary"],
+    plugins: ["bb-plugin-ribbon-sidebar"],
+    async run(args) {
+      if (args.cases.includes("interaction")) await verifyThreadReordering(args);
+      if (args.cases.includes("heading-boundary")) await verifyHeadingBoundary(args);
+    },
   },
   {
     id: "thread-title-clicks",

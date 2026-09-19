@@ -64,7 +64,17 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     place(shortcut, "Idle");
     await sidebar.getByRole("region", { name: "Idle group", exact: true })
       .getByText(shortcut.title, { exact: true }).waitFor();
-    await row(shortcut).dragTo(completed.locator('[data-sidebar="group-label"]'));
+    const source = row(shortcut).locator("a[data-sidebar-thread-id]");
+    await source.hover();
+    const sourceBox = await source.boundingBox();
+    await page.mouse.move(sourceBox.x + 60, sourceBox.y + sourceBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(sourceBox.x + 70, sourceBox.y + sourceBox.height / 2);
+    await page.locator("[data-ribbon-thread-drag-overlay]").waitFor();
+    const heading = await completed.locator('[data-sidebar="group-label"]').boundingBox();
+    await page.mouse.move(heading.x + 60, heading.y + heading.height / 2);
+    await completed.locator("[data-ribbon-thread-drop-preview]").waitFor();
+    await page.mouse.up();
     await first(shortcut);
     assert.ok(await completed.getByText(shortcut.title, { exact: true }).isVisible());
     await context.close();
