@@ -240,13 +240,37 @@ function ComposerNavigationBridge() {
     ) {
       return;
     }
+    let notifyReady: (() => void) | undefined;
+    let focusFrame: number | undefined;
     return registerSecondaryComposer(context.threadId, composerThreadId, {
-      focus: composer.focus,
+      focus() {
+        composer.focus();
+        // The SDK commits focus through React; it can return before focus moves
+        // without producing a DOM mutation that would wake the pending request.
+        if (focusFrame === undefined) {
+          focusFrame = requestAnimationFrame(() => {
+            focusFrame = undefined;
+            notifyReady?.();
+          });
+        }
+      },
       observeReadiness(listener) {
-        // The rich-text editor mounts after the shell and its plugin banners.
+        notifyReady = listener;
+        // The editor can mount before it is editable or its panel is visible.
         const observer = new MutationObserver(listener);
-        observer.observe(composerElement, { childList: true, subtree: true });
-        return () => observer.disconnect();
+        observer.observe(composerElement, {
+          attributes: true,
+          childList: true,
+          subtree: true,
+        });
+        const resizeObserver = new ResizeObserver(listener);
+        resizeObserver.observe(composerElement);
+        return () => {
+          notifyReady = undefined;
+          if (focusFrame !== undefined) cancelAnimationFrame(focusFrame);
+          observer.disconnect();
+          resizeObserver.disconnect();
+        };
       },
       isFocused: () => composerElement.contains(document.activeElement),
       isVisible: () => {
@@ -511,6 +535,11 @@ function MissingKeyboardShortcuts() {
     Pick<PluginCommandContext, "projectId" | "threadId">
   >({ projectId: null, threadId: null });
   const sidebarActions = experimental_useSidebarThreadActions();
+  // Thread-list updates replace these actions without cancelling in-flight shortcuts.
+  const sidebarActionsRef = useRef(sidebarActions);
+  useLayoutEffect(() => {
+    sidebarActionsRef.current = sidebarActions;
+  }, [sidebarActions]);
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
@@ -635,7 +664,7 @@ function MissingKeyboardShortcuts() {
         };
 
         if (id === "new-personal-thread") {
-          sidebarActions.openNewThread({
+          sidebarActionsRef.current.openNewThread({
             focusPrompt: true,
             projectId: PERSONAL_PROJECT_ID,
           });
@@ -643,7 +672,7 @@ function MissingKeyboardShortcuts() {
         }
 
         if (id === "new-project-thread") {
-          sidebarActions.openNewThread({
+          sidebarActionsRef.current.openNewThread({
             focusPrompt: true,
             projectId: projectThreadTarget(
               commandContext,
@@ -798,7 +827,7 @@ function MissingKeyboardShortcuts() {
     );
     setReady(true);
     return () => controller.abort();
-  }, [rpc, sidebarActions]);
+  }, [rpc]);
   return createElement("span", {
     "data-missing-keyboard-shortcuts-ready": ready ? "" : undefined,
     hidden: true,

@@ -298,7 +298,18 @@ export function seed({ stack, workspaceRoot, bb, assignStages = true }) {
     return created;
   };
 
-  for (const spec of THREADS) spawn(spec, projects.get(spec.project));
+  // Spawn returns while bb is still preparing the shared checkout. Let each
+  // thread finish provisioning before another spawn claims that same path.
+  for (const spec of THREADS) {
+    const thread = spawn(spec, projects.get(spec.project));
+    run([
+      "thread",
+      "wait",
+      thread.id,
+      "--status",
+      spec.hang ? "active" : "idle",
+    ]);
+  }
 
   // Every thread belongs to the product, whichever repository it runs in, and
   // the one that runs in none belongs to it too.
@@ -308,10 +319,6 @@ export function seed({ stack, workspaceRoot, bb, assignStages = true }) {
 
   // Thread stages moves a thread itself while its turn runs, so hand-set
   // stages only stick once every answered thread has settled.
-  for (const spec of THREADS) {
-    if (spec.stage === null) continue;
-    run(["thread", "wait", threads.get(spec.title).id, "--status", "idle"]);
-  }
   if (assignStages) {
     for (const spec of THREADS) {
       if (spec.stage === null) continue;

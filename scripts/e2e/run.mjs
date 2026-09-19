@@ -6,7 +6,9 @@ import { execFileSync } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyStageShortcuts } from "./stage-shortcuts.mjs";
 import { verifyPluginUpgrade } from "./plugin-upgrade.mjs";
+import { verifyComposerReadiness } from "./composer-readiness.mjs";
 import { verifyScreenshotAnimations } from "./screenshot-animations.mjs";
 import { verifyBreadcrumbChildBadge } from "./breadcrumbs/child-badge.mjs";
 import {
@@ -32,6 +34,12 @@ const scratch = join(repositoryRoot, ".scratch/e2e");
 const bb = BB_CLI_PATH;
 
 const suites = [
+  {
+    id: "composer-readiness",
+    cases: ["delayed-visibility"],
+    plugins: ["bb-plugin-missing-keyboard-shortcuts"],
+    run: verifyComposerReadiness,
+  },
   {
     id: "completed-placement",
     cases: ["default-order"],
@@ -131,6 +139,15 @@ const suites = [
     cases: ["chatgpt-theme"],
     plugins: ["bb-plugin-ribbon-sidebar", "bb-plugin-chatgpt-theme"],
     run: verifySelectedTitleColor,
+  },
+  {
+    id: "stage-shortcuts",
+    cases: ["platforms"],
+    plugins: ["bb-plugin-thread-stages", "bb-plugin-ribbon-sidebar"],
+    async prepare({ cliEnv }) {
+      await waitForStageCatalog({ bb, cliEnv });
+    },
+    run: verifyStageShortcuts,
   },
 ];
 
