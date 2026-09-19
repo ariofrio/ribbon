@@ -6,6 +6,8 @@ import {
   FEATURED_THREAD,
 } from "../screenshots/fixture.mjs";
 
+const MODIFIER = process.platform === "darwin" ? "Meta" : "Control";
+
 export async function verifyPluginUpgrade({ stack, fixture }) {
   const thread = fixture.threads.get(FEATURED_THREAD);
   const project = fixture.projects.get(FEATURED_PROJECT);
@@ -82,7 +84,7 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
     const sideChatResponse = page.waitForResponse((response) =>
       response.url().endsWith("/plugins/missing-keyboard-shortcuts/rpc/createSideChat"),
     );
-    await page.keyboard.press("Shift+Meta+KeyL");
+    await page.keyboard.press(`Shift+${MODIFIER}+KeyL`);
     assert.equal((await (await sideChatResponse).json()).ok, true);
     const reply = page.getByRole("textbox", { name: "Reply…" });
     await reply.waitFor({ timeout: 120_000 });
@@ -107,7 +109,7 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
     const stageResponse = page.waitForResponse((response) =>
       response.url().endsWith("/plugins/thread-stages/rpc/setWorkflowStage"),
     );
-    await page.keyboard.press("Meta+Period");
+    await page.keyboard.press(`${MODIFIER}+Period`);
     const response = await stageResponse;
     const stageResult = await response.json();
     assert.equal(stageResult.ok, true);

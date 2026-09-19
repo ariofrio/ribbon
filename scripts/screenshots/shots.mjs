@@ -6,6 +6,8 @@ import {
 } from "./fixture.mjs";
 import { settleAnimations } from "./settle.mjs";
 
+export const MODIFIER = process.platform === "darwin" ? "Meta" : "Control";
+
 // What each plugin's screenshot pictures. Every shot starts from the same
 // seeded bb and is captured twice: the whole window, for the plugin's own
 // README, and a card cropped to what the plugin adds, for the table in the
@@ -57,7 +59,7 @@ async function openSideChatByShortcut(page) {
           isCreateSideChatRequest,
           { timeout: retryTimeout },
         ),
-        page.keyboard.press("Shift+Meta+KeyL"),
+        page.keyboard.press(`Shift+${MODIFIER}+KeyL`),
       ]);
     } catch (error) {
       // A full navigation remounts the shortcut plugin, so keep delivering the

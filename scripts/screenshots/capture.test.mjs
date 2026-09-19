@@ -5,6 +5,7 @@ import test from "node:test";
 import { ASPECT_RATIO, cropRectangle, unionBox } from "./capture.mjs";
 import { KEY_GLYPHS } from "./key-glyphs.mjs";
 import {
+  MODIFIER,
   setupScreenshots,
   SHOTS,
   SIDEBAR_PROVIDER,
@@ -113,21 +114,21 @@ test("the shortcut shot stops retrying when the late plugin handles the key", as
       ([event, keys]) =>
         event === "createSideChat.waitForRequest" ||
         event === "createSideChat.waitForResponse" ||
-        (event === "keyboard.press" && keys === "Shift+Meta+KeyL"),
+        (event === "keyboard.press" && keys === `Shift+${MODIFIER}+KeyL`),
     ),
     [
       ["createSideChat.waitForResponse", { timeout: 120000 }],
       ["createSideChat.waitForRequest", { timeout: 10000 }],
-      ["keyboard.press", "Shift+Meta+KeyL"],
+      ["keyboard.press", `Shift+${MODIFIER}+KeyL`],
       ["createSideChat.waitForResponse", { timeout: 120000 }],
       ["createSideChat.waitForRequest", { timeout: 10000 }],
-      ["keyboard.press", "Shift+Meta+KeyL"],
+      ["keyboard.press", `Shift+${MODIFIER}+KeyL`],
       ["createSideChat.waitForResponse", { timeout: 120000 }],
       ["createSideChat.waitForRequest", { timeout: 10000 }],
-      ["keyboard.press", "Shift+Meta+KeyL"],
+      ["keyboard.press", `Shift+${MODIFIER}+KeyL`],
       ["createSideChat.waitForResponse", { timeout: 120000 }],
       ["createSideChat.waitForRequest", { timeout: 10000 }],
-      ["keyboard.press", "Shift+Meta+KeyL"],
+      ["keyboard.press", `Shift+${MODIFIER}+KeyL`],
     ],
   );
   assert.deepEqual(replyWaits, [{ timeout: 120000 }]);
