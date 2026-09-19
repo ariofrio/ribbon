@@ -106,10 +106,24 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
     assert.equal((await (await terminalResponse).json()).ok, true);
     await page.locator(".xterm-screen").waitFor({ timeout: 120_000 });
 
+    await page.locator("body").evaluate((body) => {
+      body.tabIndex = -1;
+      body.focus();
+    });
+    await page.keyboard.press(`${MODIFIER}+Shift+KeyP`);
+    const commandSearch = page.getByRole("combobox", {
+      name: "Search commands",
+    });
+    await commandSearch.waitFor();
+    await commandSearch.fill(">file thread as completed");
+    const completeCommand = page.getByText("File thread as Completed", {
+      exact: true,
+    });
+    await completeCommand.waitFor();
     const stageResponse = page.waitForResponse((response) =>
       response.url().endsWith("/plugins/thread-stages/rpc/setWorkflowStage"),
     );
-    await page.keyboard.press(`${MODIFIER}+Period`);
+    await completeCommand.click();
     const response = await stageResponse;
     const stageResult = await response.json();
     assert.equal(stageResult.ok, true);
