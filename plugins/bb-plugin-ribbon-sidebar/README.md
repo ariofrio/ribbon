@@ -90,6 +90,14 @@ placement when a provider intentionally changes a plugin grouping key.
 
 ## Settings
 
+Use **Display options → Icons** to choose the grouping that supplies each
+thread's leading icon: Projects (the default), Sections, any available provider
+grouping such as Stages, or No icons. This client-local choice is independent
+of Pages and Headings. Children inherit their root's group icon. Project icons
+keep their existing Icons-plugin integration; section icons also work without
+that plugin. If a selected provider is unavailable, Projects is used until it
+returns.
+
 Ribbon sidebar can hide the Groups control, message previews, group-header
 icons, or experimental activity indicators for collapsed groups. Collapsed
 Stages always show the highest-priority non-unread activity indicator, matching

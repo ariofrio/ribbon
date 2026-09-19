@@ -400,6 +400,40 @@ function useManualSort(groupingKey = "plugin:thread-stages:stages") {
 }
 
 describe("Ribbon sidebar app", () => {
+  it("chooses read-only provider icons independently of headings and inherits them in children", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    fixture.value.rpc.synchronizeV1.mockResolvedValue({
+      ...snapshot,
+      groupings: snapshot.groupings.map((grouping) => ({
+        ...grouping,
+        membershipWritable: false,
+      })),
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    fireEvent.keyDown(
+      await slot.findByRole("button", { name: "Sidebar display options" }),
+      { key: "Enter" },
+    );
+    const icons = await slot.findByRole("menuitem", { name: "Icons Projects" });
+    icons.focus();
+    fireEvent.keyDown(icons, { key: "ArrowRight" });
+    fireEvent.click(await slot.findByRole("menuitemcheckbox", { name: "Stages" }));
+    for (const name of ["Design migration", "thread-child"]) {
+      const row = (await slot.findByRole("link", {
+        name: new RegExp(`^Open ${name}`),
+      })).parentElement!;
+      await waitFor(() =>
+        expect(within(row).getByLabelText("Idle group icon")).toBeTruthy(),
+      );
+    }
+    const saved = JSON.parse(window.localStorage.getItem(SIDEBAR_PREFERENCES_KEY)!);
+    expect(saved.view.iconGroupingKey).toBe("plugin:thread-stages:stages");
+    expect(saved.view.groupingKey).toBe("plugin:thread-stages:stages");
+    expect(saved.view.filterGroupingKey).toBe("builtin:sections");
+    slot.lifecycle.unmount();
+  });
+
   it("renders a workspace-style page switcher and the requested display menu", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
@@ -1894,6 +1928,7 @@ describe("Ribbon sidebar app", () => {
       },
       groupingKey: null,
       filterGroupingKey: "builtin:sections",
+      iconGroupingKey: "builtin:projects",
       hide: {
         notArchived: false,
         archived: true,

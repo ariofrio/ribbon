@@ -44,6 +44,8 @@ interface SidebarDisplayOptionsMenuProps {
   groupings: readonly DisplayGrouping[];
   headingsGroupingKey: GroupingKey | null;
   hide: HiddenThreadKinds;
+  iconGroupingKey: GroupingKey | null;
+  onIconsGroupingChange(groupingKey: GroupingKey | null): void;
   onHeadingsGroupingChange(groupingKey: GroupingKey | null): void;
   onHideChange(kind: keyof HiddenThreadKinds, hidden: boolean): void;
   onPagesGroupingChange(groupingKey: GroupingKey): void;
@@ -94,19 +96,19 @@ function groupingMenuItems(
   groupings: readonly DisplayGrouping[],
   selected: GroupingKey | null,
   onChange: (groupingKey: GroupingKey | null) => void,
-  includeNone: boolean,
+  noneLabel?: string,
 ) {
   return (
     <>
-      {includeNone ? (
+      {noneLabel ? (
         <DropdownMenuCheckboxItem
           checked={selected === null}
           onCheckedChange={() => onChange(null)}
         >
-          No headings
+          {noneLabel}
         </DropdownMenuCheckboxItem>
       ) : null}
-      {includeNone ? <DropdownMenuSeparator /> : null}
+      {noneLabel ? <DropdownMenuSeparator /> : null}
       {groupings.map((grouping) => (
         <DropdownMenuCheckboxItem
           checked={selected === grouping.groupingKey}
@@ -127,6 +129,8 @@ export function SidebarDisplayOptionsMenu({
   groupings,
   headingsGroupingKey,
   hide,
+  iconGroupingKey,
+  onIconsGroupingChange,
   onHeadingsGroupingChange,
   onHideChange,
   onPagesGroupingChange,
@@ -140,6 +144,9 @@ export function SidebarDisplayOptionsMenu({
   );
   const headingsGrouping = groupings.find(
     ({ groupingKey }) => groupingKey === headingsGroupingKey,
+  );
+  const iconsGrouping = groupings.find(
+    ({ groupingKey }) => groupingKey === iconGroupingKey,
   );
   const hiddenLabels = [
     hide.hidden ? "Hidden" : null,
@@ -196,7 +203,6 @@ export function SidebarDisplayOptionsMenu({
                   (groupingKey) => {
                     if (groupingKey !== null) onPagesGroupingChange(groupingKey);
                   },
-                  false,
                 )}
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
@@ -214,7 +220,25 @@ export function SidebarDisplayOptionsMenu({
                   groupings,
                   headingsGroupingKey,
                   onHeadingsGroupingChange,
-                  true,
+                  "No headings",
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger aria-label={`Icons ${iconsGrouping?.pluralLabel ?? "None"}`}>
+              <MenuValueRow
+                label="Icons"
+                value={iconsGrouping?.pluralLabel ?? "None"}
+              />
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent>
+                {groupingMenuItems(
+                  groupings,
+                  iconGroupingKey,
+                  onIconsGroupingChange,
+                  "No icons",
                 )}
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
