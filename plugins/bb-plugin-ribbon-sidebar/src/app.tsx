@@ -1,3 +1,12 @@
+import { useSortable } from "@dnd-kit/sortable";
+import {
+  ThreadDragProvider,
+  ThreadDragGroup,
+  ThreadDragHeader,
+  ThreadDropPreview,
+  type ThreadDragTarget,
+  type ThreadDragDestination,
+} from "./thread-drag";
 import {
   definePluginApp,
   experimental_useSidebarThreadActions,
@@ -20,7 +29,6 @@ import {
   useRef,
   useState,
   Fragment,
-  type DragEvent,
   type FormEvent,
   type MouseEvent,
   type ReactNode,
@@ -114,20 +122,6 @@ type EntityDialog =
   | { kind: "create-section"; name: string }
   | { kind: "rename"; scope: BuiltinGroupRef; label: string; name: string }
   | { kind: "delete"; scope: BuiltinGroupRef; label: string };
-type DragDestination =
-  | {
-      kind: "pinned";
-      beforeThreadId: string | null;
-      indicatorBefore: string | null;
-      indicatorAfter: string | null;
-    }
-  | {
-      kind: "placement";
-      groupId: string;
-      beforeThreadId: string | null;
-      indicatorBefore: string | null;
-      indicatorAfter: string | null;
-    };
 
 function title(thread: PluginSidebarThread) {
   return thread.title ?? thread.titleFallback ?? "Untitled thread";
@@ -237,11 +231,9 @@ function ThreadRow({
   indicatorThread,
   icon,
   dragging,
+  dragTarget,
+  projected,
   muted,
-  onDragEnd,
-  onDragOver,
-  onDragStart,
-  onDropBefore,
   onNewSection,
   onOpen,
   onRename,
@@ -252,8 +244,6 @@ function ThreadRow({
   pullRequestNumberPosition,
   reorderable,
   sections,
-  showDropAfter,
-  showDropBefore,
   thread,
 }: {
   active: boolean;
@@ -273,11 +263,9 @@ function ThreadRow({
   indicatorThread: PluginSidebarThread;
   icon: ReactNode;
   dragging: boolean;
+  dragTarget?: ThreadDragTarget;
+  projected: boolean;
   muted: boolean;
-  onDragEnd(): void;
-  onDragOver(event: DragEvent<HTMLElement>): void;
-  onDragStart(event: DragEvent<HTMLElement>): void;
-  onDropBefore(event: DragEvent<HTMLElement>): void;
   onNewSection(): void;
   onOpen(split: boolean): void;
   onRename(): void;
@@ -288,8 +276,6 @@ function ThreadRow({
   pullRequestNumberPosition: PullRequestNumberPosition;
   reorderable: boolean;
   sections: readonly { id: string; label: string }[];
-  showDropAfter: boolean;
-  showDropBefore: boolean;
   thread: PluginSidebarThread;
 }) {
   const { splitProps, isAvailable: splitAvailable, layout } =
@@ -298,6 +284,11 @@ function ThreadRow({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const rowTitle = title(thread);
+  const sortable = useSortable({
+    id: thread.id,
+    disabled: !reorderable,
+    data: { target: dragTarget, label: rowTitle },
+  });
   const accessibleTitle = preview ? `${rowTitle} — ${preview}` : rowTitle;
   const showPullRequest = pullRequest !== null && pullRequestNumberPosition !== "hidden";
   const pullRequestNumber = showPullRequest ? (
@@ -340,25 +331,13 @@ function ThreadRow({
     <li
       className="relative list-none"
       data-thread-id={thread.id}
-      onDragEnd={onDragEnd}
-      onDragOver={onDragOver}
-      onDragStart={onDragStart}
-      onDrop={onDropBefore}
+      style={dragging ? {
+        opacity: 0,
+        pointerEvents: "none",
+        position: projected ? "absolute" : undefined,
+        width: "100%",
+      } : undefined}
     >
-      {showDropBefore ? (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -top-px left-2 right-2 z-20 h-0.5 rounded-full bg-primary"
-          data-sidebar-drop-indicator=""
-        />
-      ) : null}
-      {showDropAfter ? (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-px left-2 right-2 z-20 h-0.5 rounded-full bg-primary"
-          data-sidebar-drop-indicator=""
-        />
-      ) : null}
       <div
         className={`bb-sidebar-hover-actions-row group/thread-row relative grid w-full items-start rounded-md pr-0 text-sm transition-colors ${
           reservesTrailingLane
@@ -372,11 +351,9 @@ function ThreadRow({
             : active
               ? "text-sidebar-foreground"
               : "text-sidebar-foreground/85 hover:text-sidebar-accent-foreground dark:text-sidebar-foreground"
-        } ${layout !== null && !active ? "bg-sidebar-accent/50" : ""} ${
-          dragging ? "opacity-40" : ""
-        } ${reorderable ? "select-none" : ""}`}
-        aria-grabbed={dragging ? "true" : undefined}
-        draggable={reorderable}
+        } ${layout !== null && !active ? "bg-sidebar-accent/50" : ""} ${reorderable ? "select-none" : ""}`}
+        ref={sortable.setNodeRef}
+        onDragStart={(event) => event.preventDefault()}
         style={{ paddingLeft: 8 + depth * 24 }}
       >
         {Array.from({ length: depth }, (_, level) => (
@@ -389,6 +366,10 @@ function ThreadRow({
         ))}
         <a
           {...splitProps}
+          {...(reorderable ? sortable.attributes : {})}
+          {...(reorderable ? sortable.listeners : {})}
+          ref={sortable.setActivatorNodeRef}
+          role="link"
           aria-current={active ? "page" : undefined}
           aria-label={`Open ${accessibleTitle}${showPullRequest ? ` (PR #${pullRequest.number})` : ""}`}
           className="absolute inset-0 rounded-md outline-none ring-sidebar-ring focus-visible:ring-2"
@@ -691,7 +672,11 @@ function RibbonSidebarList({
   } | null>(null);
   const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
   const [dragDestination, setDragDestination] =
-    useState<DragDestination | null>(null);
+    useState<ThreadDragDestination | null>(null);
+  const [optimisticMove, setOptimisticMove] = useState<{
+    threadId: string;
+    destination: ThreadDragDestination;
+  } | null>(null);
   const [entityDialog, setEntityDialog] = useState<EntityDialog | null>(null);
   const [entityPending, setEntityPending] = useState(false);
   const [searchResult, setSearchResult] = useState<{
@@ -1210,7 +1195,7 @@ function RibbonSidebarList({
   const hasGroupScope = preferences?.view.scope.kind === "group";
   // Pinned membership and ordering come directly from bb. An active Ribbon
   // scope still controls which pinned roots are visible.
-  const pinnedRoots = useMemo(
+  const savedPinnedRoots = useMemo(
     () =>
       displayRootThreads.filter(
         (thread) =>
@@ -1228,11 +1213,24 @@ function RibbonSidebarList({
       visiblePlacementIds,
     ],
   );
+  function projectedOrder(roots: readonly PluginSidebarThread[]) {
+    if (!optimisticMove) return roots;
+    const source = roots.find(({ id }) => id === optimisticMove.threadId);
+    if (!source) return roots;
+    const remaining = roots.filter(({ id }) => id !== source.id);
+    const before = optimisticMove.destination.beforeThreadId;
+    const index = before === null ? remaining.length : remaining.findIndex(({ id }) => id === before);
+    if (index < 0) return roots;
+    return [...remaining.slice(0, index), source, ...remaining.slice(index)];
+  }
+  const pinnedRoots = projectedOrder(savedPinnedRoots);
   const placementOrder = new Map(
     placements.map(({ threadId }, index) => [threadId, index]),
   );
   const displayGroupId = (thread: PluginSidebarThread) =>
-    grouping
+    optimisticMove?.threadId === thread.id && optimisticMove.destination.kind === "placement"
+      ? optimisticMove.destination.groupId
+      : grouping
       ? placementByThread.get(thread.id)?.groupId ??
         (grouping.groupingKey === "builtin:projects"
           ? thread.projectId
@@ -1631,12 +1629,14 @@ function RibbonSidebarList({
       ?.get(stageOwner.id)?.groupId;
     const reorderable =
       depth === 0 &&
+      optimisticMove === null &&
       preferences.view.sort === "manual" &&
       !normalizedSearch &&
       !root.isArchived &&
       rowContext !== undefined;
     return (
       <Fragment key={root.id}>
+        {dragDestination?.indicatorBefore === root.id ? <li className="list-none"><ThreadDropPreview /></li> : null}
         <ThreadRow
           pullRequestNumberPosition={preferences.view.pullRequestNumberPosition}
           active={activeThreadId === root.id}
@@ -1684,83 +1684,11 @@ function RibbonSidebarList({
           icon={threadIcon(root)}
           dragging={draggingThreadId === root.id}
           muted={stage === "Deferred" || stage === "Blocked" || stage === "Completed"}
-          onDragEnd={clearDrag}
-          onDragOver={(event) => {
-            if (
-              !reorderable ||
-              !draggingThreadId ||
-              !movingThread ||
-              (rowContext.kind === "pinned") !== movingThread.isPinned ||
-              (rowContext.kind === "placement" &&
-                !canDropPlacementInto(rowContext.groupId!))
-            ) {
-              setDragDestination(null);
-              return;
-            }
-            event.preventDefault();
-            event.stopPropagation();
-            const bounds = event.currentTarget.getBoundingClientRect();
-            const after = event.clientY > bounds.top + bounds.height / 2;
-            const index = rowContext.roots.findIndex(({ id }) => id === root.id);
-            const beforeThreadId = after
-              ? (rowContext.roots[index + 1]?.id ?? null)
-              : root.id;
-            setDragDestination(
-              rowContext.kind === "pinned"
-                ? {
-                    kind: "pinned",
-                    beforeThreadId,
-                    indicatorBefore: after ? null : root.id,
-                    indicatorAfter: after ? root.id : null,
-                  }
-                : {
-                    kind: "placement",
-                    groupId: rowContext.groupId!,
-                    beforeThreadId,
-                    indicatorBefore: after ? null : root.id,
-                    indicatorAfter: after ? root.id : null,
-                  },
-            );
-          }}
-          onDragStart={(event) => {
-            if (!reorderable) return;
-            event.stopPropagation();
-            event.dataTransfer.effectAllowed = "move";
-            event.dataTransfer.setData("text/plain", root.id);
-            setDraggingThreadId(root.id);
-          }}
-          onDropBefore={(event) => {
-            if (!reorderable || !draggingThreadId) return;
-            event.preventDefault();
-            event.stopPropagation();
-            if (draggingThreadId === root.id) {
-              clearDrag();
-              return;
-            }
-            if (!dragDestination) return;
-            if (dragDestination.kind === "pinned") {
-              void updatePinnedOrder(
-                draggingThreadId,
-                dragDestination.beforeThreadId,
-              );
-            } else {
-              if (!canDropPlacementInto(dragDestination.groupId)) {
-                clearDrag();
-                return;
-              }
-              void updatePlacement(
-                draggingThreadId,
-                dragDestination.groupId,
-                dragDestination.beforeThreadId === null
-                  ? { kind: "end" }
-                  : {
-                      kind: "before",
-                      threadId: dragDestination.beforeThreadId,
-                    },
-              );
-              clearDrag();
-            }
-          }}
+          dragTarget={rowContext ? {
+            ...rowContext,
+            threadId: root.id,
+          } as ThreadDragTarget : undefined}
+          projected={dragDestination !== null}
           onNewSection={() =>
             setEntityDialog({ kind: "create-section", name: "" })
           }
@@ -1792,20 +1720,41 @@ function RibbonSidebarList({
           }
           reorderable={reorderable}
           sections={sections}
-          showDropAfter={dragDestination?.indicatorAfter === root.id}
-          showDropBefore={dragDestination?.indicatorBefore === root.id}
           thread={root}
         />
-        {includeDescendants && !childrenCollapsed
+        {includeDescendants && !childrenCollapsed && draggingThreadId !== root.id
           ? children.map((child) =>
               renderRoot(child, depth + 1),
             )
           : null}
+        {dragDestination?.indicatorAfter === root.id ? <li className="list-none"><ThreadDropPreview /></li> : null}
       </Fragment>
     );
   };
 
   return (
+    <ThreadDragProvider
+      canDrop={(sourceId, target) => {
+        const source = rootThreads.find(({ id }) => id === sourceId);
+        if (!source || normalizedSearch || preferences.view.sort !== "manual") return false;
+        if (target.kind === "pinned") return source.isPinned;
+        return canDropPlacementInto(target.groupId);
+      }}
+      onStart={setDraggingThreadId}
+      onDestination={setDragDestination}
+      onCancel={clearDrag}
+      onDrop={(threadId, destination) => {
+        setOptimisticMove({ threadId, destination });
+        clearDrag();
+        const update = destination.kind === "pinned"
+          ? updatePinnedOrder(threadId, destination.beforeThreadId)
+          : updatePlacement(threadId, destination.groupId, destination.beforeThreadId === null
+              ? { kind: "end" } : { kind: "before", threadId: destination.beforeThreadId });
+        void update.catch((error: unknown) => {
+          setMutationError(error instanceof Error ? error.message : "Could not move thread");
+        }).finally(() => setOptimisticMove(null));
+      }}
+    >
     <div
       className="relative flex w-full min-w-0 flex-col"
       data-sidebar="group"
@@ -1821,9 +1770,6 @@ function RibbonSidebarList({
       data-ribbon-sidebar-scope-grouping-key={
         normalizedSearch ? undefined : activeScope?.groupingKey
       }
-      onKeyDown={(event) => {
-        if (event.key === "Escape") clearDrag();
-      }}
     >
       {settings.values?.showProjectsAndSections !== false ? (
         <SidebarTopControls>
@@ -2127,35 +2073,16 @@ function RibbonSidebarList({
       ) : (
         <div className="space-y-4">
       {pinnedRoots.length > 0 ? (
-        <section
+        <ThreadDragGroup
           aria-label="Pinned threads"
-          className={`group/sidebar-section min-w-0 rounded-md transition-colors ${
-            dragDestination?.kind === "pinned" &&
-            dragDestination.beforeThreadId === null
-              ? "bg-sidebar-accent/60"
-              : ""
-          }`}
+          className="group/sidebar-section min-w-0 rounded-md"
           data-sidebar-sticky-group=""
-          onDragOver={(event) => {
-            if (!draggingThreadId || !movingThread?.isPinned) {
-              setDragDestination(null);
-              return;
-            }
-            event.preventDefault();
-            setDragDestination({
-              kind: "pinned",
-              beforeThreadId: null,
-              indicatorBefore: null,
-              indicatorAfter: null,
-            });
-          }}
-          onDrop={(event) => {
-            if (!draggingThreadId || !movingThread?.isPinned) return;
-            event.preventDefault();
-            void updatePinnedOrder(draggingThreadId, null);
-          }}
+          target={{ kind: "pinned", roots: pinnedRoots }}
+          disabled={preferences.view.sort !== "manual" || Boolean(normalizedSearch)}
         >
-          <div
+          <ThreadDragHeader
+            target={{ kind: "pinned", roots: pinnedRoots }}
+            disabled={preferences.view.sort !== "manual" || Boolean(normalizedSearch)}
             className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} max-md:pointer-coarse:h-9`}
             data-sidebar="group-label"
             data-sidebar-sticky-tier="label"
@@ -2211,7 +2138,8 @@ function RibbonSidebarList({
                 }))
               }
             />
-          </div>
+          </ThreadDragHeader>
+          {dragDestination?.kind === "pinned" && dragDestination.atStart ? <ThreadDropPreview /> : null}
           {!pinnedSectionCollapsed ? (
             <ul>
               {pinnedRoots.map((root) =>
@@ -2224,13 +2152,14 @@ function RibbonSidebarList({
           ) : pinnedActivePreview ? (
             <ul>{renderRoot(pinnedActivePreview, 0, false)}</ul>
           ) : null}
-        </section>
+          {dragDestination?.kind === "pinned" && !dragDestination.atStart && !dragDestination.indicatorBefore && !dragDestination.indicatorAfter ? <ThreadDropPreview /> : null}
+        </ThreadDragGroup>
       ) : null}
 
       {displayedGroupDefinitions.map((group) => {
-        const roots = unpinnedRoots.filter(
+        const roots = projectedOrder(unpinnedRoots.filter(
           (thread) => displayGroupId(thread) === group.id,
-        );
+        ));
         if (normalizedSearch && roots.length === 0) return null;
         if (roots.length === 0 && !group.visibleWhenEmpty) return null;
         const ref = `${grouping?.groupingKey ?? "ungrouped"}/${group.id}`;
@@ -2349,41 +2278,19 @@ function RibbonSidebarList({
               }
             : null;
         return (
-          <section
+          <ThreadDragGroup
             aria-label={`${group.label} group`}
-            className={`group/sidebar-section min-w-0 rounded-md transition-colors ${
-              dragDestination?.kind === "placement" &&
-              dragDestination.groupId === group.id &&
-              dragDestination.beforeThreadId === null
-                ? "bg-sidebar-accent/60"
-                : ""
-            }`}
+            className="group/sidebar-section min-w-0 rounded-md"
             data-sidebar-sticky-group=""
             data-testid={sameKeyScope ? "scope-end-drop-target" : undefined}
             key={group.id}
-            onDragOver={(event) => {
-              if (!canDropPlacementInto(group.id)) {
-                setDragDestination(null);
-                return;
-              }
-              event.preventDefault();
-              setDragDestination({
-                kind: "placement",
-                groupId: group.id,
-                beforeThreadId: null,
-                indicatorBefore: null,
-                indicatorAfter: null,
-              });
-            }}
-            onDrop={(event) => {
-              if (!draggingThreadId || !canDropPlacementInto(group.id)) return;
-              event.preventDefault();
-              void updatePlacement(draggingThreadId, group.id, { kind: "end" });
-              clearDrag();
-            }}
+            target={{ kind: "placement", groupId: group.id, roots }}
+            disabled={preferences.view.sort !== "manual" || Boolean(normalizedSearch) || !grouping}
           >
             {!sameKeyScope ? (
-              <div
+              <ThreadDragHeader
+                target={{ kind: "placement", groupId: group.id, roots }}
+                disabled={preferences.view.sort !== "manual" || Boolean(normalizedSearch) || !grouping}
                 className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} transition-colors max-md:pointer-coarse:h-9`}
                 data-sidebar="group-label"
                 data-sidebar-sticky-tier="label"
@@ -2472,8 +2379,9 @@ function RibbonSidebarList({
                     ) : null
                   }
                 />
-              </div>
+              </ThreadDragHeader>
             ) : null}
+            {dragDestination?.kind === "placement" && dragDestination.groupId === group.id && dragDestination.atStart ? <ThreadDropPreview /> : null}
             <div className={grouping && !collapsed ? "mt-1" : undefined}>
               {!collapsed
                 ? (
@@ -2506,12 +2414,14 @@ function RibbonSidebarList({
                     )
                   : null}
             </div>
-          </section>
+            {dragDestination?.kind === "placement" && dragDestination.groupId === group.id && !dragDestination.atStart && !dragDestination.indicatorBefore && !dragDestination.indicatorAfter ? <ThreadDropPreview /> : null}
+          </ThreadDragGroup>
         );
       })}
         </div>
       )}
     </div>
+    </ThreadDragProvider>
   );
 }
 
