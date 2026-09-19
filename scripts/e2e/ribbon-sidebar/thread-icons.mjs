@@ -3,6 +3,9 @@ import { chromium } from "playwright";
 import { applyPluginState, FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
 
 export async function verifyThreadIcons({ stack, fixture }) {
+  const thread = fixture.threads.get(FEATURED_THREAD);
+  // Earlier filing and placement cases can move this shared thread out of Idle.
+  fixture.run(["sidebar", "place", thread.id, "--to", "plugin:thread-stages:stages/Idle"]);
   await applyPluginState({ stack, ...fixture });
   fixture.run([
     "plugin",
@@ -19,7 +22,6 @@ export async function verifyThreadIcons({ stack, fixture }) {
       localStorage.setItem("bb.sidebar.threadListProvider", JSON.stringify("ribbon-sidebar/ribbon-sidebar"));
     });
     const page = await context.newPage();
-    const thread = fixture.threads.get(FEATURED_THREAD);
     const project = fixture.projects.get(FEATURED_PROJECT);
     await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
     const sidebar = page.locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]");
