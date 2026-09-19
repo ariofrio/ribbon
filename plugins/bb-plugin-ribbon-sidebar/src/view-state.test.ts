@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   changeSidebarGrouping,
+  changeSidebarPagesGrouping,
   changeSidebarScope,
   loadSidebarPreferences,
   saveSidebarPreferences,
@@ -21,6 +22,28 @@ function storage(entries: Record<string, string> = {}): Storage {
 }
 
 describe("client-local sidebar preferences", () => {
+  it("disables paging, clears the selected page, and persists across reloads", () => {
+    const local = storage();
+    const keys = ["builtin:projects", "builtin:sections"] as const;
+    const preferences = loadSidebarPreferences(local, keys);
+    const scoped = changeSidebarScope(preferences.view, {
+      kind: "group",
+      group: { groupingKey: "builtin:sections", groupId: "release" },
+    });
+    const unpaged = changeSidebarPagesGrouping(scoped, null);
+    expect(unpaged).toEqual({
+      ...scoped,
+      scope: { kind: "all" },
+      filterGroupingKey: null,
+    });
+    saveSidebarPreferences(local, { ...preferences, view: unpaged });
+    expect(loadSidebarPreferences(local, keys).view).toEqual(unpaged);
+    expect(changeSidebarPagesGrouping(unpaged, "builtin:projects")).toEqual({
+      ...unpaged,
+      filterGroupingKey: "builtin:projects",
+    });
+  });
+
   it("defaults PR numbers to the right and persists each placement", () => {
     const local = storage();
     const keys = ["builtin:projects", "builtin:sections"] as const;
