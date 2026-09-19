@@ -122,13 +122,13 @@ async function verifyStagePlacement({ browser, stack, fixture }) {
       name: "Environment",
     });
     const environmentChoice = page.getByRole("menuitem", {
-      name: /^Work (locally|remotely)/,
+      name: /^Project checkout/,
     });
     await environmentButton.click();
     await environmentChoice.click();
     await environmentChoice.waitFor({ state: "hidden" });
     await environmentButton
-      .filter({ hasText: /Work (locally|remotely)/ })
+      .filter({ hasText: "Project checkout" })
       .waitFor();
     const modelButton = composer.getByRole("button", {
       name: /Provider, model and reasoning/,
