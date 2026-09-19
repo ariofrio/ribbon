@@ -61,9 +61,13 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
         .waitFor({ timeout: 120_000 });
 
       const sidebar = page.locator("[data-ribbon-sidebar-root]");
-      for (const name of ["Atlas options", "Collapse Atlas section"]) {
-        const button = sidebar.getByRole("button", { name, exact: true });
-        await button.locator('xpath=ancestor::*[@data-sidebar-sticky-tier="label"][1]').hover();
+      const topControls = page.locator("[data-ribbon-sidebar-top-controls]");
+      for (const name of ["Sidebar display options", "Atlas options", "Collapse Atlas section"]) {
+        const button = (name === "Sidebar display options" ? topControls : sidebar)
+          .getByRole("button", { name, exact: true });
+        await (name === "Sidebar display options"
+          ? topControls
+          : button.locator('xpath=ancestor::*[@data-sidebar-sticky-tier="label"][1]')).hover();
         await button.hover();
         const box = await button.boundingBox();
         assert.equal(box.width, 20, `${name} should be 20px wide`);
