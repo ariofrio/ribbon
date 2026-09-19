@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyThreadTitles } from "./thread-titles.mjs";
 import { verifyPluginUpgrade } from "./plugin-upgrade.mjs";
 import { verifyScreenshotAnimations } from "./screenshot-animations.mjs";
 import { verifyBreadcrumbChildBadge } from "./breadcrumbs/child-badge.mjs";
@@ -24,6 +25,12 @@ const scratch = join(repositoryRoot, ".scratch/e2e");
 const bb = BB_CLI_PATH;
 
 const suites = [
+  {
+    id: "thread-titles",
+    cases: ["once"],
+    plugins: ["bb-plugin-thread-titles"],
+    run: verifyThreadTitles,
+  },
   {
     id: "pr-number",
     cases: ["placement"],

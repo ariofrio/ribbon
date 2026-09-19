@@ -118,7 +118,7 @@ export async function startStack({ dataDir, logStream, prepare }) {
     return child;
   }
 
-  launch(paths.serverEntry, {
+  let server = launch(paths.serverEntry, {
     BB_SERVER_PORT: String(serverPort),
     BB_SERVER_BIND_HOST: "127.0.0.1",
   });
@@ -180,6 +180,29 @@ export async function startStack({ dataDir, logStream, prepare }) {
     serverUrl,
     dataDir,
     env,
+    async restartServer() {
+      await new Promise((resolve) => {
+        server.once("exit", resolve);
+        server.kill("SIGTERM");
+      });
+      server = launch(paths.serverEntry, {
+        BB_SERVER_PORT: String(serverPort),
+        BB_SERVER_BIND_HOST: "127.0.0.1",
+      });
+      await waitFor(
+        async () => {
+          const response = await fetch(new URL("/api/v1/hosts", serverUrl)).catch(
+            () => null,
+          );
+          if (!response?.ok) return false;
+          const body = await response.json();
+          return (Array.isArray(body) ? body : body.hosts ?? []).some(
+            (host) => host.status === "connected",
+          );
+        },
+        { label: "the restarted server and host daemon" },
+      );
+    },
     async stop() {
       for (const child of children) child.kill("SIGTERM");
       await Promise.all(

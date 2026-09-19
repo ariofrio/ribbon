@@ -1,0 +1,59 @@
+{
+  "name": "bb-plugin-thread-titles",
+  "version": "0.1.0",
+  "description": "Refine each new thread title once, after five minutes or three user messages.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ariofrio/ribbon.git",
+    "directory": "plugins/bb-plugin-thread-titles"
+  },
+  "homepage": "https://github.com/ariofrio/ribbon/tree/main/plugins/bb-plugin-thread-titles#readme",
+  "bugs": {
+    "url": "https://github.com/ariofrio/ribbon/issues"
+  },
+  "files": [
+    "assets",
+    "dist",
+    "src",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "bb plugin build",
+    "prepublishOnly": "npm run release:check",
+    "release:check": "npm test && npm run typecheck && npm run verify:types && npm run build && npm run verify:package",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "verify:types": "node ../../scripts/verify-types.mjs",
+    "verify:package": "node ../../scripts/verify-package.mjs"
+  },
+  "engines": {
+    "bb": ">=0.43.3",
+    "bbPluginSdk": "^0.4.104"
+  },
+  "bb": {
+    "name": "Thread titles",
+    "description": "Refine each new thread title once, after five minutes or three user messages.",
+    "branding": {
+      "icon": "./assets/icon.svg"
+    },
+    "server": "./src/server.ts",
+    "skills": []
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "0.4.104",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "bb-app": "0.43.3",
+    "better-sqlite3": "^12.0.0",
+    "cron-parser": "^5.10.0",
+    "hono": "^4.11.9",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.0"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
+}

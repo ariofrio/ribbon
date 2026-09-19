@@ -51,6 +51,22 @@ bb plugin install thread-stages@ribbon
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
+### <img src="assets/icons/thread-titles.svg" alt="" width="26" align="absmiddle"> &nbsp;Thread titles
+
+Refine each new thread title once, after five minutes or three user messages.
+
+Use the full recorded conversation, keep renamed titles, and remember completed
+updates across bb restarts.
+
+```sh
+bb marketplace add git:github.com/ariofrio/ribbon
+bb plugin install thread-titles@ribbon
+```
+
+<a href="plugins/bb-plugin-thread-titles#readme">Read docs &rarr;</a>
+
+<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
+
 <a href="plugins/bb-plugin-icons#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-icons/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-icons/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-icons/assets/card-beside-dark.png"><img src="plugins/bb-plugin-icons/assets/card-beside-light.png" alt="The icon picker open on the Storefront project's icon in a bb thread header" align="right" width="45%"></picture></a>
 
 ### <img src="assets/icons/icons.svg" alt="" width="26" align="absmiddle"> &nbsp;Icons
