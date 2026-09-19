@@ -1827,102 +1827,108 @@ function RibbonSidebarList({
     >
       {settings.values?.showProjectsAndSections !== false ? (
         <SidebarTopControls>
-          <ScopeFilter
-            filterGroupingKey={preferences.view.filterGroupingKey}
-            groupings={orderedGroupings(
-              snapshot.groupings.filter(({ available }) => available),
-            )}
-            onAddProjectLocalPath={(project) => {
-              void rpc
-                .call("addProjectLocalPathV1", { projectId: project.id })
-                .then(() => synchronize())
-                .catch((error: unknown) =>
-                  setMutationError(
-                    error instanceof Error
-                      ? error.message
-                      : "Could not add local path",
+          {preferences.view.filterGroupingKey === null ? (
+            <span className="flex h-11 min-w-0 flex-1 items-center px-2 text-sm font-medium text-sidebar-foreground">
+              All groups
+            </span>
+          ) : (
+            <ScopeFilter
+              filterGroupingKey={preferences.view.filterGroupingKey}
+              groupings={orderedGroupings(
+                snapshot.groupings.filter(({ available }) => available),
+              )}
+              onAddProjectLocalPath={(project) => {
+                void rpc
+                  .call("addProjectLocalPathV1", { projectId: project.id })
+                  .then(() => synchronize())
+                  .catch((error: unknown) =>
+                    setMutationError(
+                      error instanceof Error
+                        ? error.message
+                        : "Could not add local path",
+                    ),
+                  );
+              }}
+              onChange={(next) =>
+                changePreferences((current) => ({
+                  ...current,
+                  view: changeSidebarScope(
+                    current.view,
+                    next === null
+                      ? { kind: "all" }
+                      : { kind: "group", group: next },
                   ),
+                }))
+              }
+              onNewProject={() => {
+                void rpc
+                  .call("createProjectV1", null)
+                  .then(() => synchronize())
+                  .catch((error: unknown) =>
+                    setMutationError(
+                      error instanceof Error
+                        ? error.message
+                        : "Could not create project",
+                    ),
+                  );
+              }}
+              onNewSection={() =>
+                setEntityDialog({ kind: "create-section", name: "" })
+              }
+              onOpenProjectSettings={(project) => {
+                window.location.assign(
+                  `/projects/${encodeURIComponent(project.id)}/settings`,
                 );
-            }}
-            onChange={(next) =>
-              changePreferences((current) => ({
-                ...current,
-                view: changeSidebarScope(
-                  current.view,
-                  next === null
-                    ? { kind: "all" }
-                    : { kind: "group", group: next },
-                ),
-              }))
-            }
-            onNewProject={() => {
-              void rpc
-                .call("createProjectV1", null)
-                .then(() => synchronize())
-                .catch((error: unknown) =>
-                  setMutationError(
-                    error instanceof Error
-                      ? error.message
-                      : "Could not create project",
-                  ),
-                );
-            }}
-            onNewSection={() =>
-              setEntityDialog({ kind: "create-section", name: "" })
-            }
-            onOpenProjectSettings={(project) => {
-              window.location.assign(
-                `/projects/${encodeURIComponent(project.id)}/settings`,
-              );
-              onNavigate();
-            }}
-            onRemoveProject={(project) =>
-              setEntityDialog({
-                kind: "delete",
-                scope: {
-                  groupingKey: "builtin:projects",
-                  groupId: project.id,
-                },
-                label: project.name,
-              })
-            }
-            onRemoveSection={(section) =>
-              setEntityDialog({
-                kind: "delete",
-                scope: {
-                  groupingKey: "builtin:sections",
-                  groupId: section.id,
-                },
-                label: section.name,
-              })
-            }
-            onRenameProject={(project) =>
-              setEntityDialog({
-                kind: "rename",
-                scope: {
-                  groupingKey: "builtin:projects",
-                  groupId: project.id,
-                },
-                label: project.name,
-                name: project.name,
-              })
-            }
-            onRenameSection={(section) =>
-              setEntityDialog({
-                kind: "rename",
-                scope: {
-                  groupingKey: "builtin:sections",
-                  groupId: section.id,
-                },
-                label: section.name,
-                name: section.name,
-              })
-            }
-            projectActionStates={projectActionStates}
-            projects={sidebar.projects}
-            sections={sections.map(({ id, label }) => ({ id, name: label }))}
-            value={scopeFilterValue}
-          />
+                onNavigate();
+              }}
+              onRemoveProject={(project) =>
+                setEntityDialog({
+                  kind: "delete",
+                  scope: {
+                    groupingKey: "builtin:projects",
+                    groupId: project.id,
+                  },
+                  label: project.name,
+                })
+              }
+              onRemoveSection={(section) =>
+                setEntityDialog({
+                  kind: "delete",
+                  scope: {
+                    groupingKey: "builtin:sections",
+                    groupId: section.id,
+                  },
+                  label: section.name,
+                })
+              }
+              onRenameProject={(project) =>
+                setEntityDialog({
+                  kind: "rename",
+                  scope: {
+                    groupingKey: "builtin:projects",
+                    groupId: project.id,
+                  },
+                  label: project.name,
+                  name: project.name,
+                })
+              }
+              onRenameSection={(section) =>
+                setEntityDialog({
+                  kind: "rename",
+                  scope: {
+                    groupingKey: "builtin:sections",
+                    groupId: section.id,
+                  },
+                  label: section.name,
+                  name: section.name,
+                })
+              }
+              projectActionStates={projectActionStates}
+              projects={sidebar.projects}
+              sections={sections.map(({ id, label }) => ({ id, name: label }))}
+              value={scopeFilterValue}
+            />
+          )}
           <SidebarDisplayOptionsMenu
             groupings={orderedGroupings(
               snapshot.groupings.filter(({ available }) => available),

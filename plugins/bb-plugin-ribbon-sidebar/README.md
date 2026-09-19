@@ -90,6 +90,10 @@ placement when a provider intentionally changes a plugin grouping key.
 
 ## Settings
 
+Use **Display options → Pages → No paging** to show all groups without a page
+switcher. Headings and icons keep their current settings. The choice persists
+across reloads; select a Pages grouping to restore the switcher.
+
 Use **Display options → PR number** to place the linked GitHub PR number to
 the Left or Right of each thread title, or choose Hidden. Right is the default.
 The choice is saved on this client and persists across reloads.
