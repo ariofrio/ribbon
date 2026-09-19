@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { FEATURED_THREAD } from "../../screenshots/fixture.mjs";
+import { AGENT, FEATURED_PROJECT } from "../../screenshots/fixture.mjs";
 
 const INDICATOR_THREAD = "Investigate webhook retries";
 const ICONS_PLUGIN_ID = "icons";
@@ -13,8 +13,24 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
     );
   if (iconsEnabled) fixture.run(["plugin", "disable", ICONS_PLUGIN_ID]);
 
+  // Other suites mutate the shared featured thread, so own the idle row's state.
+  const project = fixture.projects.get(FEATURED_PROJECT);
+  const idleThread = fixture.runJson([
+    "thread", "spawn",
+    "--project", project.id,
+    "--machine", "screenshots",
+    "--environment", project.root,
+    "--provider", `acp-${AGENT.id}`,
+    "--model", AGENT.modelId,
+    "--permission-mode", "accept-edits",
+    "--title", "Verify long sidebar titles shorten only while hover actions are visible",
+    "--prompt", "Confirm the sidebar hover layout fixture is ready.",
+  ]);
   const browser = await chromium.launch({ args: ["--mute-audio"] });
   try {
+    fixture.run(["thread", "wait", idleThread.id, "--status", "idle"]);
+    fixture.run(["thread", "update", idleThread.id, "--section", fixture.section.id]);
+    fixture.run(["thread", "read", idleThread.id]);
     const context = await browser.newContext({
       viewport: { width: 1280, height: 800 },
       deviceScaleFactor: 2,
@@ -102,11 +118,14 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
         `Without Icons, the title-to-indicator gap was ${gap}px instead of 8px (${JSON.stringify(geometry)})`,
       );
 
-      const idleThread = fixture.threads.get(FEATURED_THREAD);
       const idleRow = page.locator("[data-ribbon-sidebar-root] li").filter({
         has: page.locator(`a[data-sidebar-thread-id="${idleThread.id}"]`),
       });
-      assert.equal(await idleRow.locator("[data-sidebar-thread-trailing-indicator]").count(), 0);
+      assert.equal(
+        await idleRow.locator("[data-sidebar-thread-trailing-indicator]").count(),
+        0,
+        "The fresh, read thread should have no trailing indicator",
+      );
       async function assertRestingInset() {
         const inset = await idleRow.evaluate((node) => {
           const title = node.querySelector("[title] > span").parentElement;
@@ -144,6 +163,10 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
     }
   } finally {
     await browser.close();
-    if (iconsEnabled) fixture.run(["plugin", "enable", ICONS_PLUGIN_ID]);
+    try {
+      fixture.run(["thread", "delete", idleThread.id, "--yes"]);
+    } finally {
+      if (iconsEnabled) fixture.run(["plugin", "enable", ICONS_PLUGIN_ID]);
+    }
   }
 }
