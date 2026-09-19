@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { chromium } from "playwright";
 import {
   FEATURED_PROJECT,
@@ -8,9 +10,30 @@ import {
 export async function verifyThreadReordering({ stack, fixture }) {
   const browser = await chromium.launch({ args: ["--mute-audio"] });
   let releaseSave = () => {};
+  let context;
   try {
-    const context = await browser.newContext({
+    context = await browser.newContext({
       viewport: { width: 1280, height: 900 },
+    });
+    await context.tracing.start({ snapshots: true, sources: true });
+    await context.addInitScript(() => {
+      // dnd-kit renders the overlay before its deferred keyboard listener exists.
+      // Observe that listener itself; a visible preview cannot establish readiness.
+      const add = EventTarget.prototype.addEventListener;
+      const remove = EventTarget.prototype.removeEventListener;
+      const listeners = new Set();
+      EventTarget.prototype.addEventListener = function(type, listener, options) {
+        const result = add.call(this, type, listener, options);
+        if (this === document && type === "keydown" &&
+            listener?.name === "bound handleKeyDown") listeners.add(listener);
+        return result;
+      };
+      EventTarget.prototype.removeEventListener = function(type, listener, options) {
+        const result = remove.call(this, type, listener, options);
+        if (this === document && type === "keydown") listeners.delete(listener);
+        return result;
+      };
+      window.ribbonDragKeyboardReady = () => listeners.size > 0;
     });
     await context.addInitScript(() => {
       localStorage.setItem(
@@ -179,6 +202,7 @@ export async function verifyThreadReordering({ stack, fixture }) {
     await page.keyboard.press("Space");
     await chip.waitFor();
     assert.equal(page.url(), url, "keyboard start must not navigate");
+    await page.waitForFunction(() => window.ribbonDragKeyboardReady());
     await page.keyboard.press("ArrowDown");
     await page.waitForFunction((threadId) => {
       const row = document.querySelector(
@@ -394,6 +418,12 @@ export async function verifyThreadReordering({ stack, fixture }) {
         .getAttribute("data-thread-id"),
       gapSourceId,
     );
+  } catch (error) {
+    const directory = resolve(".scratch/e2e");
+    await mkdir(directory, { recursive: true })
+      .then(() => context?.tracing.stop({ path: resolve(directory, "thread-reordering.trace.zip") }))
+      .catch((diagnosticError) => console.error("Could not save the thread-reordering trace:", diagnosticError));
+    throw error;
   } finally {
     releaseSave();
     await browser.close();

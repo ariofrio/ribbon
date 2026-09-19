@@ -112,7 +112,6 @@ async function applyInheritedGroups(
       groupingKey,
       groupId,
       threadId: target.id,
-      anchor: { kind: "end" },
       origin: "auto",
     });
     if (!result.ok) throw new Error(result.error.message);

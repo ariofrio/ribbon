@@ -253,7 +253,6 @@ describe("thread stages provider", () => {
           groupingKey: "plugin:thread-stages:stages",
           groupId: "Completed",
           threadId: "thread-a",
-          anchor: { kind: "end" },
           expectedRevision: 4,
           origin: "ui",
         },

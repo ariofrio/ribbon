@@ -1276,7 +1276,7 @@ function RibbonSidebarList({
     );
   }
 
-  const groupDefinitions = useMemo(() => {
+  const groupDefinitions = useMemo<SidebarSnapshot["groupings"][number]["groups"]>(() => {
     if (!grouping) {
       return [
         {
@@ -1385,7 +1385,7 @@ function RibbonSidebarList({
     async (
       threadId: string,
       groupId: string,
-      anchor: { kind: "before"; threadId: string } | { kind: "end" },
+      anchor: { kind: "before"; threadId: string } | { kind: "start" | "end" },
     ) => {
       if (!preferences?.view.groupingKey) return;
       setMutationError(null);
@@ -1445,11 +1445,14 @@ function RibbonSidebarList({
       groupId: string,
     ) => {
       setMutationError(null);
+      const group = snapshot?.groupings
+        .find((grouping) => grouping.groupingKey === groupingKey)
+        ?.groups.find((group) => group.id === groupId);
       const result = await rpc.call("updatePlacementV1", {
         groupingKey,
         groupId,
         threadId,
-        anchor: { kind: "preserve" },
+        anchor: { kind: group?.defaultPlacement ?? "preserve" },
         origin: "ui",
       });
       if (!result.ok) {
@@ -1458,7 +1461,7 @@ function RibbonSidebarList({
       }
       await Promise.all([loadPlacements(), loadAssignmentPlacements()]);
     },
-    [loadAssignmentPlacements, loadPlacements, rpc],
+    [loadAssignmentPlacements, loadPlacements, rpc, snapshot],
   );
 
   const clearDrag = useCallback(() => {

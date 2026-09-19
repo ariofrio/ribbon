@@ -190,6 +190,7 @@ const snapshot: {
       visibleWhenEmpty: boolean;
       acceptsAssignments: boolean;
       defaultCollapsed: boolean;
+      defaultPlacement?: "start" | "end";
     }>;
   }>;
 } = {
@@ -2605,7 +2606,10 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
-  it("offers every writable grouping from every thread menu", async () => {
+  it.each([
+    ["Active", "preserve"],
+    ["Completed", "start"],
+  ])("moves to %s from any thread menu with the group's placement policy", async (stage, anchor) => {
     window.localStorage.setItem(
       "bb.plugin.ribbon-sidebar.preferences.v1",
       JSON.stringify({
@@ -2615,6 +2619,16 @@ describe("Ribbon sidebar app", () => {
     );
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
+    const menuSnapshot = structuredClone(snapshot);
+    menuSnapshot.groupings.find(({ groupingKey }) => groupingKey === "plugin:thread-stages:stages")!.groups.push({
+      id: "Completed",
+      label: "Completed",
+      visibleWhenEmpty: true,
+      acceptsAssignments: true,
+      defaultCollapsed: true,
+      defaultPlacement: "start",
+    });
+    fixture.synchronizeV1.mockResolvedValue(menuSnapshot);
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Design migration");
 
@@ -2629,14 +2643,14 @@ describe("Ribbon sidebar app", () => {
     expect(slot.getByText("Move to stage")).toBeTruthy();
     expect(slot.queryByText("Move to project")).toBeNull();
     fireEvent.click(slot.getByText("Move to stage"));
-    fireEvent.click(await slot.findByText("Active"));
+    fireEvent.click(await slot.findByText(stage));
 
     await waitFor(() =>
       expect(fixture.updatePlacementV1).toHaveBeenCalledWith({
         groupingKey: "plugin:thread-stages:stages",
-        groupId: "Active",
+        groupId: stage,
         threadId: "thread-a",
-        anchor: { kind: "preserve" },
+        anchor: { kind: anchor },
         origin: "ui",
       }),
     );
