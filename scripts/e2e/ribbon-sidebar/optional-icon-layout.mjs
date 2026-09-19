@@ -26,6 +26,7 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
     "--title", "Verify long sidebar titles shorten only while hover actions are visible",
     "--prompt", "Confirm the sidebar hover layout fixture is ready.",
   ]);
+  let childThread;
   const browser = await chromium.launch({ args: ["--mute-audio"] });
   try {
     fixture.run(["thread", "wait", idleThread.id, "--status", "idle"]);
@@ -201,12 +202,54 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
       await assertActionGap();
       await page.mouse.click(1200, 750);
       await assertRestingInset();
+
+      childThread = fixture.runJson([
+        "thread", "spawn",
+        "--project", project.id,
+        "--machine", "screenshots",
+        "--environment", project.root,
+        "--parent-thread", idleThread.id,
+        "--provider", `acp-${AGENT.id}`,
+        "--model", AGENT.modelId,
+        "--permission-mode", "accept-edits",
+        "--title", "Verify child toggle spacing",
+        "--prompt", "Confirm the child toggle fixture is ready.",
+      ]);
+      fixture.run(["thread", "wait", childThread.id, "--status", "idle"]);
+      fixture.run(["thread", "read", childThread.id]);
+      const toggle = idleRow.getByRole("button", { name: /^Collapse .* threads$/ });
+      await toggle.waitFor({ state: "attached", timeout: 120_000 });
+      await assertRestingInset();
+      await idleRow.hover();
+      await toggle.hover();
+      const toggleBox = await toggle.boundingBox();
+      assert.equal(toggleBox.width, 20);
+      assert.equal(toggleBox.height, 20);
+      const toggleGap = await toggle.evaluate((node) =>
+        node.getBoundingClientRect().left - node.previousElementSibling.getBoundingClientRect().right,
+      );
+      assert.equal(toggleGap, 6, "The visible child toggle should retain its title gap");
+      await toggle.click();
+      const expand = idleRow.getByRole("button", { name: /^Expand .* threads$/ });
+      await expand.waitFor();
+      await page.mouse.click(1200, 750);
+      await assertRestingInset();
+      const link = idleRow.locator(`a[data-sidebar-thread-id="${idleThread.id}"]`);
+      await link.focus();
+      await page.keyboard.press("Tab");
+      assert.equal(await expand.evaluate((node) => document.activeElement === node), true);
+      assert.equal((await expand.boundingBox()).width, 20, "Keyboard focus should reveal the toggle");
+      await page.keyboard.press("Enter");
+      await toggle.waitFor();
+      await page.mouse.click(1200, 750);
+      await assertRestingInset();
     } finally {
       await context.close();
     }
   } finally {
     await browser.close();
     try {
+      if (childThread) fixture.run(["thread", "delete", childThread.id, "--yes"]);
       fixture.run(["thread", "delete", idleThread.id, "--yes"]);
     } finally {
       if (iconsEnabled) fixture.run(["plugin", "enable", ICONS_PLUGIN_ID]);
