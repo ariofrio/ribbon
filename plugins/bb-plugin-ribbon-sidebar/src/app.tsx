@@ -51,7 +51,12 @@ import {
 } from "./vendor/components/ui/dialog";
 import { Input } from "./vendor/components/ui/input";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
-import { publishIconStyles, type IconFallback } from "./icon-styles";
+import {
+  ICON_INDICATOR_SPACE_ATTRIBUTE,
+  ICON_LAYOUT_ATTRIBUTE,
+  publishIconStyles,
+  type IconFallback,
+} from "./icon-styles";
 import {
   ThreadActionsContextMenu,
   ThreadActionsDropdown,
@@ -215,6 +220,7 @@ function supplementalSidebarThread(
 
 function ThreadRow({
   active,
+  alignAdornmentsToEntireItem,
   actions,
   assignments,
   childrenCollapsed,
@@ -243,6 +249,7 @@ function ThreadRow({
   thread,
 }: {
   active: boolean;
+  alignAdornmentsToEntireItem: boolean;
   actions: ReturnType<typeof experimental_useSidebarThreadActions>;
   assignments: readonly {
     groupingKey: string;
@@ -291,6 +298,14 @@ function ThreadRow({
     </span>
   ) : null;
   const actionsOpen = dropdownOpen || contextOpen;
+  const hasIcon = icon !== null;
+  const iconSpansEntireItem = alignAdornmentsToEntireItem && preview !== null;
+  const hasTrailingIndicator =
+    layout !== null || indicatorThread.indicator !== "none";
+  const alignsTrailingIndicatorToTitle =
+    hasTrailingIndicator && !alignAdornmentsToEntireItem;
+  const reservesTrailingLane =
+    hasTrailingIndicator && alignAdornmentsToEntireItem;
   const commonMenuProps = {
     actions,
     assignments,
@@ -332,7 +347,11 @@ function ThreadRow({
         />
       ) : null}
       <div
-        className={`bb-sidebar-hover-actions-row group/thread-row relative flex w-full items-center gap-2 rounded-md py-1 pr-0 text-sm transition-colors max-md:pointer-coarse:py-2.5 ${
+        className={`bb-sidebar-hover-actions-row group/thread-row relative grid w-full items-start rounded-md pr-0 text-sm transition-colors ${
+          reservesTrailingLane
+            ? "grid-cols-[minmax(0,1fr)_auto] gap-x-2"
+            : "grid-cols-1"
+        } ${
           active ? "bg-state-active" : "cursor-pointer hover:bg-sidebar-accent"
         } ${
           muted
@@ -366,88 +385,162 @@ function ThreadRow({
           href={`/projects/${encodeURIComponent(thread.projectId)}/threads/${encodeURIComponent(thread.id)}`}
           onClick={openThread}
         />
-        <span className="flex min-w-0 flex-1 items-center gap-2">
-          {icon}
-          <span className="flex min-w-0 flex-1 flex-col justify-center leading-none">
-            <span className="flex min-w-0 items-center gap-2 leading-5" title={accessibleTitle}>
+        <span
+          className={`grid min-w-0 py-[calc((var(--bb-sidebar-row-height)-1lh)/2)] max-md:pointer-coarse:py-[calc((var(--bb-sidebar-row-height-coarse)-1lh)/2)] ${hasIcon ? "gap-x-2" : ""}`}
+          style={{
+            gridTemplateColumns: [
+              ...(hasIcon ? ["auto"] : []),
+              "minmax(0, 1fr)",
+              ...(alignsTrailingIndicatorToTitle ? ["auto"] : []),
+            ].join(" "),
+          }}
+          {...{ [ICON_LAYOUT_ATTRIBUTE]: "" }}
+        >
+          {hasIcon ? (
+            <span
+              className="col-start-1 row-start-1 flex self-center"
+              data-ribbon-sidebar-icon-slot=""
+              style={{
+                gridRowEnd: iconSpansEntireItem ? "span 2" : "auto",
+                gridRowStart: 1,
+              }}
+            >
+              {icon}
+            </span>
+          ) : null}
+          <span
+            className="row-start-1 flex min-w-0 items-center gap-1.5"
+            style={{
+              gridColumnStart: hasIcon ? 2 : 1,
+              paddingRight: hasTrailingIndicator ? undefined : 8,
+            }}
+          >
+            <span
+              className="flex min-w-0 flex-1 items-center gap-2"
+              title={accessibleTitle}
+            >
               {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
-              <span className="truncate">{rowTitle}</span>
+              <span className="min-w-0 truncate">{rowTitle}</span>
               {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
             </span>
-            {preview ? (
-              <span className="truncate text-[11px] leading-4 text-subtle-foreground/75" title={preview}>
-                {preview}
-              </span>
+            {hasChildren ? (
+              <button
+                aria-expanded={!childrenCollapsed}
+                aria-label={childrenCollapsed ? `Expand ${rowTitle} threads` : `Collapse ${rowTitle} threads`}
+                className="bb-sidebar-hover-actions relative z-20 inline-flex size-5 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onToggleChildren();
+                }}
+                type="button"
+              >
+                <Icon name="ChevronRight" className={`size-3 transition-transform duration-150 ${childrenCollapsed ? "" : "rotate-90"}`} aria-hidden />
+              </button>
             ) : null}
           </span>
-          {hasChildren ? (
-            <button
-              aria-expanded={!childrenCollapsed}
-              aria-label={childrenCollapsed ? `Expand ${rowTitle} threads` : `Collapse ${rowTitle} threads`}
-              className="bb-sidebar-hover-actions relative z-20 inline-flex size-5 shrink-0 items-center justify-center rounded-md text-subtle-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                onToggleChildren();
-              }}
-              type="button"
-            >
-              <Icon name="ChevronRight" className={`size-3 transition-transform duration-150 ${childrenCollapsed ? "" : "rotate-90"}`} aria-hidden />
-            </button>
-          ) : null}
-        </span>
-        <span className="relative -my-1 flex w-7 shrink-0 self-stretch items-center justify-end max-md:pointer-coarse:-my-2.5 max-md:pointer-coarse:w-9">
-          <span
-            className="bb-sidebar-hover-actions-fade absolute inset-0 flex items-center justify-center text-subtle-foreground"
-            data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
-          >
-            {layout ? (
-              <span
-                className="inline-flex size-4 items-center justify-center"
-                data-sidebar-thread-trailing-indicator=""
-              >
-                <SplitPaneMiniMap
-                  active={[
-                    "working-draft",
-                    "workflow",
-                    "background-agent",
-                    "background-command",
-                    "plan-mode",
-                    "goal",
-                    "runtime",
-                  ].includes(indicatorThread.indicator)}
-                  label={
-                    indicatorThread.indicatorLabel
-                      ? `${rowTitle} — open in split; ${indicatorThread.indicatorLabel}`
-                      : `${rowTitle} — open in split`
-                  }
-                  layout={layout}
-                />
-              </span>
-            ) : indicatorThread.indicator !== "none" ? (
-              <span
-                className="inline-flex size-4 items-center justify-center"
-                data-sidebar-thread-trailing-indicator=""
-              >
-                <ThreadIndicator
-                  indicator={indicatorThread.indicator}
-                  label={indicatorThread.indicatorLabel}
-                />
-              </span>
-            ) : null}
-          </span>
-          {!thread.isArchived ? (
+          {alignsTrailingIndicatorToTitle ? (
             <span
-              className="bb-sidebar-hover-actions absolute inset-0 z-10 flex items-center justify-end max-md:pointer-coarse:hidden"
-              data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
+              aria-hidden="true"
+              className="row-start-1 w-7 max-md:pointer-coarse:w-9"
+              style={{ gridColumnStart: hasIcon ? 3 : 2 }}
+              {...{ [ICON_INDICATOR_SPACE_ATTRIBUTE]: "" }}
+            />
+          ) : null}
+          {preview ? (
+            <span
+              className="row-start-2 truncate text-[11px] leading-4 text-subtle-foreground/75"
+              style={{
+                gridColumnEnd: alignsTrailingIndicatorToTitle
+                  ? hasIcon
+                    ? 4
+                    : 3
+                  : undefined,
+                gridColumnStart: hasIcon ? 2 : 1,
+                paddingRight: reservesTrailingLane ? undefined : 8,
+              }}
+              title={preview}
             >
-              <ThreadActionsDropdown
-                {...commonMenuProps}
-                onOpenChange={setDropdownOpen}
-              />
+              {preview}
             </span>
           ) : null}
         </span>
+        {hasTrailingIndicator ? (
+          <span
+            className={`flex w-7 shrink-0 items-center justify-end max-md:pointer-coarse:w-9 ${
+              alignAdornmentsToEntireItem
+                ? "relative self-stretch"
+                : "absolute right-0 top-0 z-10 h-[var(--bb-sidebar-row-height)] max-md:pointer-coarse:h-[var(--bb-sidebar-row-height-coarse)]"
+            }`}
+            style={{
+              alignSelf: alignAdornmentsToEntireItem ? "stretch" : "start",
+              position: alignAdornmentsToEntireItem ? "relative" : "absolute",
+              right: alignAdornmentsToEntireItem ? undefined : 0,
+              top: alignAdornmentsToEntireItem ? undefined : 0,
+            }}
+          >
+            <span
+              className="bb-sidebar-hover-actions-fade absolute inset-0 flex items-center justify-center text-subtle-foreground"
+              data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
+            >
+              {layout ? (
+                <span
+                  className="inline-flex size-4 items-center justify-center"
+                  data-sidebar-thread-trailing-indicator=""
+                >
+                  <SplitPaneMiniMap
+                    active={[
+                      "working-draft",
+                      "workflow",
+                      "background-agent",
+                      "background-command",
+                      "plan-mode",
+                      "goal",
+                      "runtime",
+                    ].includes(indicatorThread.indicator)}
+                    label={
+                      indicatorThread.indicatorLabel
+                        ? `${rowTitle} — open in split; ${indicatorThread.indicatorLabel}`
+                        : `${rowTitle} — open in split`
+                    }
+                    layout={layout}
+                  />
+                </span>
+              ) : (
+                <span
+                  className="inline-flex size-4 items-center justify-center"
+                  data-sidebar-thread-trailing-indicator=""
+                >
+                  <ThreadIndicator
+                    indicator={indicatorThread.indicator}
+                    label={indicatorThread.indicatorLabel}
+                  />
+                </span>
+              )}
+            </span>
+            {!thread.isArchived ? (
+              <span
+                className="bb-sidebar-hover-actions absolute inset-y-0 right-0 z-10 flex w-7 items-center justify-end max-md:pointer-coarse:hidden"
+                data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
+              >
+                <ThreadActionsDropdown
+                  {...commonMenuProps}
+                  onOpenChange={setDropdownOpen}
+                />
+              </span>
+            ) : null}
+          </span>
+        ) : !thread.isArchived ? (
+          <span
+            className="bb-sidebar-hover-actions absolute right-0 top-0 z-10 col-start-1 row-start-1 flex h-[var(--bb-sidebar-row-height)] w-7 items-center justify-end max-md:pointer-coarse:hidden max-md:pointer-coarse:h-[var(--bb-sidebar-row-height-coarse)] max-md:pointer-coarse:w-9"
+            data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
+          >
+            <ThreadActionsDropdown
+              {...commonMenuProps}
+              onOpenChange={setDropdownOpen}
+            />
+          </span>
+        ) : null}
       </div>
     </li>
   );
@@ -1530,6 +1623,9 @@ function RibbonSidebarList({
         <ThreadRow
           pullRequestNumberPosition={preferences.view.pullRequestNumberPosition}
           active={activeThreadId === root.id}
+          alignAdornmentsToEntireItem={
+            settings.values?.threadAdornmentAlignment === "Entire item"
+          }
           actions={actions}
           assignments={
             depth === 0
@@ -2042,7 +2138,7 @@ function RibbonSidebarList({
             data-sidebar-sticky-tier="label"
           >
             <span className="flex min-w-0 flex-1 items-center">
-              <span className="min-w-0 flex-1 truncate">Pinned</span>
+              <span className="min-w-0 truncate">Pinned</span>
               <button
                 aria-expanded={!pinnedSectionCollapsed}
                 aria-label={

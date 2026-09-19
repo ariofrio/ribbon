@@ -9,6 +9,9 @@ import {
   verifyNewThreadRouting,
   waitForStageCatalog,
 } from "./ribbon-sidebar/new-thread-routing.mjs";
+import {
+  verifyOptionalIconLayout,
+} from "./ribbon-sidebar/optional-icon-layout.mjs";
 import { verifyThreadIcons } from "./ribbon-sidebar/thread-icons.mjs";
 import { verifyPrNumber } from "./ribbon-sidebar/pr-number.mjs";
 import { seed, writeFixtureProvider } from "../screenshots/fixture.mjs";
@@ -75,6 +78,14 @@ const suites = [
     },
     async run({ stack, fixture, cases }) {
       await verifyNewThreadRouting({ stack, fixture, cases });
+    },
+  },
+  {
+    id: "optional-icon-layout",
+    cases: ["title-indicator-lane"],
+    plugins: ["bb-plugin-ribbon-sidebar"],
+    async run({ stack, fixture }) {
+      await verifyOptionalIconLayout({ stack, fixture });
     },
   },
 ];
