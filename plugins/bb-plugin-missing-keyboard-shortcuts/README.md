@@ -38,7 +38,8 @@ any thread has been selected, the shortcut falls back to no project.
 active or most recently used side chat, opens the right sidebar, and focuses
 its secondary composer. When that composer is already selected, visible, and
 focused, the shortcut closes the right sidebar and focuses the primary
-composer instead.
+composer instead. bb's public panel API persists the side-chat tab, and its
+public `ThreadChat` component provides the conversation and composer.
 
 **⌃`** creates a terminal only when none exists. Otherwise it selects the most
 recently used terminal, opens the right sidebar, and focuses it — and closes

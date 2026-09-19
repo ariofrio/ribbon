@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  activateExistingSideChatPanel,
-  activateSideChatPanel,
   activateTerminalPanel,
   closePanel,
-  createSideChatPanelTab,
   readRecentSideChatTabId,
   readRecentTerminalId,
   readSideChatPanelSnapshot,
@@ -27,6 +24,42 @@ class MemoryStorage implements StringStorage {
   setItem(key: string, value: string): void {
     this.values.set(key, value);
   }
+}
+
+function sideChatTab(
+  parentThreadId: string,
+  childThreadId: string,
+  pluginId = "missing-keyboard-shortcuts",
+) {
+  return {
+    actionId: "side-chat",
+    id: `${pluginId}:${childThreadId}`,
+    kind: "plugin-panel",
+    paramsJson: JSON.stringify({
+      sourceMessageText: "",
+      sourceSeqEnd: null,
+      sourceThreadId: parentThreadId,
+      threadId: childThreadId,
+    }),
+    pluginId,
+    title: "Side chat",
+  };
+}
+
+function storePanel(
+  storage: StringStorage,
+  threadId: string,
+  tabs: readonly Record<string, unknown>[],
+  activeTabId: string | null,
+) {
+  storage.setItem(
+    `bb.thread.fixedPanelTabsState-${threadId}-1`,
+    JSON.stringify({
+      lastUsedAt: 1,
+      secondary: { activeTabId, isOpen: true, tabs },
+      version: 1,
+    }),
+  );
 }
 
 describe("terminal panel state", () => {
@@ -146,70 +179,33 @@ describe("terminal panel state", () => {
     });
   });
 
-  it("creates and activates a native side-chat plugin panel tab", () => {
+  it("reads side-chat tabs opened through the public plugin panel API", () => {
     const storage = new MemoryStorage();
-    activateTerminalPanel(storage, "thr_parent", "term_one", 10);
-    const tab = createSideChatPanelTab("thr_parent", "thr_side");
-    const change = activateSideChatPanel(
-      storage,
-      "thr_parent",
-      tab,
-      20,
-    );
+    const tab = sideChatTab("thr_parent", "thr_side");
+    storePanel(storage, "thr_parent", [tab], tab.id);
 
-    expect(tab.id).toBe(
-      `plugin-panel:${encodeURIComponent(`side-chat:side-chat:${tab.paramsJson}`)}:none`,
-    );
-    expect(JSON.parse(tab.paramsJson)).toEqual({
-      threadId: "thr_side",
-      sourceThreadId: "thr_parent",
-      sourceMessageText: "",
-      sourceSeqEnd: null,
-    });
     expect(readSideChatPanelSnapshot(storage, "thr_parent")).toEqual({
       activeSideChat: { childThreadId: "thr_side", id: tab.id },
       isOpen: true,
       sideChats: [{ childThreadId: "thr_side", id: tab.id }],
     });
-    expect(readTerminalPanelSnapshot(storage, "thr_parent")).toEqual({
-      activeTerminalId: null,
-      isOpen: true,
-      terminalIds: ["term_one"],
-    });
-    expect(JSON.parse(change.newValue).lastUsedAt).toBe(20);
   });
 
-  it("activates an existing side chat without losing sibling tabs", () => {
+  it("continues to recognize side-chat tabs from the built-in plugin", () => {
     const storage = new MemoryStorage();
-    const first = createSideChatPanelTab("thr_parent", "thr_first");
-    const second = createSideChatPanelTab("thr_parent", "thr_second");
-    activateSideChatPanel(storage, "thr_parent", first, 10);
-    activateSideChatPanel(storage, "thr_parent", second, 11);
-    activateTerminalPanel(storage, "thr_parent", "term_one", 12);
+    const tab = sideChatTab("thr_parent", "thr_side", "side-chat");
+    storePanel(storage, "thr_parent", [tab], tab.id);
 
-    const change = activateExistingSideChatPanel(
-      storage,
-      "thr_parent",
-      first.id,
-      13,
-    );
-    expect(change).not.toBeNull();
     expect(readSideChatPanelSnapshot(storage, "thr_parent")).toEqual({
-      activeSideChat: { childThreadId: "thr_first", id: first.id },
+      activeSideChat: { childThreadId: "thr_side", id: tab.id },
       isOpen: true,
-      sideChats: [
-        { childThreadId: "thr_first", id: first.id },
-        { childThreadId: "thr_second", id: second.id },
-      ],
+      sideChats: [{ childThreadId: "thr_side", id: tab.id }],
     });
-    expect(readTerminalPanelSnapshot(storage, "thr_parent").terminalIds).toEqual([
-      "term_one",
-    ]);
   });
 
   it("ignores malformed and wrong-parent side-chat tabs", () => {
     const storage = new MemoryStorage();
-    const valid = createSideChatPanelTab("thr_other", "thr_side");
+    const valid = sideChatTab("thr_other", "thr_side");
     const key = "bb.thread.fixedPanelTabsState-thr_parent-1";
     storage.setItem(
       key,
@@ -239,13 +235,6 @@ describe("terminal panel state", () => {
       isOpen: true,
       sideChats: [],
     });
-    expect(
-      activateExistingSideChatPanel(
-        storage,
-        "thr_parent",
-        valid.id,
-      ),
-    ).toBeNull();
   });
 
   it("chooses the active, recent, then latest side chat", () => {
@@ -277,11 +266,14 @@ describe("terminal panel state", () => {
 
   it("removes a stale side-chat tab without losing sibling tabs", () => {
     const storage = new MemoryStorage();
-    const stale = createSideChatPanelTab("thr_parent", "thr_stale");
-    const live = createSideChatPanelTab("thr_parent", "thr_live");
-    activateSideChatPanel(storage, "thr_parent", live, 10);
-    activateSideChatPanel(storage, "thr_parent", stale, 11);
-    activateTerminalPanel(storage, "thr_parent", "term_one", 12);
+    const stale = sideChatTab("thr_parent", "thr_stale");
+    const live = sideChatTab("thr_parent", "thr_live");
+    const terminal = {
+      id: "terminal:term_one:none",
+      kind: "terminal",
+      terminalId: "term_one",
+    };
+    storePanel(storage, "thr_parent", [live, stale, terminal], terminal.id);
 
     removeSideChatPanelTab(storage, "thr_parent", stale.id, 13);
 

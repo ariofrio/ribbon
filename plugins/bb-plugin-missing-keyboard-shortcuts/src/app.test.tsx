@@ -4,7 +4,6 @@ import type { PluginCommandRegistration } from "@get-bb/plugin-sdk/app";
 import { act, cleanup } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readSideChatPanelSnapshot } from "./terminal-panel-state";
 
 afterEach(() => {
   cleanup();
@@ -59,6 +58,12 @@ describe("missing keyboard shortcuts app registration", () => {
     expect(app.appOverlays[0]).toMatchObject({
       id: "missing-keyboard-shortcuts",
     });
+    expect(app.threadPanelActions).toHaveLength(1);
+    expect(app.threadPanelActions[0]).toMatchObject({
+      id: "side-chat",
+      layout: "flush",
+      title: "Start shortcut side chat",
+    });
   });
 
   it("opens a project thread when its registered command runs", async () => {
@@ -107,9 +112,10 @@ describe("missing keyboard shortcuts app registration", () => {
       },
     );
     const command = commands(app).find(({ id }) => id === "toggle-side-chat");
+    const openPanel = vi.fn(() => true);
 
     await command?.run({
-      openPanel: () => false,
+      openPanel,
       projectId: "project-a",
       threadId: "thread-a",
     });
@@ -124,12 +130,16 @@ describe("missing keyboard shortcuts app registration", () => {
     );
     await act(async () => resolveSideChat({ threadId: "side-chat-a" }));
     await vi.waitFor(() =>
-      expect(readSideChatPanelSnapshot(window.localStorage, "thread-a")).toMatchObject(
-        {
-          activeSideChat: { childThreadId: "side-chat-a" },
-          isOpen: true,
+      expect(openPanel).toHaveBeenCalledWith({
+        actionId: "side-chat",
+        params: {
+          sourceMessageText: "",
+          sourceSeqEnd: null,
+          sourceThreadId: "thread-a",
+          threadId: "side-chat-a",
         },
-      ),
+        title: "Side chat",
+      }),
     );
     slot.lifecycle.unmount();
   });

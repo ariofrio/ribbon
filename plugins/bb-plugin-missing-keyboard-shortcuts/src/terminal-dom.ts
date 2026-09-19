@@ -20,6 +20,14 @@ export const TERMINAL_SELECTOR = "[data-app-terminal]";
  */
 export const TERMINAL_INPUT_SELECTOR = ".xterm-helper-textarea, textarea";
 
+export function isSecondaryComposerDomFocused(root: Document): boolean {
+  const active = root.activeElement;
+  return (
+    active instanceof Element &&
+    active.closest('[data-app-composer-role="secondary"]') !== null
+  );
+}
+
 export function isTerminalFocused(root: Document): boolean {
   const active = root.activeElement;
   return active instanceof Element && active.closest(TERMINAL_SELECTOR) !== null;

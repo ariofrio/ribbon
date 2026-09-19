@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  closePrimaryPanel,
   focusedSecondaryComposerThreadId,
   focusPrimaryComposer,
   focusSecondaryComposer,
@@ -22,6 +23,20 @@ afterEach(() => {
 });
 
 describe("composer navigation bridge", () => {
+  it("closes the panel through the registered primary composer host", () => {
+    const closePanel = vi.fn(() => true);
+    disposers.push(
+      registerPrimaryComposerFocus("thr_one", vi.fn(), {
+        closePanel,
+        createObserver: vi.fn(),
+        root: { panelTabButtons: () => [] },
+      }),
+    );
+
+    expect(closePrimaryPanel("thr_one")).toBe(true);
+    expect(closePanel).toHaveBeenCalledOnce();
+  });
+
   it("focuses the primary composer registered for the requested thread", () => {
     const firstThread = vi.fn();
     const secondThread = vi.fn();

@@ -2,15 +2,20 @@ import type { rpcContract } from "./server";
 import {
   definePluginApp,
   experimental_useSidebarThreadActions,
+  ThreadChat,
   useBbContext,
   useRpc,
+  type JsonValue,
   type PluginCommandContext,
   type PluginRpcClient,
+  type PluginThreadPanelProps,
+  type ThreadChatMessageAction,
   useComposer,
   useComposerView,
 } from "@get-bb/plugin-sdk/app";
 import {
   createElement,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -18,6 +23,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import {
+  closePrimaryPanel,
   focusedSecondaryComposerThreadId,
   focusPrimaryComposer,
   focusSecondaryComposerWhenReady,
@@ -35,15 +41,13 @@ import {
 import { projectThreadTarget } from "./new-thread-target";
 import {
   focusVisibleTerminal,
+  isSecondaryComposerDomFocused,
   isTerminalFocused,
   isWithinTerminal,
 } from "./terminal-dom";
 import {
-  activateExistingSideChatPanel,
-  activateSideChatPanel,
   activateTerminalPanel,
   closePanel,
-  createSideChatPanelTab,
   readRecentSideChatTabId,
   readRecentTerminalId,
   readSideChatPanelSnapshot,
@@ -54,7 +58,6 @@ import {
   selectSideChatPanelTab,
   shouldCloseTerminalPanel,
   type PanelStorageChange,
-  type SideChatPanelTabDefinition,
 } from "./terminal-panel-state";
 
 interface OpenTerminalResult {
@@ -69,6 +72,17 @@ interface CreateSideChatResult {
 interface ValidateSideChatResult {
   reusable: boolean;
 }
+
+interface SideChatPanelParams extends Record<string, JsonValue> {
+  sourceMessageText: string;
+  sourceSeqEnd: number | null;
+  sourceThreadId: string;
+  threadId: string;
+}
+
+const SIDE_CHAT_PANEL_ACTION_ID = "side-chat";
+const SIDE_CHAT_PANEL_TITLE = "Side chat";
+const PLUGIN_ID = "missing-keyboard-shortcuts";
 
 const SHORTCUT_COMMAND_EVENT =
   "bb-plugin-missing-keyboard-shortcuts:run-command";
@@ -186,6 +200,14 @@ function ComposerNavigationBridge() {
                       }),
                   };
                 },
+                closePanel() {
+                  const button = panelRoot.querySelector<HTMLButtonElement>(
+                    'button[aria-label^="Hide right panel"]',
+                  );
+                  if (button === null) return false;
+                  button.click();
+                  return true;
+                },
                 root: {
                   panelTabButtons: () =>
                     Array.from(
@@ -253,6 +275,35 @@ function createSideChat(
   return rpc.call("createSideChat", { sourceThreadId: threadId });
 }
 
+async function createSideChatOverHttp(
+  sourceThreadId: string,
+): Promise<CreateSideChatResult> {
+  const response = await fetch(
+    `/api/v1/plugins/${PLUGIN_ID}/rpc/createSideChat`,
+    {
+      body: JSON.stringify({ sourceThreadId }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  const body: unknown = await response.json().catch(() => null);
+  if (
+    !response.ok ||
+    body === null ||
+    typeof body !== "object" ||
+    !("ok" in body) ||
+    body.ok !== true ||
+    !("result" in body) ||
+    body.result === null ||
+    typeof body.result !== "object" ||
+    !("threadId" in body.result) ||
+    typeof body.result.threadId !== "string"
+  ) {
+    throw new Error(`createSideChat failed (HTTP ${response.status})`);
+  }
+  return { threadId: body.result.threadId };
+}
+
 function validateSideChat(
   rpc: ShortcutsRpc,
   parentThreadId: string,
@@ -263,6 +314,108 @@ function validateSideChat(
     parentThreadId,
     tabId: sideChat.id,
   });
+}
+
+function sideChatPanelParams(
+  sourceThreadId: string,
+  threadId: string,
+): SideChatPanelParams {
+  return {
+    sourceMessageText: "",
+    sourceSeqEnd: null,
+    sourceThreadId,
+    threadId,
+  };
+}
+
+function parseSideChatPanelParams(value: unknown): SideChatPanelParams | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.threadId !== "string" ||
+    candidate.threadId.length === 0 ||
+    typeof candidate.sourceThreadId !== "string" ||
+    candidate.sourceThreadId.length === 0
+  ) {
+    return null;
+  }
+  return {
+    sourceMessageText:
+      typeof candidate.sourceMessageText === "string"
+        ? candidate.sourceMessageText
+        : "",
+    sourceSeqEnd:
+      typeof candidate.sourceSeqEnd === "number"
+        ? candidate.sourceSeqEnd
+        : null,
+    sourceThreadId: candidate.sourceThreadId,
+    threadId: candidate.threadId,
+  };
+}
+
+function openSideChatPanel(
+  context: Pick<PluginCommandContext, "openPanel">,
+  sourceThreadId: string,
+  threadId: string,
+): boolean {
+  return context.openPanel({
+    actionId: SIDE_CHAT_PANEL_ACTION_ID,
+    params: sideChatPanelParams(sourceThreadId, threadId),
+    title: SIDE_CHAT_PANEL_TITLE,
+  });
+}
+
+function SideChatPanel({ params }: PluginThreadPanelProps) {
+  const rpc = useRpc<typeof rpcContract>();
+  const parsed = parseSideChatPanelParams(params);
+  const sendToMain = useCallback(
+    async (message: { text: string }) => {
+      if (parsed === null) return;
+      try {
+        await rpc.call("sendToMain", {
+          senderThreadId: parsed.threadId,
+          sourceThreadId: parsed.sourceThreadId,
+          text: message.text,
+        });
+        toast.success("Sent to main thread");
+      } catch (error) {
+        toast.error(rpcErrorMessage(error, "Failed to send to main thread"));
+      }
+    },
+    [parsed, rpc],
+  );
+
+  if (parsed === null) {
+    return createElement(
+      "div",
+      { className: "p-3 text-sm text-muted-foreground", role: "alert" },
+      "This side chat tab is missing its thread reference.",
+    );
+  }
+
+  const messageActions: readonly ThreadChatMessageAction[] = [
+    {
+      icon: "ArrowTurnBackward",
+      id: "send-to-main",
+      roles: ["assistant"],
+      run: sendToMain,
+      title: "Send to main thread",
+    },
+  ];
+  return createElement(
+    "div",
+    { className: "flex h-full min-h-0 flex-col" },
+    createElement(ThreadChat, {
+      className: "min-h-0 flex-1",
+      layout: "contained",
+      messageActions,
+      permissionPolicy: "editable",
+      threadId: parsed.threadId,
+      variant: "compact",
+    }),
+  );
 }
 
 function notifyPanelStateChanged(change: PanelStorageChange): void {
@@ -309,26 +462,10 @@ function focusSideChatComposer(
   signal: AbortSignal,
   parentThreadId: string,
   childThreadId: string,
-  tab: SideChatPanelTabDefinition | null,
   isCurrentThread: (threadId: string) => boolean,
 ): () => void {
   if (!isCurrentThread(parentThreadId)) {
     return () => {};
-  }
-  const panel = readSideChatPanelSnapshot(window.localStorage, parentThreadId);
-  if (!panel.isOpen || panel.activeSideChat?.childThreadId !== childThreadId) {
-    const existingTabId = panel.sideChats.find(
-      (sideChat) => sideChat.childThreadId === childThreadId,
-    )?.id;
-    const change =
-      tab === null
-        ? activateExistingSideChatPanel(
-            window.localStorage,
-            parentThreadId,
-            existingTabId ?? "",
-          )
-        : activateSideChatPanel(window.localStorage, parentThreadId, tab);
-    if (change !== null) notifyPanelStateChanged(change);
   }
   const stopSelectingTab = selectPrimaryPanelTabWhenReady(parentThreadId, {
     icon: "SideChat",
@@ -413,19 +550,23 @@ function MissingKeyboardShortcuts() {
           signal,
           parentThreadId,
           childThreadId,
-          null,
           isCurrentThread,
         ),
       );
     };
-    const createAndFocusSideChat = async (parentThreadId: string) => {
+    const createAndFocusSideChat = async (
+      commandContext: PluginCommandContext,
+    ) => {
+      const parentThreadId = commandContext.threadId;
+      if (parentThreadId === null) return;
       const { threadId: childThreadId } = await createSideChat(
         rpc,
         parentThreadId,
       );
       if (!isCurrentThread(parentThreadId)) return;
-      const tab = createSideChatPanelTab(parentThreadId, childThreadId);
-      rememberRecentSideChatTabId(window.localStorage, parentThreadId, tab.id);
+      if (!openSideChatPanel(commandContext, parentThreadId, childThreadId)) {
+        return;
+      }
       stopPendingAction(pendingSideChatActions, parentThreadId);
       pendingSideChatActions.set(
         parentThreadId,
@@ -433,7 +574,6 @@ function MissingKeyboardShortcuts() {
           signal,
           parentThreadId,
           childThreadId,
-          tab,
           isCurrentThread,
         ),
       );
@@ -531,12 +671,16 @@ function MissingKeyboardShortcuts() {
           if (
             panel.isOpen &&
             panel.activeSideChat !== null &&
-            isSecondaryComposerFocused(
+            (isSecondaryComposerFocused(
               threadId,
               panel.activeSideChat.childThreadId,
-            )
+            ) || isSecondaryComposerDomFocused(document))
           ) {
-            notifyPanelStateChanged(closePanel(window.localStorage, threadId));
+            if (!closePrimaryPanel(threadId)) {
+              notifyPanelStateChanged(
+                closePanel(window.localStorage, threadId),
+              );
+            }
             focusPrimaryComposer(threadId);
             return;
           }
@@ -550,7 +694,7 @@ function MissingKeyboardShortcuts() {
           sideChatInFlightThreads.add(threadId);
           void (async () => {
             if (sideChat === null) {
-              await createAndFocusSideChat(threadId);
+              await createAndFocusSideChat(commandContext);
               return;
             }
             const { reusable } = await validateSideChat(
@@ -564,7 +708,15 @@ function MissingKeyboardShortcuts() {
                 threadId,
                 sideChat.id,
               );
-              focusExistingSideChat(threadId, sideChat.childThreadId);
+              if (
+                openSideChatPanel(
+                  commandContext,
+                  threadId,
+                  sideChat.childThreadId,
+                )
+              ) {
+                focusExistingSideChat(threadId, sideChat.childThreadId);
+              }
               return;
             }
             const change = removeSideChatPanelTab(
@@ -573,7 +725,7 @@ function MissingKeyboardShortcuts() {
               sideChat.id,
             );
             if (change !== null) notifyPanelStateChanged(change);
-            await createAndFocusSideChat(threadId);
+            await createAndFocusSideChat(commandContext);
           })()
             .catch((error: unknown) => {
               toast.error(rpcErrorMessage(error, "Failed to start side chat"));
@@ -593,7 +745,11 @@ function MissingKeyboardShortcuts() {
             threadId,
           );
           if (shouldCloseTerminalPanel(panel, isTerminalFocused(document))) {
-            notifyPanelStateChanged(closePanel(window.localStorage, threadId));
+            if (!closePrimaryPanel(threadId)) {
+              notifyPanelStateChanged(
+                closePanel(window.localStorage, threadId),
+              );
+            }
             focusPrimaryComposer(threadId);
             return;
           }
@@ -650,6 +806,26 @@ function MissingKeyboardShortcuts() {
 }
 
 export default definePluginApp((app) => {
+  app.slots.threadPanelAction({
+    component: SideChatPanel,
+    icon: "SideChat",
+    id: SIDE_CHAT_PANEL_ACTION_ID,
+    layout: "flush",
+    async run({ openPanel, threadId }) {
+      try {
+        const { threadId: childThreadId } =
+          await createSideChatOverHttp(threadId);
+        openPanel({
+          params: sideChatPanelParams(threadId, childThreadId),
+          title: SIDE_CHAT_PANEL_TITLE,
+        });
+      } catch (error) {
+        toast.error(rpcErrorMessage(error, "Failed to start side chat"));
+      }
+    },
+    title: "Start shortcut side chat",
+  });
+
   for (const command of SHORTCUT_COMMANDS) {
     app.commands.register({
       defaultShortcut: command.defaultShortcut,
