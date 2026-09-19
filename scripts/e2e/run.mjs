@@ -111,16 +111,24 @@ const suites = [
   },
 ];
 
-function parseCases(argv) {
+function parseOptions(argv) {
   const requested = [];
+  let repeat = 1;
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
+    if (argument === "--repeat") {
+      repeat = Number(argv[++index]);
+      if (!Number.isSafeInteger(repeat) || repeat < 1) {
+        throw new Error("--repeat requires a positive integer");
+      }
+      continue;
+    }
     if (argument !== "--case") throw new Error(`Unknown option ${argument}`);
     index += 1;
     if (!argv[index]) throw new Error("--case requires a suite:case value");
     requested.push(argv[index]);
   }
-  return requested;
+  return { requested, repeat };
 }
 
 function selectSuites(requestedCases) {
@@ -149,7 +157,8 @@ function selectSuites(requestedCases) {
     .filter((suite) => suite.selectedCases.length > 0);
 }
 
-const selectedSuites = selectSuites(parseCases(process.argv.slice(2)));
+const { requested, repeat } = parseOptions(process.argv.slice(2));
+const selectedSuites = selectSuites(requested);
 mkdirSync(scratch, { recursive: true });
 const logStream = createWriteStream(join(scratch, "bb.log"));
 const stack = await startStack({
@@ -180,14 +189,16 @@ try {
   });
 
   for (const suite of selectedSuites) {
-    console.log(
-      `Running ${suite.id} E2E cases: ${suite.selectedCases.join(", ")}`,
-    );
-    await suite.run({
-      stack,
-      fixture,
-      cases: suite.selectedCases,
-    });
+    for (let iteration = 1; iteration <= repeat; iteration += 1) {
+      console.log(
+        `Running ${suite.id} E2E cases: ${suite.selectedCases.join(", ")} (${iteration}/${repeat})`,
+      );
+      await suite.run({
+        stack,
+        fixture,
+        cases: suite.selectedCases,
+      });
+    }
   }
   console.log("End-to-end checks passed.");
 } finally {
