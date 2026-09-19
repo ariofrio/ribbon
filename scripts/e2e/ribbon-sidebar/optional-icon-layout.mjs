@@ -73,6 +73,14 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
         const box = await button.boundingBox();
         assert.equal(box.width, 20, `${name} should be 20px wide`);
         assert.equal(box.height, 20, `${name} should be 20px tall`);
+        if (name === "Collapse Atlas section") {
+          const spacing = await button.evaluate((node) => ({
+            left: node.getBoundingClientRect().left - node.previousElementSibling.getBoundingClientRect().right,
+            right: parseFloat(getComputedStyle(node).marginRight),
+          }));
+          assert.equal(spacing.left, 8, "The grouping toggle should have 8px to its left");
+          assert.equal(spacing.right, 8, "The grouping toggle should have 8px to its right");
+        }
         await button.evaluate(async (node) => {
           await Promise.all(node.getAnimations().map((animation) => animation.finished));
           const background = getComputedStyle(node).backgroundColor;

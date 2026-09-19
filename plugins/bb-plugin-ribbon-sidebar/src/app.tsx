@@ -2175,7 +2175,7 @@ function RibbonSidebarList({
                 }
                 className={`${
                   pinnedSectionCollapsed ? "" : "bb-sidebar-hover-actions"
-                } size-5 shrink-0 p-0 text-subtle-foreground focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
+                } mx-2 size-5 shrink-0 p-0 text-subtle-foreground focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
                 onClick={() =>
                   changePreferences((current) => {
                     const collapsed = new Set(current.collapsed);
@@ -2392,7 +2392,7 @@ function RibbonSidebarList({
                 data-sidebar="group-label"
                 data-sidebar-sticky-tier="label"
               >
-                <span className="relative z-10 flex min-w-0 flex-1 items-center gap-1 text-left">
+                <span className="relative z-10 flex min-w-0 flex-1 items-center text-left">
                   <span className="flex min-w-0 items-center gap-2 text-left">
                     {settings.values?.showGroupHeaderIcons !== false &&
                     unorganizedGroup ? (
@@ -2426,7 +2426,7 @@ function RibbonSidebarList({
                         ? `Expand ${group.label} section`
                         : `Collapse ${group.label} section`
                     }
-                    className={`${collapsed ? "" : "bb-sidebar-hover-actions"} relative z-20 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
+                    className={`${collapsed ? "" : "bb-sidebar-hover-actions"} relative z-20 mx-2 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
