@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-chatgpt-theme",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Restyle bb to match the OpenAI ChatGPT (Codex) desktop app.",
   "license": "MIT",
   "repository": {

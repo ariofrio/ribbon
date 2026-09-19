@@ -1,5 +1,47 @@
 # bb-plugin-ribbon-sidebar
 
+## 0.3.0
+
+### Minor Changes
+
+- 384428c: Add Display options → Pages → No paging to show all groups without the page switcher, preserving headings and icons and remembering the choice across reloads.
+- 479e7df: Add a client-local Display options setting to show linked PR numbers to the left or right of thread titles, or hide them. The default remains Right.
+- a106217: Choose thread icons from Projects, Sections, or any available provider grouping
+  in Display options, independently of Pages and Headings. The choice persists
+  per client and can also hide thread icons; children inherit their root's icon.
+
+### Patch Changes
+
+- 5921366: Match the active thread's background to the hovered thread background, and match thread action buttons to BB's built-in sidebar sizing and interaction backgrounds.
+- 9cd4186: Fix clicks on faded thread titles so they select the thread.
+- 300f308: Standardize sidebar row and display-options buttons at 20×20px with visible hover backgrounds, and reduce the gap between thread titles and the indicator lane to 4px.
+- 90b39c1: Place threads at the top of Completed by default when filing through shortcuts,
+  the CLI, menus, or group-heading drops. Explicit positions and undo retain their
+  existing behavior.
+- a51bd35: Fade overflowing thread titles at the edge of the sidebar instead of showing an ellipsis.
+- 300f308: Give grouping expand/collapse buttons 8px of space on each side, including the Pinned heading.
+- 300f308: Give expanded parent thread titles the space occupied by hidden collapse buttons, restoring the button and its gap on hover or keyboard focus. Keep collapsed parents' expand buttons visible and reserve ellipsis space so the buttons stay in place on hover.
+- 735d5e3: Update to bb 0.42.1 and Plugin SDK 0.4.47, including the matching UI components and runtime dependencies. This release requires bb 0.42.1 or newer.
+  
+  Icons and keyboard shortcuts now use the public app-overlay slot and SDK RPC/settings hooks. Keyboard shortcuts read the active thread and project from SDK context and open new-thread surfaces through the public sidebar action. The Side chat shortcut waits for bb's rich-text editor to mount before focusing it.
+  
+  Ribbon's top controls use the public sidebar-navigation slot, and its fallback uses the current `Original` API. Its new-thread project selection and archived-thread navigation now use public composer, sidebar-action, and navigation APIs.
+  
+  Thread stages forwards placement changes through the SDK's cross-plugin RPC client, reads the active thread from SDK context, uses SDK navigation for threads and the composer, and accepts pending threads without treating them as active.
+- 4286153: Match deferred, blocked, and completed thread text to the group heading color, including child threads and other sidebar groupings.
+- d8deb18: Show each thread's linked pull request number to the right of its title in a de-emphasized color.
+- f461d00: Show the pull request's status icon beside its number in sidebar thread titles, matching the main view.
+- 6007b90: Match bb's thread reordering interaction with a cursor-following title chip, row-sized drop previews, touch and keyboard controls, and click suppression after dragging. Keep previews stable at group boundaries and show them at the original position. Dropping on a group title or the space beneath it places the thread first; dropping between groups places it last in the preceding group.
+- fd7a755: Update to bb 0.43.3 and Plugin SDK 0.4.104, including the matching UI components and runtime dependencies. This release requires bb 0.43.3 or newer.
+  
+  Missing keyboard shortcuts and Thread stages now register their actions through bb's public command API. Their actions appear in the command palette, and their default shortcuts can be rebound or cleared in Keyboard settings.
+  
+  The side-chat shortcut now opens a host-persisted plugin panel through the public command context and renders the fork through the public `ThreadChat` component.
+  
+  Ribbon sidebar now declares its CLI with bb's public `defineCli` and `cliCommand` APIs, so bb owns parsing, validation, help, suggestions, and structured JSON errors.
+- 300f308: Give visible thread expand/collapse buttons an 8px gap after the title and a 4px gap before the ellipsis.
+- 6661218: Shorten thread titles only while the hover menu is visible so the ellipsis does not overlap the text. Preserve the status indicator gap when no thread icon is shown.
+
 ## 0.2.0
 
 ### Minor Changes
