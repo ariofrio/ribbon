@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { chromium } from "playwright";
 import { AGENT, FEATURED_PROJECT } from "../screenshots/fixture.mjs";
 
@@ -13,8 +15,11 @@ export async function verifyComposerReadiness({ stack, fixture }) {
   ]);
   fixture.run(["thread", "wait", thread.id, "--status", "idle"]);
   const browser = await chromium.launch({ args: ["--mute-audio"] });
+  let context;
   try {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    await context.tracing.start({ snapshots: true, sources: true });
+    const page = await context.newPage();
     await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
     await page.locator("[data-missing-keyboard-shortcuts-ready]").waitFor({ state: "attached" });
     const primary = page.locator('[data-app-composer-role="primary"] [role="textbox"]');
@@ -48,6 +53,12 @@ export async function verifyComposerReadiness({ stack, fixture }) {
     await page.waitForFunction((node) => document.activeElement === node, await reply.elementHandle());
     await page.keyboard.type("Focus survived delayed visibility");
     assert.equal(await reply.innerText(), "Focus survived delayed visibility");
+  } catch (error) {
+    const directory = resolve(".scratch/e2e");
+    await mkdir(directory, { recursive: true })
+      .then(() => context?.tracing.stop({ path: resolve(directory, "composer-readiness.trace.zip") }))
+      .catch((diagnosticError) => console.error("Could not save the composer-readiness trace:", diagnosticError));
+    throw error;
   } finally {
     await browser.close();
   }
