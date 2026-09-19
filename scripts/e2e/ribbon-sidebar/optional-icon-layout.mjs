@@ -107,20 +107,38 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
         has: page.locator(`a[data-sidebar-thread-id="${idleThread.id}"]`),
       });
       assert.equal(await idleRow.locator("[data-sidebar-thread-trailing-indicator]").count(), 0);
+      async function assertRestingInset() {
+        const inset = await idleRow.evaluate((node) => {
+          const title = node.querySelector("[title] > span").parentElement;
+          return node.getBoundingClientRect().right - title.getBoundingClientRect().right;
+        });
+        assert.ok(Math.abs(inset - 8) < 0.5, `At rest, the title inset was ${inset}px instead of 8px`);
+      }
+      await assertRestingInset();
+      async function assertActionGap() {
+        const gap = await idleRow.evaluate((node) => {
+          const title = node.querySelector("[title] > span").parentElement;
+          const lane = node.querySelector('button[aria-label="Thread actions"]').parentElement;
+          return lane.getBoundingClientRect().left - title.getBoundingClientRect().right;
+        });
+        assert.ok(Math.abs(gap - 8) < 0.5, `The visible actions gap was ${gap}px instead of 8px`);
+      }
       await idleRow.hover();
+      await assertActionGap();
       const actions = idleRow.getByRole("button", { name: "Thread actions", exact: true });
       await actions.click();
       await page.getByRole("menu").waitFor();
+      await page.mouse.move(1200, 750);
+      await assertActionGap();
       await page.keyboard.press("Escape");
-      const actionGap = await idleRow.evaluate((node) => {
-        const title = node.querySelector("[title] > span").parentElement.parentElement;
-        const lane = node.querySelector('button[aria-label="Thread actions"]').parentElement;
-        return lane.getBoundingClientRect().left - title.getBoundingClientRect().right;
-      });
-      assert.ok(
-        Math.abs(actionGap - 8) < 0.5,
-        `Without an indicator, the title-to-actions gap was ${actionGap}px instead of 8px`,
-      );
+      await page.waitForFunction((threadId) => {
+        const row = document.querySelector(`[data-ribbon-sidebar-root] a[data-sidebar-thread-id="${threadId}"]`)?.closest("li");
+        return document.activeElement === row?.querySelector('button[aria-label="Thread actions"]');
+      }, idleThread.id);
+      await page.keyboard.press("Shift+Tab");
+      await assertActionGap();
+      await page.mouse.click(1200, 750);
+      await assertRestingInset();
     } finally {
       await context.close();
     }
