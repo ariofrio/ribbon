@@ -51,6 +51,7 @@ describe("Thread stages provider contracts", () => {
             },
             {
               id: "Completed",
+              defaultPlacement: "start",
               label: "Completed",
               visibleWhenEmpty: true,
               acceptsAssignments: true,

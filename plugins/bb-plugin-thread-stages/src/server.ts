@@ -308,7 +308,6 @@ export default async function plugin(bb: BbPluginApi) {
           groupingKey: THREAD_STAGES_GROUPING_KEY,
           groupId: chord.workflowStage,
           threadId,
-          anchor: { kind: "end" },
           expectedRevision: placementState.revision,
           origin: "ui",
         });
@@ -361,7 +360,7 @@ export default async function plugin(bb: BbPluginApi) {
         threadId,
         anchor:
           move.kind === "stage"
-            ? { kind: "end" }
+            ? undefined
             : move.nextThreadId !== null
               ? { kind: "before", threadId: move.nextThreadId }
               : move.previousThreadId !== null

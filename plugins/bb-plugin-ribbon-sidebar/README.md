@@ -88,6 +88,11 @@ machine-readable output. `migrate` explicitly retries the same idempotent
 import normally started by mounting the sidebar. `rekey` atomically moves
 placement when a provider intentionally changes a plugin grouping key.
 
+Without `--before` or `--after`, `place` uses the destination group's default
+insertion position: the top for Completed, otherwise the bottom. A thread
+already in the destination keeps its position. These positions apply to manual
+sorting; other sort modes determine the displayed order independently.
+
 ## Settings
 
 Use **Display options → Pages → No paging** to show all groups without a page

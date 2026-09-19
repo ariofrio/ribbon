@@ -15,6 +15,7 @@ const stages: GroupingDescriptor = {
   groups: [
     { id: "Idle", label: "Idle", acceptsAssignments: true },
     { id: "Active", label: "Active", acceptsAssignments: true },
+    { id: "Completed", label: "Completed", acceptsAssignments: true, defaultPlacement: "start" },
   ],
   membership: { kind: "ribbon" },
 };
@@ -227,6 +228,7 @@ describe("Ribbon sidebar CLI", () => {
     expect(JSON.parse(groups.stdout ?? "")).toEqual([
       { id: "Idle", label: "Idle", acceptsAssignments: true },
       { id: "Active", label: "Active", acceptsAssignments: true },
+      { id: "Completed", label: "Completed", acceptsAssignments: true },
     ]);
   });
 
@@ -523,6 +525,38 @@ describe("Ribbon sidebar CLI", () => {
         "--json",
       ]),
     ).resolves.toMatchObject({ exitCode: 0 });
+  });
+
+  it("files Completed threads at the top unless an explicit position is given", async () => {
+    const fixture = setup();
+    databases.push(fixture.database);
+    const place = (threadId: string, groupId: string, ...anchor: string[]) =>
+      runRibbonSidebarCli(fixture.context, [
+        "place", threadId, "--to", `${stages.groupingKey}/${groupId}`, ...anchor,
+      ]);
+    const ids = () => {
+      const result = fixture.store.listPlacements({
+        groupingKey: stages.groupingKey,
+        groupIds: ["Completed"],
+      });
+      if (!result.ok) throw new Error(result.error.message);
+      return result.value.items.map(({ threadId }) => threadId);
+    };
+
+    expect(await place("thread-a", "Completed")).toMatchObject({ exitCode: 0 });
+    expect(await place("thread-b", "Completed")).toMatchObject({ exitCode: 0 });
+    expect(ids()).toEqual(["thread-b", "thread-a"]);
+    expect(await place("thread-a", "Completed")).toMatchObject({ exitCode: 0 });
+    expect(ids()).toEqual(["thread-b", "thread-a"]);
+    expect(await place("thread-a", "Idle")).toMatchObject({ exitCode: 0 });
+    expect(await place("thread-a", "Completed")).toMatchObject({ exitCode: 0 });
+    expect(ids()).toEqual(["thread-a", "thread-b"]);
+    expect(await place("thread-a", "Completed", "--after", "thread-b"))
+      .toMatchObject({ exitCode: 0 });
+    expect(ids()).toEqual(["thread-b", "thread-a"]);
+    expect(await place("thread-a", "Completed", "--before", "thread-b"))
+      .toMatchObject({ exitCode: 0 });
+    expect(ids()).toEqual(["thread-a", "thread-b"]);
   });
 
   it("explicitly migrates Thread stages placement", async () => {

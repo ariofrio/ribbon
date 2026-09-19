@@ -18,6 +18,7 @@ export interface GroupDescriptor {
   icon?: import("./contracts").IconDataV1;
   visibleWhenEmpty?: boolean;
   defaultCollapsed?: boolean;
+  defaultPlacement?: "start" | "end";
 }
 
 export type MembershipDescriptor =
@@ -1093,7 +1094,9 @@ export function createPlacementStore(
               writeTime,
             );
             let insertionIndex = destinationOrderWithRetained.length;
-            if (input.anchor?.kind === "start") insertionIndex = 0;
+            if (
+              (input.anchor?.kind ?? freshDestination.defaultPlacement) === "start"
+            ) insertionIndex = 0;
             if (input.anchor?.kind === "before" || input.anchor?.kind === "after") {
               const index = destinationOrderWithRetained.indexOf(
                 input.anchor.threadId,
