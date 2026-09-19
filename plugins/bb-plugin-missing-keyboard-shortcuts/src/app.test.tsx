@@ -2,7 +2,8 @@
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import type { PluginCommandRegistration } from "@get-bb/plugin-sdk/app";
 import { cleanup } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { readSideChatPanelSnapshot } from "./terminal-panel-state";
 
 afterEach(() => {
   cleanup();
@@ -84,6 +85,41 @@ describe("missing keyboard shortcuts app registration", () => {
       method: "openNewThread",
       options: { focusPrompt: true, projectId: "project-a" },
     });
+    slot.lifecycle.unmount();
+  });
+
+  it("uses the command context while the overlay route context catches up", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const createSideChat = vi.fn(() => ({ threadId: "side-chat-a" }));
+    const slot = renderSlot(
+      app.appOverlays[0]!,
+      {},
+      {
+        context: { projectId: null, threadId: null },
+        rpc: { createSideChat },
+      },
+    );
+    const command = commands(app).find(({ id }) => id === "toggle-side-chat");
+
+    await command?.run({
+      openPanel: () => false,
+      projectId: "project-a",
+      threadId: "thread-a",
+    });
+
+    await vi.waitFor(() =>
+      expect(createSideChat).toHaveBeenCalledWith({
+        sourceThreadId: "thread-a",
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(readSideChatPanelSnapshot(window.localStorage, "thread-a")).toMatchObject(
+        {
+          activeSideChat: { childThreadId: "side-chat-a" },
+          isOpen: true,
+        },
+      ),
+    );
     slot.lifecycle.unmount();
   });
 });

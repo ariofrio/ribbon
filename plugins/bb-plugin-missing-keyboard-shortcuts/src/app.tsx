@@ -489,6 +489,10 @@ function MissingKeyboardShortcuts() {
         const { context: commandContext, id } = (
           event as CustomEvent<ShortcutCommandDetail>
         ).detail;
+        contextRef.current = {
+          projectId: commandContext.projectId,
+          threadId: commandContext.threadId,
+        };
 
         if (id === "new-personal-thread") {
           sidebarActions.openNewThread({
