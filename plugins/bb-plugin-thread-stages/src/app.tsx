@@ -217,9 +217,15 @@ function WorkflowShortcuts() {
 }
 
 export default definePluginApp((app) => {
+  const isMac = /Mac|iPhone|iPad|iPod/u.test(navigator.platform);
   for (const command of WORKFLOW_COMMANDS) {
     app.commands.register({
-      defaultShortcut: command.defaultShortcut,
+      // Control and Mod are the same key outside macOS. Keep the existing
+      // Completed alternate on Ctrl+Alt+. and use the neighboring comma key.
+      defaultShortcut:
+        !isMac && (command.id === "defer-thread" || command.id === "block-thread")
+          ? { key: ",", mod: true, alt: true, shift: command.id === "block-thread" }
+          : command.defaultShortcut,
       id: command.id,
       isAvailable: ({ threadId }) =>
         threadId !== null &&
