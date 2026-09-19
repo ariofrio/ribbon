@@ -93,8 +93,8 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
     await page.keyboard.type("Side chat focus check");
     assert.equal(await reply.innerText(), "Side chat focus check");
 
-    // The shortcut handler now lives in an overlay. It still opens a real
-    // host terminal via the SDK and the existing panel integration.
+    // The public command invokes the overlay's UI action. It still opens a
+    // real host terminal through the SDK and existing panel integration.
     const terminalResponse = page.waitForResponse((response) =>
       response
         .url()

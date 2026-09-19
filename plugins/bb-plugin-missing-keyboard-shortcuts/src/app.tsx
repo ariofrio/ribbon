@@ -4,6 +4,7 @@ import {
   experimental_useSidebarThreadActions,
   useBbContext,
   useRpc,
+  type PluginCommandContext,
   type PluginRpcClient,
   useComposer,
   useComposerView,
@@ -27,21 +28,16 @@ import {
   selectPrimaryPanelTabWhenReady,
 } from "./composer-navigation-bridge";
 import {
+  PERSONAL_PROJECT_ID,
   readLastThreadProjectId,
   rememberThreadProject,
 } from "./last-thread-project";
-import {
-  composerShortcutTarget,
-  historyDirection,
-  isTerminalShortcut,
-  newThreadTarget,
-} from "./shortcut-actions";
+import { projectThreadTarget } from "./new-thread-target";
 import {
   focusVisibleTerminal,
   isTerminalFocused,
   isWithinTerminal,
 } from "./terminal-dom";
-import { notifyNativeShortcutHandled } from "./native-command-hints";
 import {
   activateExistingSideChatPanel,
   activateSideChatPanel,
@@ -72,6 +68,72 @@ interface CreateSideChatResult {
 
 interface ValidateSideChatResult {
   reusable: boolean;
+}
+
+const SHORTCUT_COMMAND_EVENT =
+  "bb-plugin-missing-keyboard-shortcuts:run-command";
+
+const SHORTCUT_COMMANDS = [
+  {
+    id: "navigate-back",
+    title: "Navigate backward",
+    defaultShortcut: { key: "[", mod: true },
+    requiresThread: false,
+  },
+  {
+    id: "navigate-forward",
+    title: "Navigate forward",
+    defaultShortcut: { key: "]", mod: true },
+    requiresThread: false,
+  },
+  {
+    id: "new-personal-thread",
+    title: "Start a personal thread",
+    defaultShortcut: { key: "n", mod: true },
+    requiresThread: false,
+  },
+  {
+    id: "new-project-thread",
+    title: "Start a thread in the current project",
+    defaultShortcut: { key: "n", mod: true, shift: true },
+    requiresThread: false,
+  },
+  {
+    id: "focus-primary-composer",
+    title: "Focus the primary composer",
+    defaultShortcut: { key: "l", mod: true },
+    requiresThread: true,
+  },
+  {
+    id: "toggle-side-chat",
+    title: "Toggle the active side chat",
+    defaultShortcut: { key: "l", mod: true, shift: true },
+    requiresThread: true,
+  },
+  {
+    id: "toggle-terminal",
+    title: "Toggle the active terminal",
+    defaultShortcut: { control: true, key: "`" },
+    requiresThread: true,
+  },
+] as const;
+
+type ShortcutCommandId = (typeof SHORTCUT_COMMANDS)[number]["id"];
+
+interface ShortcutCommandDetail {
+  context: PluginCommandContext;
+  id: ShortcutCommandId;
+}
+
+function runShortcutCommand(
+  id: ShortcutCommandId,
+  context: PluginCommandContext,
+): void {
+  window.dispatchEvent(
+    new CustomEvent<ShortcutCommandDetail>(SHORTCUT_COMMAND_EVENT, {
+      detail: { context, id },
+    }),
+  );
 }
 
 function rpcErrorMessage(error: unknown, fallback: string): string {
@@ -337,8 +399,6 @@ function MissingKeyboardShortcuts() {
       },
       { once: true },
     );
-    const createKeyboardEvent = (type: string, init: KeyboardEventInit) =>
-      new KeyboardEvent(type, init);
     const isCurrentThread = (threadId: string) =>
       contextRef.current.threadId === threadId;
     const focusExistingSideChat = (
@@ -424,41 +484,41 @@ function MissingKeyboardShortcuts() {
     );
 
     window.addEventListener(
-      "keydown",
+      SHORTCUT_COMMAND_EVENT,
       (event) => {
-        const target = newThreadTarget(
-          event,
-          contextRef.current,
-          readLastThreadProjectId(window.localStorage),
-        );
-        if (target !== null) {
-          // Claim the chord everywhere so BB's native menu cannot reuse it.
-          event.preventDefault();
-          event.stopPropagation();
+        const { context: commandContext, id } = (
+          event as CustomEvent<ShortcutCommandDetail>
+        ).detail;
+
+        if (id === "new-personal-thread") {
           sidebarActions.openNewThread({
             focusPrompt: true,
-            projectId: target.projectId,
+            projectId: PERSONAL_PROJECT_ID,
           });
           return;
         }
 
-        const composerTarget = composerShortcutTarget(event);
-        if (composerTarget === "primary") {
-          const threadId = contextRef.current.threadId;
+        if (id === "new-project-thread") {
+          sidebarActions.openNewThread({
+            focusPrompt: true,
+            projectId: projectThreadTarget(
+              commandContext,
+              readLastThreadProjectId(window.localStorage),
+            ).projectId,
+          });
+          return;
+        }
+
+        if (id === "focus-primary-composer") {
+          const { threadId } = commandContext;
           if (!hasPrimaryComposer(threadId)) return;
-          event.preventDefault();
-          event.stopPropagation();
-          notifyNativeShortcutHandled(window, createKeyboardEvent);
           focusPrimaryComposer(threadId);
           return;
         }
-        if (composerTarget === "secondary") {
-          const threadId = contextRef.current.threadId;
-          if (threadId === null) return;
 
-          event.preventDefault();
-          event.stopPropagation();
-          notifyNativeShortcutHandled(window, createKeyboardEvent);
+        if (id === "toggle-side-chat") {
+          const { threadId } = commandContext;
+          if (threadId === null) return;
           stopPendingAction(pendingSideChatActions, threadId);
           const panel = readSideChatPanelSnapshot(
             window.localStorage,
@@ -520,13 +580,9 @@ function MissingKeyboardShortcuts() {
           return;
         }
 
-        if (isTerminalShortcut(event)) {
-          const threadId = contextRef.current.threadId;
+        if (id === "toggle-terminal") {
+          const { threadId } = commandContext;
           if (threadId === null) return;
-
-          event.preventDefault();
-          event.stopPropagation();
-          notifyNativeShortcutHandled(window, createKeyboardEvent);
           stopPendingAction(pendingTerminalActions, threadId);
           const panel = readTerminalPanelSnapshot(
             window.localStorage,
@@ -576,16 +632,9 @@ function MissingKeyboardShortcuts() {
           return;
         }
 
-        const direction = historyDirection(event);
-        if (direction === null) return;
-
-        // Claim the shortcut even when an editor has focus.
-        event.preventDefault();
-        event.stopPropagation();
-        notifyNativeShortcutHandled(window, createKeyboardEvent);
-        window.history.go(direction);
+        window.history.go(id === "navigate-back" ? -1 : 1);
       },
-      { capture: true, signal },
+      { signal },
     );
     setReady(true);
     return () => controller.abort();
@@ -597,6 +646,17 @@ function MissingKeyboardShortcuts() {
 }
 
 export default definePluginApp((app) => {
+  for (const command of SHORTCUT_COMMANDS) {
+    app.commands.register({
+      defaultShortcut: command.defaultShortcut,
+      id: command.id,
+      isAvailable: ({ threadId }) =>
+        !command.requiresThread || threadId !== null,
+      run: (context) => runShortcutCommand(command.id, context),
+      title: command.title,
+    });
+  }
+
   app.composer.customize({
     id: "navigation-bridge",
     banners: [

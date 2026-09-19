@@ -87,9 +87,13 @@ function thread(
     pinSortKey: null,
     environmentBranchName: "main",
     environmentHostId: "host-a",
+    environmentIsWorktree: true,
     environmentName: null,
+    environmentPath: null,
+    environmentProviderId: null,
     environmentWorkspaceDisplayKind: "managed-worktree",
     hasPendingInteraction: false,
+    lifecycleOwnerThreadId: null,
     runtime: {
       displayStatus: "idle",
       hostReconnectGraceExpiresAt: null,

@@ -1,6 +1,7 @@
 # Missing keyboard shortcuts
 
-Adds keyboard shortcuts that BB does not currently provide:
+Adds commands and default keyboard shortcuts for navigation, thread creation,
+composers, side chats, and terminals:
 
 | Shortcut | Action                                               |
 | -------: | ---------------------------------------------------- |
@@ -17,10 +18,15 @@ Adds keyboard shortcuts that BB does not currently provide:
   <img src="assets/screenshot-light.png" alt="A bb side chat opened with the ⇧⌘L shortcut">
 </picture>
 
-All shortcuts work while an input, editor, or composer has focus. They use
-exact modifier matching, ignore held-key repeats, and stop matched key events
-from propagating to downstream BB or editor handlers. The side chat and
-terminal shortcuts are claimed only on a thread route.
+The commands appear in bb's command palette and Keyboard settings, where every
+shortcut can be rebound or cleared. Shortcuts work while an input, editor, or
+composer has focus. The side chat and terminal commands are available only on
+a thread route.
+
+bb leaves a plugin default unbound when it conflicts with a built-in command.
+In bb 0.43.3, this affects ⌘N, ⇧⌘N, and ⌘L. Keyboard settings identifies the
+conflict; clearing the built-in binding activates the plugin default, or you
+can assign the plugin command another shortcut.
 
 ## Details
 
