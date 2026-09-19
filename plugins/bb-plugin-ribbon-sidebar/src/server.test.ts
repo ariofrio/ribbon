@@ -832,6 +832,12 @@ describe("Ribbon sidebar server", () => {
     ]);
     expect(harness.inspection.registrations.cli).toMatchObject({
       name: "sidebar",
+      rendersHelp: true,
+      commands: expect.arrayContaining([
+        expect.objectContaining({ name: "groupings" }),
+        expect.objectContaining({ name: "place" }),
+        expect.objectContaining({ name: "migrate-thread-stages" }),
+      ]),
     });
     await expect(
       harness.behavior.runCli(["groupings", "--json"]),

@@ -23,7 +23,7 @@ import {
   type GroupingKey,
 } from "./placement-store";
 import { createProviderCatalog } from "./provider-catalog";
-import { runRibbonSidebarCli } from "./cli";
+import { defineRibbonSidebarCli } from "./cli";
 import { orderedGroupings } from "./grouping-order";
 import { createPreviewStore } from "./preview-store";
 import { registerThreadPreviews } from "./thread-previews";
@@ -874,43 +874,30 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
+  const cli = defineRibbonSidebarCli({
+    store,
+    groupings,
+    threads: async ({ includeArchived, includeHidden }) => {
+      const threads = includeArchived || includeHidden
+        ? await listThreadsForSidebar(bb, {
+            includeArchived,
+            includeHidden,
+          })
+        : sidebarThreads;
+      for (const thread of threads) {
+        projectByThread.set(thread.id, thread.projectId);
+        sectionByThread.set(thread.id, thread.sectionId ?? "unsectioned");
+      }
+      return sidebarRootThreads(threads);
+    },
+    updatePlacement,
+    migrateThreadStages: migrateFromThreadStages,
+  });
   bb.cli.register({
-    name: "sidebar",
-    summary: "Inspect and change Ribbon sidebar placement",
-    commands: [
-      { name: "groupings", summary: "List groupings", usage: "bb sidebar groupings [--json]" },
-      { name: "groups", summary: "List groups", usage: "bb sidebar groups <grouping> [--json]" },
-      { name: "list", summary: "List threads", usage: "bb sidebar list [--scope <group-ref>] [--include-archived] [--include-hidden] [--json]" },
-      { name: "show", summary: "Show thread placement", usage: "bb sidebar show [thread] [--self] [--json]" },
-      { name: "place", summary: "Place a thread", usage: "bb sidebar place [thread] [--self] --to <group-ref> [--before <thread>|--after <thread>] [--json]" },
-      { name: "migrate", summary: "Migrate legacy placement", usage: "bb sidebar migrate thread-stages [--json]" },
-      { name: "rekey", summary: "Rekey provider placement", usage: "bb sidebar rekey --from <plugin-key> --to <plugin-key> [--json]" },
-    ],
+    ...cli,
     async run(argv, context) {
       await refreshCatalogsAndRoots();
-      const result = await runRibbonSidebarCli(
-        {
-          store,
-          groupings,
-          threads: async ({ includeArchived, includeHidden }) => {
-            const threads = includeArchived || includeHidden
-              ? await listThreadsForSidebar(bb, {
-                  includeArchived,
-                  includeHidden,
-                })
-              : sidebarThreads;
-            for (const thread of threads) {
-              projectByThread.set(thread.id, thread.projectId);
-              sectionByThread.set(thread.id, thread.sectionId ?? "unsectioned");
-            }
-            return sidebarRootThreads(threads);
-          },
-          updatePlacement,
-          migrateThreadStages: migrateFromThreadStages,
-        },
-        argv,
-        context.threadId ? { threadId: context.threadId } : {},
-      );
+      const result = await cli.run(argv, context);
       if (
         result.exitCode === 0 &&
         ["place", "migrate", "rekey"].includes(argv[0] ?? "")

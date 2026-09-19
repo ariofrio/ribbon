@@ -155,7 +155,6 @@ async function verifyStagePlacement({ browser, stack, fixture }) {
         "sidebar",
         "show",
         threadId,
-        "--json",
       ]);
       stage = placements.find(
         ({ placement }) => placement.groupingKey === groupingKey,
