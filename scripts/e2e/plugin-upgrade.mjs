@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { chromium } from "playwright";
 import {
   applyPluginState,
+  AGENT,
   FEATURED_PROJECT,
   FEATURED_THREAD,
 } from "../screenshots/fixture.mjs";
@@ -14,6 +15,14 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
   const thread = fixture.threads.get(FEATURED_THREAD);
   const project = fixture.projects.get(FEATURED_PROJECT);
   await applyPluginState({ stack, ...fixture });
+  // A personal project uses the fallback icon and can precede custom project icons.
+  const personal = fixture.runJson([
+    "thread", "spawn", "--project", "proj_personal",
+    "--provider", `acp-${AGENT.id}`, "--model", AGENT.modelId,
+    "--permission-mode", "accept-edits", "--title", "Personal icon fallback",
+    "--prompt", "Check icon fallback",
+  ]);
+  fixture.run(["thread", "wait", personal.id, "--status", "idle"]);
   const browser = await chromium.launch({ args: ["--mute-audio"] });
   let context;
   try {
@@ -73,9 +82,9 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
     await icon.click();
     await page.getByRole("searchbox", { name: "Search icons" }).waitFor();
     await page.keyboard.press("Escape");
-    await page.waitForFunction(() => {
+    await page.waitForFunction((projectId) => {
       const element = document.querySelector(
-        "[data-ribbon-sidebar-root] [data-ribbon-icons-project]",
+        `[data-ribbon-sidebar-root] [data-ribbon-icons-project="${CSS.escape(projectId)}"]`,
       );
       return (
         element &&
@@ -83,7 +92,7 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
           .getPropertyValue("--ribbon-icons-project-glyph")
           .includes("url(")
       );
-    });
+    }, project.id);
 
     const sideChatResponse = page.waitForResponse((response) =>
       response.url().endsWith("/plugins/missing-keyboard-shortcuts/rpc/createSideChat"),
