@@ -238,8 +238,8 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
       );
       assert.equal(toggleGap, 8, "The visible child toggle should have 8px to its left");
       const actionBox = await actions.boundingBox();
-      assert.equal(actionBox.x - toggleBox.x - toggleBox.width, 0,
-        "The visible child toggle should touch the ellipsis button");
+      assert.equal(actionBox.x - toggleBox.x - toggleBox.width, 4,
+        "The visible child toggle should have 4px before the ellipsis button");
       await toggle.click();
       const expand = idleRow.getByRole("button", { name: /^Expand .* threads$/ });
       await expand.waitFor();
