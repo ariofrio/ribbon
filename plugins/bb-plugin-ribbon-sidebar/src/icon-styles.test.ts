@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ICON_ATTRIBUTE,
+  ICON_INDICATOR_SPACE_ATTRIBUTE,
   ICON_LAYOUT_ATTRIBUTE,
   ICON_OPTIONAL_ATTRIBUTE,
   glyphDataUrl,
@@ -93,10 +94,10 @@ describe("iconStyles", () => {
       `:root:not([data-ribbon-icons-ready]) [${ICON_ATTRIBUTE}]{`,
     );
     expect(iconStyles()).toContain(
-      `:root:not([data-ribbon-icons-ready]) [${ICON_LAYOUT_ATTRIBUTE}]{grid-template-columns:minmax(0,1fr);column-gap:0}`,
+      `:root:not([data-ribbon-icons-ready]) [${ICON_LAYOUT_ATTRIBUTE}]{column-gap:0}`,
     );
     expect(iconStyles()).toContain(
-      `:root:not([data-ribbon-icons-ready]) [${ICON_LAYOUT_ATTRIBUTE}]>:not([${ICON_ATTRIBUTE}]){grid-column-start:1}`,
+      `:root:not([data-ribbon-icons-ready]) [${ICON_LAYOUT_ATTRIBUTE}]>[${ICON_INDICATOR_SPACE_ATTRIBUTE}]{margin-left:8px}`,
     );
   });
 });

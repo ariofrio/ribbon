@@ -7,6 +7,9 @@ import {
   verifyNewThreadRouting,
   waitForStageCatalog,
 } from "./ribbon-sidebar/new-thread-routing.mjs";
+import {
+  verifyOptionalIconLayout,
+} from "./ribbon-sidebar/optional-icon-layout.mjs";
 import { seed, writeManagedConfig } from "../screenshots/fixture.mjs";
 import { BB_CLI_PATH, startStack } from "../screenshots/stack.mjs";
 
@@ -34,6 +37,14 @@ const suites = [
     },
     async run({ stack, fixture, cases }) {
       await verifyNewThreadRouting({ stack, fixture, cases });
+    },
+  },
+  {
+    id: "optional-icon-layout",
+    cases: ["title-indicator-lane"],
+    plugins: ["bb-plugin-ribbon-sidebar"],
+    async run({ stack, fixture }) {
+      await verifyOptionalIconLayout({ stack, fixture });
     },
   },
 ];

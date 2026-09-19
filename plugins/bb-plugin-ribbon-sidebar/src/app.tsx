@@ -48,6 +48,7 @@ import {
 import { Input } from "./vendor/components/ui/input";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
 import {
+  ICON_INDICATOR_SPACE_ATTRIBUTE,
   ICON_LAYOUT_ATTRIBUTE,
   publishIconStyles,
   type IconFallback,
@@ -415,6 +416,7 @@ function ThreadRow({
             <span
               aria-hidden="true"
               className="col-start-3 row-start-1 w-7 max-md:pointer-coarse:w-9"
+              {...{ [ICON_INDICATOR_SPACE_ATTRIBUTE]: "" }}
             />
           ) : null}
           {preview ? (
