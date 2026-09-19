@@ -19,11 +19,51 @@ import {
 } from "./new-thread-section";
 import { SIDEBAR_PREFERENCES_KEY } from "./view-state";
 
-afterEach(() => {
+afterEach(async () => {
   cleanup();
+  // dnd-kit briefly captures the click after a drag, even when the row unmounts.
+  const probe = document.createElement("button");
+  document.body.append(probe);
+  const clicked = vi.fn();
+  probe.addEventListener("click", clicked);
+  await waitFor(() => {
+    fireEvent.click(probe);
+    expect(clicked).toHaveBeenCalled();
+  });
+  vi.restoreAllMocks();
   document.body.innerHTML = "";
   window.localStorage.clear();
 });
+
+// jsdom has no layout; give the real dnd-kit sensors row and group rectangles.
+async function beginThreadDrag(source: Element) {
+  const groups = Array.from(document.querySelectorAll("[data-ribbon-sidebar-root] section"));
+  const rectFor = (node: Element) => {
+    const group = node.closest("section");
+    const groupIndex = groups.indexOf(group!);
+    const row = node.closest("li[data-thread-id]");
+    const rows = group ? Array.from(group.querySelectorAll("li[data-thread-id]")) : [];
+    const y = groupIndex * 500 + (row ? 40 + rows.indexOf(row) * 50 : 0);
+    return { x: 0, y, top: y, left: 0, width: 250, height: row ? 50 : 400,
+      right: 250, bottom: y + (row ? 50 : 400), toJSON() {} };
+  };
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    return rectFor(this);
+  });
+  const anchor = source.querySelector("a")!;
+  const box = rectFor(anchor);
+  fireEvent.mouseDown(anchor, { button: 0, clientX: 50, clientY: box.y + 25 });
+  fireEvent.mouseMove(document, { clientX: 56, clientY: box.y + 25 });
+  await waitFor(() => expect(document.querySelector("[data-ribbon-thread-drag-overlay]")).toBeTruthy());
+  return {
+    hover(target: Element) {
+      const targetBox = rectFor(target);
+      fireEvent.mouseMove(document, { clientX: 60, clientY: targetBox.y + (target.matches("section") ? 390 : 5) });
+    },
+    drop() { fireEvent.mouseUp(document); },
+    cancel() { fireEvent.keyDown(document, { key: "Escape", code: "Escape" }); },
+  };
+}
 
 function storeSectionScope(groupId: string) {
   window.localStorage.setItem(
@@ -2778,7 +2818,7 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
-  it("uses released invisible group drop targets without move placeholders or handles", async () => {
+  it("moves a thread through the group surface without separate drag handles", async () => {
     useManualSort();
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
@@ -2794,11 +2834,7 @@ describe("Ribbon sidebar app", () => {
     );
     expect(slot.getByText("Design migration")).toBeTruthy();
 
-    const dataTransfer = { setData: vi.fn(), getData: vi.fn() };
-    fireEvent.dragStart(
-      slot.getByText("Ship UI").closest("[data-thread-id]")!,
-      { dataTransfer },
-    );
+    const drag = await beginThreadDrag(slot.getByText("Ship UI").closest("[data-thread-id]")!);
     expect(
       slot.queryByRole("button", { name: "Move Ship UI" }),
     ).toBeNull();
@@ -2806,8 +2842,8 @@ describe("Ribbon sidebar app", () => {
       slot.queryByRole("button", { name: "Move to end of Idle" }),
     ).toBeNull();
     const idleGroup = slot.getByRole("region", { name: "Idle group" });
-    fireEvent.dragOver(idleGroup, { dataTransfer });
-    fireEvent.drop(idleGroup, { dataTransfer });
+    drag.hover(idleGroup);
+    drag.drop();
     expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
       expect.objectContaining({
         threadId: "thread-b",
@@ -2876,14 +2912,12 @@ describe("Ribbon sidebar app", () => {
     const source = slot.getByText("Project A first").closest("[data-thread-id]")!;
     const sameProject = slot.getByText("Project A second").closest("[data-thread-id]")!;
     const otherProject = slot.getByText("Project B").closest("[data-thread-id]")!;
-    const dataTransfer = { setData: vi.fn(), effectAllowed: "none" };
-    fireEvent.dragStart(source, { dataTransfer });
-    fireEvent.dragOver(sameProject, { clientY: 0, dataTransfer });
-    expect(slot.container.querySelector("[data-sidebar-drop-indicator]")).toBeTruthy();
-
-    fireEvent.dragOver(otherProject, { clientY: 0, dataTransfer });
-    expect(slot.container.querySelector("[data-sidebar-drop-indicator]")).toBeNull();
-    fireEvent.drop(otherProject, { clientY: 0, dataTransfer });
+    const drag = await beginThreadDrag(source);
+    drag.hover(sameProject);
+    expect(slot.container.querySelector("[data-ribbon-thread-drop-preview]")).toBeTruthy();
+    drag.hover(otherProject);
+    expect(slot.container.querySelector("[data-ribbon-thread-drop-preview]")).toBeNull();
+    drag.drop();
     expect(fixture.updatePlacementV1).not.toHaveBeenCalled();
     slot.lifecycle.unmount();
   });
@@ -2899,10 +2933,9 @@ describe("Ribbon sidebar app", () => {
       .getByText("Design migration")
       .closest("[data-thread-id]")!;
     const target = slot.getByRole("region", { name: "Roadmap group" });
-    const dataTransfer = { setData: vi.fn(), effectAllowed: "none" };
-    fireEvent.dragStart(source, { dataTransfer });
-    fireEvent.dragOver(target, { dataTransfer });
-    fireEvent.drop(target, { dataTransfer });
+    const drag = await beginThreadDrag(source);
+    drag.hover(target);
+    drag.drop();
 
     expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -2937,12 +2970,9 @@ describe("Ribbon sidebar app", () => {
 
     const source = slot.getByText("Pinned A").closest("[data-thread-id]")!;
     const target = slot.getByText("Pinned B").closest("[data-thread-id]")!;
-    const dataTransfer = { setData: vi.fn(), effectAllowed: "none" };
-    fireEvent.dragStart(source, { dataTransfer });
-    expect(dataTransfer.effectAllowed).toBe("move");
-    expect(source.querySelector("[aria-grabbed='true']")).toBeTruthy();
-    fireEvent.dragOver(target, { clientY: 0, dataTransfer });
-    fireEvent.drop(target, { clientY: 0, dataTransfer });
+    const drag = await beginThreadDrag(source);
+    drag.hover(target);
+    drag.drop();
     await waitFor(() =>
       expect(fixture.reorderPinnedV1).toHaveBeenCalledWith({
         threadId: "thread-pin-a",
@@ -2953,6 +2983,22 @@ describe("Ribbon sidebar app", () => {
     expect(fixture.updatePlacementV1).not.toHaveBeenCalledWith(
       expect.objectContaining({ threadId: "thread-pin-a" }),
     );
+    slot.lifecycle.unmount();
+  });
+
+  it("restores the original group when saving a drop fails", async () => {
+    useManualSort();
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    fixture.updatePlacementV1.mockRejectedValueOnce(new Error("Move failed"));
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Ship UI");
+    const drag = await beginThreadDrag(slot.getByText("Ship UI").closest("li")!);
+    drag.hover(slot.getByRole("region", { name: "Idle group" }));
+    drag.drop();
+    await slot.findByText("Move failed");
+    await waitFor(() => expect(within(slot.getByRole("region", { name: "Active group" })).getByText("Ship UI")).toBeTruthy());
+    expect(within(slot.getByRole("region", { name: "Idle group" })).queryByText("Ship UI")).toBeNull();
     slot.lifecycle.unmount();
   });
 
@@ -3038,15 +3084,14 @@ describe("Ribbon sidebar app", () => {
     await slot.findByText("Ship UI");
 
     const row = slot.getByText("Ship UI").closest("[data-thread-id]")!;
-    const dataTransfer = { setData: vi.fn(), getData: vi.fn() };
-    fireEvent.dragStart(row, { dataTransfer });
-    fireEvent.drop(row, { dataTransfer });
+    const firstDrag = await beginThreadDrag(row);
+    firstDrag.drop();
     expect(fixture.updatePlacementV1).not.toHaveBeenCalled();
 
-    fireEvent.dragStart(row, { dataTransfer });
+    const drag = await beginThreadDrag(row);
     const activeGroup = slot.getByRole("region", { name: "Active group" });
-    fireEvent.dragOver(activeGroup, { dataTransfer });
-    fireEvent.drop(activeGroup, { dataTransfer });
+    drag.hover(activeGroup);
+    drag.drop();
     await waitFor(() => expect(fixture.updatePlacementV1).toHaveBeenCalledTimes(2));
     expect(fixture.updatePlacementV1.mock.calls[1]?.[0]).toMatchObject({
       expectedRevision: 2,

@@ -1,3 +1,4 @@
+import { verifyThreadReordering } from "./ribbon-sidebar/thread-reordering.mjs";
 import { execFileSync } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -24,6 +25,12 @@ const scratch = join(repositoryRoot, ".scratch/e2e");
 const bb = BB_CLI_PATH;
 
 const suites = [
+  {
+    id: "thread-reordering",
+    cases: ["interaction"],
+    plugins: ["bb-plugin-ribbon-sidebar"],
+    run: verifyThreadReordering,
+  },
   {
     id: "pr-number",
     cases: ["placement"],
