@@ -33,18 +33,37 @@ export type ThreadDragGroup =
   { kind: "pinned" } | { kind: "placement"; groupId: string };
 export type ThreadDragTarget = ThreadDragGroup & {
   threadId?: string;
+  atStart?: boolean;
   roots: readonly { id: string }[];
 };
 export type ThreadDragDestination = ThreadDragGroup & {
   beforeThreadId: string | null;
+  atStart?: boolean;
   indicatorBefore: string | null;
   indicatorAfter: string | null;
 };
 
 const collisionDetection: CollisionDetection = (args) => {
-  const candidates = args.droppableContainers;
+  const headers = args.droppableContainers.filter(
+    (container) => container.data.current?.target?.atStart,
+  );
+  const candidates = args.droppableContainers.filter(
+    (container) => !container.data.current?.target?.atStart,
+  );
   if (!args.pointerCoordinates)
     return closestCenter({ ...args, droppableContainers: candidates });
+  // Sticky headers move independently of the rows scrolling underneath them.
+  const headerRects = new Map(args.droppableRects);
+  for (const header of headers) {
+    const node = header.node.current;
+    if (node) headerRects.set(header.id, node.getBoundingClientRect());
+  }
+  const headerHits = pointerWithin({
+    ...args,
+    droppableContainers: headers,
+    droppableRects: headerRects,
+  });
+  if (headerHits.length) return headerHits;
   const hits = pointerWithin({ ...args, droppableContainers: candidates });
   const rows = hits.filter(
     ({ id }) =>
@@ -108,6 +127,24 @@ export function ThreadDragGroup({
       </SortableContext>
     </section>
   );
+}
+
+export function ThreadDragHeader({
+  target,
+  disabled,
+  ...props
+}: ComponentProps<"div"> & {
+  target: ThreadDragTarget;
+  disabled: boolean;
+}) {
+  const groupId =
+    target.kind === "pinned" ? "pinned" : `placement:${target.groupId}`;
+  const { setNodeRef } = useDroppable({
+    id: `header:${groupId}`,
+    disabled,
+    data: { target: { ...target, atStart: true } },
+  });
+  return <div {...props} ref={setNodeRef} />;
 }
 
 export function ThreadDragProvider({
@@ -180,8 +217,9 @@ export function ThreadDragProvider({
           event.over &&
           y > event.over.rect.top + event.over.rect.height / 2
         : event.delta.y > 0;
-      const beforeThreadId =
-        index < 0
+      const beforeThreadId = target.atStart
+        ? (roots[0]?.id ?? null)
+        : index < 0
           ? null
           : after
             ? (roots[index + 1]?.id ?? null)
@@ -191,6 +229,7 @@ export function ThreadDragProvider({
           ? { kind: "pinned" as const }
           : { kind: "placement" as const, groupId: target.groupId }),
         beforeThreadId,
+        ...(target.atStart ? { atStart: true } : {}),
         indicatorBefore: index >= 0 && !after ? target.threadId! : null,
         indicatorAfter: index >= 0 && after ? target.threadId! : null,
       };

@@ -44,8 +44,9 @@ async function beginThreadDrag(source: Element) {
     const row = node.closest("li[data-thread-id]");
     const rows = group ? Array.from(group.querySelectorAll("li[data-thread-id]")) : [];
     const y = groupIndex * 500 + (row ? 40 + rows.indexOf(row) * 50 : 0);
-    return { x: 0, y, top: y, left: 0, width: 250, height: row ? 50 : 400,
-      right: 250, bottom: y + (row ? 50 : 400), toJSON() {} };
+    const height = row ? 50 : node.matches('[data-sidebar="group-label"]') ? 30 : 400;
+    return { x: 0, y, top: y, left: 0, width: 250, height,
+      right: 250, bottom: y + height, toJSON() {} };
   };
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
     return rectFor(this);
@@ -2855,6 +2856,25 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it.each([false, true])("drops on group titles insert first (collapsed: %s)", async (collapsed) => {
+    useManualSort();
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+    if (collapsed) fireEvent.click(slot.getByRole("button", { name: "Collapse Idle section" }));
+    const group = slot.getByRole("region", { name: "Idle group" });
+    const drag = await beginThreadDrag(slot.getByText("Ship UI").closest("li")!);
+    drag.hover(group.querySelector('[data-sidebar="group-label"]')!);
+    drag.drop();
+    expect(fixture.updatePlacementV1).toHaveBeenCalledWith(expect.objectContaining({
+      threadId: "thread-b",
+      groupId: "Idle",
+      anchor: { kind: "before", threadId: "thread-a" },
+    }));
+    slot.lifecycle.unmount();
+  });
+
   it("allows order within Projects but rejects cross-project drag targets", async () => {
     useManualSort("builtin:projects");
     const app = await loadPluginApp(() => import("./app"));
@@ -2922,10 +2942,17 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
-  it("allows cross-group drops when the grouping membership is writable", async () => {
+  it.each([
+    { header: false, empty: false },
+    { header: true, empty: false },
+    { header: true, empty: true },
+  ])("allows writable group drops (header: $header, empty: $empty)", async ({ header, empty }) => {
     useManualSort("builtin:sections");
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
+    if (empty) fixture.value.sidebarThreads.threads = fixture.value.sidebarThreads.threads.filter(
+      ({ id }) => id !== "thread-b",
+    );
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Design migration");
 
@@ -2934,7 +2961,7 @@ describe("Ribbon sidebar app", () => {
       .closest("[data-thread-id]")!;
     const target = slot.getByRole("region", { name: "Roadmap group" });
     const drag = await beginThreadDrag(source);
-    drag.hover(target);
+    drag.hover(header ? target.querySelector('[data-sidebar="group-label"]')! : target);
     drag.drop();
 
     expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
@@ -2942,14 +2969,14 @@ describe("Ribbon sidebar app", () => {
         groupingKey: "builtin:sections",
         groupId: "section-b",
         threadId: "thread-a",
-        anchor: { kind: "end" },
+        anchor: header && !empty ? { kind: "before", threadId: "thread-b" } : { kind: "end" },
         origin: "ui",
       }),
     );
     slot.lifecycle.unmount();
   });
 
-  it("keeps pinned reorder bb-owned and exposes drag feedback", async () => {
+  it.each([false, true])("keeps pinned reorder bb-owned (header: %s)", async (header) => {
     useManualSort();
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({
@@ -2968,20 +2995,20 @@ describe("Ribbon sidebar app", () => {
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Pinned A");
 
-    const source = slot.getByText("Pinned A").closest("[data-thread-id]")!;
-    const target = slot.getByText("Pinned B").closest("[data-thread-id]")!;
+    const source = slot.getByText("Pinned B").closest("[data-thread-id]")!;
+    const target = slot.getByText("Pinned A").closest("[data-thread-id]")!;
     const drag = await beginThreadDrag(source);
-    drag.hover(target);
+    drag.hover(header ? target.closest("section")!.querySelector('[data-sidebar="group-label"]')! : target);
     drag.drop();
     await waitFor(() =>
       expect(fixture.reorderPinnedV1).toHaveBeenCalledWith({
-        threadId: "thread-pin-a",
+        threadId: "thread-pin-b",
         previousThreadId: null,
-        nextThreadId: "thread-pin-b",
+        nextThreadId: "thread-pin-a",
       }),
     );
     expect(fixture.updatePlacementV1).not.toHaveBeenCalledWith(
-      expect.objectContaining({ threadId: "thread-pin-a" }),
+      expect.objectContaining({ threadId: "thread-pin-b" }),
     );
     slot.lifecycle.unmount();
   });

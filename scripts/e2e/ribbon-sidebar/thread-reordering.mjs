@@ -224,6 +224,57 @@ export async function verifyThreadReordering({ stack, fixture }) {
       touchOrder.indexOf(original[1]) < touchOrder.indexOf(original[0]),
     );
     assert.equal(page.url(), url);
+    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+
+    // A group title inserts first, including after moving down and back up.
+    const header = group.locator('[data-sidebar="group-label"]');
+    const headerSource = await source.boundingBox();
+    await page.mouse.move(
+      headerSource.x + 60,
+      headerSource.y + headerSource.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      headerSource.x + 70,
+      headerSource.y + headerSource.height / 2,
+    );
+    await chip.waitFor();
+    const lastRow = await rows.last().boundingBox();
+    await page.mouse.move(lastRow.x + 60, lastRow.y + lastRow.height - 3);
+    await preview.waitFor();
+    const headerBox = await header.boundingBox();
+    await page.mouse.move(headerBox.x + 60, headerBox.y + headerBox.height / 2);
+    await page.waitForFunction((groupName) => {
+      const section = document.querySelector(
+        `[data-ribbon-sidebar-root] section[aria-label="${groupName}"]`,
+      );
+      const heading = section?.querySelector('[data-sidebar="group-label"]');
+      const marker = section?.querySelector(
+        "[data-ribbon-thread-drop-preview]",
+      );
+      const firstRow = [
+        ...(section?.querySelectorAll("li[data-thread-id]") ?? []),
+      ].find((node) => getComputedStyle(node).opacity !== "0");
+      if (!heading || !marker || !firstRow) return false;
+      const markerBox = marker.getBoundingClientRect();
+      return (
+        markerBox.height >= 24 &&
+        markerBox.top >= heading.getBoundingClientRect().bottom &&
+        markerBox.bottom <= firstRow.getBoundingClientRect().top
+      );
+    }, `${FEATURED_PROJECT} group`);
+    const headerSaved = page.waitForResponse((response) =>
+      response.url().endsWith("/rpc/updatePlacementV1"),
+    );
+    await page.mouse.up();
+    assert.ok((await headerSaved).ok());
+    await page.reload();
+    await sidebar.waitFor({ timeout: 120_000 });
+    assert.equal(
+      await rows.first().getAttribute("data-thread-id"),
+      original[0],
+      "dropping on the group title persists the first position",
+    );
   } finally {
     releaseSave();
     await browser.close();

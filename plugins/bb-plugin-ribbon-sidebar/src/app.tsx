@@ -2,6 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import {
   ThreadDragProvider,
   ThreadDragGroup,
+  ThreadDragHeader,
   ThreadDropPreview,
   type ThreadDragTarget,
   type ThreadDragDestination,
@@ -2079,7 +2080,9 @@ function RibbonSidebarList({
           target={{ kind: "pinned", roots: pinnedRoots }}
           disabled={preferences.view.sort !== "manual" || Boolean(normalizedSearch)}
         >
-          <div
+          <ThreadDragHeader
+            target={{ kind: "pinned", roots: pinnedRoots }}
+            disabled={preferences.view.sort !== "manual" || Boolean(normalizedSearch)}
             className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} max-md:pointer-coarse:h-9`}
             data-sidebar="group-label"
             data-sidebar-sticky-tier="label"
@@ -2135,7 +2138,8 @@ function RibbonSidebarList({
                 }))
               }
             />
-          </div>
+          </ThreadDragHeader>
+          {dragDestination?.kind === "pinned" && dragDestination.atStart ? <ThreadDropPreview /> : null}
           {!pinnedSectionCollapsed ? (
             <ul>
               {pinnedRoots.map((root) =>
@@ -2148,7 +2152,7 @@ function RibbonSidebarList({
           ) : pinnedActivePreview ? (
             <ul>{renderRoot(pinnedActivePreview, 0, false)}</ul>
           ) : null}
-          {dragDestination?.kind === "pinned" && !dragDestination.indicatorBefore && !dragDestination.indicatorAfter ? <ThreadDropPreview /> : null}
+          {dragDestination?.kind === "pinned" && !dragDestination.atStart && !dragDestination.indicatorBefore && !dragDestination.indicatorAfter ? <ThreadDropPreview /> : null}
         </ThreadDragGroup>
       ) : null}
 
@@ -2284,7 +2288,9 @@ function RibbonSidebarList({
             disabled={preferences.view.sort !== "manual" || Boolean(normalizedSearch) || !grouping}
           >
             {!sameKeyScope ? (
-              <div
+              <ThreadDragHeader
+                target={{ kind: "placement", groupId: group.id, roots }}
+                disabled={preferences.view.sort !== "manual" || Boolean(normalizedSearch) || !grouping}
                 className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} transition-colors max-md:pointer-coarse:h-9`}
                 data-sidebar="group-label"
                 data-sidebar-sticky-tier="label"
@@ -2373,8 +2379,9 @@ function RibbonSidebarList({
                     ) : null
                   }
                 />
-              </div>
+              </ThreadDragHeader>
             ) : null}
+            {dragDestination?.kind === "placement" && dragDestination.groupId === group.id && dragDestination.atStart ? <ThreadDropPreview /> : null}
             <div className={grouping && !collapsed ? "mt-1" : undefined}>
               {!collapsed
                 ? (
@@ -2407,7 +2414,7 @@ function RibbonSidebarList({
                     )
                   : null}
             </div>
-            {dragDestination?.kind === "placement" && dragDestination.groupId === group.id && !dragDestination.indicatorBefore && !dragDestination.indicatorAfter ? <ThreadDropPreview /> : null}
+            {dragDestination?.kind === "placement" && dragDestination.groupId === group.id && !dragDestination.atStart && !dragDestination.indicatorBefore && !dragDestination.indicatorAfter ? <ThreadDropPreview /> : null}
           </ThreadDragGroup>
         );
       })}
