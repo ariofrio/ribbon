@@ -15,6 +15,7 @@ import {
 } from "./ribbon-sidebar/optional-icon-layout.mjs";
 import { verifyThreadIcons } from "./ribbon-sidebar/thread-icons.mjs";
 import { verifyPrNumber } from "./ribbon-sidebar/pr-number.mjs";
+import { verifyNoPaging } from "./ribbon-sidebar/no-paging.mjs";
 import { seed, writeFixtureProvider } from "../screenshots/fixture.mjs";
 import { BB_CLI_PATH, startStack } from "../screenshots/stack.mjs";
 
@@ -30,6 +31,12 @@ const suites = [
     cases: ["interaction"],
     plugins: ["bb-plugin-ribbon-sidebar"],
     run: verifyThreadReordering,
+  },
+  {
+    id: "no-paging",
+    cases: ["display-options"],
+    plugins: ["bb-plugin-ribbon-sidebar"],
+    run: verifyNoPaging,
   },
   {
     id: "pr-number",
