@@ -27,6 +27,13 @@ export const ICON_ATTRIBUTE = "data-ribbon-sidebar-icon";
  */
 export const ICON_OPTIONAL_ATTRIBUTE = "data-ribbon-sidebar-icon-optional";
 
+/** The title/preview grid whose optional icon owns its first column. */
+export const ICON_LAYOUT_ATTRIBUTE = "data-ribbon-sidebar-icon-layout";
+
+/** The title-row track that reserves room for a trailing indicator. */
+export const ICON_INDICATOR_SPACE_ATTRIBUTE =
+  "data-ribbon-sidebar-icon-indicator-space";
+
 /**
  * Whose icon a box wants, and the glyph it keeps until somebody picks one. The
  * fallback is this plugin's own; the contract leaves it to the consumer.
@@ -84,6 +91,9 @@ export function iconStyles(): string {
   }
   rules.push(
     `:root:not([${READY_ATTRIBUTE}]) [${ICON_OPTIONAL_ATTRIBUTE}]{display:none}`,
+    `:root:not([${READY_ATTRIBUTE}]) [${ICON_LAYOUT_ATTRIBUTE}]{column-gap:0}`,
+    `:root:not([${READY_ATTRIBUTE}]) [${ICON_LAYOUT_ATTRIBUTE}]` +
+      `>[${ICON_INDICATOR_SPACE_ATTRIBUTE}]{margin-left:8px}`,
   );
   return rules.join("\n");
 }
