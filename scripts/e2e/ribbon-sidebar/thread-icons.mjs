@@ -91,11 +91,16 @@ export async function verifyThreadIcons({ stack, fixture }) {
       return space.getBoundingClientRect().left - title.getBoundingClientRect().right;
     });
     assert.ok(
-      Math.abs(indicatorGap - 8) < 0.5,
-      `With No icons, the title-to-indicator gap was ${indicatorGap}px instead of 8px`,
+      Math.abs(indicatorGap - 4) < 0.5,
+      `With No icons, the title-to-indicator gap was ${indicatorGap}px instead of 4px`,
     );
     await chooseIcons("None", "Projects");
     await paintedIcon(`[data-ribbon-icons-project="${project.id}"]`, true);
+    const gapWithIcons = await workingRow.evaluate((node) => {
+      const space = node.querySelector("[data-ribbon-sidebar-icon-indicator-space]");
+      return space.getBoundingClientRect().left - space.previousElementSibling.getBoundingClientRect().right;
+    });
+    assert.equal(gapWithIcons, 4, "Project icons should preserve the 4px title-to-indicator gap");
     const view = await page.evaluate(() => JSON.parse(localStorage.getItem("bb.plugin.ribbon-sidebar.preferences.v1")).view);
     assert.equal(view.iconGroupingKey, "builtin:projects");
     assert.equal(view.groupingKey, "plugin:thread-stages:stages");

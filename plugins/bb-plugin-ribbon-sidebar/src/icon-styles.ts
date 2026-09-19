@@ -93,7 +93,7 @@ export function iconStyles(): string {
     `:root:not([${READY_ATTRIBUTE}]) [${ICON_OPTIONAL_ATTRIBUTE}]{display:none}`,
     `:root:not([${READY_ATTRIBUTE}]) [${ICON_LAYOUT_ATTRIBUTE}]{column-gap:0}`,
     `:root:not([${READY_ATTRIBUTE}]) [${ICON_LAYOUT_ATTRIBUTE}]` +
-      `>[${ICON_INDICATOR_SPACE_ATTRIBUTE}]{margin-left:8px}`,
+      `>[${ICON_INDICATOR_SPACE_ATTRIBUTE}]{margin-left:4px}`,
   );
   return rules.join("\n");
 }

@@ -5,6 +5,7 @@ import type {
 } from "@get-bb/plugin-sdk/app";
 import type { IconDataV1 } from "./contracts";
 import { ProviderIcon } from "./provider-icon";
+import { Button } from "./vendor/components/ui/button";
 import { UnorganizedIcon } from "./unorganized-icon";
 import {
   ContextMenu,
@@ -98,15 +99,17 @@ export function ThreadActionsDropdown({
     <CompactViewportOverrideProvider isCompactViewport={false}>
       <DropdownMenu onOpenChange={onOpenChange}>
         <DropdownMenuTrigger asChild>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             aria-label="Thread actions"
-            className="relative m-1 flex size-5 cursor-pointer items-center justify-center rounded-md p-0 text-subtle-foreground outline-none ring-sidebar-ring after:absolute after:left-1/2 after:top-1/2 after:size-7 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] hover:text-foreground focus-visible:ring-2 data-[state=open]:bg-state-active data-[state=open]:text-foreground"
+            className="relative m-1 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2"
             onClick={(event) => event.stopPropagation()}
             onDragStart={(event) => event.preventDefault()}
             type="button"
           >
             <Icon name="MoreHorizontal" className="size-4" aria-hidden />
-          </button>
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className={MENU_LAYER_CLASS}>
           <DropdownItems {...props} />

@@ -37,19 +37,13 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
       reducedMotion: "reduce",
     });
     try {
-      await context.addInitScript((sectionId) => {
+      await context.addInitScript(() => {
         window.localStorage.setItem(
           "bb.plugin.ribbon-sidebar.preferences.v1",
           JSON.stringify({
             view: {
-              scope: {
-                kind: "group",
-                group: {
-                  groupingKey: "builtin:sections",
-                  groupId: sectionId,
-                },
-              },
-              groupingKey: null,
+              scope: { kind: "all" },
+              groupingKey: "builtin:sections",
             },
             collapsed: [],
           }),
@@ -58,13 +52,31 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
           "bb.sidebar.threadListProvider",
           JSON.stringify("ribbon-sidebar/ribbon-sidebar"),
         );
-      }, fixture.section.id);
+      });
 
       const page = await context.newPage();
       await page.goto(stack.serverUrl, { waitUntil: "domcontentloaded" });
       await page
         .locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]")
         .waitFor({ timeout: 120_000 });
+
+      const sidebar = page.locator("[data-ribbon-sidebar-root]");
+      for (const name of ["Atlas options", "Collapse Atlas section"]) {
+        const button = sidebar.getByRole("button", { name, exact: true });
+        await button.locator('xpath=ancestor::*[@data-sidebar-sticky-tier="label"][1]').hover();
+        await button.hover();
+        const box = await button.boundingBox();
+        assert.equal(box.width, 20, `${name} should be 20px wide`);
+        assert.equal(box.height, 20, `${name} should be 20px tall`);
+        await button.evaluate(async (node) => {
+          await Promise.all(node.getAnimations().map((animation) => animation.finished));
+          const background = getComputedStyle(node).backgroundColor;
+          if (background === "rgba(0, 0, 0, 0)" || background === "transparent") {
+            throw new Error(`${node.ariaLabel} has no hover background`);
+          }
+        });
+      }
+      await page.mouse.move(1200, 750);
 
       assert.equal(
         await page.locator("html").getAttribute("data-ribbon-icons-ready"),
@@ -114,9 +126,22 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
 
       const gap = geometry.indicatorLeft - geometry.titleRight;
       assert.ok(
-        Math.abs(gap - 8) < 0.5,
-        `Without Icons, the title-to-indicator gap was ${gap}px instead of 8px (${JSON.stringify(geometry)})`,
+        Math.abs(gap - 4) < 0.5,
+        `Without Icons, the title-to-indicator gap was ${gap}px instead of 4px (${JSON.stringify(geometry)})`,
       );
+
+      fixture.run(["plugin", "config", "ribbon-sidebar", "set", "threadAdornmentAlignment", "Entire item"]);
+      await page.waitForFunction((threadId) => {
+        const row = document.querySelector(`[data-ribbon-sidebar-root] li[data-thread-id="${threadId}"]`);
+        const lane = row?.querySelector("[data-sidebar-thread-trailing-indicator]")?.parentElement?.parentElement;
+        return lane && getComputedStyle(lane).position === "relative";
+      }, await row.getAttribute("data-thread-id"));
+      const entireItemGap = await row.evaluate((node) => {
+        const lane = node.querySelector("[data-sidebar-thread-trailing-indicator]").parentElement.parentElement;
+        return lane.getBoundingClientRect().left - lane.previousElementSibling.getBoundingClientRect().right;
+      });
+      assert.equal(entireItemGap, 4, "Entire-item alignment should also leave a 4px gap");
+      fixture.run(["plugin", "config", "ribbon-sidebar", "set", "threadAdornmentAlignment", "Title row"]);
 
       const idleRow = page.locator("[data-ribbon-sidebar-root] li").filter({
         has: page.locator(`a[data-sidebar-thread-id="${idleThread.id}"]`),
@@ -140,11 +165,25 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
           const lane = node.querySelector('button[aria-label="Thread actions"]').parentElement;
           return lane.getBoundingClientRect().left - title.getBoundingClientRect().right;
         });
-        assert.ok(Math.abs(gap - 8) < 0.5, `The visible actions gap was ${gap}px instead of 8px`);
+        assert.ok(Math.abs(gap - 4) < 0.5, `The visible actions gap was ${gap}px instead of 4px`);
       }
       await idleRow.hover();
       await assertActionGap();
       const actions = idleRow.getByRole("button", { name: "Thread actions", exact: true });
+      await actions.hover();
+      await page.waitForFunction((threadId) => {
+        const row = document.querySelector(`[data-ribbon-sidebar-root] a[data-sidebar-thread-id="${threadId}"]`)?.closest("li");
+        const button = row?.querySelector('button[aria-label="Thread actions"]');
+        if (!button) return false;
+        const background = getComputedStyle(button).backgroundColor;
+        return background !== "rgba(0, 0, 0, 0)" && background !== "transparent";
+      }, idleThread.id);
+      const buttonBox = await actions.boundingBox();
+      assert.equal(buttonBox.width, 20, "Thread actions should be 20px wide");
+      assert.equal(buttonBox.height, 20, "Thread actions should be 20px tall");
+      const laneBox = await actions.locator("..").boundingBox();
+      assert.equal(buttonBox.x - laneBox.x, 4, "The lane should have 4px of inner padding");
+      assert.equal(laneBox.x + laneBox.width - buttonBox.x - buttonBox.width, 4);
       await actions.click();
       await page.getByRole("menu").waitFor();
       await page.mouse.move(1200, 750);
