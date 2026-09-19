@@ -1,6 +1,7 @@
 import {
   definePluginApp,
   experimental_useSidebarThreadActions,
+  experimental_useSidebarThreadPullRequest,
   experimental_useSidebarThreadSplit,
   experimental_useSidebarThreads,
   useBbNavigate,
@@ -219,7 +220,9 @@ function ThreadRow({
   depth,
   hasChildren,
   indicatorThread,
+  icon,
   dragging,
+  muted,
   onDragEnd,
   onDragOver,
   onDragStart,
@@ -251,7 +254,9 @@ function ThreadRow({
   depth: number;
   hasChildren: boolean;
   indicatorThread: PluginSidebarThread;
+  icon: ReactNode;
   dragging: boolean;
+  muted: boolean;
   onDragEnd(): void;
   onDragOver(event: DragEvent<HTMLElement>): void;
   onDragStart(event: DragEvent<HTMLElement>): void;
@@ -271,6 +276,7 @@ function ThreadRow({
 }) {
   const { splitProps, isAvailable: splitAvailable, layout } =
     experimental_useSidebarThreadSplit(thread.id);
+  const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const rowTitle = title(thread);
@@ -318,9 +324,13 @@ function ThreadRow({
       ) : null}
       <div
         className={`bb-sidebar-hover-actions-row group/thread-row relative flex w-full items-center gap-2 rounded-md py-1 pr-0 text-sm transition-colors max-md:pointer-coarse:py-2.5 ${
-          active
-            ? "bg-state-active text-sidebar-foreground"
-            : "cursor-pointer text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:text-sidebar-foreground"
+          active ? "bg-state-active" : "cursor-pointer hover:bg-sidebar-accent"
+        } ${
+          muted
+            ? "text-subtle-foreground/75"
+            : active
+              ? "text-sidebar-foreground"
+              : "text-sidebar-foreground/85 hover:text-sidebar-accent-foreground dark:text-sidebar-foreground"
         } ${layout !== null && !active ? "bg-sidebar-accent/50" : ""} ${
           dragging ? "opacity-40" : ""
         } ${reorderable ? "select-none" : ""}`}
@@ -339,7 +349,7 @@ function ThreadRow({
         <a
           {...splitProps}
           aria-current={active ? "page" : undefined}
-          aria-label={`Open ${accessibleTitle}`}
+          aria-label={`Open ${accessibleTitle}${pullRequest ? ` (PR #${pullRequest.number})` : ""}`}
           className="absolute inset-0 rounded-md outline-none ring-sidebar-ring focus-visible:ring-2"
           data-sidebar-thread-id={thread.id}
           data-sidebar-thread-shortcut-target=""
@@ -348,18 +358,16 @@ function ThreadRow({
           onClick={openThread}
         />
         <span className="flex min-w-0 flex-1 items-center gap-2">
-          {/* Empty by design: the box names its project, and icon-styles.ts
-              paints it. Without that plugin the box collapses. */}
-          <span
-            aria-hidden
-            data-ribbon-icons-project={thread.projectId}
-            data-ribbon-sidebar-icon={
-              thread.projectId === PERSONAL_PROJECT_ID ? "personal" : "project"
-            }
-            data-ribbon-sidebar-icon-optional=""
-          />
+          {icon}
           <span className="flex min-w-0 flex-1 flex-col justify-center leading-none">
-            <span className="truncate leading-5" title={accessibleTitle}>{rowTitle}</span>
+            <span className="flex min-w-0 items-center gap-2 leading-5" title={accessibleTitle}>
+              <span className="truncate">{rowTitle}</span>
+              {pullRequest ? (
+                <span className="shrink-0 text-subtle-foreground/75" title={pullRequest.title}>
+                  #{pullRequest.number}
+                </span>
+              ) : null}
+            </span>
             {preview ? (
               <span className="truncate text-[11px] leading-4 text-subtle-foreground/75" title={preview}>
                 {preview}
@@ -538,6 +546,7 @@ function RibbonSidebarList({
   const [assignmentPlacements, setAssignmentPlacements] = useState<
     ReadonlyMap<string, ReadonlyMap<string, PlacementRecordV1>>
   >(new Map());
+  const assignmentRequest = useRef(0);
   const [revision, setRevision] = useState(0);
   const [previews, setPreviews] = useState<ReadonlyMap<string, string | null>>(
     new Map(),
@@ -680,14 +689,16 @@ function RibbonSidebarList({
 
   const loadAssignmentPlacements = useCallback(async () => {
     if (!snapshot) return;
-    const writable = snapshot.groupings.filter(
+    const request = ++assignmentRequest.current;
+    const needed = snapshot.groupings.filter(
       ({ available, groupingKey, membershipWritable }) =>
         available &&
-        membershipWritable &&
-        groupingKey !== "builtin:sections",
+        ((membershipWritable && groupingKey !== "builtin:sections") ||
+          (groupingKey.startsWith("plugin:") &&
+            groupingKey === preferences?.view.iconGroupingKey)),
     );
     const results = await Promise.all(
-      writable.map(async (candidate) => {
+      needed.map(async (candidate) => {
         const result = await rpc
           .call("listPlacementsV1", {
             groupingKey: candidate.groupingKey,
@@ -696,6 +707,7 @@ function RibbonSidebarList({
         return [candidate.groupingKey, result] as const;
       }),
     );
+    if (request !== assignmentRequest.current) return;
     setAssignmentPlacements(
       new Map(
         results.flatMap(([groupingKey, result]) =>
@@ -715,7 +727,7 @@ function RibbonSidebarList({
         ),
       ),
     );
-  }, [rpc, snapshot]);
+  }, [rpc, snapshot, preferences?.view.iconGroupingKey]);
 
   useEffect(() => {
     void loadPlacements().catch((error: unknown) => {
@@ -1427,6 +1439,57 @@ function RibbonSidebarList({
     }
   }
 
+  const iconGrouping = snapshot.groupings.find(
+    ({ groupingKey, available }) =>
+      available && groupingKey === preferences.view.iconGroupingKey,
+  );
+  const iconGroupingKey =
+    preferences.view.iconGroupingKey === null
+      ? null
+      : iconGrouping?.groupingKey ?? "builtin:projects";
+
+  function threadIcon(thread: PluginSidebarThread): ReactNode {
+    if (iconGroupingKey === null) return null;
+    const root = thread.parentThreadId
+      ? rootForThread(thread.id, liveThreads) ?? thread
+      : thread;
+    if (iconGroupingKey === "builtin:projects") {
+      return (
+        // Empty by design: the box names its project, and icon-styles.ts
+        // paints it. Without the Icons plugin the box collapses.
+        <span
+          aria-hidden
+          data-ribbon-icons-project={root.projectId}
+          data-ribbon-sidebar-icon={
+            root.projectId === PERSONAL_PROJECT_ID ? "personal" : "project"
+          }
+          data-ribbon-sidebar-icon-optional=""
+        />
+      );
+    }
+    if (iconGroupingKey === "builtin:sections") {
+      const sectionId = root.sectionId;
+      return sectionId ? (
+        <span
+          aria-hidden
+          data-ribbon-icons-section={sectionId}
+          data-ribbon-sidebar-icon="section"
+        />
+      ) : (
+        <UnorganizedIcon />
+      );
+    }
+    const placement = assignmentPlacements.get(iconGroupingKey)?.get(root.id);
+    const group = iconGrouping?.groups.find(({ id }) => id === placement?.groupId);
+    const icon = group?.icon ?? iconGrouping?.icon;
+    return icon ? (
+      <ProviderIcon
+        icon={icon}
+        label={`${group?.label ?? iconGrouping?.singularLabel} group icon`}
+      />
+    ) : null;
+  }
+
   const renderRoot = (
     root: PluginSidebarThread,
     depth = 0,
@@ -1444,6 +1507,12 @@ function RibbonSidebarList({
       childrenCollapsed && children.length > 0
         ? (groupIndicator([root, ...descendants(root.id, childrenByParent)]) ?? root)
         : root;
+    const stageOwner = root.parentThreadId
+      ? rootForThread(root.id, liveThreads) ?? root
+      : root;
+    const stage = assignmentPlacements
+      .get("plugin:thread-stages:stages")
+      ?.get(stageOwner.id)?.groupId;
     const reorderable =
       depth === 0 &&
       preferences.view.sort === "manual" &&
@@ -1492,7 +1561,9 @@ function RibbonSidebarList({
           depth={depth}
           hasChildren={children.length > 0}
           indicatorThread={indicatorThread}
+          icon={threadIcon(root)}
           dragging={draggingThreadId === root.id}
+          muted={stage === "Deferred" || stage === "Blocked" || stage === "Completed"}
           onDragEnd={clearDrag}
           onDragOver={(event) => {
             if (
@@ -1738,6 +1809,13 @@ function RibbonSidebarList({
             )}
             headingsGroupingKey={preferences.view.groupingKey}
             hide={preferences.view.hide}
+            iconGroupingKey={iconGroupingKey as GroupingKey | null}
+            onIconsGroupingChange={(iconGroupingKey) =>
+              changePreferences((current) => ({
+                ...current,
+                view: { ...current.view, iconGroupingKey },
+              }))
+            }
             onHeadingsGroupingChange={(groupingKey) =>
               changePreferences((current) =>
                 current.view.groupingKey === groupingKey
