@@ -244,7 +244,21 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
       const expand = idleRow.getByRole("button", { name: /^Expand .* threads$/ });
       await expand.waitFor();
       await page.mouse.click(1200, 750);
-      await assertRestingInset();
+      const collapsedRest = await expand.boundingBox();
+      assert.equal(collapsedRest.width, 20, "Collapsed parents should keep their expand button visible at rest");
+      assert.equal(await expand.evaluate((node) => getComputedStyle(node).opacity), "1");
+      const restingTitleWidth = await idleRow.locator("[title] > span").first().locator("..").evaluate(
+        (node) => node.getBoundingClientRect().width,
+      );
+      await idleRow.hover();
+      assert.deepEqual(await expand.boundingBox(), collapsedRest,
+        "A collapsed parent's expand button should not move on hover");
+      const collapsedActions = await actions.boundingBox();
+      assert.equal(collapsedActions.x - collapsedRest.x - collapsedRest.width, 4);
+      assert.equal(await idleRow.locator("[title] > span").first().locator("..").evaluate(
+        (node) => node.getBoundingClientRect().width,
+      ), restingTitleWidth, "Collapsed parents should reserve their ellipsis space at rest");
+      await page.mouse.click(1200, 750);
       const link = idleRow.locator(`a[data-sidebar-thread-id="${idleThread.id}"]`);
       await link.focus();
       await page.keyboard.press("Tab");

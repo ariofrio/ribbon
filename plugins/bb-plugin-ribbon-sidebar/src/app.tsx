@@ -311,6 +311,7 @@ function ThreadRow({
     </span>
   ) : null;
   const actionsOpen = dropdownOpen || contextOpen;
+  const showChildToggleAtRest = hasChildren && childrenCollapsed;
   const hasIcon = icon !== null;
   const iconSpansEntireItem = alignAdornmentsToEntireItem && preview !== null;
   const hasTrailingIndicator =
@@ -424,7 +425,9 @@ function ThreadRow({
           <span
             className={`row-start-1 flex min-w-0 items-center ${
               !hasTrailingIndicator && !thread.isArchived
-                ? "pr-2 group-hover/thread-row:pr-8 group-has-[:focus-visible]/thread-row:pr-8 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-8 max-md:pointer-coarse:pr-2!"
+                ? showChildToggleAtRest
+                  ? "pr-8 max-md:pointer-coarse:pr-2!"
+                  : "pr-2 group-hover/thread-row:pr-8 group-has-[:focus-visible]/thread-row:pr-8 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-8 max-md:pointer-coarse:pr-2!"
                 : ""
             }`}
             style={{
@@ -446,9 +449,15 @@ function ThreadRow({
                 aria-label={childrenCollapsed ? `Expand ${rowTitle} threads` : `Collapse ${rowTitle} threads`}
                 variant="ghost"
                 size="icon"
-                className={`bb-sidebar-hover-actions relative z-20 size-5 w-0 shrink-0 overflow-hidden p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 group-hover/thread-row:ml-2 group-hover/thread-row:w-5 group-has-[:focus-visible]/thread-row:ml-2 group-has-[:focus-visible]/thread-row:w-5 max-md:pointer-coarse:group-[:not(:has(:focus-visible))]/thread-row:ml-0! max-md:pointer-coarse:group-[:not(:has(:focus-visible))]/thread-row:w-0! [&_[data-icon-root]]:size-3 ${
+                className={`relative z-20 size-5 shrink-0 overflow-hidden p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3 ${
+                  showChildToggleAtRest
+                    ? "ml-2"
+                    : "bb-sidebar-hover-actions w-0 group-hover/thread-row:ml-2 group-hover/thread-row:w-5 group-has-[:focus-visible]/thread-row:ml-2 group-has-[:focus-visible]/thread-row:w-5 max-md:pointer-coarse:group-[:not(:has(:focus-visible))]/thread-row:ml-0! max-md:pointer-coarse:group-[:not(:has(:focus-visible))]/thread-row:w-0!"
+                } ${
                   !thread.isArchived
-                    ? "group-hover/thread-row:-mr-1 group-has-[:focus-visible]/thread-row:-mr-1 max-md:pointer-coarse:mr-0!"
+                    ? showChildToggleAtRest
+                      ? "-mr-1 max-md:pointer-coarse:mr-0!"
+                      : "group-hover/thread-row:-mr-1 group-has-[:focus-visible]/thread-row:-mr-1 max-md:pointer-coarse:mr-0!"
                     : ""
                 }`}
                 onClick={(event) => {
