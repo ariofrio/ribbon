@@ -387,3 +387,173 @@ export async function verifyThreadReordering({ stack, fixture }) {
     await browser.close();
   }
 }
+
+export async function verifyHeadingBoundary({ stack, fixture }) {
+  const browser = await chromium.launch({ args: ["--mute-audio"] });
+  const movedThreads = [...fixture.threads.values()].slice(-7);
+  let section;
+  try {
+    section = fixture.runJson(["thread", "section", "create", "Boundary"]);
+    for (const thread of movedThreads) {
+      fixture.run(["thread", "update", thread.id, "--section", section.id]);
+    }
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 900 },
+    });
+    await context.addInitScript(() => {
+      localStorage.setItem(
+        "bb.sidebar.threadListProvider",
+        JSON.stringify("ribbon-sidebar/ribbon-sidebar"),
+      );
+      localStorage.setItem(
+        "bb.plugin.ribbon-sidebar.preferences.v1",
+        JSON.stringify({
+          view: {
+            scope: { kind: "all" },
+            groupingKey: "builtin:sections",
+            sort: "manual",
+          },
+          collapsed: [],
+        }),
+      );
+    });
+    const page = await context.newPage();
+    await page.goto(stack.serverUrl);
+    const sidebar = page.locator(
+      "[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]",
+    );
+    await sidebar.waitFor({ timeout: 120_000 });
+    const chip = page.locator("[data-ribbon-thread-drag-overlay]");
+    // Re-test at a fixed height as the preview changes the group layout.
+    const following = sidebar.getByRole("region", {
+      name: "Boundary group",
+      exact: true,
+    });
+    const preceding = following.locator("xpath=preceding-sibling::section[1]");
+    for (const scenario of [
+      "from-above",
+      "from-below",
+      "scrolled",
+      "collapsed",
+    ]) {
+      if (scenario === "scrolled")
+        await page.setViewportSize({ width: 1280, height: 400 });
+      if (scenario === "collapsed") {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.reload();
+        await sidebar.waitFor({ timeout: 120_000 });
+        await following
+          .getByRole("button", { name: "Collapse Boundary section" })
+          .focus();
+        await page.keyboard.press("Enter");
+        await following
+          .getByRole("button", { name: "Expand Boundary section" })
+          .waitFor();
+      }
+      const boundarySource =
+        scenario === "scrolled"
+          ? following.locator("a[data-sidebar-thread-id]").last()
+          : (scenario === "from-below" ? following : preceding)
+              .locator("a[data-sidebar-thread-id]")
+              .first();
+      await boundarySource.hover();
+      const boundaryBox = await boundarySource.boundingBox();
+      await page.mouse.move(
+        boundaryBox.x + 60,
+        boundaryBox.y + boundaryBox.height / 2,
+      );
+      await page.mouse.down();
+      await page.mouse.move(
+        boundaryBox.x + 70,
+        boundaryBox.y + boundaryBox.height / 2,
+      );
+      await chip.waitFor();
+      const offsets = [
+        ...Array.from({ length: 13 }, (_, index) => -20 + index * 2),
+        ...Array.from({ length: 13 }, (_, index) => 4 - index * 2),
+      ];
+      for (const offset of offsets) {
+        const liveHeader = await following
+          .locator('[data-sidebar="group-label"]')
+          .boundingBox();
+        const pointerY = liveHeader.y + offset;
+        if (pointerY < 0 || pointerY >= page.viewportSize().height) continue;
+        await page.mouse.move(liveHeader.x + 60, liveHeader.y + offset);
+        const placements = [];
+        for (let sample = 0; sample < 16; sample++) {
+          await page.mouse.move(
+            liveHeader.x + 60 + (sample % 2),
+            liveHeader.y + offset,
+          );
+          placements.push(
+            await page.evaluate(() => {
+              const preview = document.querySelector(
+                "[data-ribbon-sidebar-root] [data-ribbon-thread-drop-preview]",
+              );
+              const group = preview?.closest("section");
+              const rows = [
+                ...(group?.querySelectorAll("li[data-thread-id]") ?? []),
+              ].filter((row) => getComputedStyle(row).opacity !== "0");
+              const before = rows.find(
+                (row) =>
+                  preview.compareDocumentPosition(row) &
+                  Node.DOCUMENT_POSITION_FOLLOWING,
+              );
+              let scrollOffset = 0;
+              for (
+                let parent = document.querySelector(
+                  "[data-ribbon-sidebar-root]",
+                );
+                parent;
+                parent = parent.parentElement
+              )
+                scrollOffset += parent.scrollTop;
+              return {
+                scrollOffset,
+                placement: preview
+                  ? `${group.getAttribute("aria-label")}:${before?.dataset.threadId ?? "end"}:${Math.round(preview.getBoundingClientRect().top - group.getBoundingClientRect().top)}`
+                  : "none",
+              };
+            }),
+          );
+        }
+        const transitions = placements.filter(
+          (value, index) =>
+            index === 0 ||
+            value.placement !== placements[index - 1].placement ||
+            value.scrollOffset !== placements[index - 1].scrollOffset,
+        );
+        const oscillates = transitions.some(
+          (value, index) =>
+            index > 1 &&
+            value.scrollOffset === transitions[index - 1].scrollOffset &&
+            value.scrollOffset === transitions[index - 2].scrollOffset &&
+            value.placement === transitions[index - 2].placement &&
+            value.placement !== transitions[index - 1].placement,
+        );
+        assert.ok(
+          !oscillates,
+          `drop preview must not oscillate at a fixed pointer height (${scenario}, offset ${offset}, heading ${JSON.stringify(liveHeader)}): ${JSON.stringify(transitions)}`,
+        );
+      }
+      await page.keyboard.press("Escape");
+      await page.mouse.up();
+      await chip.waitFor({ state: "hidden" });
+    }
+    await context.close();
+  } finally {
+    await browser.close();
+    if (section) {
+      for (const thread of movedThreads) {
+        fixture.run([
+          "thread",
+          "update",
+          thread.id,
+          "--section",
+          fixture.section.id,
+        ]);
+      }
+      fixture.run(["thread", "section", "delete", section.id, "--yes"]);
+    }
+  }
+}

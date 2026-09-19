@@ -53,7 +53,7 @@ const collisionDetection: CollisionDetection = (args) => {
   if (!args.pointerCoordinates)
     return closestCenter({ ...args, droppableContainers: candidates });
   // Sticky headers move independently of the rows scrolling underneath them.
-  const headerRects = new Map(args.droppableRects);
+  const droppableRects = new Map(args.droppableRects);
   for (const header of headers) {
     const node = header.node.current;
     if (!node) continue;
@@ -69,7 +69,7 @@ const collisionDetection: CollisionDetection = (args) => {
         group?.getBoundingClientRect().bottom ??
         rect.bottom,
     );
-    headerRects.set(header.id, {
+    droppableRects.set(header.id, {
       top: rect.top,
       bottom,
       left: rect.left,
@@ -81,10 +81,24 @@ const collisionDetection: CollisionDetection = (args) => {
   const headerHits = pointerWithin({
     ...args,
     droppableContainers: headers,
-    droppableRects: headerRects,
+    droppableRects,
   });
   if (headerHits.length) return headerHits;
-  const hits = pointerWithin({ ...args, droppableContainers: candidates });
+  // A preview can grow a group into the gap before dnd-kit's resize measurement.
+  // Use the same current bounds for group hits and the gaps between groups.
+  for (const candidate of candidates) {
+    if (!candidate.data.current?.target?.threadId && candidate.node.current) {
+      droppableRects.set(
+        candidate.id,
+        candidate.node.current.getBoundingClientRect(),
+      );
+    }
+  }
+  const hits = pointerWithin({
+    ...args,
+    droppableContainers: candidates,
+    droppableRects,
+  });
   const rows = hits.filter(
     ({ id }) =>
       candidates.find((candidate) => candidate.id === id)?.data.current?.target
@@ -94,9 +108,9 @@ const collisionDetection: CollisionDetection = (args) => {
   if (hits.length) return hits;
 
   const groups = candidates
-    .flatMap(({ id, data, node }) => {
+    .flatMap(({ id, data }) => {
       const target = data.current?.target;
-      const rect = node.current?.getBoundingClientRect();
+      const rect = droppableRects.get(id);
       return target && !target.threadId && rect ? [{ id, rect }] : [];
     })
     .sort((a, b) => a.rect.top - b.rect.top);
