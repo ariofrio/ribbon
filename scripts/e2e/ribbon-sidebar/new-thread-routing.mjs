@@ -121,9 +121,9 @@ async function verifyStagePlacement({ browser, stack, fixture }) {
     const environmentButton = composer.getByRole("button", {
       name: "Environment",
     });
-    const environmentChoice = page.getByRole("menuitem", {
-      name: /^Project checkout/,
-    });
+    const environmentChoice = page
+      .locator('[role="menuitem"], [role="menuitemradio"], [role="option"]')
+      .filter({ hasText: /^Project checkout$/ });
     await environmentButton.click();
     await environmentChoice.click();
     await environmentChoice.waitFor({ state: "hidden" });
