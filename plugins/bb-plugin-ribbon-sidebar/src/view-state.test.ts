@@ -3,6 +3,7 @@ import {
   changeSidebarGrouping,
   changeSidebarScope,
   loadSidebarPreferences,
+  saveSidebarPreferences,
 } from "./view-state";
 
 function storage(entries: Record<string, string> = {}): Storage {
@@ -20,6 +21,29 @@ function storage(entries: Record<string, string> = {}): Storage {
 }
 
 describe("client-local sidebar preferences", () => {
+  it("persists an independent icon grouping, including no icons", () => {
+    const local = storage();
+    const keys = [
+      "builtin:projects",
+      "builtin:sections",
+      "plugin:thread-stages:stages",
+    ] as const;
+    const preferences = loadSidebarPreferences(local, keys);
+    expect(preferences.view.iconGroupingKey).toBe("builtin:projects");
+    for (const iconGroupingKey of [...keys, null]) {
+      saveSidebarPreferences(local, {
+        ...preferences,
+        view: { ...preferences.view, iconGroupingKey },
+      });
+      const restored = loadSidebarPreferences(local, keys);
+      expect(restored.view.iconGroupingKey).toBe(iconGroupingKey);
+      expect(restored.view.groupingKey).toBe(preferences.view.groupingKey);
+      expect(restored.view.filterGroupingKey).toBe(
+        preferences.view.filterGroupingKey,
+      );
+    }
+  });
+
   it("defaults to the requested pages, headings, hide, and sort view", () => {
     const preferences = loadSidebarPreferences(storage(), [
       "builtin:projects",
@@ -31,6 +55,7 @@ describe("client-local sidebar preferences", () => {
       scope: { kind: "all" },
       groupingKey: "plugin:thread-stages:stages",
       filterGroupingKey: "builtin:sections",
+      iconGroupingKey: "builtin:projects",
       hide: {
         notArchived: false,
         archived: true,
@@ -51,6 +76,7 @@ describe("client-local sidebar preferences", () => {
           },
           groupingKey: "plugin:thread-stages:stages",
           filterGroupingKey: "builtin:projects",
+          iconGroupingKey: "builtin:projects",
         },
         collapsed: ["plugin:thread-stages:stages/Idle"],
       }),
@@ -70,6 +96,7 @@ describe("client-local sidebar preferences", () => {
         },
         groupingKey: "plugin:thread-stages:stages",
         filterGroupingKey: "builtin:projects",
+        iconGroupingKey: "builtin:projects",
         hide: {
           notArchived: false,
           archived: true,
@@ -104,6 +131,7 @@ describe("client-local sidebar preferences", () => {
       scope: { kind: "all" as const },
       groupingKey: "builtin:sections" as const,
       filterGroupingKey: "builtin:sections" as const,
+      iconGroupingKey: "builtin:projects" as const,
       hide: {
         notArchived: false,
         archived: true,
@@ -125,6 +153,7 @@ describe("client-local sidebar preferences", () => {
       },
       groupingKey: null,
       filterGroupingKey: "builtin:sections",
+      iconGroupingKey: "builtin:projects",
       hide: {
         notArchived: false,
         archived: true,
@@ -142,6 +171,7 @@ describe("client-local sidebar preferences", () => {
           },
           groupingKey: "plugin:thread-stages:stages",
           filterGroupingKey: "builtin:sections",
+          iconGroupingKey: "builtin:projects",
           hide: groupedBySections.hide,
           sort: groupedBySections.sort,
         },
@@ -151,6 +181,7 @@ describe("client-local sidebar preferences", () => {
       scope: { kind: "all" },
       groupingKey: "builtin:sections",
       filterGroupingKey: "builtin:sections",
+      iconGroupingKey: "builtin:projects",
       hide: groupedBySections.hide,
       sort: groupedBySections.sort,
     });
@@ -160,6 +191,7 @@ describe("client-local sidebar preferences", () => {
       scope: { kind: "all" },
       groupingKey: null,
       filterGroupingKey: "builtin:sections",
+      iconGroupingKey: "builtin:projects",
       hide: groupedBySections.hide,
       sort: groupedBySections.sort,
     });
@@ -201,6 +233,7 @@ describe("client-local sidebar preferences", () => {
       },
       groupingKey: null,
       filterGroupingKey: "builtin:sections",
+      iconGroupingKey: "builtin:projects",
       hide: {
         notArchived: false,
         archived: true,
@@ -233,6 +266,7 @@ describe("client-local sidebar preferences", () => {
         },
         groupingKey: "plugin:thread-stages:stages",
         filterGroupingKey: "builtin:sections",
+        iconGroupingKey: "builtin:projects",
         hide: {
           notArchived: false,
           archived: true,
@@ -284,6 +318,7 @@ describe("client-local sidebar preferences", () => {
         },
         groupingKey: "builtin:projects",
         filterGroupingKey: "builtin:projects",
+        iconGroupingKey: "builtin:projects",
         hide: {
           notArchived: false,
           archived: true,

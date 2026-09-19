@@ -13,6 +13,7 @@ export type SidebarView = {
   scope: Scope;
   groupingKey: GroupingKey | null;
   filterGroupingKey: GroupingKey;
+  iconGroupingKey: GroupingKey | null;
   hide: HiddenThreadKinds;
   sort: SidebarSort;
 };
@@ -128,6 +129,10 @@ function storedPreferences(raw: string | null): StoredSidebarPreferences | null 
         filterGroupingKey: isGroupingKey(view.filterGroupingKey)
           ? view.filterGroupingKey
           : null,
+        iconGroupingKey:
+          view.iconGroupingKey === null || isGroupingKey(view.iconGroupingKey)
+            ? view.iconGroupingKey
+            : "builtin:projects",
         hide: storedHide(view.hide),
         sort: storedSort(view.sort),
       },
@@ -284,6 +289,7 @@ export function loadSidebarPreferences(
         scope: { kind: "all" },
         groupingKey: fallback,
         filterGroupingKey: filterFallback,
+        iconGroupingKey: "builtin:projects",
         hide: { ...DEFAULT_HIDDEN_THREAD_KINDS },
         sort: DEFAULT_SIDEBAR_SORT,
       },
@@ -312,6 +318,7 @@ export function loadSidebarPreferences(
         scope: legacyScope(storage),
         groupingKey: fallback,
         filterGroupingKey: filterFallback,
+        iconGroupingKey: "builtin:projects",
         hide: { ...DEFAULT_HIDDEN_THREAD_KINDS },
         sort: DEFAULT_SIDEBAR_SORT,
       },
@@ -323,6 +330,7 @@ export function loadSidebarPreferences(
         scope: { kind: "all" },
         groupingKey: fallback,
         filterGroupingKey: filterFallback,
+        iconGroupingKey: "builtin:projects",
         hide: { ...DEFAULT_HIDDEN_THREAD_KINDS },
         sort: DEFAULT_SIDEBAR_SORT,
       },

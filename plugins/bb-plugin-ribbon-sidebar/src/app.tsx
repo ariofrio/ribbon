@@ -225,6 +225,7 @@ function ThreadRow({
   depth,
   hasChildren,
   indicatorThread,
+  icon,
   dragging,
   onDragEnd,
   onDragOver,
@@ -258,6 +259,7 @@ function ThreadRow({
   depth: number;
   hasChildren: boolean;
   indicatorThread: PluginSidebarThread;
+  icon: ReactNode;
   dragging: boolean;
   onDragEnd(): void;
   onDragOver(event: DragEvent<HTMLElement>): void;
@@ -283,6 +285,7 @@ function ThreadRow({
   const rowTitle = title(thread);
   const accessibleTitle = preview ? `${rowTitle} — ${preview}` : rowTitle;
   const actionsOpen = dropdownOpen || contextOpen;
+  const hasIcon = icon !== null;
   const iconSpansEntireItem = alignAdornmentsToEntireItem && preview !== null;
   const hasTrailingIndicator =
     layout !== null || indicatorThread.indicator !== "none";
@@ -366,31 +369,32 @@ function ThreadRow({
           onClick={openThread}
         />
         <span
-          className={`grid min-w-0 gap-x-2 py-[calc((var(--bb-sidebar-row-height)-1lh)/2)] max-md:pointer-coarse:py-[calc((var(--bb-sidebar-row-height-coarse)-1lh)/2)] ${
-            alignsTrailingIndicatorToTitle
-              ? "grid-cols-[auto_minmax(0,1fr)_auto]"
-              : "grid-cols-[auto_minmax(0,1fr)]"
-          }`}
+          className={`grid min-w-0 py-[calc((var(--bb-sidebar-row-height)-1lh)/2)] max-md:pointer-coarse:py-[calc((var(--bb-sidebar-row-height-coarse)-1lh)/2)] ${hasIcon ? "gap-x-2" : ""}`}
+          style={{
+            gridTemplateColumns: [
+              ...(hasIcon ? ["auto"] : []),
+              "minmax(0, 1fr)",
+              ...(alignsTrailingIndicatorToTitle ? ["auto"] : []),
+            ].join(" "),
+          }}
           {...{ [ICON_LAYOUT_ATTRIBUTE]: "" }}
         >
-          {/* Empty by design: the box names its project, and icon-styles.ts
-              paints it. Without that plugin the box collapses. */}
+          {hasIcon ? (
+            <span
+              className="col-start-1 row-start-1 self-center"
+              data-ribbon-sidebar-icon-slot=""
+              style={{
+                gridRowEnd: iconSpansEntireItem ? "span 2" : "auto",
+                gridRowStart: 1,
+              }}
+            >
+              {icon}
+            </span>
+          ) : null}
           <span
-            aria-hidden
-            className="col-start-1 row-start-1 self-center"
-            data-ribbon-icons-project={thread.projectId}
-            data-ribbon-sidebar-icon={
-              thread.projectId === PERSONAL_PROJECT_ID ? "personal" : "project"
-            }
-            data-ribbon-sidebar-icon-optional=""
+            className="row-start-1 flex min-w-0 items-center gap-1.5"
             style={{
-              gridRowEnd: iconSpansEntireItem ? "span 2" : "auto",
-              gridRowStart: 1,
-            }}
-          />
-          <span
-            className="col-start-2 row-start-1 flex min-w-0 items-center gap-1.5"
-            style={{
+              gridColumnStart: hasIcon ? 2 : 1,
               paddingRight: hasTrailingIndicator ? undefined : 8,
             }}
           >
@@ -416,16 +420,21 @@ function ThreadRow({
           {alignsTrailingIndicatorToTitle ? (
             <span
               aria-hidden="true"
-              className="col-start-3 row-start-1 w-7 max-md:pointer-coarse:w-9"
+              className="row-start-1 w-7 max-md:pointer-coarse:w-9"
+              style={{ gridColumnStart: hasIcon ? 3 : 2 }}
               {...{ [ICON_INDICATOR_SPACE_ATTRIBUTE]: "" }}
             />
           ) : null}
           {preview ? (
             <span
-              className={`col-start-2 row-start-2 truncate text-[11px] leading-4 text-subtle-foreground/75 ${
-                alignsTrailingIndicatorToTitle ? "col-end-4" : ""
-              }`}
+              className="row-start-2 truncate text-[11px] leading-4 text-subtle-foreground/75"
               style={{
+                gridColumnEnd: alignsTrailingIndicatorToTitle
+                  ? hasIcon
+                    ? 4
+                    : 3
+                  : undefined,
+                gridColumnStart: hasIcon ? 2 : 1,
                 paddingRight: reservesTrailingLane ? undefined : 8,
               }}
               title={preview}
@@ -614,6 +623,7 @@ function RibbonSidebarList({
   const [assignmentPlacements, setAssignmentPlacements] = useState<
     ReadonlyMap<string, ReadonlyMap<string, PlacementRecordV1>>
   >(new Map());
+  const assignmentRequest = useRef(0);
   const [revision, setRevision] = useState(0);
   const [previews, setPreviews] = useState<ReadonlyMap<string, string | null>>(
     new Map(),
@@ -756,14 +766,16 @@ function RibbonSidebarList({
 
   const loadAssignmentPlacements = useCallback(async () => {
     if (!snapshot) return;
-    const writable = snapshot.groupings.filter(
+    const request = ++assignmentRequest.current;
+    const needed = snapshot.groupings.filter(
       ({ available, groupingKey, membershipWritable }) =>
         available &&
-        membershipWritable &&
-        groupingKey !== "builtin:sections",
+        ((membershipWritable && groupingKey !== "builtin:sections") ||
+          (groupingKey.startsWith("plugin:") &&
+            groupingKey === preferences?.view.iconGroupingKey)),
     );
     const results = await Promise.all(
-      writable.map(async (candidate) => {
+      needed.map(async (candidate) => {
         const result = await rpc
           .call("listPlacementsV1", {
             groupingKey: candidate.groupingKey,
@@ -772,6 +784,7 @@ function RibbonSidebarList({
         return [candidate.groupingKey, result] as const;
       }),
     );
+    if (request !== assignmentRequest.current) return;
     setAssignmentPlacements(
       new Map(
         results.flatMap(([groupingKey, result]) =>
@@ -791,7 +804,7 @@ function RibbonSidebarList({
         ),
       ),
     );
-  }, [rpc, snapshot]);
+  }, [rpc, snapshot, preferences?.view.iconGroupingKey]);
 
   useEffect(() => {
     void loadPlacements().catch((error: unknown) => {
@@ -1503,6 +1516,57 @@ function RibbonSidebarList({
     }
   }
 
+  const iconGrouping = snapshot.groupings.find(
+    ({ groupingKey, available }) =>
+      available && groupingKey === preferences.view.iconGroupingKey,
+  );
+  const iconGroupingKey =
+    preferences.view.iconGroupingKey === null
+      ? null
+      : iconGrouping?.groupingKey ?? "builtin:projects";
+
+  function threadIcon(thread: PluginSidebarThread): ReactNode {
+    if (iconGroupingKey === null) return null;
+    const root = thread.parentThreadId
+      ? rootForThread(thread.id, liveThreads) ?? thread
+      : thread;
+    if (iconGroupingKey === "builtin:projects") {
+      return (
+        // Empty by design: the box names its project, and icon-styles.ts
+        // paints it. Without the Icons plugin the box collapses.
+        <span
+          aria-hidden
+          data-ribbon-icons-project={root.projectId}
+          data-ribbon-sidebar-icon={
+            root.projectId === PERSONAL_PROJECT_ID ? "personal" : "project"
+          }
+          data-ribbon-sidebar-icon-optional=""
+        />
+      );
+    }
+    if (iconGroupingKey === "builtin:sections") {
+      const sectionId = root.sectionId;
+      return sectionId ? (
+        <span
+          aria-hidden
+          data-ribbon-icons-section={sectionId}
+          data-ribbon-sidebar-icon="section"
+        />
+      ) : (
+        <UnorganizedIcon />
+      );
+    }
+    const placement = assignmentPlacements.get(iconGroupingKey)?.get(root.id);
+    const group = iconGrouping?.groups.find(({ id }) => id === placement?.groupId);
+    const icon = group?.icon ?? iconGrouping?.icon;
+    return icon ? (
+      <ProviderIcon
+        icon={icon}
+        label={`${group?.label ?? iconGrouping?.singularLabel} group icon`}
+      />
+    ) : null;
+  }
+
   const renderRoot = (
     root: PluginSidebarThread,
     depth = 0,
@@ -1571,6 +1635,7 @@ function RibbonSidebarList({
           depth={depth}
           hasChildren={children.length > 0}
           indicatorThread={indicatorThread}
+          icon={threadIcon(root)}
           dragging={draggingThreadId === root.id}
           onDragEnd={clearDrag}
           onDragOver={(event) => {
@@ -1817,6 +1882,13 @@ function RibbonSidebarList({
             )}
             headingsGroupingKey={preferences.view.groupingKey}
             hide={preferences.view.hide}
+            iconGroupingKey={iconGroupingKey as GroupingKey | null}
+            onIconsGroupingChange={(iconGroupingKey) =>
+              changePreferences((current) => ({
+                ...current,
+                view: { ...current.view, iconGroupingKey },
+              }))
+            }
             onHeadingsGroupingChange={(groupingKey) =>
               changePreferences((current) =>
                 current.view.groupingKey === groupingKey

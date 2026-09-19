@@ -405,6 +405,40 @@ function useManualSort(groupingKey = "plugin:thread-stages:stages") {
 }
 
 describe("Ribbon sidebar app", () => {
+  it("chooses read-only provider icons independently of headings and inherits them in children", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    fixture.value.rpc.synchronizeV1.mockResolvedValue({
+      ...snapshot,
+      groupings: snapshot.groupings.map((grouping) => ({
+        ...grouping,
+        membershipWritable: false,
+      })),
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    fireEvent.keyDown(
+      await slot.findByRole("button", { name: "Sidebar display options" }),
+      { key: "Enter" },
+    );
+    const icons = await slot.findByRole("menuitem", { name: "Icons Projects" });
+    icons.focus();
+    fireEvent.keyDown(icons, { key: "ArrowRight" });
+    fireEvent.click(await slot.findByRole("menuitemcheckbox", { name: "Stages" }));
+    for (const name of ["Design migration", "thread-child"]) {
+      const row = (await slot.findByRole("link", {
+        name: new RegExp(`^Open ${name}`),
+      })).parentElement!;
+      await waitFor(() =>
+        expect(within(row).getByLabelText("Idle group icon")).toBeTruthy(),
+      );
+    }
+    const saved = JSON.parse(window.localStorage.getItem(SIDEBAR_PREFERENCES_KEY)!);
+    expect(saved.view.iconGroupingKey).toBe("plugin:thread-stages:stages");
+    expect(saved.view.groupingKey).toBe("plugin:thread-stages:stages");
+    expect(saved.view.filterGroupingKey).toBe("builtin:sections");
+    slot.lifecycle.unmount();
+  });
+
   it("renders a workspace-style page switcher and the requested display menu", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
@@ -860,13 +894,16 @@ describe("Ribbon sidebar app", () => {
     const icon = row.querySelector<HTMLElement>(
       '[data-ribbon-icons-project="project-a"]',
     )!;
+    const iconSlot = icon.closest<HTMLElement>(
+      "[data-ribbon-sidebar-icon-slot]",
+    )!;
     const indicator = row.querySelector<HTMLElement>(
       "[data-sidebar-thread-trailing-indicator]",
     )!;
     const indicatorLane = indicator.parentElement!.parentElement!;
 
-    expect(getComputedStyle(icon).gridRowStart).toBe("1");
-    expect(getComputedStyle(icon).gridRowEnd).toBe("auto");
+    expect(getComputedStyle(iconSlot).gridRowStart).toBe("1");
+    expect(getComputedStyle(iconSlot).gridRowEnd).toBe("auto");
     expect(getComputedStyle(indicatorLane).alignSelf).toBe("start");
     slot.lifecycle.unmount();
   });
@@ -940,13 +977,16 @@ describe("Ribbon sidebar app", () => {
     const icon = row.querySelector<HTMLElement>(
       '[data-ribbon-icons-project="project-a"]',
     )!;
+    const iconSlot = icon.closest<HTMLElement>(
+      "[data-ribbon-sidebar-icon-slot]",
+    )!;
     const indicator = row.querySelector<HTMLElement>(
       "[data-sidebar-thread-trailing-indicator]",
     )!;
     const indicatorLane = indicator.parentElement!.parentElement!;
 
-    expect(getComputedStyle(icon).gridRowStart).toBe("1");
-    expect(getComputedStyle(icon).gridRowEnd).toBe("span 2");
+    expect(getComputedStyle(iconSlot).gridRowStart).toBe("1");
+    expect(getComputedStyle(iconSlot).gridRowEnd).toBe("span 2");
     expect(getComputedStyle(indicatorLane).alignSelf).toBe("stretch");
     slot.lifecycle.unmount();
   });
@@ -1087,7 +1127,7 @@ describe("Ribbon sidebar app", () => {
     )?.textContent;
     expect(sheet).toContain(`[${ICON_ATTRIBUTE}="project"]`);
     expect(box?.getAttribute(ICON_ATTRIBUTE)).toBe("project");
-    expect(box?.parentElement?.hasAttribute(ICON_LAYOUT_ATTRIBUTE)).toBe(true);
+    expect(box?.closest(`[${ICON_LAYOUT_ATTRIBUTE}]`)).not.toBeNull();
     expect(sheet).toContain(`[${ICON_OPTIONAL_ATTRIBUTE}]{display:none}`);
     expect(box?.hasAttribute(ICON_OPTIONAL_ATTRIBUTE)).toBe(true);
 
@@ -2015,6 +2055,7 @@ describe("Ribbon sidebar app", () => {
       },
       groupingKey: null,
       filterGroupingKey: "builtin:sections",
+      iconGroupingKey: "builtin:projects",
       hide: {
         notArchived: false,
         archived: true,

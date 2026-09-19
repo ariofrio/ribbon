@@ -12,6 +12,7 @@ import {
 import {
   verifyOptionalIconLayout,
 } from "./ribbon-sidebar/optional-icon-layout.mjs";
+import { verifyThreadIcons } from "./ribbon-sidebar/thread-icons.mjs";
 import { seed, writeFixtureProvider } from "../screenshots/fixture.mjs";
 import { BB_CLI_PATH, startStack } from "../screenshots/stack.mjs";
 
@@ -22,6 +23,15 @@ const scratch = join(repositoryRoot, ".scratch/e2e");
 const bb = BB_CLI_PATH;
 
 const suites = [
+  {
+    id: "thread-icons",
+    cases: ["groupings"],
+    plugins: ["bb-plugin-icons", "bb-plugin-ribbon-sidebar", "bb-plugin-thread-stages"],
+    async prepare({ cliEnv }) {
+      await waitForStageCatalog({ bb, cliEnv });
+    },
+    run: verifyThreadIcons,
+  },
   {
     id: "screenshots",
     cases: ["animations"],
