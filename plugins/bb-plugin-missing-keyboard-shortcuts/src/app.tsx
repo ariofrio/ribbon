@@ -1,10 +1,20 @@
+import type { rpcContract } from "./server";
 import {
   definePluginApp,
+  experimental_useSidebarThreadActions,
   useBbContext,
+  useRpc,
+  type PluginRpcClient,
   useComposer,
   useComposerView,
 } from "@get-bb/plugin-sdk/app";
-import { createElement, useEffect, useLayoutEffect, useRef } from "react";
+import {
+  createElement,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import {
   focusedSecondaryComposerThreadId,
@@ -22,16 +32,10 @@ import {
 } from "./last-thread-project";
 import {
   composerShortcutTarget,
-  currentThreadId,
   historyDirection,
   isTerminalShortcut,
   newThreadTarget,
 } from "./shortcut-actions";
-import {
-  openNewThread,
-  type NewThreadHost,
-} from "./new-thread-navigation";
-import { createNativeCommandDelegate } from "./native-command-delegation";
 import {
   focusVisibleTerminal,
   isTerminalFocused,
@@ -57,8 +61,6 @@ import {
   type SideChatPanelTabDefinition,
 } from "./terminal-panel-state";
 
-const ROOT_COMPOSE_PROJECT_ID_STORAGE_KEY = "bb.root-compose.project-id";
-
 interface OpenTerminalResult {
   created: boolean;
   terminalId: string;
@@ -71,10 +73,6 @@ interface CreateSideChatResult {
 interface ValidateSideChatResult {
   reusable: boolean;
 }
-
-type RpcEnvelope<Result> =
-  | { ok: true; result: Result }
-  | { ok: false; error: unknown };
 
 function rpcErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === "string") return error;
@@ -107,9 +105,8 @@ function ComposerNavigationBridge() {
     const role = composerElement?.getAttribute("data-app-composer-role");
     if (role === "primary") {
       if (view.scope.kind === "thread") {
-        const panelRoot = composerElement?.closest<HTMLElement>(
-          "[data-panel-group]",
-        );
+        const panelRoot =
+          composerElement?.closest<HTMLElement>("[data-panel-group]");
         return registerPrimaryComposerFocus(
           view.scope.threadId,
           composer.focus,
@@ -161,6 +158,12 @@ function ComposerNavigationBridge() {
     }
     return registerSecondaryComposer(context.threadId, composerThreadId, {
       focus: composer.focus,
+      observeReadiness(listener) {
+        // The rich-text editor mounts after the shell and its plugin banners.
+        const observer = new MutationObserver(listener);
+        observer.observe(composerElement, { childList: true, subtree: true });
+        return () => observer.disconnect();
+      },
       isFocused: () => composerElement.contains(document.activeElement),
       isVisible: () => {
         const bounds = composerElement.getBoundingClientRect();
@@ -171,103 +174,33 @@ function ComposerNavigationBridge() {
   return createElement("span", { hidden: true, ref: markerRef });
 }
 
-async function openTerminal(
-  pluginId: string,
+type ShortcutsRpc = PluginRpcClient<typeof rpcContract>;
+
+function openTerminal(
+  rpc: ShortcutsRpc,
   threadId: string,
   preferredTerminalId: string | null,
 ): Promise<OpenTerminalResult> {
-  const response = await fetch(
-    `/api/v1/plugins/${encodeURIComponent(pluginId)}/rpc/openTerminal`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ preferredTerminalId, threadId }),
-      credentials: "same-origin",
-    },
-  );
-  const envelope = (await response.json()) as RpcEnvelope<OpenTerminalResult>;
-  if (!response.ok || !envelope.ok) {
-    throw new Error(
-      !envelope.ok
-        ? rpcErrorMessage(envelope.error, "Failed to open terminal")
-        : `Terminal request failed (${response.status})`,
-    );
-  }
-  return envelope.result;
+  return rpc.call("openTerminal", { preferredTerminalId, threadId });
 }
 
-async function listAppKeybindings(pluginId: string): Promise<unknown> {
-  const response = await fetch(
-    `/api/v1/plugins/${encodeURIComponent(pluginId)}/rpc/listAppKeybindings`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "null",
-      credentials: "same-origin",
-    },
-  );
-  const envelope = (await response.json()) as RpcEnvelope<unknown>;
-  if (!response.ok || !envelope.ok) {
-    throw new Error(
-      !envelope.ok
-        ? rpcErrorMessage(envelope.error, "Failed to read bb's keybindings")
-        : `Keybinding request failed (${response.status})`,
-    );
-  }
-  return envelope.result;
-}
-
-async function createSideChat(
-  pluginId: string,
+function createSideChat(
+  rpc: ShortcutsRpc,
   threadId: string,
 ): Promise<CreateSideChatResult> {
-  const response = await fetch(
-    `/api/v1/plugins/${encodeURIComponent(pluginId)}/rpc/createSideChat`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sourceThreadId: threadId }),
-      credentials: "same-origin",
-    },
-  );
-  const envelope = (await response.json()) as RpcEnvelope<CreateSideChatResult>;
-  if (!response.ok || !envelope.ok) {
-    throw new Error(
-      !envelope.ok
-        ? rpcErrorMessage(envelope.error, "Failed to start side chat")
-        : `Side-chat request failed (${response.status})`,
-    );
-  }
-  return envelope.result;
+  return rpc.call("createSideChat", { sourceThreadId: threadId });
 }
 
-async function validateSideChat(
-  pluginId: string,
+function validateSideChat(
+  rpc: ShortcutsRpc,
   parentThreadId: string,
   sideChat: { childThreadId: string; id: string },
 ): Promise<ValidateSideChatResult> {
-  const response = await fetch(
-    `/api/v1/plugins/${encodeURIComponent(pluginId)}/rpc/validateSideChat`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        childThreadId: sideChat.childThreadId,
-        parentThreadId,
-        tabId: sideChat.id,
-      }),
-      credentials: "same-origin",
-    },
-  );
-  const envelope = (await response.json()) as RpcEnvelope<ValidateSideChatResult>;
-  if (!response.ok || !envelope.ok) {
-    throw new Error(
-      !envelope.ok
-        ? rpcErrorMessage(envelope.error, "Failed to validate side chat")
-        : `Side-chat validation failed (${response.status})`,
-    );
-  }
-  return envelope.result;
+  return rpc.call("validateSideChat", {
+    childThreadId: sideChat.childThreadId,
+    parentThreadId,
+    tabId: sideChat.id,
+  });
 }
 
 function notifyPanelStateChanged(change: PanelStorageChange): void {
@@ -286,8 +219,9 @@ function activateAndFocusTerminal(
   signal: AbortSignal,
   threadId: string,
   terminalId: string,
+  isCurrentThread: (threadId: string) => boolean,
 ): () => void {
-  if (currentThreadId(window.location.pathname) !== threadId) return () => {};
+  if (!isCurrentThread(threadId)) return () => {};
   const panel = readTerminalPanelSnapshot(window.localStorage, threadId);
   if (!panel.isOpen || panel.activeTerminalId !== terminalId) {
     notifyPanelStateChanged(
@@ -300,8 +234,7 @@ function activateAndFocusTerminal(
           window.localStorage,
           threadId,
         ).terminalIds.indexOf(terminalId),
-      isCurrent: () =>
-        currentThreadId(window.location.pathname) === threadId,
+      isCurrent: () => isCurrentThread(threadId),
       signal,
     });
   }
@@ -315,18 +248,13 @@ function focusSideChatComposer(
   parentThreadId: string,
   childThreadId: string,
   tab: SideChatPanelTabDefinition | null,
+  isCurrentThread: (threadId: string) => boolean,
 ): () => void {
-  if (currentThreadId(window.location.pathname) !== parentThreadId) {
+  if (!isCurrentThread(parentThreadId)) {
     return () => {};
   }
-  const panel = readSideChatPanelSnapshot(
-    window.localStorage,
-    parentThreadId,
-  );
-  if (
-    !panel.isOpen ||
-    panel.activeSideChat?.childThreadId !== childThreadId
-  ) {
+  const panel = readSideChatPanelSnapshot(window.localStorage, parentThreadId);
+  if (!panel.isOpen || panel.activeSideChat?.childThreadId !== childThreadId) {
     const existingTabId = panel.sideChats.find(
       (sideChat) => sideChat.childThreadId === childThreadId,
     )?.id;
@@ -343,10 +271,13 @@ function focusSideChatComposer(
   const stopSelectingTab = selectPrimaryPanelTabWhenReady(parentThreadId, {
     icon: "SideChat",
     index: () =>
-      readSideChatPanelSnapshot(window.localStorage, parentThreadId).sideChats
-        .findIndex(({ childThreadId: candidate }) => candidate === childThreadId),
-    isCurrent: () =>
-      currentThreadId(window.location.pathname) === parentThreadId,
+      readSideChatPanelSnapshot(
+        window.localStorage,
+        parentThreadId,
+      ).sideChats.findIndex(
+        ({ childThreadId: candidate }) => candidate === childThreadId,
+      ),
+    isCurrent: () => isCurrentThread(parentThreadId),
     signal,
   });
   const stopFocusingComposer = focusSecondaryComposerWhenReady(
@@ -354,7 +285,7 @@ function focusSideChatComposer(
     childThreadId,
     {
       isCurrent: () => {
-        if (currentThreadId(window.location.pathname) !== parentThreadId) {
+        if (!isCurrentThread(parentThreadId)) {
           return false;
         }
         const currentPanel = readSideChatPanelSnapshot(
@@ -375,6 +306,296 @@ function focusSideChatComposer(
   };
 }
 
+function MissingKeyboardShortcuts() {
+  const rpc = useRpc<typeof rpcContract>();
+  const context = useBbContext();
+  const contextRef = useRef(context);
+  contextRef.current = context;
+  const sidebarActions = experimental_useSidebarThreadActions();
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+    const sideChatInFlightThreads = new Set<string>();
+    const terminalInFlightThreads = new Set<string>();
+    const pendingSideChatActions = new Map<string, () => void>();
+    const pendingTerminalActions = new Map<string, () => void>();
+    const stopPendingAction = (
+      actions: Map<string, () => void>,
+      threadId: string,
+    ) => {
+      actions.get(threadId)?.();
+      actions.delete(threadId);
+    };
+    signal.addEventListener(
+      "abort",
+      () => {
+        for (const stop of pendingSideChatActions.values()) stop();
+        pendingSideChatActions.clear();
+        for (const stop of pendingTerminalActions.values()) stop();
+        pendingTerminalActions.clear();
+      },
+      { once: true },
+    );
+    const createKeyboardEvent = (type: string, init: KeyboardEventInit) =>
+      new KeyboardEvent(type, init);
+    const isCurrentThread = (threadId: string) =>
+      contextRef.current.threadId === threadId;
+    const focusExistingSideChat = (
+      parentThreadId: string,
+      childThreadId: string,
+    ) => {
+      if (!isCurrentThread(parentThreadId)) return;
+      stopPendingAction(pendingSideChatActions, parentThreadId);
+      pendingSideChatActions.set(
+        parentThreadId,
+        focusSideChatComposer(
+          signal,
+          parentThreadId,
+          childThreadId,
+          null,
+          isCurrentThread,
+        ),
+      );
+    };
+    const createAndFocusSideChat = async (parentThreadId: string) => {
+      const { threadId: childThreadId } = await createSideChat(
+        rpc,
+        parentThreadId,
+      );
+      if (!isCurrentThread(parentThreadId)) return;
+      const tab = createSideChatPanelTab(parentThreadId, childThreadId);
+      rememberRecentSideChatTabId(window.localStorage, parentThreadId, tab.id);
+      stopPendingAction(pendingSideChatActions, parentThreadId);
+      pendingSideChatActions.set(
+        parentThreadId,
+        focusSideChatComposer(
+          signal,
+          parentThreadId,
+          childThreadId,
+          tab,
+          isCurrentThread,
+        ),
+      );
+    };
+
+    window.addEventListener(
+      "focusin",
+      (event) => {
+        if (!(event.target instanceof Element)) return;
+        const threadId = contextRef.current.threadId;
+        if (threadId === null) return;
+        if (isWithinTerminal(event.target)) {
+          const { activeTerminalId } = readTerminalPanelSnapshot(
+            window.localStorage,
+            threadId,
+          );
+          if (activeTerminalId !== null) {
+            rememberRecentTerminalId(
+              window.localStorage,
+              threadId,
+              activeTerminalId,
+            );
+          }
+          return;
+        }
+        if (
+          event.target.closest('[data-app-composer-role="secondary"]') === null
+        ) {
+          return;
+        }
+        const focusedChildThreadId = focusedSecondaryComposerThreadId(threadId);
+        if (focusedChildThreadId === null) return;
+        const focusedSideChat = readSideChatPanelSnapshot(
+          window.localStorage,
+          threadId,
+        ).sideChats.find(
+          ({ childThreadId }) => childThreadId === focusedChildThreadId,
+        );
+        if (focusedSideChat !== undefined) {
+          rememberRecentSideChatTabId(
+            window.localStorage,
+            threadId,
+            focusedSideChat.id,
+          );
+        }
+      },
+      { capture: true, signal },
+    );
+
+    window.addEventListener(
+      "keydown",
+      (event) => {
+        const target = newThreadTarget(
+          event,
+          contextRef.current,
+          readLastThreadProjectId(window.localStorage),
+        );
+        if (target !== null) {
+          // Claim the chord everywhere so BB's native menu cannot reuse it.
+          event.preventDefault();
+          event.stopPropagation();
+          sidebarActions.openNewThread({
+            focusPrompt: true,
+            projectId: target.projectId,
+          });
+          return;
+        }
+
+        const composerTarget = composerShortcutTarget(event);
+        if (composerTarget === "primary") {
+          const threadId = contextRef.current.threadId;
+          if (!hasPrimaryComposer(threadId)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          notifyNativeShortcutHandled(window, createKeyboardEvent);
+          focusPrimaryComposer(threadId);
+          return;
+        }
+        if (composerTarget === "secondary") {
+          const threadId = contextRef.current.threadId;
+          if (threadId === null) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          notifyNativeShortcutHandled(window, createKeyboardEvent);
+          stopPendingAction(pendingSideChatActions, threadId);
+          const panel = readSideChatPanelSnapshot(
+            window.localStorage,
+            threadId,
+          );
+          if (
+            panel.isOpen &&
+            panel.activeSideChat !== null &&
+            isSecondaryComposerFocused(
+              threadId,
+              panel.activeSideChat.childThreadId,
+            )
+          ) {
+            notifyPanelStateChanged(closePanel(window.localStorage, threadId));
+            focusPrimaryComposer(threadId);
+            return;
+          }
+
+          const sideChat = selectSideChatPanelTab(
+            panel,
+            readRecentSideChatTabId(window.localStorage, threadId),
+          );
+          if (sideChatInFlightThreads.has(threadId)) return;
+
+          sideChatInFlightThreads.add(threadId);
+          void (async () => {
+            if (sideChat === null) {
+              await createAndFocusSideChat(threadId);
+              return;
+            }
+            const { reusable } = await validateSideChat(
+              rpc,
+              threadId,
+              sideChat,
+            );
+            if (reusable) {
+              rememberRecentSideChatTabId(
+                window.localStorage,
+                threadId,
+                sideChat.id,
+              );
+              focusExistingSideChat(threadId, sideChat.childThreadId);
+              return;
+            }
+            const change = removeSideChatPanelTab(
+              window.localStorage,
+              threadId,
+              sideChat.id,
+            );
+            if (change !== null) notifyPanelStateChanged(change);
+            await createAndFocusSideChat(threadId);
+          })()
+            .catch((error: unknown) => {
+              toast.error(rpcErrorMessage(error, "Failed to start side chat"));
+            })
+            .finally(() => {
+              sideChatInFlightThreads.delete(threadId);
+            });
+          return;
+        }
+
+        if (isTerminalShortcut(event)) {
+          const threadId = contextRef.current.threadId;
+          if (threadId === null) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          notifyNativeShortcutHandled(window, createKeyboardEvent);
+          stopPendingAction(pendingTerminalActions, threadId);
+          const panel = readTerminalPanelSnapshot(
+            window.localStorage,
+            threadId,
+          );
+          if (shouldCloseTerminalPanel(panel, isTerminalFocused(document))) {
+            notifyPanelStateChanged(closePanel(window.localStorage, threadId));
+            focusPrimaryComposer(threadId);
+            return;
+          }
+          if (terminalInFlightThreads.has(threadId)) return;
+
+          const rememberedTerminalId = readRecentTerminalId(
+            window.localStorage,
+            threadId,
+          );
+          const preferredTerminalId =
+            panel.activeTerminalId ??
+            (rememberedTerminalId !== null &&
+            panel.terminalIds.includes(rememberedTerminalId)
+              ? rememberedTerminalId
+              : null);
+          terminalInFlightThreads.add(threadId);
+          void openTerminal(rpc, threadId, preferredTerminalId)
+            .then(({ terminalId }) => {
+              rememberRecentTerminalId(
+                window.localStorage,
+                threadId,
+                terminalId,
+              );
+              pendingTerminalActions.set(
+                threadId,
+                activateAndFocusTerminal(
+                  signal,
+                  threadId,
+                  terminalId,
+                  isCurrentThread,
+                ),
+              );
+            })
+            .catch((error: unknown) => {
+              toast.error(rpcErrorMessage(error, "Failed to open terminal"));
+            })
+            .finally(() => {
+              terminalInFlightThreads.delete(threadId);
+            });
+          return;
+        }
+
+        const direction = historyDirection(event);
+        if (direction === null) return;
+
+        // Claim the shortcut even when an editor has focus.
+        event.preventDefault();
+        event.stopPropagation();
+        notifyNativeShortcutHandled(window, createKeyboardEvent);
+        window.history.go(direction);
+      },
+      { capture: true, signal },
+    );
+    setReady(true);
+    return () => controller.abort();
+  }, [rpc, sidebarActions]);
+  return createElement("span", {
+    "data-missing-keyboard-shortcuts-ready": ready ? "" : undefined,
+    hidden: true,
+  });
+}
+
 export default definePluginApp((app) => {
   app.composer.customize({
     id: "navigation-bridge",
@@ -387,319 +608,8 @@ export default definePluginApp((app) => {
     ],
   });
 
-  app.contentScripts.register({
+  app.slots.experimental_appOverlay({
     id: "missing-keyboard-shortcuts",
-    mount({ pluginId, signal }) {
-      const sideChatInFlightThreads = new Set<string>();
-      const terminalInFlightThreads = new Set<string>();
-      const pendingSideChatActions = new Map<string, () => void>();
-      const pendingTerminalActions = new Map<string, () => void>();
-      const stopPendingAction = (
-        actions: Map<string, () => void>,
-        threadId: string,
-      ) => {
-        actions.get(threadId)?.();
-        actions.delete(threadId);
-      };
-      signal.addEventListener(
-        "abort",
-        () => {
-          for (const stop of pendingSideChatActions.values()) stop();
-          pendingSideChatActions.clear();
-          for (const stop of pendingTerminalActions.values()) stop();
-          pendingTerminalActions.clear();
-        },
-        { once: true },
-      );
-      const createKeyboardEvent = (type: string, init: KeyboardEventInit) =>
-        new KeyboardEvent(type, init);
-      const nativeThreadNewCommand = createNativeCommandDelegate({
-        command: "thread.new",
-        createEvent: createKeyboardEvent,
-        fetchConfig: () => listAppKeybindings(pluginId),
-        isMac: /Mac|iPhone|iPad|iPod/u.test(navigator.platform),
-        target: window,
-      });
-      void nativeThreadNewCommand.prefetch();
-      const newThreadHost: NewThreadHost = {
-        getSelectedProjectId() {
-          return window.localStorage.getItem(
-            ROOT_COMPOSE_PROJECT_ID_STORAGE_KEY,
-          );
-        },
-        selectProject(projectId) {
-          window.localStorage.setItem(
-            ROOT_COMPOSE_PROJECT_ID_STORAGE_KEY,
-            projectId,
-          );
-        },
-        notifyProjectChanged(oldProjectId, newProjectId) {
-          // BB's root composer also observes this event when it is already
-          // mounted, such as Command-N pressed from the compose route itself.
-          window.dispatchEvent(
-            new StorageEvent("storage", {
-              key: ROOT_COMPOSE_PROJECT_ID_STORAGE_KEY,
-              newValue: newProjectId,
-              oldValue: oldProjectId,
-              storageArea: window.localStorage,
-              url: window.location.href,
-            }),
-          );
-        },
-        openComposer() {
-          void nativeThreadNewCommand.dispatch();
-        },
-      };
-      const focusExistingSideChat = (
-        parentThreadId: string,
-        childThreadId: string,
-      ) => {
-        if (currentThreadId(window.location.pathname) !== parentThreadId) return;
-        stopPendingAction(pendingSideChatActions, parentThreadId);
-        pendingSideChatActions.set(
-          parentThreadId,
-          focusSideChatComposer(
-            signal,
-            parentThreadId,
-            childThreadId,
-            null,
-          ),
-        );
-      };
-      const createAndFocusSideChat = async (parentThreadId: string) => {
-        const { threadId: childThreadId } = await createSideChat(
-          pluginId,
-          parentThreadId,
-        );
-        if (currentThreadId(window.location.pathname) !== parentThreadId) return;
-        const tab = createSideChatPanelTab(parentThreadId, childThreadId);
-        rememberRecentSideChatTabId(
-          window.localStorage,
-          parentThreadId,
-          tab.id,
-        );
-        stopPendingAction(pendingSideChatActions, parentThreadId);
-        pendingSideChatActions.set(
-          parentThreadId,
-          focusSideChatComposer(
-            signal,
-            parentThreadId,
-            childThreadId,
-            tab,
-          ),
-        );
-      };
-
-      window.addEventListener(
-        "focusin",
-        (event) => {
-          if (!(event.target instanceof Element)) return;
-          const threadId = currentThreadId(window.location.pathname);
-          if (threadId === null) return;
-          if (isWithinTerminal(event.target)) {
-            const { activeTerminalId } = readTerminalPanelSnapshot(
-              window.localStorage,
-              threadId,
-            );
-            if (activeTerminalId !== null) {
-              rememberRecentTerminalId(
-                window.localStorage,
-                threadId,
-                activeTerminalId,
-              );
-            }
-            return;
-          }
-          if (
-            event.target.closest(
-              '[data-app-composer-role="secondary"]',
-            ) === null
-          ) {
-            return;
-          }
-          const focusedChildThreadId =
-            focusedSecondaryComposerThreadId(threadId);
-          if (focusedChildThreadId === null) return;
-          const focusedSideChat = readSideChatPanelSnapshot(
-            window.localStorage,
-            threadId,
-          ).sideChats.find(
-            ({ childThreadId }) => childThreadId === focusedChildThreadId,
-          );
-          if (focusedSideChat !== undefined) {
-            rememberRecentSideChatTabId(
-              window.localStorage,
-              threadId,
-              focusedSideChat.id,
-            );
-          }
-        },
-        { capture: true, signal },
-      );
-
-      window.addEventListener(
-        "keydown",
-        (event) => {
-          if (nativeThreadNewCommand.isDelegatedEvent(event)) return;
-          const target = newThreadTarget(
-            event,
-            window.location.pathname,
-            readLastThreadProjectId(window.localStorage),
-          );
-          if (target !== null) {
-            // Claim the chord everywhere so BB's native menu cannot reuse it.
-            event.preventDefault();
-            event.stopPropagation();
-            openNewThread(newThreadHost, target.projectId);
-            return;
-          }
-
-          const composerTarget = composerShortcutTarget(event);
-          if (composerTarget === "primary") {
-            const threadId = currentThreadId(window.location.pathname);
-            if (!hasPrimaryComposer(threadId)) return;
-            event.preventDefault();
-            event.stopPropagation();
-            notifyNativeShortcutHandled(window, createKeyboardEvent);
-            focusPrimaryComposer(threadId);
-            return;
-          }
-          if (composerTarget === "secondary") {
-            const threadId = currentThreadId(window.location.pathname);
-            if (threadId === null) return;
-
-            event.preventDefault();
-            event.stopPropagation();
-            notifyNativeShortcutHandled(window, createKeyboardEvent);
-            stopPendingAction(pendingSideChatActions, threadId);
-            const panel = readSideChatPanelSnapshot(
-              window.localStorage,
-              threadId,
-            );
-            if (
-              panel.isOpen &&
-              panel.activeSideChat !== null &&
-              isSecondaryComposerFocused(
-                threadId,
-                panel.activeSideChat.childThreadId,
-              )
-            ) {
-              notifyPanelStateChanged(
-                closePanel(window.localStorage, threadId),
-              );
-              focusPrimaryComposer(threadId);
-              return;
-            }
-
-            const sideChat = selectSideChatPanelTab(
-              panel,
-              readRecentSideChatTabId(window.localStorage, threadId),
-            );
-            if (sideChatInFlightThreads.has(threadId)) return;
-
-            sideChatInFlightThreads.add(threadId);
-            void (async () => {
-              if (sideChat === null) {
-                await createAndFocusSideChat(threadId);
-                return;
-              }
-              const { reusable } = await validateSideChat(
-                pluginId,
-                threadId,
-                sideChat,
-              );
-              if (reusable) {
-                rememberRecentSideChatTabId(
-                  window.localStorage,
-                  threadId,
-                  sideChat.id,
-                );
-                focusExistingSideChat(threadId, sideChat.childThreadId);
-                return;
-              }
-              const change = removeSideChatPanelTab(
-                window.localStorage,
-                threadId,
-                sideChat.id,
-              );
-              if (change !== null) notifyPanelStateChanged(change);
-              await createAndFocusSideChat(threadId);
-            })()
-              .catch((error: unknown) => {
-                toast.error(
-                  rpcErrorMessage(error, "Failed to start side chat"),
-                );
-              })
-              .finally(() => {
-                sideChatInFlightThreads.delete(threadId);
-              });
-            return;
-          }
-
-          if (isTerminalShortcut(event)) {
-            const threadId = currentThreadId(window.location.pathname);
-            if (threadId === null) return;
-
-            event.preventDefault();
-            event.stopPropagation();
-            notifyNativeShortcutHandled(window, createKeyboardEvent);
-            stopPendingAction(pendingTerminalActions, threadId);
-            const panel = readTerminalPanelSnapshot(
-              window.localStorage,
-              threadId,
-            );
-            if (shouldCloseTerminalPanel(panel, isTerminalFocused(document))) {
-              notifyPanelStateChanged(
-                closePanel(window.localStorage, threadId),
-              );
-              focusPrimaryComposer(threadId);
-              return;
-            }
-            if (terminalInFlightThreads.has(threadId)) return;
-
-            const rememberedTerminalId = readRecentTerminalId(
-              window.localStorage,
-              threadId,
-            );
-            const preferredTerminalId =
-              panel.activeTerminalId ??
-              (rememberedTerminalId !== null &&
-                panel.terminalIds.includes(rememberedTerminalId)
-                ? rememberedTerminalId
-                : null);
-            terminalInFlightThreads.add(threadId);
-            void openTerminal(pluginId, threadId, preferredTerminalId)
-              .then(({ terminalId }) => {
-                rememberRecentTerminalId(
-                  window.localStorage,
-                  threadId,
-                  terminalId,
-                );
-                pendingTerminalActions.set(
-                  threadId,
-                  activateAndFocusTerminal(signal, threadId, terminalId),
-                );
-              })
-              .catch((error: unknown) => {
-                toast.error(rpcErrorMessage(error, "Failed to open terminal"));
-              })
-              .finally(() => {
-                terminalInFlightThreads.delete(threadId);
-              });
-            return;
-          }
-
-          const direction = historyDirection(event);
-          if (direction === null) return;
-
-          // Claim the shortcut even when an editor has focus.
-          event.preventDefault();
-          event.stopPropagation();
-          notifyNativeShortcutHandled(window, createKeyboardEvent);
-          window.history.go(direction);
-        },
-        { capture: true, signal },
-      );
-    },
+    component: MissingKeyboardShortcuts,
   });
 });

@@ -144,8 +144,9 @@ async function openFeaturedThread(page, knownHref) {
   // between differs from the same shot taken after. Named inside the timeline
   // panel because the thread's details panel carries the same chip.
   await page
-    .locator('#thread-detail-timeline-panel [title^="Copy branch name"]')
-    .waitFor();
+    .locator('#thread-detail-timeline-panel [data-promptbox-hide-branch-compact]')
+    .filter({ hasText: /^main$/ })
+    .waitFor({ timeout: 120000 });
   // The crumbs arrive later still: their backend is asked for the trail after
   // the header has already painted, and they mount into a React root of their
   // own on an animation frame. Only the breadcrumbs shot clicks the crumb, so
@@ -304,19 +305,12 @@ export const SHOTS = [
     outputs: THEME_FILES,
     async prepare({ page }) {
       // A full navigation can render the thread before remounting the plugin,
-      // losing a shortcut sent in between. Its mount-time keybinding request
-      // begins before the listener is installed, so listen before navigation.
-      await Promise.all([
-        page.waitForResponse(
-          (response) =>
-            response.request().method() === "POST" &&
-            new URL(response.url()).pathname ===
-              "/api/v1/plugins/missing-keyboard-shortcuts/rpc/listAppKeybindings" &&
-            response.ok(),
-          { timeout: 120000 },
-        ),
-        openFeaturedThread(page),
-      ]);
+      // losing a shortcut sent in between. Wait for the public app overlay to
+      // install its listener before pressing the shortcut.
+      await openFeaturedThread(page);
+      await page
+        .locator("[data-missing-keyboard-shortcuts-ready]")
+        .waitFor({ state: "attached", timeout: 120000 });
       // ⇧⌘L opens a side chat and puts the cursor in its composer, so the
       // question can be typed without clicking anything.
       const reply = await openSideChatByShortcut(page);

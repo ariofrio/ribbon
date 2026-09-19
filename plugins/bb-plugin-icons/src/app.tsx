@@ -7,11 +7,15 @@ import {
   useSettings,
   type PluginThreadHeaderActionProps,
 } from "@get-bb/plugin-sdk/app";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
-import { createRoot } from "react-dom/client";
-import { afterPluginFrame } from "./after-plugin-frame";
-import type { Placement } from "./decorate";
 import { announceIconsChanged, subscribeToIconChanges } from "./broadcast";
 import { publishIconStylesheet } from "./icon-sheet";
 import { installIconPortal } from "./header-dom";
@@ -70,7 +74,10 @@ function HeaderIcon({
   catalog: readonly CatalogIcon[];
   loadingCatalog: boolean;
   onWanted(): void;
-  onApply(owner: IconOwner, next: { icon?: string; color?: IconColor | null }): void;
+  onApply(
+    owner: IconOwner,
+    next: { icon?: string; color?: IconColor | null },
+  ): void;
   onReset(owner: IconOwner): void;
 }) {
   const [picking, setPicking] = useState(false);
@@ -86,7 +93,9 @@ function HeaderIcon({
     <button
       type="button"
       aria-label={`Icon for ${ownerName}`}
-      title={owner.kind === "section" ? "Change section icon" : "Change project icon"}
+      title={
+        owner.kind === "section" ? "Change section icon" : "Change project icon"
+      }
       onPointerEnter={onWanted}
       onFocus={onWanted}
       // The desktop header is a window drag region, so an interactive control
@@ -128,7 +137,10 @@ function HeaderIcon({
   );
 }
 
-function IconHeaderAction({ threadId, projectId }: PluginThreadHeaderActionProps) {
+function IconHeaderAction({
+  threadId,
+  projectId,
+}: PluginThreadHeaderActionProps) {
   const rpc = useRpc<typeof rpcContract>();
   const settings = useSettings();
   const sidebar = experimental_useSidebarThreads();
@@ -318,116 +330,56 @@ function IconHeaderAction({ threadId, projectId }: PluginThreadHeaderActionProps
   );
 }
 
+function SidebarIconOverlay() {
+  const client = useRpc<typeof rpcContract>();
+  const rpc = useMemo(() => iconsRpc(client), [client]);
+  const settings = useSettings();
+  const [anchors, setAnchors] = useState<SidebarAnchor[]>([]);
+  const showSidebar =
+    settings.values != null && settings.values?.showInSidebar !== false;
+  const placements = useMemo(
+    () =>
+      settings.values == null
+        ? []
+        : PLACEMENTS.filter(
+            (placement) => settings.values?.[placement.setting] !== false,
+          ),
+    [settings.values],
+  );
+
+  useRealtime("icons-changed", announceIconsChanged);
+
+  useEffect(
+    () =>
+      publishIconStylesheet({
+        load: () => rpc.list(),
+        subscribe: subscribeToIconChanges,
+      }),
+    [rpc],
+  );
+
+  useEffect(() => {
+    if (!showSidebar) return;
+    return observeSidebarIconAnchors(setAnchors);
+  }, [showSidebar]);
+
+  return (
+    <Icons
+      anchors={showSidebar ? anchors : []}
+      placements={placements}
+      rpc={rpc}
+    />
+  );
+}
+
 export default definePluginApp((app) => {
   app.slots.experimental_threadHeaderAction({
     id: "project-icon",
     title: "Project icon",
     component: IconHeaderAction,
   });
-
-  // bb has no always-mounted React slot, and a thread-header action only
-  // exists on a thread route, so the sidebar half runs as a content script.
-  // Nothing from the SDK reaches here — no useRpc, no useSettings — which is
-  // why this half talks to its own backend over fetch.
-  app.contentScripts.register({
+  app.slots.experimental_appOverlay({
     id: "sidebar-icons",
-    /**
-     * Answers bb with its disposer first, and reads its settings after.
-     *
-     * bb holds a plugin attributed for as long as `mount` is unresolved, and
-     * while any plugin is attributed it refuses to let a React-owned node into
-     * a container React does not own. Reading the settings before returning
-     * therefore held the whole app in that state for the length of a round
-     * trip — a second or more on a cold start — and every plugin drawing into
-     * bb's chrome in the meantime was refused, this collection's crumbs
-     * included. bb's contract takes a disposer straight back, so the read
-     * happens after it, and the window closes on the next microtask.
-     */
-    mount({ pluginId, signal }) {
-      const rpc = iconsRpc(pluginId);
-      // Published independently of any placement: a consumer that marks its
-      // own box needs nothing else from this plugin.
-      const stopStylesheet = publishIconStylesheet({
-        load: () => rpc.list(),
-        subscribe: subscribeToIconChanges,
-      });
-      let teardown: (() => void) | null = null;
-      let disposed = false;
-
-      const dispose = () => {
-        disposed = true;
-        stopStylesheet();
-        const stop = teardown;
-        teardown = null;
-        stop?.();
-      };
-      // Registered before anything can be placed, so an abort that arrives
-      // mid-read is seen by the read rather than lost.
-      signal.addEventListener("abort", dispose, { once: true });
-
-      const place = (placements: readonly Placement[], drawSidebar: boolean) => {
-        const host = document.createElement("div");
-        host.style.display = "none";
-        document.body.append(host);
-        const root = createRoot(host);
-
-        /**
-         * Rendering is pushed off the call that asked for it, so a render is
-         * never committed from inside bb's own mutation callback, and a burst
-         * of sidebar changes redraws once rather than once each.
-         *
-         * It does not leave bb's guard: attribution is wall-clock, not stack,
-         * so a frame that lands inside another plugin's mount is refused like
-         * any other. See `after-plugin-frame.ts`. These anchors have never been
-         * seen refused — 240 inserts over 40 loads, none blocked, in runs where
-         * the crumbs beside them were blocked 68 times — because a draw is
-         * scheduled from a settings read that has already ended, and a redraw
-         * comes from an observer built outside anyone's window. So there is no
-         * recovery here, as there is nothing yet to recover from.
-         */
-        let cancel: (() => void) | undefined;
-        let pending: SidebarAnchor[] = [];
-        const draw = (anchors: SidebarAnchor[]) => {
-          pending = anchors;
-          if (cancel !== undefined) return;
-          cancel = afterPluginFrame(() => {
-            cancel = undefined;
-            root.render(
-              <Icons anchors={pending} placements={placements} rpc={rpc} />,
-            );
-          });
-        };
-        draw([]);
-        const stop = drawSidebar ? observeSidebarIconAnchors(draw) : undefined;
-
-        teardown = () => {
-          cancel?.();
-          // React owns nodes inside bb's sidebar, so it unmounts before the
-          // anchors holding them are taken back out.
-          root.unmount();
-          stop?.();
-          host.remove();
-        };
-      };
-
-      // Still asked before a single node is placed: an anchor left in bb's
-      // sidebar would space the group label out even with nothing drawn in it.
-      // bb never applies a settings edit without a reload, so one read holds,
-      // and `iconsRpc` answers null rather than throwing, so this cannot
-      // reject.
-      void rpc.listPlacements().then((placements) => {
-        if (disposed || signal.aborted) return;
-        const drawSidebar = placements?.showInSidebar !== false;
-        // Everything drawn over bb's own icons, minus whatever the reader
-        // turned off. Nothing left on means nothing to mount at all.
-        const enabled = PLACEMENTS.filter(
-          (placement) => placements?.[placement.setting] !== false,
-        );
-        if (!drawSidebar && enabled.length === 0) return;
-        place(enabled, drawSidebar);
-      });
-
-      return dispose;
-    },
+    component: SidebarIconOverlay,
   });
 });

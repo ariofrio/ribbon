@@ -26,7 +26,7 @@ export interface IconsController {
 const NO_PROJECTS = projectLookup([]);
 
 /**
- * Everything the content script's half of the plugin knows, fetched once for
+ * Everything the app overlay knows, fetched once for
  * every place it draws.
  *
  * One controller serves both the sidebar headers and the icons drawn over

@@ -164,6 +164,36 @@ describe("composer navigation bridge", () => {
     expect(focus).toHaveBeenCalledOnce();
   });
 
+  it("retries focus when the editor mounts after its composer shell", () => {
+    const controller = new AbortController();
+    let editorReady = false;
+    let focused = false;
+    let changed = () => {};
+    const disconnect = vi.fn();
+    disposers.push(
+      focusSecondaryComposerWhenReady("thr_parent", "thr_side", {
+        isCurrent: () => true,
+        signal: controller.signal,
+      }),
+    );
+    const unregister = registerSecondaryComposer("thr_parent", "thr_side", {
+      focus: () => { focused = editorReady; },
+      isFocused: () => focused,
+      isVisible: () => true,
+      observeReadiness(listener) {
+        changed = listener;
+        return disconnect;
+      },
+    });
+    disposers.push(unregister);
+    expect(focused).toBe(false);
+    editorReady = true;
+    changed();
+    expect(focused).toBe(true);
+    unregister();
+    expect(disconnect).toHaveBeenCalledOnce();
+  });
+
   it("reports which exact secondary composer owns DOM focus", () => {
     let firstFocused = false;
     let secondFocused = true;

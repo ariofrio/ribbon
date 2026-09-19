@@ -92,8 +92,6 @@ test("the shortcut shot stops retrying when the late plugin handles the key", as
       return createRequest;
     },
     waitForResponse: async (predicate, options) => {
-      const listResponse = response("listAppKeybindings");
-      if (predicate(listResponse)) return listResponse;
       const createResponse = response("createSideChat");
       assert.ok(
         predicate(createResponse),

@@ -64,22 +64,6 @@ const destinationSchema = z.discriminatedUnion("kind", [
 ]);
 type ChordDestination = z.infer<typeof destinationSchema>;
 
-const appKeybindingSchema = z.object({
-  command: z.string(),
-  desktopOnly: z.boolean(),
-  shortcut: z.object({
-    alt: z.boolean(),
-    control: z.boolean(),
-    key: z.string().min(1),
-    meta: z.boolean(),
-    mod: z.boolean(),
-    shift: z.boolean(),
-  }),
-});
-const appKeybindingsSchema = z.object({
-  keybindings: z.array(appKeybindingSchema),
-});
-
 export const rpcContract = defineRpcContract({
   setWorkflowStage: {
     input: z
@@ -111,10 +95,6 @@ export const rpcContract = defineRpcContract({
       })
       .strict(),
     output: stateSchema,
-  },
-  listAppKeybindings: {
-    input: z.null(),
-    output: appKeybindingsSchema,
   },
   getGroupingCatalogV1: {
     input: getGroupingCatalogInputSchema,
@@ -159,7 +139,9 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
   const ribbonSidebar = createRibbonSidebarClient({
-    baseUrl: bb.server.loopbackBaseUrl,
+    callRpc: (method, input) => bb.sdk.plugins.callRpc({
+      pluginId: "ribbon-sidebar", method, input, outputSchema: z.unknown(),
+    }),
   });
 
   async function updatePlacement(
@@ -389,15 +371,6 @@ export default async function plugin(bb: BbPluginApi) {
         origin: "ui",
       });
       return { assignments };
-    },
-    async listAppKeybindings() {
-      const { keybindings } = await bb.sdk.system.config();
-      return {
-        keybindings: keybindings.flatMap((binding) => {
-          const parsed = appKeybindingSchema.safeParse(binding);
-          return parsed.success ? [parsed.data] : [];
-        }),
-      };
     },
     async getGroupingCatalogV1() {
       return createGroupingCatalog(await settings.get());

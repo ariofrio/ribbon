@@ -12,7 +12,7 @@ import { SidebarIcons } from "./SidebarIcons";
 import { useIcons } from "./use-icons";
 
 /**
- * The content script's whole React tree.
+ * The app overlay's icon tree.
  *
  * Everything it draws hangs off one controller, so the icons it puts on bb's
  * sidebar headers and the ones it puts over bb's own are fetched once and can

@@ -2,8 +2,16 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
 const INDICATOR_THREAD = "Investigate webhook retries";
+const ICONS_PLUGIN_ID = "icons";
 
 export async function verifyOptionalIconLayout({ stack, fixture }) {
+  const iconsEnabled = fixture
+    .runJson(["plugin", "list"])
+    .plugins.some(
+      (plugin) => plugin.id === ICONS_PLUGIN_ID && plugin.enabled === true,
+    );
+  if (iconsEnabled) fixture.run(["plugin", "disable", ICONS_PLUGIN_ID]);
+
   const browser = await chromium.launch();
   try {
     const context = await browser.newContext({
@@ -97,5 +105,6 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
     }
   } finally {
     await browser.close();
+    if (iconsEnabled) fixture.run(["plugin", "enable", ICONS_PLUGIN_ID]);
   }
 }
