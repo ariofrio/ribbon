@@ -389,7 +389,7 @@ function ThreadRow({
         >
           {hasIcon ? (
             <span
-              className="col-start-1 row-start-1 self-center"
+              className="col-start-1 row-start-1 flex self-center"
               data-ribbon-sidebar-icon-slot=""
               style={{
                 gridRowEnd: iconSpansEntireItem ? "span 2" : "auto",
