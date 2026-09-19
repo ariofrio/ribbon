@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { chromium } from "playwright";
 import {
   FEATURED_PROJECT,
@@ -8,10 +10,12 @@ import {
 export async function verifyThreadReordering({ stack, fixture }) {
   const browser = await chromium.launch({ args: ["--mute-audio"] });
   let releaseSave = () => {};
+  let context;
   try {
-    const context = await browser.newContext({
+    context = await browser.newContext({
       viewport: { width: 1280, height: 900 },
     });
+    await context.tracing.start({ snapshots: true, sources: true });
     await context.addInitScript(() => {
       localStorage.setItem(
         "bb.sidebar.threadListProvider",
@@ -394,6 +398,12 @@ export async function verifyThreadReordering({ stack, fixture }) {
         .getAttribute("data-thread-id"),
       gapSourceId,
     );
+  } catch (error) {
+    const directory = resolve(".scratch/e2e");
+    await mkdir(directory, { recursive: true })
+      .then(() => context?.tracing.stop({ path: resolve(directory, "thread-reordering.trace.zip") }))
+      .catch((diagnosticError) => console.error("Could not save the thread-reordering trace:", diagnosticError));
+    throw error;
   } finally {
     releaseSave();
     await browser.close();
