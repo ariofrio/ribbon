@@ -10,6 +10,7 @@ import {
   waitForStageCatalog,
 } from "./ribbon-sidebar/new-thread-routing.mjs";
 import { verifyThreadIcons } from "./ribbon-sidebar/thread-icons.mjs";
+import { verifyPrNumber } from "./ribbon-sidebar/pr-number.mjs";
 import { seed, writeFixtureProvider } from "../screenshots/fixture.mjs";
 import { BB_CLI_PATH, startStack } from "../screenshots/stack.mjs";
 
@@ -20,6 +21,12 @@ const scratch = join(repositoryRoot, ".scratch/e2e");
 const bb = BB_CLI_PATH;
 
 const suites = [
+  {
+    id: "pr-number",
+    cases: ["placement"],
+    plugins: ["bb-plugin-ribbon-sidebar"],
+    run: verifyPrNumber,
+  },
   {
     id: "thread-icons",
     cases: ["groupings"],

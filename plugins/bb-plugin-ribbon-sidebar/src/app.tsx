@@ -36,6 +36,7 @@ import {
   loadSidebarPreferences,
   saveSidebarPreferences,
   type GroupRef,
+  type PullRequestNumberPosition,
   type SidebarPreferences,
   type SidebarSort,
 } from "./view-state";
@@ -234,6 +235,7 @@ function ThreadRow({
   onToggleChildren,
   placementDisabled,
   preview,
+  pullRequestNumberPosition,
   reorderable,
   sections,
   showDropAfter,
@@ -268,6 +270,7 @@ function ThreadRow({
   onToggleChildren(): void;
   placementDisabled: boolean;
   preview: string | null;
+  pullRequestNumberPosition: PullRequestNumberPosition;
   reorderable: boolean;
   sections: readonly { id: string; label: string }[];
   showDropAfter: boolean;
@@ -281,6 +284,12 @@ function ThreadRow({
   const [contextOpen, setContextOpen] = useState(false);
   const rowTitle = title(thread);
   const accessibleTitle = preview ? `${rowTitle} — ${preview}` : rowTitle;
+  const showPullRequest = pullRequest !== null && pullRequestNumberPosition !== "hidden";
+  const pullRequestNumber = showPullRequest ? (
+    <span className="shrink-0 text-subtle-foreground/75" title={pullRequest.title}>
+      #{pullRequest.number}
+    </span>
+  ) : null;
   const actionsOpen = dropdownOpen || contextOpen;
   const commonMenuProps = {
     actions,
@@ -349,7 +358,7 @@ function ThreadRow({
         <a
           {...splitProps}
           aria-current={active ? "page" : undefined}
-          aria-label={`Open ${accessibleTitle}${pullRequest ? ` (PR #${pullRequest.number})` : ""}`}
+          aria-label={`Open ${accessibleTitle}${showPullRequest ? ` (PR #${pullRequest.number})` : ""}`}
           className="absolute inset-0 rounded-md outline-none ring-sidebar-ring focus-visible:ring-2"
           data-sidebar-thread-id={thread.id}
           data-sidebar-thread-shortcut-target=""
@@ -361,12 +370,9 @@ function ThreadRow({
           {icon}
           <span className="flex min-w-0 flex-1 flex-col justify-center leading-none">
             <span className="flex min-w-0 items-center gap-2 leading-5" title={accessibleTitle}>
+              {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
               <span className="truncate">{rowTitle}</span>
-              {pullRequest ? (
-                <span className="shrink-0 text-subtle-foreground/75" title={pullRequest.title}>
-                  #{pullRequest.number}
-                </span>
-              ) : null}
+              {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
             </span>
             {preview ? (
               <span className="truncate text-[11px] leading-4 text-subtle-foreground/75" title={preview}>
@@ -1522,6 +1528,7 @@ function RibbonSidebarList({
     return (
       <Fragment key={root.id}>
         <ThreadRow
+          pullRequestNumberPosition={preferences.view.pullRequestNumberPosition}
           active={activeThreadId === root.id}
           actions={actions}
           assignments={
@@ -1848,6 +1855,13 @@ function RibbonSidebarList({
               }))
             }
             pagesGroupingKey={preferences.view.filterGroupingKey}
+            pullRequestNumberPosition={preferences.view.pullRequestNumberPosition}
+            onPullRequestNumberPositionChange={(pullRequestNumberPosition) =>
+              changePreferences((current) => ({
+                ...current,
+                view: { ...current.view, pullRequestNumberPosition },
+              }))
+            }
             sort={preferences.view.sort}
           />
         </SidebarTopControls>
