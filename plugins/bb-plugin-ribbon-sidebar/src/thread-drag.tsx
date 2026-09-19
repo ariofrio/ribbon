@@ -56,7 +56,27 @@ const collisionDetection: CollisionDetection = (args) => {
   const headerRects = new Map(args.droppableRects);
   for (const header of headers) {
     const node = header.node.current;
-    if (node) headerRects.set(header.id, node.getBoundingClientRect());
+    if (!node) continue;
+    const rect = node.getBoundingClientRect();
+    const group = node.closest("section");
+    const firstRow = Array.from(
+      group?.querySelectorAll<HTMLElement>("li[data-thread-id]") ?? [],
+    ).find((row) => row.dataset.threadId !== String(args.active.id));
+    // Include the leading spacing and any preview before the first visible row.
+    const bottom = Math.max(
+      rect.bottom,
+      firstRow?.getBoundingClientRect().top ??
+        group?.getBoundingClientRect().bottom ??
+        rect.bottom,
+    );
+    headerRects.set(header.id, {
+      top: rect.top,
+      bottom,
+      left: rect.left,
+      right: rect.right,
+      width: rect.width,
+      height: bottom - rect.top,
+    });
   }
   const headerHits = pointerWithin({
     ...args,

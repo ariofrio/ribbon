@@ -260,26 +260,41 @@ export async function verifyThreadReordering({ stack, fixture }) {
     await page.mouse.move(lastRow.x + 60, lastRow.y + lastRow.height - 3);
     await preview.waitFor();
     const headerBox = await header.boundingBox();
+    await page.mouse.move(headerBox.x + 60, headerBox.y + headerBox.height + 2);
+    const expectHeaderPreview = () =>
+      page.waitForFunction((groupName) => {
+        const section = document.querySelector(
+          `[data-ribbon-sidebar-root] section[aria-label="${groupName}"]`,
+        );
+        const heading = section?.querySelector('[data-sidebar="group-label"]');
+        const marker = section?.querySelector(
+          "[data-ribbon-thread-drop-preview]",
+        );
+        const firstRow = [
+          ...(section?.querySelectorAll("li[data-thread-id]") ?? []),
+        ].find((node) => getComputedStyle(node).opacity !== "0");
+        if (!heading || !marker || !firstRow) return false;
+        const markerBox = marker.getBoundingClientRect();
+        return (
+          markerBox.height >= 24 &&
+          markerBox.top >= heading.getBoundingClientRect().bottom &&
+          markerBox.bottom <= firstRow.getBoundingClientRect().top
+        );
+      }, `${FEATURED_PROJECT} group`);
+    await expectHeaderPreview();
     await page.mouse.move(headerBox.x + 60, headerBox.y + headerBox.height / 2);
-    await page.waitForFunction((groupName) => {
-      const section = document.querySelector(
-        `[data-ribbon-sidebar-root] section[aria-label="${groupName}"]`,
-      );
-      const heading = section?.querySelector('[data-sidebar="group-label"]');
-      const marker = section?.querySelector(
-        "[data-ribbon-thread-drop-preview]",
-      );
-      const firstRow = [
-        ...(section?.querySelectorAll("li[data-thread-id]") ?? []),
-      ].find((node) => getComputedStyle(node).opacity !== "0");
-      if (!heading || !marker || !firstRow) return false;
-      const markerBox = marker.getBoundingClientRect();
-      return (
-        markerBox.height >= 24 &&
-        markerBox.top >= heading.getBoundingClientRect().bottom &&
-        markerBox.bottom <= firstRow.getBoundingClientRect().top
-      );
-    }, `${FEATURED_PROJECT} group`);
+    await expectHeaderPreview();
+    // The space beneath the heading, including the preview itself, inserts first.
+    const firstVisibleRow = await rows.evaluateAll(
+      (nodes) =>
+        nodes
+          .find((node) => getComputedStyle(node).opacity !== "0")
+          .getBoundingClientRect().top,
+    );
+    for (const y of [headerBox.y + headerBox.height + 2, firstVisibleRow - 2]) {
+      await page.mouse.move(headerBox.x + 60, y);
+      await expectHeaderPreview();
+    }
     const headerSaved = page.waitForResponse((response) =>
       response.url().endsWith("/rpc/updatePlacementV1"),
     );

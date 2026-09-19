@@ -65,6 +65,10 @@ async function beginThreadDrag(source: Element) {
       const targetBox = rectFor(target);
       fireEvent.mouseMove(document, { clientX: 60, clientY: targetBox.bottom + 20 });
     },
+    hoverJustBelow(target: Element) {
+      const targetBox = rectFor(target);
+      fireEvent.mouseMove(document, { clientX: 60, clientY: targetBox.bottom + 2 });
+    },
     drop() { fireEvent.mouseUp(document); },
     cancel() { fireEvent.keyDown(document, { key: "Escape", code: "Escape" }); },
   };
@@ -2892,6 +2896,22 @@ describe("Ribbon sidebar app", () => {
     drag.drop();
     expect(fixture.updatePlacementV1).toHaveBeenCalledWith(expect.objectContaining({
       threadId: "thread-b", groupId: "Idle", anchor: { kind: "end" },
+    }));
+    slot.lifecycle.unmount();
+  });
+
+  it("drops just below a group heading insert first", async () => {
+    useManualSort();
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+    const group = slot.getByRole("region", { name: "Idle group" });
+    const drag = await beginThreadDrag(slot.getByText("Ship UI").closest("li")!);
+    drag.hoverJustBelow(group.querySelector('[data-sidebar="group-label"]')!);
+    drag.drop();
+    expect(fixture.updatePlacementV1).toHaveBeenCalledWith(expect.objectContaining({
+      threadId: "thread-b", groupId: "Idle", anchor: { kind: "before", threadId: "thread-a" },
     }));
     slot.lifecycle.unmount();
   });
