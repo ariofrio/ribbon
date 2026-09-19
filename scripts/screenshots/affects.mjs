@@ -24,6 +24,7 @@ function affects(path) {
   if (TEST_FILE.test(path)) return false;
   if (path.startsWith("scripts/screenshots/")) return true;
   if (/^plugins\/[^/]+\/src\//u.test(path)) return true;
+  if (/^plugins\/[^/]+\/themes\//u.test(path)) return true;
   // A dependency bump can change what a plugin draws.
   if (/^plugins\/[^/]+\/package\.json$/u.test(path)) return true;
   return ROOT_FILES.has(path);

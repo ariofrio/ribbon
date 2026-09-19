@@ -1,3 +1,7 @@
+import {
+  verifyThreadReordering,
+  verifyHeadingBoundary,
+} from "./ribbon-sidebar/thread-reordering.mjs";
 import { execFileSync } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -15,6 +19,7 @@ import {
 } from "./ribbon-sidebar/optional-icon-layout.mjs";
 import { verifyThreadIcons } from "./ribbon-sidebar/thread-icons.mjs";
 import { verifyPrNumber } from "./ribbon-sidebar/pr-number.mjs";
+import { verifySelectedTitleColor } from "./ribbon-sidebar/selected-title-color.mjs";
 import { verifyNoPaging } from "./ribbon-sidebar/no-paging.mjs";
 import { verifyThreadTitleClicks } from "./ribbon-sidebar/thread-title-clicks.mjs";
 import { seed, writeFixtureProvider } from "../screenshots/fixture.mjs";
@@ -32,6 +37,15 @@ const suites = [
     cases: ["delayed-visibility"],
     plugins: ["bb-plugin-missing-keyboard-shortcuts"],
     run: verifyComposerReadiness,
+  },
+  {
+    id: "thread-reordering",
+    cases: ["interaction", "heading-boundary"],
+    plugins: ["bb-plugin-ribbon-sidebar"],
+    async run(args) {
+      if (args.cases.includes("interaction")) await verifyThreadReordering(args);
+      if (args.cases.includes("heading-boundary")) await verifyHeadingBoundary(args);
+    },
   },
   {
     id: "thread-title-clicks",
@@ -108,6 +122,12 @@ const suites = [
     async run({ stack, fixture }) {
       await verifyOptionalIconLayout({ stack, fixture });
     },
+  },
+  {
+    id: "selected-title-color",
+    cases: ["chatgpt-theme"],
+    plugins: ["bb-plugin-ribbon-sidebar", "bb-plugin-chatgpt-theme"],
+    run: verifySelectedTitleColor,
   },
 ];
 
