@@ -180,7 +180,19 @@ export async function verifyThreadReordering({ stack, fixture }) {
     await chip.waitFor();
     assert.equal(page.url(), url, "keyboard start must not navigate");
     await page.keyboard.press("ArrowDown");
-    await preview.waitFor();
+    await page.waitForFunction((threadId) => {
+      const row = document.querySelector(
+        `[data-ribbon-sidebar-root] li[data-thread-id="${threadId}"]`,
+      );
+      const marker = row
+        ?.closest("section")
+        ?.querySelector("[data-ribbon-thread-drop-preview]");
+      return (
+        row &&
+        marker &&
+        marker.getBoundingClientRect().top >= row.getBoundingClientRect().bottom
+      );
+    }, original[0]);
     assert.equal(page.url(), url, "keyboard move must not navigate");
     const keyboardSaved = page.waitForResponse((response) =>
       response.url().endsWith("/rpc/updatePlacementV1"),
