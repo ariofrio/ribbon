@@ -95,6 +95,10 @@ jobs:
           apt-get install -y -qq make g++
       - run: npm ci
       - run: npm run test:e2e
+      - name: Repeat drag interactions for reliability diagnosis
+        env:
+          RIBBON_E2E_DRAG_REPETITIONS: "100"
+        run: node scripts/e2e/run.mjs
       - name: Preserve end-to-end failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
