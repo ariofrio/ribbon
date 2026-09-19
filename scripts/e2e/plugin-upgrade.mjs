@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { chromium } from "playwright";
 import {
   applyPluginState,
@@ -13,10 +15,12 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
   const project = fixture.projects.get(FEATURED_PROJECT);
   await applyPluginState({ stack, ...fixture });
   const browser = await chromium.launch({ args: ["--mute-audio"] });
+  let context;
   try {
-    const context = await browser.newContext({
+    context = await browser.newContext({
       viewport: { width: 1280, height: 800 },
     });
+    await context.tracing.start({ snapshots: true, sources: true });
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -134,6 +138,12 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
 
     assert.deepEqual(errors, []);
     await context.close();
+  } catch (error) {
+    const directory = resolve(".scratch/e2e");
+    await mkdir(directory, { recursive: true })
+      .then(() => context?.tracing.stop({ path: resolve(directory, "plugin-upgrade.trace.zip") }))
+      .catch((diagnosticError) => console.error("Could not save the plugin-upgrade trace:", diagnosticError));
+    throw error;
   } finally {
     await browser.close();
   }
