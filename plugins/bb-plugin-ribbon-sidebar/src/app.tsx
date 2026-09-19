@@ -1,6 +1,7 @@
 import {
   definePluginApp,
   experimental_useSidebarThreadActions,
+  experimental_useSidebarThreadPullRequest,
   experimental_useSidebarThreadSplit,
   experimental_useSidebarThreads,
   useBbNavigate,
@@ -275,6 +276,7 @@ function ThreadRow({
 }) {
   const { splitProps, isAvailable: splitAvailable, layout } =
     experimental_useSidebarThreadSplit(thread.id);
+  const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const rowTitle = title(thread);
@@ -347,7 +349,7 @@ function ThreadRow({
         <a
           {...splitProps}
           aria-current={active ? "page" : undefined}
-          aria-label={`Open ${accessibleTitle}`}
+          aria-label={`Open ${accessibleTitle}${pullRequest ? ` (PR #${pullRequest.number})` : ""}`}
           className="absolute inset-0 rounded-md outline-none ring-sidebar-ring focus-visible:ring-2"
           data-sidebar-thread-id={thread.id}
           data-sidebar-thread-shortcut-target=""
@@ -358,7 +360,14 @@ function ThreadRow({
         <span className="flex min-w-0 flex-1 items-center gap-2">
           {icon}
           <span className="flex min-w-0 flex-1 flex-col justify-center leading-none">
-            <span className="truncate leading-5" title={accessibleTitle}>{rowTitle}</span>
+            <span className="flex min-w-0 items-center gap-2 leading-5" title={accessibleTitle}>
+              <span className="truncate">{rowTitle}</span>
+              {pullRequest ? (
+                <span className="shrink-0 text-subtle-foreground/75" title={pullRequest.title}>
+                  #{pullRequest.number}
+                </span>
+              ) : null}
+            </span>
             {preview ? (
               <span className="truncate text-[11px] leading-4 text-subtle-foreground/75" title={preview}>
                 {preview}
