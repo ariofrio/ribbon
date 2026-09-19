@@ -293,8 +293,9 @@ function ThreadRow({
   const iconSpansEntireItem = alignAdornmentsToEntireItem && preview !== null;
   const hasTrailingIndicator =
     layout !== null || indicatorThread.indicator !== "none";
+  const hasTrailingControl = hasTrailingIndicator || !thread.isArchived;
   const alignsTrailingIndicatorToTitle =
-    hasTrailingIndicator && !alignAdornmentsToEntireItem;
+    hasTrailingControl && (!alignAdornmentsToEntireItem || !hasTrailingIndicator);
   const reservesTrailingLane =
     hasTrailingIndicator && alignAdornmentsToEntireItem;
   const commonMenuProps = {
@@ -377,7 +378,7 @@ function ThreadRow({
           onClick={openThread}
         />
         <span
-          className={`grid min-w-0 py-[calc((var(--bb-sidebar-row-height)-1lh)/2)] max-md:pointer-coarse:py-[calc((var(--bb-sidebar-row-height-coarse)-1lh)/2)] ${hasIcon ? "gap-x-2" : ""}`}
+          className="grid min-w-0 gap-x-2 py-[calc((var(--bb-sidebar-row-height)-1lh)/2)] max-md:pointer-coarse:py-[calc((var(--bb-sidebar-row-height-coarse)-1lh)/2)]"
           style={{
             gridTemplateColumns: [
               ...(hasIcon ? ["auto"] : []),
@@ -403,7 +404,7 @@ function ThreadRow({
             className="row-start-1 flex min-w-0 items-center gap-1.5"
             style={{
               gridColumnStart: hasIcon ? 2 : 1,
-              paddingRight: hasTrailingIndicator ? undefined : 8,
+              paddingRight: hasTrailingControl ? undefined : 8,
             }}
           >
             <span

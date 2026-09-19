@@ -940,16 +940,12 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
-  it("keeps the title and preview inside the right edge without an indicator", async () => {
+  it("keeps the preview inside the right edge without an indicator", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    const title = await slot.findByText("Design migration");
     const preview = await slot.findByText("A useful preview");
 
-    expect(getComputedStyle(title.parentElement!.parentElement!).paddingRight).toBe(
-      "8px",
-    );
     expect(getComputedStyle(preview).paddingRight).toBe("8px");
     slot.lifecycle.unmount();
   });

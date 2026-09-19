@@ -81,6 +81,19 @@ export async function verifyThreadIcons({ stack, fixture }) {
     await paintedIcon(`[data-ribbon-icons-section="${fixture.section.id}"]`, true);
     await chooseIcons("Sections", "No icons");
     assert.equal(await row.locator("[data-ribbon-sidebar-icon], [aria-label$='group icon']").count(), 0);
+    const workingThread = fixture.threads.get("Investigate webhook retries");
+    const workingRow = sidebar.locator("li").filter({
+      has: page.locator(`a[data-sidebar-thread-id="${workingThread.id}"]`),
+    });
+    const indicatorGap = await workingRow.evaluate((node) => {
+      const space = node.querySelector("[data-ribbon-sidebar-icon-indicator-space]");
+      const title = space.previousElementSibling;
+      return space.getBoundingClientRect().left - title.getBoundingClientRect().right;
+    });
+    assert.ok(
+      Math.abs(indicatorGap - 8) < 0.5,
+      `With No icons, the title-to-indicator gap was ${indicatorGap}px instead of 8px`,
+    );
     await chooseIcons("None", "Projects");
     await paintedIcon(`[data-ribbon-icons-project="${project.id}"]`, true);
     const view = await page.evaluate(() => JSON.parse(localStorage.getItem("bb.plugin.ribbon-sidebar.preferences.v1")).view);

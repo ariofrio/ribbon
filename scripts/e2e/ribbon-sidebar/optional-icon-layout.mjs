@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
+import { FEATURED_THREAD } from "../../screenshots/fixture.mjs";
 
 const INDICATOR_THREAD = "Investigate webhook retries";
 const ICONS_PLUGIN_ID = "icons";
@@ -12,7 +13,7 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
     );
   if (iconsEnabled) fixture.run(["plugin", "disable", ICONS_PLUGIN_ID]);
 
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: ["--mute-audio"] });
   try {
     const context = await browser.newContext({
       viewport: { width: 1280, height: 800 },
@@ -99,6 +100,26 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
       assert.ok(
         Math.abs(gap - 8) < 0.5,
         `Without Icons, the title-to-indicator gap was ${gap}px instead of 8px (${JSON.stringify(geometry)})`,
+      );
+
+      const idleThread = fixture.threads.get(FEATURED_THREAD);
+      const idleRow = page.locator("[data-ribbon-sidebar-root] li").filter({
+        has: page.locator(`a[data-sidebar-thread-id="${idleThread.id}"]`),
+      });
+      assert.equal(await idleRow.locator("[data-sidebar-thread-trailing-indicator]").count(), 0);
+      await idleRow.hover();
+      const actions = idleRow.getByRole("button", { name: "Thread actions", exact: true });
+      await actions.click();
+      await page.getByRole("menu").waitFor();
+      await page.keyboard.press("Escape");
+      const actionGap = await idleRow.evaluate((node) => {
+        const title = node.querySelector("[title] > span").parentElement.parentElement;
+        const lane = node.querySelector('button[aria-label="Thread actions"]').parentElement;
+        return lane.getBoundingClientRect().left - title.getBoundingClientRect().right;
+      });
+      assert.ok(
+        Math.abs(actionGap - 8) < 0.5,
+        `Without an indicator, the title-to-actions gap was ${actionGap}px instead of 8px`,
       );
     } finally {
       await context.close();
