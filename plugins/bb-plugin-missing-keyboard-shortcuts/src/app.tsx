@@ -370,9 +370,9 @@ function focusSideChatComposer(
 
 function MissingKeyboardShortcuts() {
   const rpc = useRpc<typeof rpcContract>();
-  const context = useBbContext();
-  const contextRef = useRef(context);
-  contextRef.current = context;
+  const contextRef = useRef<
+    Pick<PluginCommandContext, "projectId" | "threadId">
+  >({ projectId: null, threadId: null });
   const sidebarActions = experimental_useSidebarThreadActions();
   const [ready, setReady] = useState(false);
   useEffect(() => {

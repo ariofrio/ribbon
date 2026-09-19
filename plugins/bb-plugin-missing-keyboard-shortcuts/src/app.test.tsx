@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import type { PluginCommandRegistration } from "@get-bb/plugin-sdk/app";
-import { cleanup } from "@testing-library/react";
+import { act, cleanup } from "@testing-library/react";
+import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readSideChatPanelSnapshot } from "./terminal-panel-state";
 
@@ -90,7 +91,13 @@ describe("missing keyboard shortcuts app registration", () => {
 
   it("uses the command context while the overlay route context catches up", async () => {
     const app = await loadPluginApp(() => import("./app"));
-    const createSideChat = vi.fn(() => ({ threadId: "side-chat-a" }));
+    let resolveSideChat!: (result: { threadId: string }) => void;
+    const createSideChat = vi.fn(
+      () =>
+        new Promise<{ threadId: string }>((resolve) => {
+          resolveSideChat = resolve;
+        }),
+    );
     const slot = renderSlot(
       app.appOverlays[0]!,
       {},
@@ -112,6 +119,10 @@ describe("missing keyboard shortcuts app registration", () => {
         sourceThreadId: "thread-a",
       }),
     );
+    slot.lifecycle.rerender(
+      createElement(app.appOverlays[0]!.component, {}),
+    );
+    await act(async () => resolveSideChat({ threadId: "side-chat-a" }));
     await vi.waitFor(() =>
       expect(readSideChatPanelSnapshot(window.localStorage, "thread-a")).toMatchObject(
         {
