@@ -49,10 +49,10 @@ interface SidebarDisplayOptionsMenuProps {
   onIconsGroupingChange(groupingKey: GroupingKey | null): void;
   onHeadingsGroupingChange(groupingKey: GroupingKey | null): void;
   onHideChange(kind: keyof HiddenThreadKinds, hidden: boolean): void;
-  onPagesGroupingChange(groupingKey: GroupingKey): void;
+  onPagesGroupingChange(groupingKey: GroupingKey | null): void;
   onPullRequestNumberPositionChange(position: PullRequestNumberPosition): void;
   onSortChange(sort: SidebarSort): void;
-  pagesGroupingKey: GroupingKey;
+  pagesGroupingKey: GroupingKey | null;
   pullRequestNumberPosition: PullRequestNumberPosition;
   sort: SidebarSort;
 }
@@ -153,6 +153,9 @@ export function SidebarDisplayOptionsMenu({
   const pagesGrouping = groupings.find(
     ({ groupingKey }) => groupingKey === pagesGroupingKey,
   );
+  const pagesLabel = pagesGroupingKey === null
+    ? "None"
+    : pagesGrouping?.pluralLabel ?? "Sections";
   const headingsGrouping = groupings.find(
     ({ groupingKey }) => groupingKey === headingsGroupingKey,
   );
@@ -200,10 +203,10 @@ export function SidebarDisplayOptionsMenu({
             Organize
           </DropdownMenuLabel>
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger aria-label={`Pages ${pagesGrouping?.pluralLabel ?? "Sections"}`}>
+            <DropdownMenuSubTrigger aria-label={`Pages ${pagesLabel}`}>
               <MenuValueRow
                 label="Pages"
-                value={pagesGrouping?.pluralLabel ?? "Sections"}
+                value={pagesLabel}
               />
             </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
@@ -211,9 +214,8 @@ export function SidebarDisplayOptionsMenu({
                 {groupingMenuItems(
                   groupings,
                   pagesGroupingKey,
-                  (groupingKey) => {
-                    if (groupingKey !== null) onPagesGroupingChange(groupingKey);
-                  },
+                  onPagesGroupingChange,
+                  "No paging",
                 )}
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
