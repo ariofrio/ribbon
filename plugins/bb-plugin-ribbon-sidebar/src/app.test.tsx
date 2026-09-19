@@ -61,6 +61,10 @@ async function beginThreadDrag(source: Element) {
       const targetBox = rectFor(target);
       fireEvent.mouseMove(document, { clientX: 60, clientY: targetBox.y + (target.matches("section") ? 390 : 5) });
     },
+    hoverBelow(target: Element) {
+      const targetBox = rectFor(target);
+      fireEvent.mouseMove(document, { clientX: 60, clientY: targetBox.bottom + 20 });
+    },
     drop() { fireEvent.mouseUp(document); },
     cancel() { fireEvent.keyDown(document, { key: "Escape", code: "Escape" }); },
   };
@@ -2856,6 +2860,42 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("shows a placeholder at the original position when picking up and returning a thread", async () => {
+    useManualSort();
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Ship UI");
+    const source = slot.getByText("Ship UI").closest("li")!;
+    const drag = await beginThreadDrag(source);
+    const activeGroup = slot.getByRole("region", { name: "Active group" });
+    expect(activeGroup.querySelector("[data-ribbon-thread-drop-preview]")).toBeTruthy();
+    drag.hover(slot.getByRole("region", { name: "Idle group" }));
+    drag.hover(source);
+    expect(activeGroup.querySelector("[data-ribbon-thread-drop-preview]")).toBeTruthy();
+    drag.drop();
+    expect(fixture.updatePlacementV1).not.toHaveBeenCalled();
+    expect(within(activeGroup).getByText("Ship UI")).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it("shows a placeholder and drops at the end of the group above a gap", async () => {
+    useManualSort();
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Ship UI");
+    const drag = await beginThreadDrag(slot.getByText("Ship UI").closest("li")!);
+    const idleGroup = slot.getByRole("region", { name: "Idle group" });
+    drag.hoverBelow(idleGroup);
+    expect(idleGroup.querySelector("[data-ribbon-thread-drop-preview]")).toBeTruthy();
+    drag.drop();
+    expect(fixture.updatePlacementV1).toHaveBeenCalledWith(expect.objectContaining({
+      threadId: "thread-b", groupId: "Idle", anchor: { kind: "end" },
+    }));
+    slot.lifecycle.unmount();
+  });
+
   it.each([false, true])("drops on group titles insert first (collapsed: %s)", async (collapsed) => {
     useManualSort();
     const app = await loadPluginApp(() => import("./app"));
@@ -3116,8 +3156,8 @@ describe("Ribbon sidebar app", () => {
     expect(fixture.updatePlacementV1).not.toHaveBeenCalled();
 
     const drag = await beginThreadDrag(row);
-    const activeGroup = slot.getByRole("region", { name: "Active group" });
-    drag.hover(activeGroup);
+    const idleGroup = slot.getByRole("region", { name: "Idle group" });
+    drag.hover(idleGroup);
     drag.drop();
     await waitFor(() => expect(fixture.updatePlacementV1).toHaveBeenCalledTimes(2));
     expect(fixture.updatePlacementV1.mock.calls[1]?.[0]).toMatchObject({

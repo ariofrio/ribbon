@@ -70,7 +70,31 @@ const collisionDetection: CollisionDetection = (args) => {
       candidates.find((candidate) => candidate.id === id)?.data.current?.target
         ?.threadId,
   );
-  return rows.length ? rows : hits;
+  if (rows.length) return rows;
+  if (hits.length) return hits;
+
+  const groups = candidates
+    .flatMap(({ id, data, node }) => {
+      const target = data.current?.target;
+      const rect = node.current?.getBoundingClientRect();
+      return target && !target.threadId && rect ? [{ id, rect }] : [];
+    })
+    .sort((a, b) => a.rect.top - b.rect.top);
+  const { x, y } = args.pointerCoordinates;
+  for (let index = 0; index < groups.length - 1; index++) {
+    const group = groups[index]!;
+    const rect = group.rect;
+    const nextRect = groups[index + 1]!.rect;
+    if (
+      x >= rect.left &&
+      x <= rect.right &&
+      y >= rect.bottom &&
+      y < nextRect.top
+    ) {
+      return [{ id: group.id }];
+    }
+  }
+  return [];
 };
 
 // Match bb's title chip: retain the original row rect when its preview changes layout.
@@ -205,7 +229,7 @@ export function ThreadDragProvider({
     const target = event.over?.data.current?.target as
       ThreadDragTarget | undefined;
     let next: ThreadDragDestination | null = null;
-    if (target && target.threadId !== sourceId && canDrop(sourceId, target)) {
+    if (target && canDrop(sourceId, target)) {
       const roots = target.roots.filter(({ id }) => id !== sourceId);
       const index = roots.findIndex(({ id }) => id === target.threadId);
       const coordinates = getEventCoordinates(event.activatorEvent);
@@ -217,21 +241,27 @@ export function ThreadDragProvider({
           event.over &&
           y > event.over.rect.top + event.over.rect.height / 2
         : event.delta.y > 0;
-      const beforeThreadId = target.atStart
-        ? (roots[0]?.id ?? null)
-        : index < 0
-          ? null
-          : after
-            ? (roots[index + 1]?.id ?? null)
-            : target.threadId!;
+      const atSource = target.threadId === sourceId;
+      const beforeThreadId = atSource
+        ? (target.roots[target.roots.findIndex(({ id }) => id === sourceId) + 1]
+            ?.id ?? null)
+        : target.atStart
+          ? (roots[0]?.id ?? null)
+          : index < 0
+            ? null
+            : after
+              ? (roots[index + 1]?.id ?? null)
+              : target.threadId!;
       next = {
         ...(target.kind === "pinned"
           ? { kind: "pinned" as const }
           : { kind: "placement" as const, groupId: target.groupId }),
         beforeThreadId,
         ...(target.atStart ? { atStart: true } : {}),
-        indicatorBefore: index >= 0 && !after ? target.threadId! : null,
-        indicatorAfter: index >= 0 && after ? target.threadId! : null,
+        indicatorBefore:
+          atSource || (index >= 0 && !after) ? target.threadId! : null,
+        indicatorAfter:
+          !atSource && index >= 0 && after ? target.threadId! : null,
       };
     }
     destination.current = next;
@@ -260,6 +290,24 @@ export function ThreadDragProvider({
         finish();
         const target = destination.current;
         destination.current = null;
+        const source = active.data.current?.target as
+          ThreadDragTarget | undefined;
+        const nextThreadId =
+          source?.roots[
+            source.roots.findIndex(({ id }) => id === active.id) + 1
+          ]?.id ?? null;
+        if (
+          source &&
+          target &&
+          source.kind === target.kind &&
+          (source.kind === "pinned" ||
+            (target.kind === "placement" &&
+              source.groupId === target.groupId)) &&
+          target.beforeThreadId === nextThreadId
+        ) {
+          onCancel();
+          return;
+        }
         if (target && canDrop(String(active.id), target))
           onDrop(String(active.id), target);
         else onCancel();

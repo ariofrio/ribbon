@@ -78,6 +78,16 @@ export async function verifyThreadReordering({ stack, fixture }) {
     );
     const chip = page.locator("[data-ribbon-thread-drag-overlay]");
     await chip.waitFor({ timeout: 5000 });
+    const preview = sidebar.locator("[data-ribbon-thread-drop-preview]");
+    const expectOriginalPreview = async () => {
+      await preview.waitFor();
+      const box = await preview.boundingBox();
+      assert.ok(
+        box.height >= 24 && Math.abs(box.y - sourceBox.y) <= 1,
+        "the placeholder occupies the source row's original position",
+      );
+    };
+    await expectOriginalPreview();
     assert.ok(
       await chip.evaluate((node) => {
         const style = getComputedStyle(node);
@@ -93,13 +103,20 @@ export async function verifyThreadReordering({ stack, fixture }) {
       targetBox.y + targetBox.height - 3,
       { steps: 10 },
     );
-    const preview = sidebar.locator("[data-ribbon-thread-drop-preview]");
     await preview.waitFor();
     assert.ok(
       await preview.evaluate(
         (node) => node.getBoundingClientRect().height >= 24,
       ),
     );
+    await page.mouse.move(sourceBox.x + 60, sourceBox.y + sourceBox.height / 2);
+    await expectOriginalPreview();
+    const movedTargetBox = await target.boundingBox();
+    await page.mouse.move(
+      movedTargetBox.x + 60,
+      movedTargetBox.y + movedTargetBox.height - 3,
+    );
+    await preview.waitFor();
     await page.mouse.up();
     await page.waitForFunction(
       ({ first, second }) => {
@@ -274,6 +291,81 @@ export async function verifyThreadReordering({ stack, fixture }) {
       await rows.first().getAttribute("data-thread-id"),
       original[0],
       "dropping on the group title persists the first position",
+    );
+
+    // The margin between groups belongs to the end of the preceding group.
+    const gapGroup = sidebar.locator("section");
+    const gapSection = await gapGroup.evaluateAll((sections) => {
+      const section = sections.find(
+        (node) =>
+          node.getAttribute("aria-label") !== "Pinned threads" &&
+          node.nextElementSibling?.matches("section") &&
+          node.querySelectorAll("li[data-thread-id]").length >= 2,
+      );
+      return section?.getAttribute("aria-label");
+    });
+    assert.ok(
+      gapSection,
+      "fixture contains adjacent groups with reorderable threads",
+    );
+    const preceding = sidebar.getByRole("region", {
+      name: gapSection,
+      exact: true,
+    });
+    const gapSource = preceding.locator("a[data-sidebar-thread-id]").first();
+    await gapSource.scrollIntoViewIfNeeded();
+    const gapSourceId = await gapSource.getAttribute("data-sidebar-thread-id");
+    const gapSourceBox = await gapSource.boundingBox();
+    await page.mouse.move(
+      gapSourceBox.x + 60,
+      gapSourceBox.y + gapSourceBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      gapSourceBox.x + 70,
+      gapSourceBox.y + gapSourceBox.height / 2,
+    );
+    await chip.waitFor();
+    const gap = await preceding.evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      const next = node.nextElementSibling.getBoundingClientRect();
+      return {
+        x: box.x + 60,
+        y: (box.bottom + next.top) / 2,
+        size: next.top - box.bottom,
+      };
+    });
+    assert.ok(gap.size > 0);
+    await page.mouse.move(gap.x, gap.y);
+    await preview.waitFor();
+    assert.ok(
+      await preceding
+        .locator("[data-ribbon-thread-drop-preview]")
+        .evaluate((node) => {
+          const box = node.getBoundingClientRect();
+          const rows = [
+            ...node.closest("section").querySelectorAll("li[data-thread-id]"),
+          ].filter((row) => getComputedStyle(row).opacity !== "0");
+          return (
+            box.height >= 24 &&
+            box.top >= rows.at(-1).getBoundingClientRect().bottom
+          );
+        }),
+      "gap drop preview follows the last thread",
+    );
+    const gapSaved = page.waitForResponse((response) =>
+      response.url().endsWith("/rpc/updatePlacementV1"),
+    );
+    await page.mouse.up();
+    assert.ok((await gapSaved).ok());
+    await page.reload();
+    await sidebar.waitFor({ timeout: 120_000 });
+    assert.equal(
+      await preceding
+        .locator("li[data-thread-id]")
+        .last()
+        .getAttribute("data-thread-id"),
+      gapSourceId,
     );
   } finally {
     releaseSave();
