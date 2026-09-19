@@ -37,6 +37,7 @@ const sidebarGroupSchema = z
     visibleWhenEmpty: z.boolean(),
     acceptsAssignments: z.boolean(),
     defaultCollapsed: z.boolean(),
+    defaultPlacement: z.enum(["start", "end"]).optional(),
   })
   .strict();
 const sidebarGroupingSchema = z
@@ -314,6 +315,9 @@ function fullGroup(group: GroupingDescriptor["groups"][number]) {
     visibleWhenEmpty: group.visibleWhenEmpty ?? true,
     acceptsAssignments: group.acceptsAssignments,
     defaultCollapsed: group.defaultCollapsed ?? false,
+    ...(group.defaultPlacement === undefined
+      ? {}
+      : { defaultPlacement: group.defaultPlacement }),
   };
 }
 
@@ -837,7 +841,6 @@ export default async function plugin(bb: BbPluginApi) {
         groupingKey,
         groupId,
         threadId,
-        anchor: { kind: "end" },
         origin: "ui",
       });
     },

@@ -94,9 +94,19 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
       response.url().endsWith("/plugins/missing-keyboard-shortcuts/rpc/createSideChat"),
     );
     await page.keyboard.press(`Shift+${MODIFIER}+KeyL`);
-    assert.equal((await (await sideChatResponse).json()).ok, true);
+    const sideChatResult = await (await sideChatResponse).json();
+    assert.equal(sideChatResult.ok, true);
     const reply = page.getByRole("textbox", { name: "Reply…" });
-    await reply.waitFor({ timeout: 120_000 });
+    try {
+      await reply.waitFor({ timeout: 120_000 });
+    } catch (error) {
+      console.error("Side-chat composer failure", {
+        pageErrors: errors,
+        thread: fixture.run(["thread", "show", sideChatResult.result.threadId]),
+        page: await page.locator("body").innerText(),
+      });
+      throw error;
+    }
     await page.waitForFunction(
       (composer) => document.activeElement === composer,
       await reply.elementHandle(),
