@@ -115,6 +115,7 @@ export const groupSchema = z
     visibleWhenEmpty: z.boolean(),
     acceptsAssignments: z.boolean(),
     defaultCollapsed: z.boolean(),
+    defaultPlacement: z.enum(["start", "end"]).optional(),
   })
   .strict();
 

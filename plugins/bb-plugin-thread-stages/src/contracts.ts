@@ -189,6 +189,7 @@ const groupSchema = z
     visibleWhenEmpty: z.boolean(),
     acceptsAssignments: z.boolean(),
     defaultCollapsed: z.boolean(),
+    defaultPlacement: z.enum(["start", "end"]).optional(),
   })
   .strict();
 
@@ -352,6 +353,7 @@ export function createGroupingCatalog(settings: {
           visibleWhenEmpty: optionalStageEnabled(stage),
           acceptsAssignments: optionalStageEnabled(stage),
           defaultCollapsed: stage === "Deferred" || stage === "Completed",
+          ...(stage === "Completed" ? { defaultPlacement: "start" } : {}),
         })),
       },
     ],

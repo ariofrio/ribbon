@@ -23,6 +23,7 @@ import { verifyPrNumber } from "./ribbon-sidebar/pr-number.mjs";
 import { verifySelectedTitleColor } from "./ribbon-sidebar/selected-title-color.mjs";
 import { verifyNoPaging } from "./ribbon-sidebar/no-paging.mjs";
 import { verifyThreadTitleClicks } from "./ribbon-sidebar/thread-title-clicks.mjs";
+import { verifyCompletedPlacement } from "./ribbon-sidebar/completed-placement.mjs";
 import { seed, writeFixtureProvider } from "../screenshots/fixture.mjs";
 import { BB_CLI_PATH, startStack } from "../screenshots/stack.mjs";
 
@@ -38,6 +39,15 @@ const suites = [
     cases: ["delayed-visibility"],
     plugins: ["bb-plugin-missing-keyboard-shortcuts"],
     run: verifyComposerReadiness,
+  },
+  {
+    id: "completed-placement",
+    cases: ["default-order"],
+    plugins: ["bb-plugin-ribbon-sidebar", "bb-plugin-thread-stages"],
+    async prepare({ cliEnv }) {
+      await waitForStageCatalog({ bb, cliEnv });
+    },
+    run: verifyCompletedPlacement,
   },
   {
     id: "thread-reordering",

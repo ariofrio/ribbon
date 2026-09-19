@@ -267,6 +267,67 @@ function setup({
 }
 
 describe("Ribbon sidebar server", () => {
+  it("applies and exposes a provider's default placement", async () => {
+    const { bb, harness, setThreadStagesCatalog } = setup({
+      threads: ["thread-a", "thread-b"].map((id) => makeThreadResponse({ id })),
+    });
+    const catalog = structuredClone(threadStagesCatalog);
+    const completed = {
+      id: "Completed",
+      label: "Completed",
+      visibleWhenEmpty: true,
+      acceptsAssignments: true,
+      defaultCollapsed: true,
+      defaultPlacement: "start" as const,
+    };
+    catalog.groupings[0]!.groups.push(completed);
+    setThreadStagesCatalog(catalog);
+    await plugin(bb);
+    const snapshot = await harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: false });
+    expect(snapshot).toMatchObject({
+      groupings: expect.arrayContaining([
+        expect.objectContaining({
+          groupingKey: "plugin:thread-stages:stages",
+          groups: expect.arrayContaining([completed]),
+        }),
+      ]),
+    });
+    for (const threadId of ["thread-a", "thread-b"]) {
+      expect(await harness.behavior.callRpc("updatePlacementV1", {
+        groupingKey: "plugin:thread-stages:stages",
+        groupId: "Completed",
+        threadId,
+        origin: "cli",
+      })).toMatchObject({ ok: true });
+    }
+    expect(await harness.behavior.callRpc("listPlacementsV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      groupIds: ["Completed"],
+    })).toMatchObject({
+      ok: true,
+      value: { items: [{ threadId: "thread-b" }, { threadId: "thread-a" }] },
+    });
+    await harness.behavior.callRpc("updatePlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Idle",
+      threadId: "thread-a",
+      origin: "cli",
+    });
+    expect(await harness.behavior.callRpc("placeNewThreadV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Completed",
+      threadId: "thread-a",
+    })).toMatchObject({ ok: true });
+    expect(await harness.behavior.callRpc("listPlacementsV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      groupIds: ["Completed"],
+    })).toMatchObject({
+      ok: true,
+      value: { items: [{ threadId: "thread-a" }, { threadId: "thread-b" }] },
+    });
+    await harness.lifecycle.dispose();
+  });
+
   it("retains Ribbon's opt-in for non-stage collapsed activity", async () => {
     const { bb, harness } = setup();
     await plugin(bb);

@@ -65,6 +65,11 @@ active while Ribbon sidebar is selected and while another sidebar is visible:
 The filing commands walk through Idle threads, preserve root hierarchies, and
 reject child thread IDs. Commands for disabled stages are unavailable.
 
+Completed receives threads at the top of its manual order by default, including
+filing shortcuts, CLI moves, menu moves, and drops onto its heading. Explicit
+positions and undo still take precedence. Other sort modes determine the
+displayed order independently.
+
 ## Development
 
 ```sh
