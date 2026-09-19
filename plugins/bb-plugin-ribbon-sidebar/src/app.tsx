@@ -446,7 +446,11 @@ function ThreadRow({
                 aria-label={childrenCollapsed ? `Expand ${rowTitle} threads` : `Collapse ${rowTitle} threads`}
                 variant="ghost"
                 size="icon"
-                className="bb-sidebar-hover-actions relative z-20 size-5 w-0 shrink-0 overflow-hidden p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 group-hover/thread-row:ml-2 group-hover/thread-row:w-5 group-has-[:focus-visible]/thread-row:ml-2 group-has-[:focus-visible]/thread-row:w-5 max-md:pointer-coarse:group-[:not(:has(:focus-visible))]/thread-row:ml-0! max-md:pointer-coarse:group-[:not(:has(:focus-visible))]/thread-row:w-0! [&_[data-icon-root]]:size-3"
+                className={`bb-sidebar-hover-actions relative z-20 size-5 w-0 shrink-0 overflow-hidden p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 group-hover/thread-row:ml-2 group-hover/thread-row:w-5 group-has-[:focus-visible]/thread-row:ml-2 group-has-[:focus-visible]/thread-row:w-5 max-md:pointer-coarse:group-[:not(:has(:focus-visible))]/thread-row:ml-0! max-md:pointer-coarse:group-[:not(:has(:focus-visible))]/thread-row:w-0! [&_[data-icon-root]]:size-3 ${
+                  !thread.isArchived
+                    ? "group-hover/thread-row:-mr-2 group-has-[:focus-visible]/thread-row:-mr-2 max-md:pointer-coarse:mr-0!"
+                    : ""
+                }`}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
