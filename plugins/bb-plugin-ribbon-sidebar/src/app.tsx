@@ -51,6 +51,7 @@ import {
 } from "./vendor/components/ui/dialog";
 import { Input } from "./vendor/components/ui/input";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
+import { ThreadTitle } from "./thread-title";
 import {
   ICON_INDICATOR_SPACE_ATTRIBUTE,
   ICON_LAYOUT_ATTRIBUTE,
@@ -364,7 +365,7 @@ function ThreadRow({
             ? "grid-cols-[minmax(0,1fr)_auto] gap-x-2"
             : "grid-cols-1"
         } ${
-          active ? "bg-state-active" : "cursor-pointer hover:bg-sidebar-accent"
+          active ? "bg-sidebar-accent" : "cursor-pointer hover:bg-sidebar-accent"
         } ${
           muted
             ? "text-subtle-foreground/75"
@@ -398,7 +399,7 @@ function ThreadRow({
           onClick={openThread}
         />
         <span
-          className={`grid min-w-0 py-[calc((var(--bb-sidebar-row-height)-1lh)/2)] max-md:pointer-coarse:py-[calc((var(--bb-sidebar-row-height-coarse)-1lh)/2)] ${hasIcon ? "gap-x-2" : ""}`}
+          className="grid min-w-0 gap-x-2 py-[calc((var(--bb-sidebar-row-height)-1lh)/2)] max-md:pointer-coarse:py-[calc((var(--bb-sidebar-row-height-coarse)-1lh)/2)]"
           style={{
             gridTemplateColumns: [
               ...(hasIcon ? ["auto"] : []),
@@ -421,10 +422,14 @@ function ThreadRow({
             </span>
           ) : null}
           <span
-            className="row-start-1 flex min-w-0 items-center gap-1.5"
+            className={`row-start-1 flex min-w-0 items-center gap-1.5 ${
+              !hasTrailingIndicator && !thread.isArchived
+                ? "pr-2 group-hover/thread-row:pr-9 group-has-[:focus-visible]/thread-row:pr-9 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-9 max-md:pointer-coarse:pr-2!"
+                : ""
+            }`}
             style={{
               gridColumnStart: hasIcon ? 2 : 1,
-              paddingRight: hasTrailingIndicator ? undefined : 8,
+              paddingRight: !hasTrailingIndicator && thread.isArchived ? 8 : undefined,
             }}
           >
             <span
@@ -432,7 +437,7 @@ function ThreadRow({
               title={accessibleTitle}
             >
               {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
-              <span className="min-w-0 truncate">{rowTitle}</span>
+              <ThreadTitle title={rowTitle} />
               {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
             </span>
             {hasChildren ? (
@@ -1822,102 +1827,108 @@ function RibbonSidebarList({
     >
       {settings.values?.showProjectsAndSections !== false ? (
         <SidebarTopControls>
-          <ScopeFilter
-            filterGroupingKey={preferences.view.filterGroupingKey}
-            groupings={orderedGroupings(
-              snapshot.groupings.filter(({ available }) => available),
-            )}
-            onAddProjectLocalPath={(project) => {
-              void rpc
-                .call("addProjectLocalPathV1", { projectId: project.id })
-                .then(() => synchronize())
-                .catch((error: unknown) =>
-                  setMutationError(
-                    error instanceof Error
-                      ? error.message
-                      : "Could not add local path",
+          {preferences.view.filterGroupingKey === null ? (
+            <span className="flex h-11 min-w-0 flex-1 items-center px-2 text-sm font-medium text-sidebar-foreground">
+              All groups
+            </span>
+          ) : (
+            <ScopeFilter
+              filterGroupingKey={preferences.view.filterGroupingKey}
+              groupings={orderedGroupings(
+                snapshot.groupings.filter(({ available }) => available),
+              )}
+              onAddProjectLocalPath={(project) => {
+                void rpc
+                  .call("addProjectLocalPathV1", { projectId: project.id })
+                  .then(() => synchronize())
+                  .catch((error: unknown) =>
+                    setMutationError(
+                      error instanceof Error
+                        ? error.message
+                        : "Could not add local path",
+                    ),
+                  );
+              }}
+              onChange={(next) =>
+                changePreferences((current) => ({
+                  ...current,
+                  view: changeSidebarScope(
+                    current.view,
+                    next === null
+                      ? { kind: "all" }
+                      : { kind: "group", group: next },
                   ),
+                }))
+              }
+              onNewProject={() => {
+                void rpc
+                  .call("createProjectV1", null)
+                  .then(() => synchronize())
+                  .catch((error: unknown) =>
+                    setMutationError(
+                      error instanceof Error
+                        ? error.message
+                        : "Could not create project",
+                    ),
+                  );
+              }}
+              onNewSection={() =>
+                setEntityDialog({ kind: "create-section", name: "" })
+              }
+              onOpenProjectSettings={(project) => {
+                window.location.assign(
+                  `/projects/${encodeURIComponent(project.id)}/settings`,
                 );
-            }}
-            onChange={(next) =>
-              changePreferences((current) => ({
-                ...current,
-                view: changeSidebarScope(
-                  current.view,
-                  next === null
-                    ? { kind: "all" }
-                    : { kind: "group", group: next },
-                ),
-              }))
-            }
-            onNewProject={() => {
-              void rpc
-                .call("createProjectV1", null)
-                .then(() => synchronize())
-                .catch((error: unknown) =>
-                  setMutationError(
-                    error instanceof Error
-                      ? error.message
-                      : "Could not create project",
-                  ),
-                );
-            }}
-            onNewSection={() =>
-              setEntityDialog({ kind: "create-section", name: "" })
-            }
-            onOpenProjectSettings={(project) => {
-              window.location.assign(
-                `/projects/${encodeURIComponent(project.id)}/settings`,
-              );
-              onNavigate();
-            }}
-            onRemoveProject={(project) =>
-              setEntityDialog({
-                kind: "delete",
-                scope: {
-                  groupingKey: "builtin:projects",
-                  groupId: project.id,
-                },
-                label: project.name,
-              })
-            }
-            onRemoveSection={(section) =>
-              setEntityDialog({
-                kind: "delete",
-                scope: {
-                  groupingKey: "builtin:sections",
-                  groupId: section.id,
-                },
-                label: section.name,
-              })
-            }
-            onRenameProject={(project) =>
-              setEntityDialog({
-                kind: "rename",
-                scope: {
-                  groupingKey: "builtin:projects",
-                  groupId: project.id,
-                },
-                label: project.name,
-                name: project.name,
-              })
-            }
-            onRenameSection={(section) =>
-              setEntityDialog({
-                kind: "rename",
-                scope: {
-                  groupingKey: "builtin:sections",
-                  groupId: section.id,
-                },
-                label: section.name,
-                name: section.name,
-              })
-            }
-            projectActionStates={projectActionStates}
-            projects={sidebar.projects}
-            sections={sections.map(({ id, label }) => ({ id, name: label }))}
-            value={scopeFilterValue}
-          />
+                onNavigate();
+              }}
+              onRemoveProject={(project) =>
+                setEntityDialog({
+                  kind: "delete",
+                  scope: {
+                    groupingKey: "builtin:projects",
+                    groupId: project.id,
+                  },
+                  label: project.name,
+                })
+              }
+              onRemoveSection={(section) =>
+                setEntityDialog({
+                  kind: "delete",
+                  scope: {
+                    groupingKey: "builtin:sections",
+                    groupId: section.id,
+                  },
+                  label: section.name,
+                })
+              }
+              onRenameProject={(project) =>
+                setEntityDialog({
+                  kind: "rename",
+                  scope: {
+                    groupingKey: "builtin:projects",
+                    groupId: project.id,
+                  },
+                  label: project.name,
+                  name: project.name,
+                })
+              }
+              onRenameSection={(section) =>
+                setEntityDialog({
+                  kind: "rename",
+                  scope: {
+                    groupingKey: "builtin:sections",
+                    groupId: section.id,
+                  },
+                  label: section.name,
+                  name: section.name,
+                })
+              }
+              projectActionStates={projectActionStates}
+              projects={sidebar.projects}
+              sections={sections.map(({ id, label }) => ({ id, name: label }))}
+              value={scopeFilterValue}
+            />
+          )}
           <SidebarDisplayOptionsMenu
             groupings={orderedGroupings(
               snapshot.groupings.filter(({ available }) => available),

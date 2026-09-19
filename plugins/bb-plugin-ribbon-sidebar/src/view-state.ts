@@ -13,7 +13,7 @@ export interface HiddenThreadKinds {
 export type SidebarView = {
   scope: Scope;
   groupingKey: GroupingKey | null;
-  filterGroupingKey: GroupingKey;
+  filterGroupingKey: GroupingKey | null;
   iconGroupingKey: GroupingKey | null;
   pullRequestNumberPosition: PullRequestNumberPosition;
   hide: HiddenThreadKinds;
@@ -25,7 +25,7 @@ export interface SidebarPreferences {
 }
 interface StoredSidebarPreferences {
   view: Omit<SidebarView, "filterGroupingKey"> & {
-    filterGroupingKey: GroupingKey | null;
+    filterGroupingKey: GroupingKey | null | undefined;
   };
   collapsed: Set<string>;
 }
@@ -128,9 +128,10 @@ function storedPreferences(raw: string | null): StoredSidebarPreferences | null 
       view: {
         scope,
         groupingKey: view.groupingKey,
-        filterGroupingKey: isGroupingKey(view.filterGroupingKey)
-          ? view.filterGroupingKey
-          : null,
+        filterGroupingKey:
+          view.filterGroupingKey === null || isGroupingKey(view.filterGroupingKey)
+            ? view.filterGroupingKey
+            : undefined,
         iconGroupingKey:
           view.iconGroupingKey === null || isGroupingKey(view.iconGroupingKey)
             ? view.iconGroupingKey
@@ -195,7 +196,7 @@ export function changeSidebarGrouping(
 
 export function changeSidebarPagesGrouping(
   view: SidebarView,
-  filterGroupingKey: GroupingKey,
+  filterGroupingKey: GroupingKey | null,
 ): SidebarView {
   if (view.filterGroupingKey === filterGroupingKey) return view;
   return {
@@ -315,7 +316,10 @@ export function loadSidebarPreferences(
       view: normalizeSidebarView({
         ...stored.view,
         groupingKey,
-        filterGroupingKey: stored.view.filterGroupingKey ?? filterFallback,
+        filterGroupingKey:
+          stored.view.filterGroupingKey === undefined
+            ? filterFallback
+            : stored.view.filterGroupingKey,
       }),
     };
   }
