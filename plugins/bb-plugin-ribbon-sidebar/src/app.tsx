@@ -51,6 +51,7 @@ import {
 } from "./vendor/components/ui/dialog";
 import { Input } from "./vendor/components/ui/input";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
+import { ThreadTitle } from "./thread-title";
 import {
   ICON_INDICATOR_SPACE_ATTRIBUTE,
   ICON_LAYOUT_ATTRIBUTE,
@@ -436,7 +437,7 @@ function ThreadRow({
               title={accessibleTitle}
             >
               {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
-              <span className="min-w-0 truncate">{rowTitle}</span>
+              <ThreadTitle title={rowTitle} />
               {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
             </span>
             {hasChildren ? (
