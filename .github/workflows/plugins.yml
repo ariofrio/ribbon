@@ -104,6 +104,7 @@ jobs:
             .scratch/e2e/bb.log
             .scratch/e2e/*.trace.zip
           if-no-files-found: ignore
+          include-hidden-files: true
           retention-days: 7
 
   # The one name this workflow is required by. release-check names its jobs
