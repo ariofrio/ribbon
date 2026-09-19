@@ -6,6 +6,7 @@ import type {
 import type { IconDataV1 } from "./contracts";
 import { ProviderIcon } from "./provider-icon";
 import { UnorganizedIcon } from "./unorganized-icon";
+import { Button } from "@/vendor/components/ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -98,15 +99,17 @@ export function ThreadActionsDropdown({
     <CompactViewportOverrideProvider isCompactViewport={false}>
       <DropdownMenu onOpenChange={onOpenChange}>
         <DropdownMenuTrigger asChild>
-          <button
+          <Button
             aria-label="Thread actions"
-            className="relative m-1 flex size-5 cursor-pointer items-center justify-center rounded-md p-0 text-subtle-foreground outline-none ring-sidebar-ring after:absolute after:left-1/2 after:top-1/2 after:size-7 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] hover:text-foreground focus-visible:ring-2 data-[state=open]:bg-state-active data-[state=open]:text-foreground"
+            className="relative m-0 h-7 w-7 shrink-0 cursor-pointer rounded-md p-0 text-subtle-foreground outline-none ring-sidebar-ring hover:bg-state-hover hover:text-muted-foreground focus-visible:bg-state-hover focus-visible:text-muted-foreground focus-visible:ring-2 active:bg-state-active data-[state=open]:bg-state-active data-[state=open]:text-muted-foreground data-[state=open]:hover:bg-state-active data-[state=open]:focus-visible:bg-state-active max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-9"
             onClick={(event) => event.stopPropagation()}
             onDragStart={(event) => event.preventDefault()}
+            size="icon"
             type="button"
+            variant="ghost"
           >
-            <Icon name="MoreHorizontal" className="size-4" aria-hidden />
-          </button>
+            <Icon name="MoreHorizontal" className="size-4 max-md:pointer-coarse:size-5" aria-hidden />
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className={MENU_LAYER_CLASS}>
           <DropdownItems {...props} />
