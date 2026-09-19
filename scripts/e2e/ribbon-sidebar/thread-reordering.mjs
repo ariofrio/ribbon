@@ -16,32 +16,25 @@ export async function verifyThreadReordering({ stack, fixture }) {
       viewport: { width: 1280, height: 900 },
     });
     await context.tracing.start({ snapshots: true, sources: true });
-    if (process.env.RIBBON_E2E_DRAG_REPETITIONS) {
-      await context.addInitScript(() => {
-        const add = EventTarget.prototype.addEventListener;
-        const remove = EventTarget.prototype.removeEventListener;
-        const wrapped = new WeakMap();
-        EventTarget.prototype.addEventListener = function(type, listener, options) {
-          if (type === "keydown" && listener?.name === "bound handleKeyDown") {
-            console.info("Drag listener attached", performance.now());
-            const wrapper = function(event) {
-              console.info("Drag listener received", event.code, performance.now());
-              return listener.call(this, event);
-            };
-            wrapped.set(listener, wrapper);
-            return add.call(this, type, wrapper, options);
-          }
-          return add.call(this, type, listener, options);
-        };
-        EventTarget.prototype.removeEventListener = function(type, listener, options) {
-          return remove.call(this, type, wrapped.get(listener) ?? listener, options);
-        };
-        document.addEventListener("keydown", (event) => {
-          if (!["Space", "ArrowDown"].includes(event.code)) return;
-          console.info("Drag key dispatched", event.code, performance.now());
-        }, true);
-      });
-    }
+    await context.addInitScript(() => {
+      // dnd-kit renders the overlay before its deferred keyboard listener exists.
+      // Observe that listener itself; a visible preview cannot establish readiness.
+      const add = EventTarget.prototype.addEventListener;
+      const remove = EventTarget.prototype.removeEventListener;
+      const listeners = new Set();
+      EventTarget.prototype.addEventListener = function(type, listener, options) {
+        const result = add.call(this, type, listener, options);
+        if (this === document && type === "keydown" &&
+            listener?.name === "bound handleKeyDown") listeners.add(listener);
+        return result;
+      };
+      EventTarget.prototype.removeEventListener = function(type, listener, options) {
+        const result = remove.call(this, type, listener, options);
+        if (this === document && type === "keydown") listeners.delete(listener);
+        return result;
+      };
+      window.ribbonDragKeyboardReady = () => listeners.size > 0;
+    });
     await context.addInitScript(() => {
       localStorage.setItem(
         "bb.sidebar.threadListProvider",
@@ -60,8 +53,6 @@ export async function verifyThreadReordering({ stack, fixture }) {
       );
     });
     const page = await context.newPage();
-    if (process.env.RIBBON_E2E_DRAG_REPETITIONS)
-      page.on("console", (message) => console.log(message.text()));
     page.on("pageerror", (error) => console.error("Browser error:", error));
     const thread = fixture.threads.get(FEATURED_THREAD);
     const project = fixture.projects.get(FEATURED_PROJECT);
@@ -211,6 +202,7 @@ export async function verifyThreadReordering({ stack, fixture }) {
     await page.keyboard.press("Space");
     await chip.waitFor();
     assert.equal(page.url(), url, "keyboard start must not navigate");
+    await page.waitForFunction(() => window.ribbonDragKeyboardReady());
     await page.keyboard.press("ArrowDown");
     await page.waitForFunction((threadId) => {
       const row = document.querySelector(
