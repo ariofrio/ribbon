@@ -398,7 +398,7 @@ function ThreadRow({
           onClick={openThread}
         />
         <span
-          className={`grid min-w-0 py-[calc((var(--bb-sidebar-row-height)-1lh)/2)] max-md:pointer-coarse:py-[calc((var(--bb-sidebar-row-height-coarse)-1lh)/2)] ${hasIcon ? "gap-x-2" : ""}`}
+          className="grid min-w-0 gap-x-2 py-[calc((var(--bb-sidebar-row-height)-1lh)/2)] max-md:pointer-coarse:py-[calc((var(--bb-sidebar-row-height-coarse)-1lh)/2)]"
           style={{
             gridTemplateColumns: [
               ...(hasIcon ? ["auto"] : []),
@@ -421,10 +421,14 @@ function ThreadRow({
             </span>
           ) : null}
           <span
-            className="row-start-1 flex min-w-0 items-center gap-1.5"
+            className={`row-start-1 flex min-w-0 items-center gap-1.5 ${
+              !hasTrailingIndicator && !thread.isArchived
+                ? "pr-2 group-hover/thread-row:pr-9 group-has-[:focus-visible]/thread-row:pr-9 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-9 max-md:pointer-coarse:pr-2!"
+                : ""
+            }`}
             style={{
               gridColumnStart: hasIcon ? 2 : 1,
-              paddingRight: hasTrailingIndicator ? undefined : 8,
+              paddingRight: !hasTrailingIndicator && thread.isArchived ? 8 : undefined,
             }}
           >
             <span
