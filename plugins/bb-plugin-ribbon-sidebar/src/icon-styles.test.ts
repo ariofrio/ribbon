@@ -97,7 +97,7 @@ describe("iconStyles", () => {
       `:root:not([data-ribbon-icons-ready]) [${ICON_LAYOUT_ATTRIBUTE}]{column-gap:0}`,
     );
     expect(iconStyles()).toContain(
-      `:root:not([data-ribbon-icons-ready]) [${ICON_LAYOUT_ATTRIBUTE}]>[${ICON_INDICATOR_SPACE_ATTRIBUTE}]{margin-left:8px}`,
+      `:root:not([data-ribbon-icons-ready]) [${ICON_LAYOUT_ATTRIBUTE}]>[${ICON_INDICATOR_SPACE_ATTRIBUTE}]{margin-left:4px}`,
     );
   });
 });
