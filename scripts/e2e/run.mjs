@@ -210,14 +210,6 @@ try {
   });
 
   for (const suite of selectedSuites) {
-    if (process.env.RIBBON_E2E_DRAG_REPETITIONS) {
-      if (suite.id !== "thread-reordering") continue;
-      for (let attempt = 1; attempt <= Number(process.env.RIBBON_E2E_DRAG_REPETITIONS); attempt++) {
-        console.log(`Drag stress attempt ${attempt}/${process.env.RIBBON_E2E_DRAG_REPETITIONS}`);
-        await suite.run({ stack, fixture, cases: ["interaction"] });
-      }
-      continue;
-    }
     console.log(
       `Running ${suite.id} E2E cases: ${suite.selectedCases.join(", ")}`,
     );
