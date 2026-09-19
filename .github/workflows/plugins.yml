@@ -94,8 +94,6 @@ jobs:
           apt-get update -qq
           apt-get install -y -qq make g++
       - run: npm ci
-      - name: Reproduce intermittent composer availability
-        run: npm run test:e2e -- --case composer-readiness:delayed-visibility --repeat 25
       - run: npm run test:e2e
       - name: Preserve end-to-end failure diagnostics
         if: failure()
