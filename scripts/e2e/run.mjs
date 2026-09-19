@@ -16,6 +16,7 @@ import {
 import { verifyThreadIcons } from "./ribbon-sidebar/thread-icons.mjs";
 import { verifyPrNumber } from "./ribbon-sidebar/pr-number.mjs";
 import { verifyNoPaging } from "./ribbon-sidebar/no-paging.mjs";
+import { verifyThreadTitleClicks } from "./ribbon-sidebar/thread-title-clicks.mjs";
 import { seed, writeFixtureProvider } from "../screenshots/fixture.mjs";
 import { BB_CLI_PATH, startStack } from "../screenshots/stack.mjs";
 
@@ -31,6 +32,12 @@ const suites = [
     cases: ["interaction"],
     plugins: ["bb-plugin-ribbon-sidebar"],
     run: verifyThreadReordering,
+  },
+  {
+    id: "thread-title-clicks",
+    cases: ["navigation"],
+    plugins: ["bb-plugin-ribbon-sidebar"],
+    run: verifyThreadTitleClicks,
   },
   {
     id: "no-paging",
