@@ -21,6 +21,44 @@ function storage(entries: Record<string, string> = {}): Storage {
 }
 
 describe("client-local sidebar preferences", () => {
+  it("defaults PR numbers to the right and persists each placement", () => {
+    const local = storage();
+    const keys = ["builtin:projects", "builtin:sections"] as const;
+    const preferences = loadSidebarPreferences(local, keys);
+    expect(preferences.view.pullRequestNumberPosition).toBe("right");
+    for (const pullRequestNumberPosition of ["left", "right", "hidden"] as const) {
+      saveSidebarPreferences(local, {
+        ...preferences,
+        view: { ...preferences.view, pullRequestNumberPosition },
+      });
+      expect(loadSidebarPreferences(local, keys).view).toEqual({
+        ...preferences.view,
+        pullRequestNumberPosition,
+      });
+    }
+  });
+
+  it.each([undefined, null, "invalid", 42])(
+    "defaults missing or invalid PR placement (%s) without losing other preferences",
+    (pullRequestNumberPosition) => {
+      const local = storage({
+        "bb.plugin.ribbon-sidebar.preferences.v1": JSON.stringify({
+          view: {
+            scope: { kind: "all" },
+            groupingKey: null,
+            sort: "manual",
+            pullRequestNumberPosition,
+          },
+          collapsed: ["builtin:pinned"],
+        }),
+      });
+      const restored = loadSidebarPreferences(local, ["builtin:projects"]);
+      expect(restored.view.pullRequestNumberPosition).toBe("right");
+      expect(restored.view.sort).toBe("manual");
+      expect(restored.collapsed).toEqual(new Set(["builtin:pinned"]));
+    },
+  );
+
   it("persists an independent icon grouping, including no icons", () => {
     const local = storage();
     const keys = [
@@ -56,6 +94,7 @@ describe("client-local sidebar preferences", () => {
       groupingKey: "plugin:thread-stages:stages",
       filterGroupingKey: "builtin:sections",
       iconGroupingKey: "builtin:projects",
+      pullRequestNumberPosition: "right" as const,
       hide: {
         notArchived: false,
         archived: true,
@@ -97,6 +136,7 @@ describe("client-local sidebar preferences", () => {
         groupingKey: "plugin:thread-stages:stages",
         filterGroupingKey: "builtin:projects",
         iconGroupingKey: "builtin:projects",
+        pullRequestNumberPosition: "right" as const,
         hide: {
           notArchived: false,
           archived: true,
@@ -132,6 +172,7 @@ describe("client-local sidebar preferences", () => {
       groupingKey: "builtin:sections" as const,
       filterGroupingKey: "builtin:sections" as const,
       iconGroupingKey: "builtin:projects" as const,
+      pullRequestNumberPosition: "right" as const,
       hide: {
         notArchived: false,
         archived: true,
@@ -154,6 +195,7 @@ describe("client-local sidebar preferences", () => {
       groupingKey: null,
       filterGroupingKey: "builtin:sections",
       iconGroupingKey: "builtin:projects",
+      pullRequestNumberPosition: "right" as const,
       hide: {
         notArchived: false,
         archived: true,
@@ -172,6 +214,7 @@ describe("client-local sidebar preferences", () => {
           groupingKey: "plugin:thread-stages:stages",
           filterGroupingKey: "builtin:sections",
           iconGroupingKey: "builtin:projects",
+          pullRequestNumberPosition: "right" as const,
           hide: groupedBySections.hide,
           sort: groupedBySections.sort,
         },
@@ -182,6 +225,7 @@ describe("client-local sidebar preferences", () => {
       groupingKey: "builtin:sections",
       filterGroupingKey: "builtin:sections",
       iconGroupingKey: "builtin:projects",
+      pullRequestNumberPosition: "right" as const,
       hide: groupedBySections.hide,
       sort: groupedBySections.sort,
     });
@@ -192,6 +236,7 @@ describe("client-local sidebar preferences", () => {
       groupingKey: null,
       filterGroupingKey: "builtin:sections",
       iconGroupingKey: "builtin:projects",
+      pullRequestNumberPosition: "right" as const,
       hide: groupedBySections.hide,
       sort: groupedBySections.sort,
     });
@@ -234,6 +279,7 @@ describe("client-local sidebar preferences", () => {
       groupingKey: null,
       filterGroupingKey: "builtin:sections",
       iconGroupingKey: "builtin:projects",
+      pullRequestNumberPosition: "right" as const,
       hide: {
         notArchived: false,
         archived: true,
@@ -267,6 +313,7 @@ describe("client-local sidebar preferences", () => {
         groupingKey: "plugin:thread-stages:stages",
         filterGroupingKey: "builtin:sections",
         iconGroupingKey: "builtin:projects",
+        pullRequestNumberPosition: "right" as const,
         hide: {
           notArchived: false,
           archived: true,
@@ -319,6 +366,7 @@ describe("client-local sidebar preferences", () => {
         groupingKey: "builtin:projects",
         filterGroupingKey: "builtin:projects",
         iconGroupingKey: "builtin:projects",
+        pullRequestNumberPosition: "right" as const,
         hide: {
           notArchived: false,
           archived: true,

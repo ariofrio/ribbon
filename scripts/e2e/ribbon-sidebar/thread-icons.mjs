@@ -4,6 +4,14 @@ import { applyPluginState, FEATURED_PROJECT, FEATURED_THREAD } from "../../scree
 
 export async function verifyThreadIcons({ stack, fixture }) {
   await applyPluginState({ stack, ...fixture });
+  fixture.run([
+    "plugin",
+    "config",
+    "ribbon-sidebar",
+    "set",
+    "showMessagePreviews",
+    "false",
+  ]);
   const browser = await chromium.launch({ args: ["--mute-audio"] });
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -19,6 +27,30 @@ export async function verifyThreadIcons({ stack, fixture }) {
     const row = sidebar.locator("li").filter({ has: page.locator(`a[data-sidebar-thread-id="${thread.id}"]`) });
 
     const controls = page.locator("[data-ribbon-sidebar-top-controls]");
+
+    const alignment = await row.evaluate((rowNode, title) => {
+      const icon = rowNode.querySelector("[data-ribbon-sidebar-icon-slot] > *");
+      const titleNode = rowNode.querySelector(`[title="${CSS.escape(title)}"] > span`);
+      if (!(icon instanceof HTMLElement) || !(titleNode instanceof HTMLElement)) {
+        throw new Error("Could not find the thread icon and title");
+      }
+      const iconBox = icon.getBoundingClientRect();
+      const titleBox = titleNode.getBoundingClientRect();
+      return {
+        centerDelta:
+          iconBox.top + iconBox.height / 2 -
+          (titleBox.top + titleBox.height / 2),
+        horizontalGap: titleBox.left - iconBox.right,
+      };
+    }, thread.title);
+    assert.ok(
+      Math.abs(alignment.centerDelta) <= 0.5,
+      `Without previews, the thread icon/title centers differed by ${alignment.centerDelta}px`,
+    );
+    assert.ok(
+      Math.abs(alignment.horizontalGap - 8) <= 0.5,
+      `Without previews, the thread icon/title gap was ${alignment.horizontalGap}px instead of 8px`,
+    );
 
     async function chooseIcons(current, next) {
       await controls.hover();

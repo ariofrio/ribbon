@@ -4,6 +4,7 @@ import type { GroupingKey } from "./placement-store";
 import { ProviderIcon } from "./provider-icon";
 import type {
   HiddenThreadKinds,
+  PullRequestNumberPosition,
   SidebarSort,
 } from "./view-state";
 import { CHROME_SECTION_LABEL_CLASS } from "./chrome-style-tokens";
@@ -49,8 +50,10 @@ interface SidebarDisplayOptionsMenuProps {
   onHeadingsGroupingChange(groupingKey: GroupingKey | null): void;
   onHideChange(kind: keyof HiddenThreadKinds, hidden: boolean): void;
   onPagesGroupingChange(groupingKey: GroupingKey): void;
+  onPullRequestNumberPositionChange(position: PullRequestNumberPosition): void;
   onSortChange(sort: SidebarSort): void;
   pagesGroupingKey: GroupingKey;
+  pullRequestNumberPosition: PullRequestNumberPosition;
   sort: SidebarSort;
 }
 
@@ -59,6 +62,12 @@ const SORT_OPTIONS: readonly { value: SidebarSort; label: string }[] = [
   { value: "created", label: "Last created" },
   { value: "alphabetical", label: "Alphabetically" },
   { value: "manual", label: "Manually" },
+];
+
+const PR_NUMBER_OPTIONS: readonly { value: PullRequestNumberPosition; label: string }[] = [
+  { value: "left", label: "Left" },
+  { value: "right", label: "Right" },
+  { value: "hidden", label: "Hidden" },
 ];
 
 function GroupingIcon({ grouping }: { grouping: DisplayGrouping }) {
@@ -134,8 +143,10 @@ export function SidebarDisplayOptionsMenu({
   onHeadingsGroupingChange,
   onHideChange,
   onPagesGroupingChange,
+  onPullRequestNumberPositionChange,
   onSortChange,
   pagesGroupingKey,
+  pullRequestNumberPosition,
   sort,
 }: SidebarDisplayOptionsMenuProps) {
   const [open, setOpen] = useState(false);
@@ -244,6 +255,27 @@ export function SidebarDisplayOptionsMenu({
             </DropdownMenuPortal>
           </DropdownMenuSub>
           <DropdownMenuSeparator />
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger aria-label={`PR number ${PR_NUMBER_OPTIONS.find(({ value }) => value === pullRequestNumberPosition)?.label}`}>
+              <MenuValueRow
+                label="PR number"
+                value={PR_NUMBER_OPTIONS.find(({ value }) => value === pullRequestNumberPosition)?.label ?? "Right"}
+              />
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent>
+                {PR_NUMBER_OPTIONS.map((option) => (
+                  <DropdownMenuCheckboxItem
+                    checked={pullRequestNumberPosition === option.value}
+                    key={option.value}
+                    onCheckedChange={() => onPullRequestNumberPositionChange(option.value)}
+                  >
+                    {option.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger aria-label={`Hide ${hiddenLabels.length > 0 ? hiddenLabels.join(", ") : "Nothing"}`}>
               <MenuValueRow

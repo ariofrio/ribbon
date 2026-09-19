@@ -3,6 +3,7 @@ import type { GroupingKey } from "./placement-store";
 export type GroupRef = { groupingKey: GroupingKey; groupId: string };
 export type Scope = { kind: "all" } | { kind: "group"; group: GroupRef };
 export type SidebarSort = "updated" | "created" | "alphabetical" | "manual";
+export type PullRequestNumberPosition = "left" | "right" | "hidden";
 export interface HiddenThreadKinds {
   notArchived: boolean;
   archived: boolean;
@@ -14,6 +15,7 @@ export type SidebarView = {
   groupingKey: GroupingKey | null;
   filterGroupingKey: GroupingKey;
   iconGroupingKey: GroupingKey | null;
+  pullRequestNumberPosition: PullRequestNumberPosition;
   hide: HiddenThreadKinds;
   sort: SidebarSort;
 };
@@ -133,6 +135,11 @@ function storedPreferences(raw: string | null): StoredSidebarPreferences | null 
           view.iconGroupingKey === null || isGroupingKey(view.iconGroupingKey)
             ? view.iconGroupingKey
             : "builtin:projects",
+        pullRequestNumberPosition:
+          view.pullRequestNumberPosition === "left" ||
+          view.pullRequestNumberPosition === "hidden"
+            ? view.pullRequestNumberPosition
+            : "right",
         hide: storedHide(view.hide),
         sort: storedSort(view.sort),
       },
@@ -290,6 +297,7 @@ export function loadSidebarPreferences(
         groupingKey: fallback,
         filterGroupingKey: filterFallback,
         iconGroupingKey: "builtin:projects",
+        pullRequestNumberPosition: "right",
         hide: { ...DEFAULT_HIDDEN_THREAD_KINDS },
         sort: DEFAULT_SIDEBAR_SORT,
       },
@@ -319,6 +327,7 @@ export function loadSidebarPreferences(
         groupingKey: fallback,
         filterGroupingKey: filterFallback,
         iconGroupingKey: "builtin:projects",
+        pullRequestNumberPosition: "right",
         hide: { ...DEFAULT_HIDDEN_THREAD_KINDS },
         sort: DEFAULT_SIDEBAR_SORT,
       },
@@ -331,6 +340,7 @@ export function loadSidebarPreferences(
         groupingKey: fallback,
         filterGroupingKey: filterFallback,
         iconGroupingKey: "builtin:projects",
+        pullRequestNumberPosition: "right",
         hide: { ...DEFAULT_HIDDEN_THREAD_KINDS },
         sort: DEFAULT_SIDEBAR_SORT,
       },
