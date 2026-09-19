@@ -50,7 +50,13 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     await row(shortcut).locator("a[data-sidebar-thread-id]").click();
     await page.waitForURL(`**/threads/${shortcut.id}`);
     await page.locator('[data-app-composer-role="primary"] [contenteditable="true"]').click();
-    await page.keyboard.press(process.platform === "darwin" ? "Meta+." : "Control+.");
+    // Ctrl+. conflicts with Deferred on non-Mac clients, so bb disables it.
+    // Exercise the existing alternate there, and the primary Cmd+. on macOS.
+    const stageResponse = page.waitForResponse((response) =>
+      response.url().endsWith("/plugins/thread-stages/rpc/setWorkflowStage"),
+    );
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+." : "Control+Alt+.");
+    assert.ok((await stageResponse).ok());
     await first(shortcut);
 
     place(returning, "Idle");
