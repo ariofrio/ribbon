@@ -236,7 +236,10 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
       const toggleGap = await toggle.evaluate((node) =>
         node.getBoundingClientRect().left - node.previousElementSibling.getBoundingClientRect().right,
       );
-      assert.equal(toggleGap, 6, "The visible child toggle should retain its title gap");
+      assert.equal(toggleGap, 8, "The visible child toggle should have 8px to its left");
+      const actionBox = await actions.boundingBox();
+      assert.equal(actionBox.x - toggleBox.x - toggleBox.width, 8,
+        "The visible child toggle should have 8px before the ellipsis");
       await toggle.click();
       const expand = idleRow.getByRole("button", { name: /^Expand .* threads$/ });
       await expand.waitFor();
