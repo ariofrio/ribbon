@@ -26,6 +26,10 @@
     {
       "name": "thread-stages",
       "source": "./plugins/bb-plugin-thread-stages"
+    },
+    {
+      "name": "thread-titles",
+      "source": "./plugins/bb-plugin-thread-titles"
     }
   ]
 }
