@@ -3,7 +3,6 @@ import { chromium } from "playwright";
 import { AGENT, FEATURED_PROJECT } from "../screenshots/fixture.mjs";
 
 export async function verifyStageShortcuts({ stack, fixture }) {
-  const browser = await chromium.launch({ args: ["--mute-audio"] });
   const project = fixture.projects.get(FEATURED_PROJECT);
   const thread = fixture.runJson([
     "thread", "spawn", "--project", project.id,
@@ -12,6 +11,7 @@ export async function verifyStageShortcuts({ stack, fixture }) {
     "--prompt", "Check stage shortcuts",
   ]);
   fixture.run(["thread", "wait", thread.id, "--status", "idle"]);
+  const browser = await chromium.launch({ args: ["--mute-audio"] });
   try {
     for (const platform of ["Linux x86_64", "Win32", "MacIntel"]) {
       const mac = platform === "MacIntel";
