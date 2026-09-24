@@ -61,7 +61,6 @@ export function userActivity(events: Event[]) {
   );
   const seen = new Set<unknown>();
   let count = 0;
-  let firstAt: number | null = null;
   for (const event of events) {
     const data = record(event.data);
     if (
@@ -74,10 +73,8 @@ export function userActivity(events: Event[]) {
       continue;
     seen.add(data.requestId);
     count += Array.isArray(data.inputGroups) ? data.inputGroups.length : 1;
-    firstAt =
-      firstAt === null ? event.createdAt : Math.min(firstAt, event.createdAt);
   }
-  return { count, firstAt };
+  return { count };
 }
 
 export function transcript(events: Event[]): string {

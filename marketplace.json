@@ -178,7 +178,7 @@
     {
       "id": "thread-titles",
       "displayName": "Thread titles",
-      "description": "Refine each new thread title once, after five minutes or three user messages.",
+      "description": "Refine each new thread title once, on the third user message.",
       "icon": {
         "url": "./plugins/bb-plugin-thread-titles/assets/icon.svg"
       },

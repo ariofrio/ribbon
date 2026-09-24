@@ -6,7 +6,6 @@ export interface Job {
   baseline: string | null;
   fallback: string | null;
   captured: boolean;
-  firstAt: number | null;
   count: number;
   state: "waiting" | "claimed" | "running" | "applying" | "done" | "skipped";
   workerId: string | null;
@@ -50,7 +49,6 @@ export function createStore(bb: BbPluginApi) {
         baseline: thread.title,
         fallback: thread.titleFallback,
         captured: thread.title !== null,
-        firstAt: null,
         count: 0,
         state: thread.title ? "skipped" : "waiting",
         workerId: null,

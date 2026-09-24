@@ -10,7 +10,6 @@ import {
 } from "./history";
 import { createStore, type Job } from "./store";
 
-const DELAY = 5 * 60_000;
 const EXECUTION_TIMEOUT = 2 * 60_000;
 const titleResult = z
   .object({
@@ -244,14 +243,9 @@ export default function plugin(bb: BbPluginApi) {
       return;
     }
     const activity = userActivity(await readEvents(sdk, job.threadId, true));
-    job.firstAt = activity.firstAt;
     job.count = activity.count;
     store.save(job);
-    if (
-      job.firstAt === null ||
-      (job.count < 3 && Date.now() < job.firstAt + DELAY)
-    )
-      return;
+    if (job.count < 3) return;
     if (!thread.environmentId) return;
     const configuration = await settings.get();
     const environment = await sdk.environments.get({
@@ -387,16 +381,11 @@ export default function plugin(bb: BbPluginApi) {
     },
   });
   bb.background.schedule("title-reconciliation", "* * * * *", sweep);
-  bb.background.service("title-deadlines", {
+  bb.background.service("title-jobs", {
     async start(signal) {
       while (!signal.aborted) {
         await sweep();
         if (signal.aborted) break;
-        const due = store
-          .pending()
-          .filter((job) => job.state === "waiting" && job.firstAt !== null)
-          .map((job) => job.firstAt! + DELAY)
-          .filter((at) => at > Date.now());
         await new Promise<void>((resolve) => {
           const done = () => {
             clearTimeout(timer);
@@ -404,10 +393,7 @@ export default function plugin(bb: BbPluginApi) {
             wake = undefined;
             resolve();
           };
-          const timer = setTimeout(
-            done,
-            Math.max(1, Math.min(5_000, ...due.map((at) => at - Date.now()))),
-          );
+          const timer = setTimeout(done, 5_000);
           wake = done;
           signal.addEventListener("abort", done, { once: true });
           if (signal.aborted) done();

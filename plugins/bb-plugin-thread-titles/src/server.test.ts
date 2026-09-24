@@ -203,8 +203,9 @@ it("applies a completed result once while the source remains active", async () =
   h.thread.title = "Build a calendar";
   h.user("Build a useful calendar application");
   await h.emit();
-  vi.setSystemTime(Date.now() + 300_000);
-  await h.harness.behavior.runSchedule("title-reconciliation");
+  h.user("Add sharing");
+  h.user("Include team invitations");
+  await h.emit();
   expect(h.spawned).toHaveLength(1);
   h.worker.status = "idle";
   h.workerEvents.push({
@@ -227,7 +228,7 @@ it("applies a completed result once while the source remains active", async () =
   expect(h.updates).toHaveLength(1);
 });
 
-it("keeps a captured baseline and overdue deadline across reload", async () => {
+it("keeps the baseline across restart and waits for the third message even when overdue", async () => {
   const h = await setup();
   await h.harness.behavior.emitThreadEvent("thread.created", {
     thread: h.thread,
@@ -235,10 +236,21 @@ it("keeps a captured baseline and overdue deadline across reload", async () => {
   h.thread.title = "Build a calendar";
   h.user("Build a useful calendar application");
   await h.emit();
-  vi.setSystemTime(Date.now() + 300_000);
+  vi.setSystemTime(Date.now() + 86_400_000);
   const next = await h.harness.lifecycle.reload(plugin);
   cleanups.push(() => next.harness.lifecycle.dispose());
   await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(0);
+  h.user("Add sharing");
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(0);
+  h.user("Include team invitations");
+  const restarted = await next.harness.lifecycle.reload(plugin);
+  cleanups.push(() => restarted.harness.lifecycle.dispose());
+  await restarted.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(1);
+  expect(h.spawned[0]?.prompt).toContain('Current title: "Build a calendar"');
+  await restarted.harness.behavior.runSchedule("title-reconciliation");
   expect(h.spawned).toHaveLength(1);
 });
 
@@ -251,6 +263,8 @@ it("skips a renamed title both before generation and before applying", async () 
   h.user("Build a useful calendar application");
   await h.emit();
   h.thread.title = "My chosen name";
+  h.user("Second");
+  h.user("Third");
   vi.setSystemTime(Date.now() + 300_000);
   await h.harness.behavior.runSchedule("title-reconciliation");
   expect(h.spawned).toHaveLength(0);
@@ -291,6 +305,8 @@ it("does not invent an initial title after a restart during naming", async () =>
   h.user("First");
   await h.emit();
   h.thread.title = "Possibly renamed while offline";
+  h.user("Second");
+  h.user("Third");
   const next = await h.harness.lifecycle.reload(plugin);
   cleanups.push(() => next.harness.lifecycle.dispose());
   vi.setSystemTime(Date.now() + 300_000);
@@ -421,7 +437,7 @@ it("skips oversized transcripts rather than truncating the full conversation", a
   expect(h.spawned).toHaveLength(0);
 });
 
-it("runs at the five-minute deadline without another event or idle transition", async () => {
+it("waits beyond five minutes and reconciles a missed third-message event while busy", async () => {
   const h = await setup();
   vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
   vi.setSystemTime(1_000_000);
@@ -430,13 +446,22 @@ it("runs at the five-minute deadline without another event or idle transition", 
   });
   h.user("First");
   await h.emit();
-  const service = h.harness.behavior.runService("title-deadlines");
-  await vi.advanceTimersByTimeAsync(299_999);
-  expect(h.spawned).toHaveLength(0);
-  await vi.advanceTimersByTimeAsync(1);
-  expect(h.spawned).toHaveLength(1);
-  service.controller.abort();
-  await service.done;
+  const service = h.harness.behavior.runService("title-jobs");
+  try {
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(h.spawned).toHaveLength(0);
+    h.user("Second");
+    await h.emit();
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(h.spawned).toHaveLength(0);
+    h.user("Third");
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(h.spawned).toHaveLength(1);
+    expect(h.thread.status).toBe("active");
+  } finally {
+    service.controller.abort();
+    await service.done;
+  }
 });
 
 it("ignores threads supplied with titles and hidden workers", async () => {

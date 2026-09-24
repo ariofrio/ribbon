@@ -1,6 +1,6 @@
 # Thread titles
 
-Refine each new thread title once, after five minutes or three user messages.
+Refine each new thread title once, on the third user message.
 The update can run while the thread is busy and uses its full recorded
 conversation, including assistant messages, tool results, and partial output.
 
@@ -11,16 +11,16 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install thread-titles@ribbon
 ```
 
-Requires bb 0.43.3 or later. Newly created visible threads are eligible;
+Requires bb 0.43.4 or later. Newly created visible threads are eligible;
 installing the plugin does not rename existing threads. No sidebar plugin is
 required.
 
 ## Behavior
 
-The timer starts with the first accepted user message. Retries and messages
-sent by agents do not count toward the three-message trigger. At the first
-trigger, a fresh hidden worker generates a concise title on the source thread's
-provider and host, in a personal workspace. It receives the complete recorded
+Only accepted user messages count toward the three-message trigger; retries
+and messages sent by agents do not count. Elapsed time never triggers an update.
+On the third user message, a fresh hidden worker generates a concise title on
+the source thread's provider and host, in a personal workspace. It receives the complete recorded
 transcript as quoted data and is instructed to return a title without tools.
 The worker is stopped and archived afterward.
 
@@ -33,9 +33,10 @@ distinguish a manual rename made before the first stored title was observed.
 There is also a small read-to-write race because bb has no conditional title
 update API.
 
-The baseline, deadline, message count, worker identity, and terminal outcome are
-stored in the plugin database. Restarts resume known jobs, but never repeat an
-ambiguous worker creation or title write. If the initial stored title appeared
+The baseline, message count, worker identity, and terminal outcome are
+stored in the plugin database. Background reconciliation recovers missed message
+events, including across restarts, but never repeats an ambiguous worker creation
+or title write. If the initial stored title appeared
 while the plugin was offline and its baseline is unknown, the update is skipped.
 A destructive history edit or context clear during generation cancels the job.
 Completed and skipped jobs are never retried.
