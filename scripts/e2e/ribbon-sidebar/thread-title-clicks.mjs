@@ -33,7 +33,8 @@ export async function verifyThreadTitleClicks({ stack, fixture }) {
         await page.waitForFunction((title) => {
           const label = [...document.querySelectorAll("[data-ribbon-sidebar-root] span")]
             .find((node) => node.childElementCount === 0 && node.textContent === title);
-          return label && getComputedStyle(label.parentElement).maskImage !== "none";
+          return label && label.getBoundingClientRect().width >
+            label.closest(".overflow-hidden").getBoundingClientRect().width;
         }, title);
       }
       const box = await label.boundingBox();

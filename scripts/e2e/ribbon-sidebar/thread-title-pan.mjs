@@ -21,7 +21,12 @@ function titleState(title) {
   };
 }
 
-async function openSidebar(browser, stack, { reducedMotion }) {
+function findLabel(title) {
+  return [...document.querySelectorAll("[data-ribbon-sidebar-root] span")]
+    .find((node) => node.childElementCount === 0 && node.textContent === title);
+}
+
+async function openSidebar(browser, stack, { reducedMotion, title = LONG_TITLE }) {
   const context = await browser.newContext({
     reducedMotion,
     viewport: { width: 1280, height: 800 },
@@ -33,24 +38,32 @@ async function openSidebar(browser, stack, { reducedMotion }) {
       collapsed: [],
     }));
   });
+  await context.addInitScript(`window.findLabel = ${findLabel}`);
   const page = await context.newPage();
   await page.goto(stack.serverUrl);
   const sidebar = page.locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]");
   await sidebar.waitFor({ timeout: 120_000 });
-  const label = sidebar.getByText(LONG_TITLE, { exact: true });
+  const label = sidebar.getByText(title, { exact: true });
   await label.waitFor();
   await label.scrollIntoViewIfNeeded();
   // Rest the pointer outside the sidebar before measuring the resting title.
   await page.mouse.move(1000, 400);
-  await page.waitForFunction(
-    (title) => {
-      const label = [...document.querySelectorAll("[data-ribbon-sidebar-root] span")]
-        .find((node) => node.childElementCount === 0 && node.textContent === title);
-      return label && getComputedStyle(label.parentElement).maskImage !== "none";
-    },
-    LONG_TITLE,
-  );
   return { context, page, label };
+}
+
+function clipWidth(page, title) {
+  return page.evaluate(
+    (title) => findLabel(title).closest(".overflow-hidden").getBoundingClientRect().width,
+    title,
+  );
+}
+
+function waitForOverflow(page, title) {
+  return page.waitForFunction((title) => {
+    const label = findLabel(title);
+    return label.getBoundingClientRect().width >
+      label.closest(".overflow-hidden").getBoundingClientRect().width;
+  }, title);
 }
 
 async function hover(page, label) {
@@ -67,6 +80,7 @@ export async function verifyThreadTitlePan({ stack, fixture }) {
       const { context, page, label } = await openSidebar(browser, stack, {
         reducedMotion: "no-preference",
       });
+      await waitForOverflow(page, LONG_TITLE);
       const resting = await page.evaluate(titleState, LONG_TITLE);
       if (
         resting.translateX !== 0 ||
@@ -126,6 +140,80 @@ export async function verifyThreadTitlePan({ stack, fixture }) {
         throw new Error(`Leaving the row should snap the title back: ${JSON.stringify(left)}`);
       }
       await context.close();
+    }
+    {
+      // Some rows make room for hover actions, so a title that fits at rest can
+      // overflow only once its row is hovered.
+      const { context, page } = await openSidebar(browser, stack, {
+        reducedMotion: "no-preference",
+      });
+      const room = (id) => page.evaluate((id) => {
+        const link = document.querySelector(`a[data-sidebar-thread-id="${id}"]`);
+        const label = link.parentElement.querySelector(".overflow-hidden");
+        return label.parentElement.getBoundingClientRect().width;
+      }, id);
+      const ids = await page.evaluate(() =>
+        [...document.querySelectorAll("[data-ribbon-sidebar-root] a[data-sidebar-thread-id]")]
+          .map((link) => link.dataset.sidebarThreadId));
+      let narrowing = null;
+      for (const id of ids) {
+        const link = page.locator(`a[data-sidebar-thread-id="${id}"]`);
+        if (!(await link.isVisible())) continue;
+        await page.mouse.move(1000, 400);
+        const resting = await room(id);
+        const box = await link.boundingBox();
+        await page.mouse.move(box.x + 8, box.y + box.height / 2);
+        await page.locator("[data-ribbon-sidebar-root] li:hover").filter({ has: link }).first().waitFor();
+        const hovered = await room(id);
+        if (resting - hovered >= 12) {
+          narrowing = { id, resting, hovered };
+          break;
+        }
+      }
+      if (narrowing === null) throw new Error("No row makes room for its hover actions");
+      const title = await page.evaluate(([title, narrow, wide]) => {
+        const context = document.createElement("canvas").getContext("2d");
+        context.font = getComputedStyle(findLabel(title)).font;
+        for (let length = title.length; length > 0; length -= 1) {
+          const prefix = title.slice(0, length).trimEnd();
+          const width = context.measureText(prefix).width;
+          if (width > narrow + 4 && width < wide - 4) return prefix;
+        }
+        return null;
+      }, [LONG_TITLE, narrowing.hovered, narrowing.resting]);
+      await context.close();
+      const target = [...fixture.threads.values()].find((candidate) => candidate.id === narrowing.id);
+
+      fixture.run(["thread", "update", target.id, "--title", title]);
+      const reopened = await openSidebar(browser, stack, {
+        reducedMotion: "no-preference",
+        title,
+      });
+      const resting = await reopened.page.evaluate(titleState, title);
+      if (resting.overflow > 0) {
+        throw new Error(`The title should fit its resting row: ${JSON.stringify(resting)}`);
+      }
+      await hover(reopened.page, reopened.label);
+      await waitForOverflow(reopened.page, title);
+      // The fades move into place as the title pans, never before.
+      const fades = await reopened.page.evaluate((title) => {
+        const label = findLabel(title);
+        const clip = label.closest(".overflow-hidden");
+        const fades = [];
+        for (let node = label.parentElement; node !== clip.parentElement; node = node.parentElement) {
+          if (getComputedStyle(node).maskImage === "none") continue;
+          fades.push({
+            position: getComputedStyle(node).maskPosition,
+            moving: node.getAnimations().some((animation) => animation.transitionProperty === "mask-position"),
+          });
+        }
+        return fades;
+      }, title);
+      if (fades.length !== 2 || !fades.every(({ position, moving }) => moving || position === "-16px 0px")) {
+        throw new Error(`A title that overflows on hover should fade in as it pans: ${JSON.stringify(fades)}`);
+      }
+      await reopened.context.close();
+      fixture.run(["thread", "update", target.id, "--title", target.title]);
     }
     {
       const { context, page, label } = await openSidebar(browser, stack, {

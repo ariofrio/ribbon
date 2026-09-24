@@ -35,7 +35,11 @@ export function ThreadTitle({ title }: { title: string }) {
     return () => observer.disconnect();
   }, [title]);
 
+  // The fades and their transitions stay attached even when the title fits, so
+  // a title that overflows only once its row makes room for hover actions
+  // still fades in as it pans instead of jumping to the panned state.
   const overflowing = overflow > 0;
+  const fadePx = overflowing ? FADE_PX : 0;
   const panSeconds = overflow / PAN_PX_PER_SECOND;
   // The trailing fade slides out as the title reaches its end, so the last
   // character lands fully drawn against the edge.
@@ -43,43 +47,24 @@ export function ThreadTitle({ title }: { title: string }) {
   return (
     <span
       ref={containerRef}
-      className={`pointer-events-none min-w-0 overflow-hidden whitespace-nowrap ${
-        overflowing
-          ? "[mask-position:-16px_0] motion-safe:group-hover/thread-row:[mask-position:0_0] motion-safe:group-hover/thread-row:[transition:mask-position_var(--ribbon-title-trailing-fade)_linear_var(--ribbon-title-trailing-fade-delay)] motion-safe:group-has-[:focus-visible]/thread-row:[mask-position:0_0] motion-safe:group-has-[:focus-visible]/thread-row:[transition:mask-position_var(--ribbon-title-trailing-fade)_linear_var(--ribbon-title-trailing-fade-delay)]"
-          : ""
-      }`}
-      style={
-        overflowing
-          ? ({
-              ...fadeStyle(`linear-gradient(to right, black calc(100% - ${FADE_PX}px), transparent)`),
-              "--ribbon-title-pan": `${-overflow}px`,
-              "--ribbon-title-pan-duration": `${panSeconds}s`,
-              "--ribbon-title-leading-fade": `${FADE_SECONDS}s`,
-              "--ribbon-title-trailing-fade": `${trailingFadeSeconds}s`,
-              "--ribbon-title-trailing-fade-delay": `${PAN_DELAY_SECONDS + panSeconds - trailingFadeSeconds}s`,
-            } as CSSProperties)
-          : undefined
-      }
+      className="pointer-events-none min-w-0 overflow-hidden whitespace-nowrap [mask-position:-16px_0] motion-safe:group-hover/thread-row:[mask-position:var(--ribbon-title-fade-end)_0] motion-safe:group-hover/thread-row:[transition:mask-position_var(--ribbon-title-trailing-fade)_linear_var(--ribbon-title-trailing-fade-delay)] motion-safe:group-has-[:focus-visible]/thread-row:[mask-position:var(--ribbon-title-fade-end)_0] motion-safe:group-has-[:focus-visible]/thread-row:[transition:mask-position_var(--ribbon-title-trailing-fade)_linear_var(--ribbon-title-trailing-fade-delay)]"
+      style={{
+        ...fadeStyle(`linear-gradient(to right, black calc(100% - ${fadePx}px), transparent)`),
+        "--ribbon-title-pan": `${-overflow}px`,
+        "--ribbon-title-pan-duration": `${panSeconds}s`,
+        "--ribbon-title-fade-end": overflowing ? "0px" : `-${FADE_PX}px`,
+        "--ribbon-title-leading-fade": `${FADE_SECONDS}s`,
+        "--ribbon-title-trailing-fade": `${trailingFadeSeconds}s`,
+        "--ribbon-title-trailing-fade-delay": `${PAN_DELAY_SECONDS + panSeconds - trailingFadeSeconds}s`,
+      } as CSSProperties}
     >
       <span
-        className={`block ${
-          overflowing
-            ? "[mask-position:-16px_0] motion-safe:group-hover/thread-row:[mask-position:0_0] motion-safe:group-hover/thread-row:[transition:mask-position_var(--ribbon-title-leading-fade)_linear_300ms] motion-safe:group-has-[:focus-visible]/thread-row:[mask-position:0_0] motion-safe:group-has-[:focus-visible]/thread-row:[transition:mask-position_var(--ribbon-title-leading-fade)_linear_300ms]"
-            : ""
-        }`}
-        style={
-          overflowing
-            ? fadeStyle(`linear-gradient(to right, transparent, black ${FADE_PX}px)`)
-            : undefined
-        }
+        className="block [mask-position:-16px_0] motion-safe:group-hover/thread-row:[mask-position:var(--ribbon-title-fade-end)_0] motion-safe:group-hover/thread-row:[transition:mask-position_var(--ribbon-title-leading-fade)_linear_300ms] motion-safe:group-has-[:focus-visible]/thread-row:[mask-position:var(--ribbon-title-fade-end)_0] motion-safe:group-has-[:focus-visible]/thread-row:[transition:mask-position_var(--ribbon-title-leading-fade)_linear_300ms]"
+        style={fadeStyle(`linear-gradient(to right, transparent, black ${fadePx}px)`)}
       >
         <span
           ref={textRef}
-          className={`inline-block ${
-            overflowing
-              ? "motion-safe:group-hover/thread-row:[transform:translateX(var(--ribbon-title-pan))] motion-safe:group-hover/thread-row:[transition:transform_var(--ribbon-title-pan-duration)_cubic-bezier(0.44,0.49,0.71,0.95)_300ms] motion-safe:group-has-[:focus-visible]/thread-row:[transform:translateX(var(--ribbon-title-pan))] motion-safe:group-has-[:focus-visible]/thread-row:[transition:transform_var(--ribbon-title-pan-duration)_cubic-bezier(0.44,0.49,0.71,0.95)_300ms]"
-              : ""
-          }`}
+          className="inline-block motion-safe:group-hover/thread-row:[transform:translateX(var(--ribbon-title-pan))] motion-safe:group-hover/thread-row:[transition:transform_var(--ribbon-title-pan-duration)_cubic-bezier(0.44,0.49,0.71,0.95)_300ms] motion-safe:group-has-[:focus-visible]/thread-row:[transform:translateX(var(--ribbon-title-pan))] motion-safe:group-has-[:focus-visible]/thread-row:[transition:transform_var(--ribbon-title-pan-duration)_cubic-bezier(0.44,0.49,0.71,0.95)_300ms]"
         >
           {title}
         </span>
