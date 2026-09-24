@@ -11,6 +11,7 @@ import {
   invalidateGroupingCatalogOutputSchema,
   listPlacementsInputSchema,
   listPlacementsOutputSchema,
+  pullRequestDetailsSchema,
   threadStagesMigrationSnapshotSchema,
   updatePlacementInputSchema,
   updatePlacementOutputSchema,
@@ -34,6 +35,10 @@ import {
 } from "./workflow/catalog";
 import { workflowRpcMethods } from "./workflow/contract";
 import { createWorkflowRuntime } from "./workflow/runtime";
+import {
+  createGhGraphqlRunner,
+  createPullRequestDetailsService,
+} from "./pull-request-details";
 
 const sidebarGroupSchema = z
   .object({
@@ -175,6 +180,23 @@ export const rpcContract = defineRpcContract({
       origin: true,
     }),
     output: updatePlacementOutputSchema,
+  },
+  pullRequestDetailsV1: {
+    input: z
+      .object({
+        requests: z
+          .array(
+            z
+              .object({
+                url: z.string().url().max(512),
+                stamp: z.string().max(128),
+              })
+              .strict(),
+          )
+          .max(500),
+      })
+      .strict(),
+    output: z.object({ details: z.array(pullRequestDetailsSchema) }).strict(),
   },
   searchThreadIdsV1: {
     input: z.object({ query: z.string().trim().min(1).max(500) }).strict(),
@@ -757,6 +779,13 @@ export default async function plugin(bb: BbPluginApi) {
   await attemptMountedMigration();
   await migrateWorkflowShortcuts(bb, database, threadStagesInstalled);
   const workflow = createWorkflowRuntime(bb, store, updatePlacement, settings);
+  const pullRequestDetails = createPullRequestDetailsService({
+    run: createGhGraphqlRunner(),
+    onError(error) {
+      bb.log.warn(`GitHub pull request details unavailable: ${error.message}`);
+    },
+  });
+
   bb.rpc.register(rpcContract, {
     ...workflow,
 
@@ -885,6 +914,9 @@ export default async function plugin(bb: BbPluginApi) {
         threadId,
         origin: "ui",
       });
+    },
+    async pullRequestDetailsV1({ requests }) {
+      return { details: await pullRequestDetails.get(requests) };
     },
     async reorderPinnedV1({ threadId, previousThreadId, nextThreadId }) {
       await bb.sdk.threads.reorderPinned({

@@ -84,6 +84,10 @@ export async function verifyDragRegressions({ stack, fixture, cases }) {
       exact: true,
     });
     const row = (id) => section.locator(`a[data-sidebar-thread-id="${id}"]`);
+    // The provider can mount before bb's thread subscription has hydrated.
+    // Wait for the rows this scenario needs, not merely the sidebar shell.
+    for (const thread of threads.slice(0, 8))
+      await row(thread.id).waitFor({ timeout: 120_000 });
     const mainIds = new Set(threads.slice(0, 6).map((t) => t.id));
     const order = async () =>
       (

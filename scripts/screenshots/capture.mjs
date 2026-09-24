@@ -4,6 +4,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { chromium } from "playwright";
+import { routeGitHubState } from "./fixture.mjs";
 
 // Not this project's to ship; the file says so and why.
 import { KEY_GLYPHS, KEY_GLYPH_EM } from "./key-glyphs.mjs";
@@ -328,6 +329,7 @@ export async function openApp({ browser, stack, fixture, theme, viewport, style 
     },
     style === undefined ? HOST_STATE_STYLE : `${HOST_STATE_STYLE}\n${style}`,
   );
+  await routeGitHubState(context, fixture);
   const page = await context.newPage();
   // Registered before the first navigation, because the mount every shot waits
   // for happens during it: a listener added after `goto` observes none of the

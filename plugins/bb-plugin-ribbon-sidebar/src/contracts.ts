@@ -362,3 +362,31 @@ export const acknowledgePlacementMigrationInputSchema = z
 export const acknowledgePlacementMigrationOutputSchema = z
   .object({ transferred: z.boolean() })
   .strict();
+
+/**
+ * GitHub facts bb's sidebar pull request omits: auto-merge, the merge queue,
+ * review, and check counts. Enum fields keep GitHub's raw values so the app,
+ * not the wire, decides what each one means.
+ */
+export const pullRequestDetailsSchema = z
+  .object({
+    url: z.string(),
+    autoMerge: z.boolean(),
+    inMergeQueue: z.boolean(),
+    mergeStateStatus: z.string().nullable(),
+    mergeable: z.string().nullable(),
+    reviewDecision: z.string().nullable(),
+    requestedReviewers: z.array(z.string()),
+    checks: z
+      .object({
+        state: z.enum(["success", "failure", "pending", "none"]),
+        total: z.number().int().nonnegative(),
+        passed: z.number().int().nonnegative(),
+        failed: z.number().int().nonnegative(),
+        pending: z.number().int().nonnegative(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export type PullRequestDetailsV1 = z.output<typeof pullRequestDetailsSchema>;

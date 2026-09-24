@@ -784,6 +784,116 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("marks a row with what its pull request is waiting on", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const url = "https://github.com/acme/app/pull/12";
+    const pullRequestDetailsV1 = vi.fn(async () => ({
+      details: [
+        {
+          url,
+          autoMerge: true,
+          inMergeQueue: false,
+          mergeStateStatus: "BLOCKED",
+          mergeable: "MERGEABLE",
+          reviewDecision: "APPROVED",
+          requestedReviewers: [],
+          checks: { state: "pending", total: 35, passed: 30, failed: 0, pending: 5 },
+        },
+      ],
+    }));
+    const fixture = options({
+      sidebarPullRequests: {
+        "thread-a": { number: 12, title: "Ship it", url, state: "open", attention: "blocked" },
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, {
+      ...fixture.value,
+      rpc: { ...fixture.value.rpc, pullRequestDetailsV1 },
+    });
+    expect(await slot.findByLabelText("Auto-merge on · approved · waiting on CI (30/35)")).toBeTruthy();
+    expect(pullRequestDetailsV1).toHaveBeenCalledWith({
+      requests: [{ url, stamp: "open:blocked" }],
+    });
+    expect(slot.getByTitle("Ship it — Auto-merge on · approved · waiting on CI (30/35)")).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it("falls back to bb's pull request attention without GitHub details", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarPullRequests: {
+        "thread-a": {
+          number: 12,
+          title: "Ship it",
+          url: "https://github.com/acme/app/pull/12",
+          state: "open",
+          attention: "checks_failed",
+        },
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, {
+      ...fixture.value,
+      rpc: {
+        ...fixture.value.rpc,
+        pullRequestDetailsV1: vi.fn(async () => {
+          throw new Error("gh unavailable");
+        }),
+      },
+    });
+    expect(await slot.findByLabelText("CI failing")).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps the agent's own indicator above a waiting pull request", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarPullRequests: {
+        "thread-a": {
+          number: 12,
+          title: "Ship it",
+          url: "https://github.com/acme/app/pull/12",
+          state: "open",
+          attention: "checks_pending",
+        },
+      },
+      sidebarThreads: {
+        ...options().value.sidebarThreads,
+        threads: [thread({ id: "thread-a", indicator: "runtime", indicatorLabel: "Thread working" })],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("thread-a");
+    expect(slot.getByLabelText("Thread working")).toBeTruthy();
+    expect(slot.queryByLabelText("Waiting on CI")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("drops pull request marks along with hidden pull request numbers", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    window.localStorage.setItem(
+      SIDEBAR_PREFERENCES_KEY,
+      JSON.stringify({
+        view: { scope: { kind: "all" }, groupingKey: null, pullRequestNumberPosition: "hidden" },
+        collapsed: [],
+      }),
+    );
+    const fixture = options({
+      sidebarPullRequests: {
+        "thread-a": {
+          number: 12,
+          title: "Ship it",
+          url: "https://github.com/acme/app/pull/12",
+          state: "open",
+          attention: "checks_failed",
+        },
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+    expect(slot.queryByLabelText("CI failing")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
   it("hides internal threads supplied by the newer sidebar API by default", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({

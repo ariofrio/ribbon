@@ -1,6 +1,6 @@
 # Thread titles
 
-Refine each new thread title once, on the third user message.
+Name threads after their first turn and refine generic or inaccurate titles on the third user message.
 The update can run while the thread is busy and uses its full recorded
 conversation, including assistant messages, tool results, and partial output.
 
@@ -17,12 +17,19 @@ required.
 
 ## Behavior
 
-Only accepted user messages count toward the three-message trigger; retries
-and messages sent by agents do not count. Elapsed time never triggers an update.
-On the third user message, a fresh hidden worker generates a concise title on
-the source thread's provider and host, in a personal workspace. It receives the complete recorded
-transcript as quoted data and is instructed to return a title without tools.
-The worker is stopped and archived afterward.
+When the first turn ends, a fresh hidden worker generates a concise title on
+the source thread's provider and host, in a personal workspace. It receives the
+complete recorded transcript as quoted data and is instructed to return a title
+without tools. Completion is read from durable turn history, so a missed event
+or restart does not lose the trigger.
+
+After a successful first pass, the third accepted user message triggers one
+assessment of the title. If the title has changed since the first pass, the
+assessment is permanently cancelled. Otherwise, the worker keeps it unless it
+is generic or materially inaccurate. New details, alternative wording, and
+stylistic preferences are not reasons to rewrite an accurate, specific title.
+Retries and agent messages do not count. Elapsed time never triggers an update.
+Each worker is stopped and archived afterward.
 
 The plugin saves the first stored title it observes during initial naming.
 bb initially displays a fallback derived from the first prompt while its stored
@@ -33,13 +40,15 @@ distinguish a manual rename made before the first stored title was observed.
 There is also a small read-to-write race because bb has no conditional title
 update API.
 
-The baseline, message count, worker identity, and terminal outcome are
+The phase, baseline, message count, worker identities, and terminal outcome are
 stored in the plugin database. Background reconciliation recovers missed message
 events, including across restarts, but never repeats an ambiguous worker creation
 or title write. If the initial stored title appeared
 while the plugin was offline and its baseline is unknown, the update is skipped.
 A destructive history edit or context clear during generation cancels the job.
-Completed and skipped jobs are never retried.
+Each phase is claimed at most once. A completed first pass saves the resulting
+title as the baseline for the third-message assessment; a completed assessment
+or skipped job is never retried. Previously completed jobs are not backfilled.
 
 ## Settings
 

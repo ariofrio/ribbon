@@ -123,6 +123,113 @@ export const FEATURED_PROJECT = THREADS.find(
   (thread) => thread.title === FEATURED_THREAD,
 ).project;
 
+/**
+ * What GitHub says about each repository's open pull request. bb looks pull
+ * requests up by environment through the host's `gh`, and Ribbon asks `gh` for
+ * the rest; neither can reach GitHub for a fixture repository, so the capture
+ * answers both at the API boundary instead. atlas-web's PR is approved with
+ * auto-merge on and waits on CI, the state between ready and merged that the
+ * featured row shows; atlas-api's is failing CI.
+ */
+export const PULL_REQUESTS = new Map([
+  [
+    "atlas-web",
+    {
+      number: 218,
+      title: "Polish analytics dashboard",
+      attention: "blocked",
+      details: {
+        autoMerge: true,
+        inMergeQueue: false,
+        mergeStateStatus: "BLOCKED",
+        mergeable: "MERGEABLE",
+        reviewDecision: "APPROVED",
+        requestedReviewers: [],
+        checks: { state: "pending", total: 12, passed: 10, failed: 0, pending: 2 },
+      },
+    },
+  ],
+  [
+    "atlas-api",
+    {
+      number: 214,
+      title: "Retry webhook deliveries with backoff",
+      attention: "checks_failed",
+      details: {
+        autoMerge: false,
+        inMergeQueue: false,
+        mergeStateStatus: "BLOCKED",
+        mergeable: "MERGEABLE",
+        reviewDecision: "REVIEW_REQUIRED",
+        requestedReviewers: [],
+        checks: { state: "failure", total: 12, passed: 11, failed: 1, pending: 0 },
+      },
+    },
+  ],
+]);
+
+function pullRequestUrl(projectName, number) {
+  return `https://github.com/atlas/${projectName}/pull/${number}`;
+}
+
+/**
+ * Answers bb's pull request lookup and Ribbon's GitHub details from
+ * PULL_REQUESTS, keyed by the environments the seeded threads run in.
+ */
+export async function routeGitHubState(context, { environments }) {
+  await context.route("**/api/v1/environments/*/pull-request*", (route) => {
+    const environmentId = new URL(route.request().url()).pathname.split("/")[4];
+    const projectName = environments.get(environmentId);
+    const pr = projectName === undefined ? undefined : PULL_REQUESTS.get(projectName);
+    return route.fulfill({
+      json: {
+        outcome: "available",
+        pullRequest: pr === undefined ? null : {
+          number: pr.number,
+          title: pr.title,
+          url: pullRequestUrl(projectName, pr.number),
+          state: "open",
+          attention: pr.attention,
+          baseRefName: "main",
+          headRefName: "feature",
+          updatedAt: "2026-09-18T00:00:00Z",
+          checks: {
+            state: pr.details.checks.state === "failure" ? "failing" : "pending",
+            totalCount: pr.details.checks.total,
+            passedCount: pr.details.checks.passed,
+            failedCount: pr.details.checks.failed,
+            pendingCount: pr.details.checks.pending,
+          },
+          review: {
+            state: pr.details.reviewDecision === "APPROVED" ? "approved" : "review_required",
+            reviewRequestCount: 0,
+          },
+          mergeability: { state: "blocked", mergeStateStatus: "BLOCKED", mergeable: "MERGEABLE" },
+        },
+      },
+    });
+  });
+  await context.route("**/api/v1/plugins/ribbon-sidebar/rpc/pullRequestDetailsV1", (route) => {
+    const { requests } = route.request().postDataJSON();
+    const byUrl = new Map(
+      [...PULL_REQUESTS].map(([projectName, pr]) => [
+        pullRequestUrl(projectName, pr.number),
+        pr.details,
+      ]),
+    );
+    return route.fulfill({
+      json: {
+        ok: true,
+        result: {
+          details: requests.flatMap(({ url }) =>
+            byUrl.has(url) ? [{ url, ...byUrl.get(url) }] : [],
+          ),
+        },
+      },
+    });
+  });
+}
+
 export const SIDE_CHAT_QUESTION = "What did the dashboard pass end up covering?";
 
 /** Every thread answers from its own entry, plus the side chat a shot opens. */
@@ -338,7 +445,16 @@ export function seed({ stack, workspaceRoot, bb, assignStages = true }) {
   // taken, and the sidebar keeps the unread mark a busy bb actually carries.
   run(["thread", "read", threads.get(FEATURED_THREAD).id]);
 
-  return { projects, section, threads, run, runJson };
+  // Which repository each thread's environment checks out, for the pull
+  // request bb looks up per environment.
+  const environments = new Map();
+  for (const spec of THREADS) {
+    if (spec.project === null) continue;
+    const { environment } = runJson(["thread", "show", threads.get(spec.title).id]);
+    if (environment) environments.set(environment.id, spec.project);
+  }
+
+  return { projects, section, threads, environments, run, runJson };
 }
 
 export async function applyPluginState({ stack, projects, section }) {

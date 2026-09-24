@@ -37,7 +37,7 @@ it("counts accepted user submissions, including grouped messages, without retrie
       event(5, "client/turn/rejected", { requestId: "4" }),
       request(6, { inputGroups: [[], []] }),
     ]),
-  ).toEqual({ count: 3 });
+  ).toEqual({ count: 3, firstTurnEnded: false });
 });
 
 it("includes streamed assistant text and command output before completion", () => {

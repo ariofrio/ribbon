@@ -61,7 +61,11 @@ import {
   type ThreadDragTarget,
 } from "./thread-drag";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
-import { resolveThreadStatus, type ThreadStatus } from "./thread-status";
+import {
+  resolveThreadStatus,
+  withPullRequestSignal,
+  type ThreadStatus,
+} from "./thread-status";
 import { ThreadTitle } from "./thread-title";
 import { UnorganizedIcon } from "./unorganized-icon";
 import { Button } from "./vendor/components/ui/button";
@@ -73,6 +77,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./vendor/components/ui/dialog";
+import { pullRequestSignal } from "./pull-request-status";
+import {
+  PullRequestDetailsProvider,
+  usePullRequestDetails,
+  type PullRequestDetailsRequest,
+} from "./pull-request-details-store";
 import { Icon } from "./vendor/components/ui/icon";
 import { Input } from "./vendor/components/ui/input";
 import {
@@ -93,8 +103,11 @@ const LEGACY_COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
 /** bb keeps project-less threads in the personal project, under a reserved id. */
 const PERSONAL_PROJECT_ID = "proj_personal";
 
-const PR_STATE_ICONS = {
+// bb's own pull request colors, plus amber for a PR that will merge on its
+// own (GitHub's merge-queue color).
+const PR_LIFECYCLE_ICONS = {
   open: { name: "GitPullRequestArrow", className: "text-success" },
+  auto: { name: "GitMerge", className: "text-attention" },
   closed: { name: "GitPullRequestClosed", className: "text-destructive" },
   merged: { name: "GitMerge", className: "text-pr-merged" },
   draft: { name: "GitPullRequestDraft", className: "text-muted-foreground" },
@@ -278,6 +291,13 @@ function ThreadRow({
     layout,
   } = experimental_useSidebarThreadSplit(thread.id);
   const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
+  const visiblePullRequest =
+    pullRequestNumberPosition === "hidden" ? null : pullRequest;
+  const pullRequestDetails = usePullRequestDetails(visiblePullRequest);
+  const pullRequestStatus = visiblePullRequest
+    ? pullRequestSignal(visiblePullRequest, pullRequestDetails)
+    : null;
+  const status = withPullRequestSignal(indicatorThread, pullRequestStatus);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const rowTitle = title(thread);
@@ -288,30 +308,39 @@ function ThreadRow({
   });
   const accessibleTitle = preview ? `${rowTitle} — ${preview}` : rowTitle;
   const showPullRequest =
-    pullRequest !== null && pullRequestNumberPosition !== "hidden";
-  const pullRequestNumber = showPullRequest ? (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ${
-        pullRequestNumberPosition === "right" ? "ml-auto" : ""
-      }`}
-      title={pullRequest.title}
-    >
-      <Icon
-        name={PR_STATE_ICONS[pullRequest.state].name}
-        className={`size-4 shrink-0 ${PR_STATE_ICONS[pullRequest.state].className}`}
-        aria-hidden
-      />
-      #{pullRequest.number}
-    </span>
-  ) : null;
+    visiblePullRequest !== null && pullRequestStatus !== null;
+  const pullRequestIcon = pullRequestStatus
+    ? PR_LIFECYCLE_ICONS[pullRequestStatus.lifecycle]
+    : null;
+  const pullRequestNumber =
+    showPullRequest && pullRequestIcon ? (
+      <span
+        className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ${
+          pullRequestNumberPosition === "right" ? "ml-auto" : ""
+        }`}
+        title={
+          pullRequestStatus.label
+            ? `${visiblePullRequest.title} — ${pullRequestStatus.label}`
+            : visiblePullRequest.title
+        }
+      >
+        <Icon
+          name={pullRequestIcon.name}
+          className={`size-4 shrink-0 ${pullRequestIcon.className}`}
+          aria-hidden
+        />
+        #{visiblePullRequest.number}
+      </span>
+    ) : null;
   const actionsOpen = dropdownOpen || contextOpen;
   const showChildToggleAtRest = hasChildren && childrenCollapsed;
   const hasIcon = icon !== null;
   const iconSpansEntireItem = alignAdornmentsToEntireItem && preview !== null;
   const hasTrailingIndicator =
     layout !== null ||
-    indicatorThread.indicator !== "none" ||
-    indicatorThread.pluginStatus !== null;
+    status.indicator !== "none" ||
+    status.pluginStatus !== null ||
+    status.pullRequestMark !== null;
   const alignsTrailingIndicatorToTitle =
     hasTrailingIndicator && !alignAdornmentsToEntireItem;
   const reservesTrailingLane =
@@ -384,7 +413,7 @@ function ThreadRow({
           ref={sortable.setActivatorNodeRef}
           role="link"
           aria-current={active ? "page" : undefined}
-          aria-label={`Open ${accessibleTitle}${showPullRequest ? ` (PR #${pullRequest.number})` : ""}${hasUnsubmittedDraft ? " (unsubmitted draft)" : ""}`}
+          aria-label={`Open ${accessibleTitle}${showPullRequest ? ` (PR #${visiblePullRequest.number})` : ""}${hasUnsubmittedDraft ? " (unsubmitted draft)" : ""}`}
           className="absolute inset-0 rounded-md outline-none ring-sidebar-ring focus-visible:ring-2"
           data-sidebar-thread-id={thread.id}
           data-sidebar-thread-shortcut-target=""
@@ -523,10 +552,10 @@ function ThreadRow({
                   data-sidebar-thread-trailing-indicator=""
                 >
                   <SplitPaneMiniMap
-                    active={indicatorThread.isWorking}
+                    active={status.isWorking}
                     label={
-                      indicatorThread.indicatorLabel
-                        ? `${rowTitle} — open in split; ${indicatorThread.indicatorLabel}`
+                      status.indicatorLabel
+                        ? `${rowTitle} — open in split; ${status.indicatorLabel}`
                         : `${rowTitle} — open in split`
                     }
                     layout={layout}
@@ -538,9 +567,10 @@ function ThreadRow({
                   data-sidebar-thread-trailing-indicator=""
                 >
                   <ThreadIndicator
-                    indicator={indicatorThread.indicator}
-                    label={indicatorThread.indicatorLabel}
-                    pluginStatus={indicatorThread.pluginStatus}
+                    indicator={status.indicator}
+                    label={status.indicatorLabel}
+                    pluginStatus={status.pluginStatus}
+                    pullRequestMark={status.pullRequestMark}
                     hideIdleDraftLabel={!(hasChildren && childrenCollapsed)}
                   />
                 </span>
@@ -627,6 +657,15 @@ function RibbonSidebarList({
   searchQuery,
 }: PluginThreadListProps) {
   const rpc = useRpc<typeof rpcContract>();
+  const rpcRef = useRef(rpc);
+  rpcRef.current = rpc;
+  const loadPullRequestDetails = useCallback(
+    (requests: readonly PullRequestDetailsRequest[]) =>
+      rpcRef.current
+        .call("pullRequestDetailsV1", { requests: [...requests] })
+        .then(({ details }) => details),
+    [],
+  );
   const navigate = useBbNavigate();
   const sidebar = experimental_useSidebarThreads();
   const actions = experimental_useSidebarThreadActions();
@@ -1534,652 +1573,674 @@ function RibbonSidebarList({
   };
 
   return (
-    <ThreadDragProvider
-      canDrop={(sourceId, target) => {
-        const source = rootThreads.find(({ id }) => id === sourceId);
-        if (!source || normalizedSearch) return false;
-        if (target.kind === "pinned") return source.isPinned;
-        if ("threadId" in target && target.threadId) {
-          const row = rootThreads.find(
-            (thread) => thread.id === target.threadId,
-          );
-          if (
-            row &&
-            (threadBand(row) !== threadBand(source) ||
-              threadBand(source) === "completed")
-          )
-            return false;
-        }
-        return canDropPlacementInto(target.groupId);
-      }}
-      onStart={setDraggingThreadId}
-      onDestination={setDragDestination}
-      onCancel={clearDrag}
-      onDrop={(threadId, destination) => {
-        const id = ++moveSequence.current;
-        setOptimisticMoves((current) => [
-          ...current,
-          { id, threadId, destination },
-        ]);
-        clearDrag();
-        // Keep later gestures interactive, but commit their anchors in order.
-        moveQueue.current = moveQueue.current
-          .then(() =>
-            destination.kind === "pinned"
-              ? updatePinnedOrder(threadId, destination.beforeThreadId)
-              : updatePlacement(
-                  threadId,
-                  destination.groupId,
-                  destination.beforeThreadId === null
-                    ? { kind: "end" }
-                    : { kind: "before", threadId: destination.beforeThreadId },
-                ),
-          )
-          .catch((error: unknown) => {
-            setMutationError(
-              error instanceof Error ? error.message : "Could not move thread",
+    <PullRequestDetailsProvider load={loadPullRequestDetails}>
+      <ThreadDragProvider
+        canDrop={(sourceId, target) => {
+          const source = rootThreads.find(({ id }) => id === sourceId);
+          if (!source || normalizedSearch) return false;
+          if (target.kind === "pinned") return source.isPinned;
+          if ("threadId" in target && target.threadId) {
+            const row = rootThreads.find(
+              (thread) => thread.id === target.threadId,
             );
-          })
-          .finally(() =>
-            setOptimisticMoves((current) =>
-              current.filter((move) => move.id !== id),
-            ),
-          );
-      }}
-    >
-      <div
-        className="relative flex w-full min-w-0 flex-col"
-        data-sidebar="group"
-        data-sidebar-sticky-density="compact-actions"
-        data-sidebar-sticky-stack=""
-        data-ribbon-sidebar-ready={
-          placementsLoaded && stagesLoaded && previewsLoaded ? "" : undefined
-        }
-        data-ribbon-sidebar-root=""
+            if (
+              row &&
+              (threadBand(row) !== threadBand(source) ||
+                threadBand(source) === "completed")
+            )
+              return false;
+          }
+          return canDropPlacementInto(target.groupId);
+        }}
+        onStart={setDraggingThreadId}
+        onDestination={setDragDestination}
+        onCancel={clearDrag}
+        onDrop={(threadId, destination) => {
+          const id = ++moveSequence.current;
+          setOptimisticMoves((current) => [
+            ...current,
+            { id, threadId, destination },
+          ]);
+          clearDrag();
+          // Keep later gestures interactive, but commit their anchors in order.
+          moveQueue.current = moveQueue.current
+            .then(() =>
+              destination.kind === "pinned"
+                ? updatePinnedOrder(threadId, destination.beforeThreadId)
+                : updatePlacement(
+                    threadId,
+                    destination.groupId,
+                    destination.beforeThreadId === null
+                      ? { kind: "end" }
+                      : {
+                          kind: "before",
+                          threadId: destination.beforeThreadId,
+                        },
+                  ),
+            )
+            .catch((error: unknown) => {
+              setMutationError(
+                error instanceof Error
+                  ? error.message
+                  : "Could not move thread",
+              );
+            })
+            .finally(() =>
+              setOptimisticMoves((current) =>
+                current.filter((move) => move.id !== id),
+              ),
+            );
+        }}
       >
-        {settings.values?.showProjectsAndSections !== false ? (
-          <SidebarTopControls>
-            <Button
-              className="h-7 flex-1 justify-start px-2 text-xs text-subtle-foreground"
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                setEntityDialog({ kind: "create-section", name: "" })
-              }
-            >
-              <Icon aria-hidden name="Plus" className="size-4" /> New section
-            </Button>
-            <SidebarDisplayOptionsMenu
-              hide={preferences.view.hide}
-              onHideChange={(kind, hidden) =>
-                changePreferences((current) => ({
-                  ...current,
-                  view: {
-                    ...current.view,
-                    hide: { ...current.view.hide, [kind]: hidden },
-                  },
-                }))
-              }
-              pullRequestNumberPosition={
-                preferences.view.pullRequestNumberPosition
-              }
-              onPullRequestNumberPositionChange={(pullRequestNumberPosition) =>
-                changePreferences((current) => ({
-                  ...current,
-                  view: { ...current.view, pullRequestNumberPosition },
-                }))
-              }
-            />
-          </SidebarTopControls>
-        ) : null}
-        {mutationError ? (
-          <div className="rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
-            {mutationError}
-          </div>
-        ) : null}
-
-        <Dialog
-          open={entityDialog !== null}
-          onOpenChange={(open) => {
-            if (!open && !entityPending) setEntityDialog(null);
-          }}
+        <div
+          className="relative flex w-full min-w-0 flex-col"
+          data-sidebar="group"
+          data-sidebar-sticky-density="compact-actions"
+          data-sidebar-sticky-stack=""
+          data-ribbon-sidebar-ready={
+            placementsLoaded && stagesLoaded && previewsLoaded ? "" : undefined
+          }
+          data-ribbon-sidebar-root=""
         >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {entityDialog?.kind === "create-section"
-                  ? "New section"
-                  : entityDialog?.kind === "rename"
-                    ? `Rename ${entityDialog.label}`
-                    : entityDialog?.kind === "delete"
-                      ? `Delete ${entityDialog.label}?`
-                      : "Edit entity"}
-              </DialogTitle>
-              <DialogDescription>
-                {entityDialog?.kind === "delete"
-                  ? "This removes the group from bb."
-                  : entityDialog?.kind === "create-section"
-                    ? "Create a section for threads."
-                    : "Choose a new name for this section."}
-              </DialogDescription>
-            </DialogHeader>
-            {entityDialog?.kind === "create-section" ||
-            entityDialog?.kind === "rename" ? (
-              <form
-                className="space-y-4"
-                onSubmit={(event) => void submitEntityName(event)}
+          {settings.values?.showProjectsAndSections !== false ? (
+            <SidebarTopControls>
+              <Button
+                className="h-7 flex-1 justify-start px-2 text-xs text-subtle-foreground"
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  setEntityDialog({ kind: "create-section", name: "" })
+                }
               >
-                <Input
-                  aria-label={
-                    entityDialog.kind === "create-section"
-                      ? "Section name"
-                      : "New name"
-                  }
-                  autoFocus
-                  disabled={entityPending}
-                  onChange={(event) =>
-                    setEntityDialog((current) =>
-                      current?.kind === "create-section" ||
-                      current?.kind === "rename"
-                        ? { ...current, name: event.target.value }
-                        : current,
-                    )
-                  }
-                  value={entityDialog.name}
-                />
-                <DialogFooter>
-                  <Button
-                    disabled={entityPending || !entityDialog.name.trim()}
-                    type="submit"
-                  >
-                    {entityDialog.kind === "create-section"
-                      ? "Create section"
-                      : "Rename"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            ) : entityDialog?.kind === "delete" ? (
-              <DialogFooter>
-                <Button
-                  disabled={entityPending}
-                  onClick={() => void deleteEntity()}
-                  type="button"
-                  variant="destructive"
-                >
-                  Delete
-                </Button>
-              </DialogFooter>
-            ) : null}
-          </DialogContent>
-        </Dialog>
+                <Icon aria-hidden name="Plus" className="size-4" /> New section
+              </Button>
+              <SidebarDisplayOptionsMenu
+                hide={preferences.view.hide}
+                onHideChange={(kind, hidden) =>
+                  changePreferences((current) => ({
+                    ...current,
+                    view: {
+                      ...current.view,
+                      hide: { ...current.view.hide, [kind]: hidden },
+                    },
+                  }))
+                }
+                pullRequestNumberPosition={
+                  preferences.view.pullRequestNumberPosition
+                }
+                onPullRequestNumberPositionChange={(
+                  pullRequestNumberPosition,
+                ) =>
+                  changePreferences((current) => ({
+                    ...current,
+                    view: { ...current.view, pullRequestNumberPosition },
+                  }))
+                }
+              />
+            </SidebarTopControls>
+          ) : null}
+          {mutationError ? (
+            <div className="rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
+              {mutationError}
+            </div>
+          ) : null}
 
-        <Dialog
-          open={threadRename !== null}
-          onOpenChange={(open) => {
-            if (!open && !threadRenamePending) setThreadRename(null);
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Rename thread</DialogTitle>
-              <DialogDescription>
-                Choose the title shown in bb.
-              </DialogDescription>
-            </DialogHeader>
-            {threadRename ? (
-              <form
-                className="space-y-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const nextTitle = threadRename.name.trim();
-                  if (!nextTitle) return;
-                  setThreadRenamePending(true);
-                  void Promise.resolve(
-                    actions.rename(threadRename.id, nextTitle),
-                  )
-                    .then(() => setThreadRename(null))
-                    .catch((error: unknown) => {
-                      setMutationError(
-                        error instanceof Error
-                          ? error.message
-                          : "Could not rename thread",
-                      );
-                    })
-                    .finally(() => setThreadRenamePending(false));
-                }}
-              >
-                <Input
-                  aria-label="Thread title"
-                  autoFocus
-                  disabled={threadRenamePending}
-                  onChange={(event) =>
-                    setThreadRename((current) =>
-                      current
-                        ? { ...current, name: event.target.value }
-                        : current,
-                    )
-                  }
-                  value={threadRename.name}
-                />
-                <DialogFooter>
-                  <Button
-                    disabled={threadRenamePending || !threadRename.name.trim()}
-                    type="submit"
-                  >
-                    Rename
-                  </Button>
-                </DialogFooter>
-              </form>
-            ) : null}
-          </DialogContent>
-        </Dialog>
-
-        {normalizedSearch && searchResult.status === "loading" ? (
-          <SidebarMessage icon="Loading" loading>
-            Searching threads…
-          </SidebarMessage>
-        ) : normalizedSearch && searchResult.status === "error" ? (
-          <SidebarMessage
-            action={{
-              label: "Retry",
-              onClick: () => setSearchAttempt((current) => current + 1),
+          <Dialog
+            open={entityDialog !== null}
+            onOpenChange={(open) => {
+              if (!open && !entityPending) setEntityDialog(null);
             }}
-            icon="AlertCircle"
           >
-            Search failed.
-          </SidebarMessage>
-        ) : !hasDisplayedThreads ? (
-          <SidebarMessage icon="CircleQuestion">{emptyMessage}</SidebarMessage>
-        ) : (
-          <div className="space-y-4">
-            {pinnedRoots.length > 0 ? (
-              <ThreadDragGroup
-                aria-label="Pinned threads"
-                className="group/sidebar-section min-w-0 rounded-md"
-                data-sidebar-sticky-group=""
-                target={{ kind: "pinned", roots: pinnedRoots }}
-                disabled={Boolean(normalizedSearch)}
-              >
-                <ThreadDragHeader
-                  target={{ kind: "pinned", roots: pinnedRoots }}
-                  disabled={Boolean(normalizedSearch)}
-                  className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} max-md:pointer-coarse:h-9`}
-                  data-sidebar="group-label"
-                  data-sidebar-sticky-tier="label"
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {entityDialog?.kind === "create-section"
+                    ? "New section"
+                    : entityDialog?.kind === "rename"
+                      ? `Rename ${entityDialog.label}`
+                      : entityDialog?.kind === "delete"
+                        ? `Delete ${entityDialog.label}?`
+                        : "Edit entity"}
+                </DialogTitle>
+                <DialogDescription>
+                  {entityDialog?.kind === "delete"
+                    ? "This removes the group from bb."
+                    : entityDialog?.kind === "create-section"
+                      ? "Create a section for threads."
+                      : "Choose a new name for this section."}
+                </DialogDescription>
+              </DialogHeader>
+              {entityDialog?.kind === "create-section" ||
+              entityDialog?.kind === "rename" ? (
+                <form
+                  className="space-y-4"
+                  onSubmit={(event) => void submitEntityName(event)}
                 >
-                  <span className="flex min-w-0 flex-1 items-center">
-                    <span className="min-w-0 truncate">Pinned</span>
+                  <Input
+                    aria-label={
+                      entityDialog.kind === "create-section"
+                        ? "Section name"
+                        : "New name"
+                    }
+                    autoFocus
+                    disabled={entityPending}
+                    onChange={(event) =>
+                      setEntityDialog((current) =>
+                        current?.kind === "create-section" ||
+                        current?.kind === "rename"
+                          ? { ...current, name: event.target.value }
+                          : current,
+                      )
+                    }
+                    value={entityDialog.name}
+                  />
+                  <DialogFooter>
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-expanded={!pinnedSectionCollapsed}
-                      aria-label={
-                        pinnedSectionCollapsed
-                          ? "Expand Pinned section"
-                          : "Collapse Pinned section"
-                      }
-                      className={`${
-                        pinnedSectionCollapsed ? "" : "bb-sidebar-hover-actions"
-                      } mx-2 size-5 shrink-0 p-0 text-subtle-foreground focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
-                      onClick={() =>
-                        changePreferences((current) => {
-                          const collapsed = new Set(current.collapsed);
-                          if (collapsed.has("builtin:pinned")) {
-                            collapsed.delete("builtin:pinned");
-                          } else {
-                            collapsed.add("builtin:pinned");
-                          }
-                          return { ...current, collapsed };
-                        })
-                      }
-                      type="button"
+                      disabled={entityPending || !entityDialog.name.trim()}
+                      type="submit"
                     >
-                      <Icon
-                        aria-hidden
-                        className={`size-3 transition-transform duration-150 ${
-                          pinnedSectionCollapsed ? "" : "rotate-90"
-                        }`}
-                        name="ChevronRight"
-                      />
+                      {entityDialog.kind === "create-section"
+                        ? "Create section"
+                        : "Rename"}
                     </Button>
-                  </span>
-                </ThreadDragHeader>
-                {dragDestination?.kind === "pinned" &&
-                dragDestination.atStart ? (
-                  <ThreadDropPreview />
-                ) : null}
-                {!pinnedSectionCollapsed ? (
-                  <ul>
-                    {pinnedRoots.map((root) =>
-                      renderRoot(root, 0, true, {
-                        kind: "pinned",
-                        roots: pinnedRoots,
-                      }),
-                    )}
-                  </ul>
-                ) : pinnedActivePreview ? (
-                  <ul>{renderRoot(pinnedActivePreview, 0, false)}</ul>
-                ) : null}
-                {dragDestination?.kind === "pinned" &&
-                !dragDestination.atStart &&
-                !dragDestination.indicatorBefore &&
-                !dragDestination.indicatorAfter ? (
-                  <ThreadDropPreview />
-                ) : null}
-              </ThreadDragGroup>
-            ) : null}
+                  </DialogFooter>
+                </form>
+              ) : entityDialog?.kind === "delete" ? (
+                <DialogFooter>
+                  <Button
+                    disabled={entityPending}
+                    onClick={() => void deleteEntity()}
+                    type="button"
+                    variant="destructive"
+                  >
+                    Delete
+                  </Button>
+                </DialogFooter>
+              ) : null}
+            </DialogContent>
+          </Dialog>
 
-            {groupDefinitions.map((group) => {
-              const roots = projectedOrder(
-                unpinnedRoots.filter(
-                  (thread) => displayGroupId(thread) === group.id,
-                ),
-              );
-              const bands = sectionBands(
-                roots,
-                threadStage,
-                (root) =>
-                  assignmentPlacements
-                    .get(THREAD_STAGES_GROUPING_KEY)
-                    ?.get(root.id)?.enteredAtMs ?? 0,
-              );
-              const movingBand = movingThread
-                ? threadBand(movingThread)
-                : "main";
-              const dragRoots = bands[movingBand];
-              const otherRoots = dragRoots.filter(
-                (root) => root.id !== draggingThreadId,
-              );
-              const startPreview =
-                movingBand === "main"
-                  ? undefined
-                  : {
-                      before:
-                        otherRoots[0]?.id ??
-                        (movingBand === "deferred"
-                          ? bands.completed[0]?.id
-                          : null) ??
-                        null,
-                      after:
-                        otherRoots.length ||
-                        (movingBand === "deferred" && bands.completed.length)
-                          ? null
-                          : (bands.main.at(-1)?.id ?? null),
-                    };
-              // Group padding is an end-of-list target for the moving stage.
-              // Its marker must stay above the later stages, including hidden rows.
-              const endPreview =
-                movingBand === "main"
-                  ? {
-                      before: otherRoots.length
-                        ? null
-                        : (bands.deferred[0]?.id ??
-                          bands.completed[0]?.id ??
-                          null),
-                      after: otherRoots.at(-1)?.id ?? null,
-                    }
-                  : movingBand === "deferred" && bands.completed.length
-                    ? {
-                        before: bands.completed[0]!.id,
-                        after: null,
-                      }
-                    : undefined;
-              const selectedRootId = activeThreadId
-                ? (rootForThread(activeThreadId, liveThreads)?.id ??
-                  activeThreadId)
-                : null;
-              const renderSectionRow = (root: PluginSidebarThread) =>
-                renderRoot(root, 0, true, {
-                  kind: "placement",
-                  roots: bands[threadBand(root)],
-                  groupId: group.id,
-                });
-              if (normalizedSearch && roots.length === 0) return null;
-              if (roots.length === 0 && !group.visibleWhenEmpty) return null;
-              const ref = `${grouping?.groupingKey ?? "ungrouped"}/${group.id}`;
-              const collapsed =
-                grouping !== undefined &&
-                !normalizedSearch &&
-                preferences.collapsed.has(ref);
-              const groupTarget = {
-                kind: "placement" as const,
-                groupId: group.id,
-                roots: dragRoots,
-                startPreview:
-                  !collapsed && (startPreview?.before || startPreview?.after)
-                    ? startPreview
-                    : undefined,
-                endPreview:
-                  !collapsed && (endPreview?.before || endPreview?.after)
-                    ? endPreview
-                    : undefined,
-              };
-              const groupThreads = roots.flatMap((root) => [
-                root,
-                ...descendants(root.id, childrenByParent),
-              ]);
-              const activityThread =
-                collapsed &&
-                (grouping?.groupingKey === "plugin:thread-stages:stages" ||
-                  settings.values?.showCollapsedGroupIndicators === true)
-                  ? groupIndicator(
-                      groupThreads,
-                      draftThreadIds,
-                      threadRowStatuses,
+          <Dialog
+            open={threadRename !== null}
+            onOpenChange={(open) => {
+              if (!open && !threadRenamePending) setThreadRename(null);
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Rename thread</DialogTitle>
+                <DialogDescription>
+                  Choose the title shown in bb.
+                </DialogDescription>
+              </DialogHeader>
+              {threadRename ? (
+                <form
+                  className="space-y-4"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const nextTitle = threadRename.name.trim();
+                    if (!nextTitle) return;
+                    setThreadRenamePending(true);
+                    void Promise.resolve(
+                      actions.rename(threadRename.id, nextTitle),
                     )
-                  : null;
-              const activePreview =
-                collapsed && activeThreadId !== null
-                  ? groupThreads.find(({ id }) => id === activeThreadId)
-                  : undefined;
-              // A group heading takes the same icon its rows do: whichever was chosen
-              // for that project or section, or this plugin's own glyph until one is.
-              const entityGroupIcon:
-                | { kind: "project" | "section"; fallback: IconFallback }
-                | undefined =
-                grouping?.groupingKey === "builtin:projects"
-                  ? {
-                      kind: "project",
-                      fallback: sidebar.projects.find(
-                        ({ id }) => id === group.id,
-                      )?.isPersonal
-                        ? "personal"
-                        : "project",
+                      .then(() => setThreadRename(null))
+                      .catch((error: unknown) => {
+                        setMutationError(
+                          error instanceof Error
+                            ? error.message
+                            : "Could not rename thread",
+                        );
+                      })
+                      .finally(() => setThreadRenamePending(false));
+                  }}
+                >
+                  <Input
+                    aria-label="Thread title"
+                    autoFocus
+                    disabled={threadRenamePending}
+                    onChange={(event) =>
+                      setThreadRename((current) =>
+                        current
+                          ? { ...current, name: event.target.value }
+                          : current,
+                      )
                     }
-                  : grouping?.groupingKey === "builtin:sections"
-                    ? { kind: "section", fallback: "section" }
-                    : undefined;
-              const unorganizedGroup =
-                grouping?.groupingKey === "builtin:sections" &&
-                group.id === "unsectioned";
-              const section =
-                grouping?.groupingKey === "builtin:sections" &&
-                !unorganizedGroup
-                  ? sections.find(({ id }) => id === group.id)
-                  : undefined;
-              const headerActions: HeaderGroupActions | null = section
-                ? {
-                    kind: "section",
-                    onRemove: () =>
-                      setEntityDialog({
-                        kind: "delete",
-                        scope: {
-                          groupingKey: "builtin:sections",
-                          groupId: section.id,
-                        },
-                        label: section.label,
-                      }),
-                    onRename: () =>
-                      setEntityDialog({
-                        kind: "rename",
-                        scope: {
-                          groupingKey: "builtin:sections",
-                          groupId: section.id,
-                        },
-                        label: section.label,
-                        name: section.label,
-                      }),
-                  }
-                : null;
-              return (
+                    value={threadRename.name}
+                  />
+                  <DialogFooter>
+                    <Button
+                      disabled={
+                        threadRenamePending || !threadRename.name.trim()
+                      }
+                      type="submit"
+                    >
+                      Rename
+                    </Button>
+                  </DialogFooter>
+                </form>
+              ) : null}
+            </DialogContent>
+          </Dialog>
+
+          {normalizedSearch && searchResult.status === "loading" ? (
+            <SidebarMessage icon="Loading" loading>
+              Searching threads…
+            </SidebarMessage>
+          ) : normalizedSearch && searchResult.status === "error" ? (
+            <SidebarMessage
+              action={{
+                label: "Retry",
+                onClick: () => setSearchAttempt((current) => current + 1),
+              }}
+              icon="AlertCircle"
+            >
+              Search failed.
+            </SidebarMessage>
+          ) : !hasDisplayedThreads ? (
+            <SidebarMessage icon="CircleQuestion">
+              {emptyMessage}
+            </SidebarMessage>
+          ) : (
+            <div className="space-y-4">
+              {pinnedRoots.length > 0 ? (
                 <ThreadDragGroup
-                  aria-label={`${group.label} group`}
+                  aria-label="Pinned threads"
                   className="group/sidebar-section min-w-0 rounded-md"
                   data-sidebar-sticky-group=""
-                  key={group.id}
-                  target={groupTarget}
-                  disabled={Boolean(normalizedSearch) || !grouping}
+                  target={{ kind: "pinned", roots: pinnedRoots }}
+                  disabled={Boolean(normalizedSearch)}
                 >
                   <ThreadDragHeader
-                    target={groupTarget}
-                    disabled={Boolean(normalizedSearch) || !grouping}
-                    className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} transition-colors max-md:pointer-coarse:h-9`}
+                    target={{ kind: "pinned", roots: pinnedRoots }}
+                    disabled={Boolean(normalizedSearch)}
+                    className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} max-md:pointer-coarse:h-9`}
                     data-sidebar="group-label"
                     data-sidebar-sticky-tier="label"
                   >
-                    <span className="relative z-10 flex min-w-0 flex-1 items-center text-left">
-                      <span className="flex min-w-0 items-center gap-2 text-left">
-                        {settings.values?.showGroupHeaderIcons !== false &&
-                        unorganizedGroup ? (
-                          <UnorganizedIcon />
-                        ) : settings.values?.showGroupHeaderIcons !== false &&
-                          entityGroupIcon ? (
-                          <span
-                            aria-hidden
-                            {...(entityGroupIcon.kind === "project"
-                              ? { "data-ribbon-icons-project": group.id }
-                              : { "data-ribbon-icons-section": group.id })}
-                            data-ribbon-sidebar-icon={entityGroupIcon.fallback}
-                          />
-                        ) : settings.values?.showGroupHeaderIcons !== false &&
-                          group.icon ? (
-                          <ProviderIcon
-                            icon={group.icon}
-                            label={`${group.label} group icon`}
-                          />
-                        ) : null}
-                        <span className="min-w-0 truncate" title={group.label}>
-                          {group.label}
-                        </span>
-                      </span>
-                      {grouping ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-expanded={!collapsed}
-                          aria-label={
-                            collapsed
-                              ? `Expand ${group.label} section`
-                              : `Collapse ${group.label} section`
-                          }
-                          className={`${collapsed ? "" : "bb-sidebar-hover-actions"} relative z-20 mx-2 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            changePreferences((current) => {
-                              const next = new Set(current.collapsed);
-                              if (next.has(ref)) next.delete(ref);
-                              else next.add(ref);
-                              return { ...current, collapsed: next };
-                            });
-                          }}
-                          type="button"
-                        >
-                          <Icon
-                            aria-hidden
-                            className={`size-3 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
-                            name="ChevronRight"
-                          />
-                        </Button>
-                      ) : null}
+                    <span className="flex min-w-0 flex-1 items-center">
+                      <span className="min-w-0 truncate">Pinned</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-expanded={!pinnedSectionCollapsed}
+                        aria-label={
+                          pinnedSectionCollapsed
+                            ? "Expand Pinned section"
+                            : "Collapse Pinned section"
+                        }
+                        className={`${
+                          pinnedSectionCollapsed
+                            ? ""
+                            : "bb-sidebar-hover-actions"
+                        } mx-2 size-5 shrink-0 p-0 text-subtle-foreground focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
+                        onClick={() =>
+                          changePreferences((current) => {
+                            const collapsed = new Set(current.collapsed);
+                            if (collapsed.has("builtin:pinned")) {
+                              collapsed.delete("builtin:pinned");
+                            } else {
+                              collapsed.add("builtin:pinned");
+                            }
+                            return { ...current, collapsed };
+                          })
+                        }
+                        type="button"
+                      >
+                        <Icon
+                          aria-hidden
+                          className={`size-3 transition-transform duration-150 ${
+                            pinnedSectionCollapsed ? "" : "rotate-90"
+                          }`}
+                          name="ChevronRight"
+                        />
+                      </Button>
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      type="button"
-                      className="bb-sidebar-hover-actions m-1 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2"
-                      aria-label={`New thread in ${group.label}`}
-                      onClick={() =>
-                        actions.openNewThread({
-                          sectionId:
-                            group.id === "unsectioned" ? undefined : group.id,
-                          focusPrompt: true,
-                        })
-                      }
-                    >
-                      <Icon aria-hidden name="Plus" className="size-4" />
-                    </Button>
-                    <GroupHeaderMenu
-                      actions={headerActions}
-                      label={group.label}
-                      trailing={
-                        activityThread ? (
-                          <ThreadIndicator
-                            indicator={activityThread.indicator}
-                            label={activityThread.indicatorLabel}
-                            pluginStatus={activityThread.pluginStatus}
-                          />
-                        ) : collapsed && roots.length > 0 ? (
-                          <span
-                            aria-label={`${roots.length} ${roots.length === 1 ? "thread" : "threads"}`}
-                            className="tabular-nums text-xs text-subtle-foreground/60"
-                          >
-                            {roots.length}
-                          </span>
-                        ) : null
-                      }
-                    />
                   </ThreadDragHeader>
-                  {dragDestination?.kind === "placement" &&
-                  dragDestination.groupId === group.id &&
+                  {dragDestination?.kind === "pinned" &&
                   dragDestination.atStart ? (
                     <ThreadDropPreview />
                   ) : null}
-                  <div className={grouping && !collapsed ? "mt-1" : undefined}>
-                    {!collapsed ? (
-                      <>
-                        <ul>{bands.main.map(renderSectionRow)}</ul>
-                        <StagePreview
-                          key={`${group.id}/deferred`}
-                          stage="deferred"
-                          rows={bands.deferred}
-                          selectedRootId={selectedRootId}
-                          renderRow={renderSectionRow}
-                          revealAll={Boolean(normalizedSearch)}
-                        />
-                        <StagePreview
-                          key={`${group.id}/completed`}
-                          stage="completed"
-                          rows={bands.completed}
-                          selectedRootId={selectedRootId}
-                          renderRow={renderSectionRow}
-                          revealAll={Boolean(normalizedSearch)}
-                        />
-                      </>
-                    ) : activePreview ? (
-                      <ul>
-                        {renderRoot(activePreview, 0, false, {
-                          kind: "placement",
-                          roots,
-                          groupId: group.id,
-                        })}
-                      </ul>
-                    ) : null}
-                  </div>
-                  {dragDestination?.kind === "placement" &&
-                  dragDestination.groupId === group.id &&
+                  {!pinnedSectionCollapsed ? (
+                    <ul>
+                      {pinnedRoots.map((root) =>
+                        renderRoot(root, 0, true, {
+                          kind: "pinned",
+                          roots: pinnedRoots,
+                        }),
+                      )}
+                    </ul>
+                  ) : pinnedActivePreview ? (
+                    <ul>{renderRoot(pinnedActivePreview, 0, false)}</ul>
+                  ) : null}
+                  {dragDestination?.kind === "pinned" &&
                   !dragDestination.atStart &&
                   !dragDestination.indicatorBefore &&
                   !dragDestination.indicatorAfter ? (
                     <ThreadDropPreview />
                   ) : null}
                 </ThreadDragGroup>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </ThreadDragProvider>
+              ) : null}
+
+              {groupDefinitions.map((group) => {
+                const roots = projectedOrder(
+                  unpinnedRoots.filter(
+                    (thread) => displayGroupId(thread) === group.id,
+                  ),
+                );
+                const bands = sectionBands(
+                  roots,
+                  threadStage,
+                  (root) =>
+                    assignmentPlacements
+                      .get(THREAD_STAGES_GROUPING_KEY)
+                      ?.get(root.id)?.enteredAtMs ?? 0,
+                );
+                const movingBand = movingThread
+                  ? threadBand(movingThread)
+                  : "main";
+                const dragRoots = bands[movingBand];
+                const otherRoots = dragRoots.filter(
+                  (root) => root.id !== draggingThreadId,
+                );
+                const startPreview =
+                  movingBand === "main"
+                    ? undefined
+                    : {
+                        before:
+                          otherRoots[0]?.id ??
+                          (movingBand === "deferred"
+                            ? bands.completed[0]?.id
+                            : null) ??
+                          null,
+                        after:
+                          otherRoots.length ||
+                          (movingBand === "deferred" && bands.completed.length)
+                            ? null
+                            : (bands.main.at(-1)?.id ?? null),
+                      };
+                // Group padding is an end-of-list target for the moving stage.
+                // Its marker must stay above the later stages, including hidden rows.
+                const endPreview =
+                  movingBand === "main"
+                    ? {
+                        before: otherRoots.length
+                          ? null
+                          : (bands.deferred[0]?.id ??
+                            bands.completed[0]?.id ??
+                            null),
+                        after: otherRoots.at(-1)?.id ?? null,
+                      }
+                    : movingBand === "deferred" && bands.completed.length
+                      ? {
+                          before: bands.completed[0]!.id,
+                          after: null,
+                        }
+                      : undefined;
+                const selectedRootId = activeThreadId
+                  ? (rootForThread(activeThreadId, liveThreads)?.id ??
+                    activeThreadId)
+                  : null;
+                const renderSectionRow = (root: PluginSidebarThread) =>
+                  renderRoot(root, 0, true, {
+                    kind: "placement",
+                    roots: bands[threadBand(root)],
+                    groupId: group.id,
+                  });
+                if (normalizedSearch && roots.length === 0) return null;
+                if (roots.length === 0 && !group.visibleWhenEmpty) return null;
+                const ref = `${grouping?.groupingKey ?? "ungrouped"}/${group.id}`;
+                const collapsed =
+                  grouping !== undefined &&
+                  !normalizedSearch &&
+                  preferences.collapsed.has(ref);
+                const groupTarget = {
+                  kind: "placement" as const,
+                  groupId: group.id,
+                  roots: dragRoots,
+                  startPreview:
+                    !collapsed && (startPreview?.before || startPreview?.after)
+                      ? startPreview
+                      : undefined,
+                  endPreview:
+                    !collapsed && (endPreview?.before || endPreview?.after)
+                      ? endPreview
+                      : undefined,
+                };
+                const groupThreads = roots.flatMap((root) => [
+                  root,
+                  ...descendants(root.id, childrenByParent),
+                ]);
+                const activityThread =
+                  collapsed &&
+                  (grouping?.groupingKey === "plugin:thread-stages:stages" ||
+                    settings.values?.showCollapsedGroupIndicators === true)
+                    ? groupIndicator(
+                        groupThreads,
+                        draftThreadIds,
+                        threadRowStatuses,
+                      )
+                    : null;
+                const activePreview =
+                  collapsed && activeThreadId !== null
+                    ? groupThreads.find(({ id }) => id === activeThreadId)
+                    : undefined;
+                // A group heading takes the same icon its rows do: whichever was chosen
+                // for that project or section, or this plugin's own glyph until one is.
+                const entityGroupIcon:
+                  | { kind: "project" | "section"; fallback: IconFallback }
+                  | undefined =
+                  grouping?.groupingKey === "builtin:projects"
+                    ? {
+                        kind: "project",
+                        fallback: sidebar.projects.find(
+                          ({ id }) => id === group.id,
+                        )?.isPersonal
+                          ? "personal"
+                          : "project",
+                      }
+                    : grouping?.groupingKey === "builtin:sections"
+                      ? { kind: "section", fallback: "section" }
+                      : undefined;
+                const unorganizedGroup =
+                  grouping?.groupingKey === "builtin:sections" &&
+                  group.id === "unsectioned";
+                const section =
+                  grouping?.groupingKey === "builtin:sections" &&
+                  !unorganizedGroup
+                    ? sections.find(({ id }) => id === group.id)
+                    : undefined;
+                const headerActions: HeaderGroupActions | null = section
+                  ? {
+                      kind: "section",
+                      onRemove: () =>
+                        setEntityDialog({
+                          kind: "delete",
+                          scope: {
+                            groupingKey: "builtin:sections",
+                            groupId: section.id,
+                          },
+                          label: section.label,
+                        }),
+                      onRename: () =>
+                        setEntityDialog({
+                          kind: "rename",
+                          scope: {
+                            groupingKey: "builtin:sections",
+                            groupId: section.id,
+                          },
+                          label: section.label,
+                          name: section.label,
+                        }),
+                    }
+                  : null;
+                return (
+                  <ThreadDragGroup
+                    aria-label={`${group.label} group`}
+                    className="group/sidebar-section min-w-0 rounded-md"
+                    data-sidebar-sticky-group=""
+                    key={group.id}
+                    target={groupTarget}
+                    disabled={Boolean(normalizedSearch) || !grouping}
+                  >
+                    <ThreadDragHeader
+                      target={groupTarget}
+                      disabled={Boolean(normalizedSearch) || !grouping}
+                      className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} transition-colors max-md:pointer-coarse:h-9`}
+                      data-sidebar="group-label"
+                      data-sidebar-sticky-tier="label"
+                    >
+                      <span className="relative z-10 flex min-w-0 flex-1 items-center text-left">
+                        <span className="flex min-w-0 items-center gap-2 text-left">
+                          {settings.values?.showGroupHeaderIcons !== false &&
+                          unorganizedGroup ? (
+                            <UnorganizedIcon />
+                          ) : settings.values?.showGroupHeaderIcons !== false &&
+                            entityGroupIcon ? (
+                            <span
+                              aria-hidden
+                              {...(entityGroupIcon.kind === "project"
+                                ? { "data-ribbon-icons-project": group.id }
+                                : { "data-ribbon-icons-section": group.id })}
+                              data-ribbon-sidebar-icon={
+                                entityGroupIcon.fallback
+                              }
+                            />
+                          ) : settings.values?.showGroupHeaderIcons !== false &&
+                            group.icon ? (
+                            <ProviderIcon
+                              icon={group.icon}
+                              label={`${group.label} group icon`}
+                            />
+                          ) : null}
+                          <span
+                            className="min-w-0 truncate"
+                            title={group.label}
+                          >
+                            {group.label}
+                          </span>
+                        </span>
+                        {grouping ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-expanded={!collapsed}
+                            aria-label={
+                              collapsed
+                                ? `Expand ${group.label} section`
+                                : `Collapse ${group.label} section`
+                            }
+                            className={`${collapsed ? "" : "bb-sidebar-hover-actions"} relative z-20 mx-2 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              changePreferences((current) => {
+                                const next = new Set(current.collapsed);
+                                if (next.has(ref)) next.delete(ref);
+                                else next.add(ref);
+                                return { ...current, collapsed: next };
+                              });
+                            }}
+                            type="button"
+                          >
+                            <Icon
+                              aria-hidden
+                              className={`size-3 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
+                              name="ChevronRight"
+                            />
+                          </Button>
+                        ) : null}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        type="button"
+                        className="bb-sidebar-hover-actions m-1 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2"
+                        aria-label={`New thread in ${group.label}`}
+                        onClick={() =>
+                          actions.openNewThread({
+                            sectionId:
+                              group.id === "unsectioned" ? undefined : group.id,
+                            focusPrompt: true,
+                          })
+                        }
+                      >
+                        <Icon aria-hidden name="Plus" className="size-4" />
+                      </Button>
+                      <GroupHeaderMenu
+                        actions={headerActions}
+                        label={group.label}
+                        trailing={
+                          activityThread ? (
+                            <ThreadIndicator
+                              indicator={activityThread.indicator}
+                              label={activityThread.indicatorLabel}
+                              pluginStatus={activityThread.pluginStatus}
+                            />
+                          ) : collapsed && roots.length > 0 ? (
+                            <span
+                              aria-label={`${roots.length} ${roots.length === 1 ? "thread" : "threads"}`}
+                              className="tabular-nums text-xs text-subtle-foreground/60"
+                            >
+                              {roots.length}
+                            </span>
+                          ) : null
+                        }
+                      />
+                    </ThreadDragHeader>
+                    {dragDestination?.kind === "placement" &&
+                    dragDestination.groupId === group.id &&
+                    dragDestination.atStart ? (
+                      <ThreadDropPreview />
+                    ) : null}
+                    <div
+                      className={grouping && !collapsed ? "mt-1" : undefined}
+                    >
+                      {!collapsed ? (
+                        <>
+                          <ul>{bands.main.map(renderSectionRow)}</ul>
+                          <StagePreview
+                            key={`${group.id}/deferred`}
+                            stage="deferred"
+                            rows={bands.deferred}
+                            selectedRootId={selectedRootId}
+                            renderRow={renderSectionRow}
+                            revealAll={Boolean(normalizedSearch)}
+                          />
+                          <StagePreview
+                            key={`${group.id}/completed`}
+                            stage="completed"
+                            rows={bands.completed}
+                            selectedRootId={selectedRootId}
+                            renderRow={renderSectionRow}
+                            revealAll={Boolean(normalizedSearch)}
+                          />
+                        </>
+                      ) : activePreview ? (
+                        <ul>
+                          {renderRoot(activePreview, 0, false, {
+                            kind: "placement",
+                            roots,
+                            groupId: group.id,
+                          })}
+                        </ul>
+                      ) : null}
+                    </div>
+                    {dragDestination?.kind === "placement" &&
+                    dragDestination.groupId === group.id &&
+                    !dragDestination.atStart &&
+                    !dragDestination.indicatorBefore &&
+                    !dragDestination.indicatorAfter ? (
+                      <ThreadDropPreview />
+                    ) : null}
+                  </ThreadDragGroup>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </ThreadDragProvider>
+    </PullRequestDetailsProvider>
   );
 }
 

@@ -42,6 +42,22 @@ Thread status indicators retain bb's priority for errors, input requests, active
 work, queued messages, unread completions, and drafts. Split-pane maps, previews,
 PR numbers, thread menus, and chosen section icons remain available.
 
+A thread's pull request adds its status. Its icon beside the PR number is green
+while open, amber once auto-merge is on or it is in the merge queue, purple
+when merged, red when closed, and muted while a draft. The status indicator adds
+GitHub's marks: a red ✗ when CI fails, changes are requested, or the branch
+conflicts; an amber ● while it waits on CI or a review; and a green ✓ when it
+is ready to merge. A ✗ outranks unread completions, a ✓ waits until the thread
+is read, and a ● shows only when nothing else needs the row; errors, input
+requests, and active work always win. Hover the PR number to see what the
+mark stands for. Auto-merge, reviewers, and check counts come from the GitHub
+CLI (`gh`) signed in on the bb server's machine; without it, marks follow bb's
+own pull request status.
+
+Use **Display options → PR number** to place the linked PR number to the Left
+or Right of each thread title, or choose Hidden to also hide its status mark.
+Right is the default, and the choice persists on this client across reloads.
+
 ## Stages and shortcuts
 
 Ribbon owns stage automation, shortcuts, and Completed retention. Idle roots
