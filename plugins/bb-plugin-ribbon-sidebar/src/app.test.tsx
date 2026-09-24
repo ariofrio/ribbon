@@ -152,6 +152,17 @@ const thread = (value: Partial<Record<string, unknown>> & { id: string }) => {
   projectId: "project-a",
   title: value.id,
   titleFallback: null,
+  displayTitle: String(value.title ?? id),
+  lifecycleOwnerThreadId: null,
+  sourceThreadId: null,
+  status: "idle" as const,
+  runtimeStatus: "idle" as const,
+  queuedWork: "none" as const,
+  pinnedAt: null,
+  pinSortKey: null,
+  archivedAt: null,
+  href: `/projects/project-a/threads/${id}`,
+  isHidden: false,
   parentThreadId: null,
   sectionId: "section-a",
   originKind: null,
@@ -297,7 +308,6 @@ const props = {
   isCompactViewport: false,
   onNavigate: vi.fn(),
   searchQuery: "",
-  Original: () => <div>BB original list</div>,
 };
 
 function options(overrides: Record<string, unknown> = {}) {
@@ -419,7 +429,7 @@ function options(overrides: Record<string, unknown> = {}) {
       },
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
         ],
         threads: [
           thread({ id: "thread-pin", isPinned: true }),
@@ -601,7 +611,7 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
         ],
         threads: [
           thread({ id: "thread-a", title: "Zebra", updatedAt: 20 }),
@@ -821,7 +831,7 @@ describe("Ribbon sidebar app", () => {
         },
         sidebarThreads: {
           projects: [
-            { id: "project-a", name: "Storefront", isPersonal: false },
+            { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
           ],
         },
       },
@@ -920,12 +930,135 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it.each([
+    ["queued-waiting", "Thread has a message waiting to send"],
+    ["queued-failed", "Queued message failed to send"],
+  ])("shows bb's %s indicator", async (indicator, indicatorLabel) => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        ...options().value.sidebarThreads,
+        threads: [thread({ id: "thread-a", indicator, indicatorLabel })],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const link = await slot.findByRole("link", { name: "Open thread-a — A useful preview" });
+    expect(within(link.closest("li")!).getByLabelText(indicatorLabel)).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it.each([
+    ["none", "Thread has unsubmitted draft"],
+    ["runtime", "Thread working with unsubmitted draft"],
+    ["queued-waiting", "Thread has a message waiting to send"],
+    ["queued-failed", "Queued message failed to send"],
+    ["waiting-for-input", "Thread needs user input"],
+  ])("combines a draft with %s using bb's priority", async (indicator, expected) => {
+    const labels: Record<string, string> = {
+      runtime: "Thread working", "queued-waiting": "Thread has a message waiting to send",
+      "queued-failed": "Queued message failed to send", "waiting-for-input": "Thread needs user input",
+    };
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarDraftThreadIds: ["thread-a"],
+      sidebarThreads: {
+        ...options().value.sidebarThreads,
+        threads: [thread({ id: "thread-a", indicator, indicatorLabel: labels[indicator] ?? null })],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const link = await slot.findByRole("link", { name: "Open thread-a — A useful preview (unsubmitted draft)" });
+    if (indicator !== "none") expect(within(link.closest("li")!).getByLabelText(expected)).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it.each([
+    ["none", false, "Saving draft"],
+    ["runtime", false, "Thread working"],
+    ["runtime", true, "Saving draft"],
+    ["unread-error", true, "Unread thread failed"],
+    ["waiting-for-input", true, "Thread needs user input"],
+  ])("resolves a plugin status with %s and draft=%s", async (indicator, draft, expected) => {
+    const labels: Record<string, string> = { runtime: "Thread working", "unread-error": "Unread thread failed", "waiting-for-input": "Thread needs user input" };
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarDraftThreadIds: draft ? ["thread-a"] : [],
+      sidebarRowStatuses: { "thread-a": { icon: "Save", label: "Saving draft", tone: "running" } },
+      sidebarThreads: {
+        ...options().value.sidebarThreads,
+        threads: [thread({ id: "thread-a", indicator, indicatorLabel: labels[indicator] ?? null })],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("thread-a");
+    expect(slot.getByLabelText(expected)).toBeTruthy();
+    if (expected !== "Saving draft") expect(slot.queryByLabelText("Saving draft")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("combines a hidden child's draft with its parent's work", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    window.localStorage.setItem("bb.sidebar.collapsedThreads", JSON.stringify(["thread-a"]));
+    const fixture = options({
+      sidebarDraftThreadIds: ["child"],
+      sidebarThreads: {
+        ...options().value.sidebarThreads,
+        threads: [
+          thread({ id: "thread-a", indicator: "runtime", indicatorLabel: "Thread working" }),
+          thread({ id: "child", parentThreadId: "thread-a" }),
+        ],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("thread-a");
+    expect(slot.getByLabelText("Thread working with unsubmitted draft")).toBeTruthy();
+    fireEvent.click(slot.getByRole("button", { name: "Expand thread-a threads" }));
+    expect(slot.getByLabelText("Thread working")).toBeTruthy();
+    expect(slot.getByRole("link", { name: "Open child (unsubmitted draft)" })).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps a hidden child's queue off the parent indicator like bb", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    window.localStorage.setItem("bb.sidebar.collapsedThreads", JSON.stringify(["thread-a"]));
+    const fixture = options({
+      sidebarThreads: {
+        ...options().value.sidebarThreads,
+        threads: [
+          thread({ id: "thread-a", indicator: "queued-waiting", indicatorLabel: "Thread has a message waiting to send", queuedWork: "waiting" }),
+          thread({ id: "child", parentThreadId: "thread-a", indicator: "queued-failed", indicatorLabel: "Queued message failed to send", queuedWork: "failed" }),
+        ],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("thread-a");
+    expect(slot.getByLabelText("Thread has a message waiting to send")).toBeTruthy();
+    expect(slot.queryByLabelText("Queued message failed to send")).toBeNull();
+    fireEvent.click(slot.getByRole("button", { name: "Expand thread-a threads" }));
+    expect(slot.getByLabelText("Queued message failed to send")).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it("hides internal threads supplied by the newer sidebar API by default", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        ...options().value.sidebarThreads,
+        threads: [thread({ id: "thread-a", title: "Visible thread" }), thread({ id: "thread-b", title: "Internal thread", isHidden: true })],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Visible thread");
+    expect(slot.queryByText("Internal thread")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
   it("aligns thread icons and indicators with the title row by default", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
         ],
         threads: [
           thread({
@@ -963,7 +1096,7 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
         ],
         threads: [
           thread({
@@ -1006,7 +1139,7 @@ describe("Ribbon sidebar app", () => {
       settings: { threadAdornmentAlignment: "Entire item" },
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
         ],
         threads: [
           thread({
@@ -1062,7 +1195,7 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
         ],
         threads: [
           thread({
@@ -1338,7 +1471,7 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
           { id: "project-b", name: "Analytics", isPersonal: false },
         ],
         threads: [
@@ -1436,7 +1569,7 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
         ],
         threads: [
           thread({ id: "thread-a", title: "Design migration" }),
@@ -1577,7 +1710,7 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
         ],
         threads: [
           thread({
@@ -2147,7 +2280,7 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
         ],
         threads: [
           thread({ id: "thread-a", title: "Release thread" }),
@@ -2175,7 +2308,7 @@ describe("Ribbon sidebar app", () => {
       sidebarThreads: {
         projects: [
           { id: "project-personal", name: "Personal", isPersonal: true },
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
         ],
         threads: [
           thread({ id: "thread-a", title: "Store thread" }),
@@ -2424,7 +2557,7 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
         ],
         threads: [
           thread({
@@ -2466,7 +2599,7 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
         ],
         threads: [
           thread({
@@ -2955,7 +3088,7 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
           { id: "project-b", name: "Back office", isPersonal: false },
         ],
         threads: [
@@ -3056,7 +3189,7 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false },
+          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
         ],
         threads: [
           thread({ id: "thread-pin-a", title: "Pinned A", isPinned: true }),
@@ -3217,7 +3350,7 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
-  it("delegates to bb's original list when mounting fails", async () => {
+  it("shows a retry action when mounting fails", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({
       rpc: {
@@ -3227,7 +3360,7 @@ describe("Ribbon sidebar app", () => {
       },
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    expect(await slot.findByText("BB original list")).toBeTruthy();
+    expect(await slot.findByRole("button", { name: "Retry" })).toBeTruthy();
     slot.lifecycle.unmount();
   });
 
@@ -3243,7 +3376,7 @@ describe("Ribbon sidebar app", () => {
       realtimeConnectionState: "connected",
     });
 
-    expect(await slot.findByText("BB original list")).toBeTruthy();
+    expect(await slot.findByRole("button", { name: "Retry" })).toBeTruthy();
     await slot.behavior.setRealtimeConnectionState("reconnecting");
     await slot.behavior.setRealtimeConnectionState("connected");
     expect(await slot.findByText("Design migration")).toBeTruthy();
