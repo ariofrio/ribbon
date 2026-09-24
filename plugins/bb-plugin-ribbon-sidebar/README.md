@@ -54,15 +54,15 @@ Completed hierarchies auto-archive after seven days by default. Ribbon settings
 can select 1 or 30 days, or Never. Completion and subsequent root or descendant
 updates restart the timer. Any pinned member prevents archival.
 
-| Shortcut | Action |
-| --- | --- |
-| ⌘. / ⌥⌘. | Complete and select the next main-list thread in this section |
-| ⇧⌘. | Return to Idle, or undo the latest filing in this section |
-| ⌃⇧⌘. | Mark Blocked |
-| ⌃⌘. | Defer |
-| ⌥⌘↑ / ⌥⌘↓ | Move within the main or Deferred list |
-| ⌥⇧⌘↑ / ⌥⇧⌘↓ | Move to that list's edge |
-| ⌃⌘↑ / ⌃⌘↓ | Move to the adjacent enabled stage |
+| macOS | Linux / Windows | Action |
+| --- | --- | --- |
+| ⌘. / ⌥⌘. | Ctrl+. / Ctrl+Alt+. | Complete and select the next main-list thread in this section |
+| ⇧⌘. | Ctrl+Shift+. | Return to Idle, or undo the latest filing in this section |
+| ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked |
+| ⌃⌘. | Ctrl+Alt+, | Defer |
+| ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list |
+| ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to that list's edge |
+| ⌃⌘↑ / ⌃⌘↓ | Ctrl+↑ / Ctrl+↓ | Move to the adjacent enabled stage |
 
 Shortcuts can be rebound in bb. Enter opens a focused thread; Space starts a
 keyboard drag. Expanding an overflow list from the keyboard focuses its first

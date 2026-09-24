@@ -83,3 +83,14 @@ export const WORKFLOW_COMMANDS = [
   id: string;
   title: string;
 }[];
+
+// Control and Mod are the same key outside macOS; comma avoids the Completed chords.
+export function workflowShortcut(
+  command: (typeof WORKFLOW_COMMANDS)[number],
+  isMac: boolean,
+) {
+  return !isMac &&
+    (command.id === "defer-thread" || command.id === "block-thread")
+    ? { key: ",", mod: true, alt: true, shift: command.id === "block-thread" }
+    : command.defaultShortcut;
+}

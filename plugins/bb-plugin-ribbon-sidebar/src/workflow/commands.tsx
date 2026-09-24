@@ -1,5 +1,6 @@
 import {
   WORKFLOW_COMMANDS,
+  workflowShortcut,
   type WorkflowCommandAction,
 } from "./command-definitions";
 import {
@@ -111,9 +112,10 @@ function WorkflowShortcuts() {
 export function registerWorkflowCommands(
   app: Parameters<Parameters<typeof definePluginApp>[0]>[0],
 ) {
+  const isMac = /Mac|iPhone|iPad|iPod/u.test(navigator.platform);
   for (const command of WORKFLOW_COMMANDS) {
     app.commands.register({
-      defaultShortcut: command.defaultShortcut,
+      defaultShortcut: workflowShortcut(command, isMac),
       id: command.id,
       isAvailable: ({ threadId }) =>
         threadId !== null &&

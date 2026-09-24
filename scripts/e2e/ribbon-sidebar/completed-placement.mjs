@@ -54,7 +54,7 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     await first(returning);
     await page.locator('[data-app-composer-role="primary"] [contenteditable="true"]').click();
     const response = page.waitForResponse(response => /\/rpc\/setWorkflowStage$/.test(response.url()));
-    await page.keyboard.press(process.platform === "darwin" ? "Meta+." : "Control+Alt+.");
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+." : "Control+.");
     assert.ok((await response).ok());
     await first(shortcut);
     place(returning, "Idle");

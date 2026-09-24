@@ -26,22 +26,16 @@ it("preserves custom and cleared bindings, unrelated overrides, and newer Ribbon
   ]);
   expect(migrateShortcutOverrides(next, false)).toEqual(next);
 });
-it("prevents old plugin defaults from conflicting while an upgrade is in progress", () => {
+it("disables old defaults while leaving new defaults platform-specific", () => {
   const next = migrateShortcutOverrides([], true);
+  expect(next).toHaveLength(11);
   expect(
-    next.filter((row) => row.command.startsWith("plugin:ribbon-sidebar/")),
-  ).toHaveLength(11);
-  expect(
-    next.filter((row) => row.command.startsWith("plugin:thread-stages/")),
-  ).toEqual(
-    expect.arrayContaining([
-      { command: "plugin:thread-stages/complete-thread", shortcut: null },
-    ]),
-  );
-  expect(
-    next.find((row) => row.command === "plugin:ribbon-sidebar/complete-thread")
-      ?.shortcut?.key,
-  ).toBe(".");
+    next.every(
+      (row) =>
+        row.command.startsWith("plugin:thread-stages/") &&
+        row.shortcut === null,
+    ),
+  ).toBe(true);
   expect(migrateShortcutOverrides([], false)).toEqual([]);
 });
 

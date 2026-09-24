@@ -35,25 +35,6 @@ export function migrateShortcutOverrides(
         override.command === `plugin:thread-stages/${definition.id}`,
     );
     if (legacy) next.push({ command, shortcut: legacy.shortcut });
-    // Move defaults as well as overrides while the older app is disabled above.
-    else if (legacyInstalled)
-      next.push({
-        command,
-        shortcut: {
-          key: definition.defaultShortcut.key,
-          mod: true,
-          meta: false,
-          control:
-            "control" in definition.defaultShortcut &&
-            definition.defaultShortcut.control,
-          alt:
-            "alt" in definition.defaultShortcut &&
-            definition.defaultShortcut.alt,
-          shift:
-            "shift" in definition.defaultShortcut &&
-            definition.defaultShortcut.shift,
-        },
-      });
   }
   return next;
 }
