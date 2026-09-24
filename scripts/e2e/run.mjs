@@ -24,6 +24,7 @@ import { verifyThreadIndicators } from "./ribbon-sidebar/thread-indicators.mjs";
 import { verifySelectedTitleColor } from "./ribbon-sidebar/selected-title-color.mjs";
 import { verifyNoPaging } from "./ribbon-sidebar/no-paging.mjs";
 import { verifyThreadTitleClicks } from "./ribbon-sidebar/thread-title-clicks.mjs";
+import { verifyThreadTitlePan } from "./ribbon-sidebar/thread-title-pan.mjs";
 import { verifyCompletedPlacement } from "./ribbon-sidebar/completed-placement.mjs";
 import { seed, writeFixtureProvider } from "../screenshots/fixture.mjs";
 import { BB_CLI_PATH, startStack } from "../screenshots/stack.mjs";
@@ -70,6 +71,12 @@ const suites = [
     cases: ["navigation"],
     plugins: ["bb-plugin-ribbon-sidebar"],
     run: verifyThreadTitleClicks,
+  },
+  {
+    id: "thread-title-pan",
+    cases: ["hover"],
+    plugins: ["bb-plugin-ribbon-sidebar"],
+    run: verifyThreadTitlePan,
   },
   {
     id: "no-paging",
