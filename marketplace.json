@@ -178,7 +178,7 @@
     {
       "id": "thread-titles",
       "displayName": "Thread titles",
-      "description": "Refine each new thread title once, on the third user message.",
+      "description": "Name threads after their first turn and refine generic or inaccurate titles on the third user message.",
       "icon": {
         "url": "./plugins/bb-plugin-thread-titles/assets/icon.svg"
       },

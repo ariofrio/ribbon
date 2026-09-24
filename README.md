@@ -53,7 +53,7 @@ bb plugin install thread-stages@ribbon
 
 ### <img src="assets/icons/thread-titles.svg" alt="" width="26" align="absmiddle"> &nbsp;Thread titles
 
-Refine each new thread title once, on the third user message.
+Name threads after their first turn and refine generic or inaccurate titles on the third user message.
 
 Use the full recorded conversation, keep renamed titles, and remember completed
 updates across bb restarts.

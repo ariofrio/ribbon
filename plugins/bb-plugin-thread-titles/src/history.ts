@@ -39,6 +39,7 @@ export async function readEvents(
               "client/turn/requested",
               "client/turn/rejected",
               "system/operation",
+              "turn/completed",
             ],
           }
         : {}),
@@ -61,6 +62,7 @@ export function userActivity(events: Event[]) {
   );
   const seen = new Set<unknown>();
   let count = 0;
+  let firstUserSeq: number | undefined;
   for (const event of events) {
     const data = record(event.data);
     if (
@@ -71,10 +73,16 @@ export function userActivity(events: Event[]) {
       seen.has(data.requestId)
     )
       continue;
+    firstUserSeq ??= event.seq;
     seen.add(data.requestId);
     count += Array.isArray(data.inputGroups) ? data.inputGroups.length : 1;
   }
-  return { count };
+  return {
+    count,
+    firstTurnEnded: firstUserSeq !== undefined && events.some(
+      (event) => event.type === "turn/completed" && event.seq > firstUserSeq,
+    ),
+  };
 }
 
 export function transcript(events: Event[]): string {
