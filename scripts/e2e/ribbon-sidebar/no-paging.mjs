@@ -31,6 +31,18 @@ export async function verifyNoPaging({ stack, fixture }) {
     await heading.getByRole("button", { name: `Expand ${SECTION.name} section`, exact: true }).click();
     await featured.waitFor();
     const control = page.locator("[data-ribbon-sidebar-top-controls]");
+    const navigation = page.getByRole("navigation", { name: "Sidebar navigation", exact: true });
+    const [navigationBox, controlsBox, headingBox] = await Promise.all([
+      navigation.boundingBox(), control.boundingBox(), heading.boundingBox(),
+    ]);
+    assert.ok(navigationBox && controlsBox && headingBox);
+    assert.ok(controlsBox.y >= navigationBox.y + navigationBox.height,
+      "Section controls belong below navigation");
+    assert.ok(controlsBox.y + controlsBox.height <= headingBox.y,
+      "Section controls precede the section list");
+    await control.getByRole("button", { name: "New section", exact: true }).click();
+    await page.getByRole("dialog", { name: "New section", exact: true }).waitFor();
+    await page.keyboard.press("Escape");
     await control.hover();
     await control.getByRole("button", { name: "Sidebar display options" }).click();
     assert.equal(await page.getByRole("menuitem", { name: /^(Pages|Headings|Icons|Sort) / }).count(), 0);

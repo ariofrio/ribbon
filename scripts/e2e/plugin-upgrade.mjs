@@ -48,23 +48,21 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
       .locator("[data-missing-keyboard-shortcuts-ready]")
       .waitFor({ state: "attached", timeout: 120_000 });
 
-    // These controls are now mounted by the public navigation slot. Verify
-    // their rendered position, then use a real pointer to open their menu.
+    // Section controls render with the list, below the host navigation.
+    // Verify their rendered position, then open the menu with a real pointer.
     const navigation = page.getByRole("navigation", {
       name: "Sidebar navigation",
       exact: true,
     });
-    const options = navigation.getByRole("button", {
+    const controls = page.locator("[data-ribbon-sidebar-root] [data-ribbon-sidebar-top-controls]");
+    const options = controls.getByRole("button", {
       name: "Sidebar display options",
     });
     await options.waitFor();
-    const optionsBox = await options.boundingBox();
-    const newThreadBox = await navigation
-      .getByRole("button", { name: /New thread/ })
-      .first()
-      .boundingBox();
-    assert.ok(optionsBox && newThreadBox && optionsBox.y < newThreadBox.y);
-    await navigation.locator("[data-ribbon-sidebar-top-controls]").hover();
+    const controlsBox = await controls.boundingBox();
+    const navigationBox = await navigation.boundingBox();
+    assert.ok(controlsBox && navigationBox && controlsBox.y >= navigationBox.y + navigationBox.height);
+    await controls.hover();
     await page.waitForFunction(() => {
       const button = document.querySelector(
         '[data-ribbon-sidebar-top-controls] [aria-label="Sidebar display options"]',

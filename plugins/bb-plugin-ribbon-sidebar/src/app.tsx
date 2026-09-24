@@ -44,7 +44,7 @@ import { sectionBands } from "./section-layout";
 import type { rpcContract } from "./server";
 import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
 import { SidebarDisplayOptionsMenu } from "./sidebar-display-options-menu";
-import { SidebarNavigation, SidebarTopControls } from "./sidebar-top-controls";
+import { SidebarTopControls } from "./sidebar-top-controls";
 import { SplitPaneMiniMap } from "./split-pane-mini-map";
 import { StagePreview } from "./stage-preview";
 import {
@@ -2092,11 +2092,6 @@ function RibbonSidebarList({
 
 export default definePluginApp((app) => {
   registerWorkflowCommands(app);
-  app.slots.experimental_sidebarNavigation({
-    id: "ribbon-navigation",
-    title: "Ribbon navigation",
-    component: SidebarNavigation,
-  });
   app.slots.experimental_threadList({
     id: "ribbon-sidebar",
     title: "Ribbon sidebar",
