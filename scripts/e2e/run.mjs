@@ -1,3 +1,4 @@
+import { verifyChildCollapse } from "./ribbon-sidebar/child-collapse.mjs";
 import {
   verifyThreadReordering,
   verifyHeadingBoundary,
@@ -35,6 +36,12 @@ const scratch = join(repositoryRoot, ".scratch/e2e");
 const bb = BB_CLI_PATH;
 
 const suites = [
+  {
+    id: "child-collapse",
+    cases: ["reload"],
+    plugins: ["bb-plugin-ribbon-sidebar"],
+    run: verifyChildCollapse,
+  },
   {
     id: "composer-readiness",
     cases: ["delayed-visibility"],

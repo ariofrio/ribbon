@@ -86,7 +86,9 @@ import { STAGE_ICONS, THREAD_STAGES_GROUPING_KEY } from "./workflow/catalog";
 import { registerWorkflowCommands } from "./workflow/commands";
 import { parseWorkflowStage } from "./workflow/workflow-stage";
 
-const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
+// bb clears its legacy key during preference hydration; Ribbon owns this key.
+const COLLAPSED_THREADS_STORAGE_KEY = "bb.plugin.ribbon-sidebar.collapsedThreads";
+const LEGACY_COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
 /** bb keeps project-less threads in the personal project, under a reserved id. */
 const PERSONAL_PROJECT_ID = "proj_personal";
 
@@ -646,6 +648,7 @@ function RibbonSidebarList({
   >([]);
   const [collapsedThreadIds, setCollapsedThreadIds] = usePersistentStringSet(
     COLLAPSED_THREADS_STORAGE_KEY,
+    LEGACY_COLLAPSED_THREADS_STORAGE_KEY,
   );
   const [threadRename, setThreadRename] = useState<{
     id: string;

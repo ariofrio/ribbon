@@ -959,7 +959,7 @@ describe("Ribbon sidebar app", () => {
     expect(slot.queryByLabelText("Thread working")).toBeNull();
     expect(
       JSON.parse(
-        window.localStorage.getItem("bb.sidebar.collapsedThreads") ?? "[]",
+        window.localStorage.getItem("bb.plugin.ribbon-sidebar.collapsedThreads") ?? "[]",
       ),
     ).toEqual(["thread-a"]);
     fireEvent.click(
@@ -973,7 +973,7 @@ describe("Ribbon sidebar app", () => {
     });
     expect(
       JSON.parse(
-        window.localStorage.getItem("bb.sidebar.collapsedThreads") ?? "[]",
+        window.localStorage.getItem("bb.plugin.ribbon-sidebar.collapsedThreads") ?? "[]",
       ),
     ).toEqual([]);
 
