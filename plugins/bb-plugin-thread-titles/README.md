@@ -1,6 +1,6 @@
 # Thread titles
 
-Refine each new thread title once, on the third user message.
+Refine each new thread title once, after its first turn ends.
 The update can run while the thread is busy and uses its full recorded
 conversation, including assistant messages, tool results, and partial output.
 
@@ -17,12 +17,12 @@ required.
 
 ## Behavior
 
-Only accepted user messages count toward the three-message trigger; retries
-and messages sent by agents do not count. Elapsed time never triggers an update.
-On the third user message, a fresh hidden worker generates a concise title on
-the source thread's provider and host, in a personal workspace. It receives the complete recorded
-transcript as quoted data and is instructed to return a title without tools.
-The worker is stopped and archived afterward.
+When the first turn ends, a fresh hidden worker generates a concise title on
+the source thread's provider and host, in a personal workspace. It receives the
+complete recorded transcript as quoted data and is instructed to return a title
+without tools. Completion is read from durable turn history, so a missed event
+or restart does not lose the trigger. Additional messages and elapsed time do
+not trigger another update. The worker is stopped and archived afterward.
 
 The plugin saves the first stored title it observes during initial naming.
 bb initially displays a fallback derived from the first prompt while its stored

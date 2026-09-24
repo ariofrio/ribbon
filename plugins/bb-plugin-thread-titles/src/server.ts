@@ -245,7 +245,7 @@ export default function plugin(bb: BbPluginApi) {
     const activity = userActivity(await readEvents(sdk, job.threadId, true));
     job.count = activity.count;
     store.save(job);
-    if (job.count < 3) return;
+    if (!activity.firstTurnEnded) return;
     if (!thread.environmentId) return;
     const configuration = await settings.get();
     const environment = await sdk.environments.get({

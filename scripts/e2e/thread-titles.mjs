@@ -47,10 +47,6 @@ export async function verifyThreadTitles({ stack, fixture }) {
     "Calendar",
   ]);
   run(["thread", "wait", source.id, "--status", "idle"]);
-  assert.equal(runJson(["thread", "show", source.id]).thread.title, null);
-  run(["thread", "tell", source.id, "Add sharing"]);
-  run(["thread", "wait", source.id, "--status", "idle"]);
-  run(["thread", "tell", source.id, "Include team invitations"]);
   await until(
     () =>
       runJson(["thread", "show", source.id]).thread.title ===
@@ -78,10 +74,11 @@ export async function verifyThreadTitles({ stack, fixture }) {
   assert.equal(before.length, 1);
   assert.equal(before[0].visibility, "hidden");
   assert.equal(before[0].parentThreadId, null);
-  assert.equal(runJson(["thread", "show", source.id]).thread.status, "active");
-  run(["thread", "stop", source.id]);
+  assert.equal(runJson(["thread", "show", source.id]).thread.status, "idle");
   run(["plugin", "reload", "thread-titles"]);
   await stack.restartServer();
+  run(["thread", "wait", source.id, "--status", "idle"]);
+  run(["thread", "tell", source.id, "Add sharing"]);
   run(["thread", "wait", source.id, "--status", "idle"]);
   run(["thread", "tell", source.id, "Also support reminders"]);
   run(["thread", "wait", source.id, "--status", "idle"]);

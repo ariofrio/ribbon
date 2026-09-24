@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-thread-titles",
   "version": "0.1.0",
-  "description": "Refine each new thread title once, on the third user message.",
+  "description": "Refine each new thread title once, after its first turn ends.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -35,7 +35,7 @@
   },
   "bb": {
     "name": "Thread titles",
-    "description": "Refine each new thread title once, on the third user message.",
+    "description": "Refine each new thread title once, after its first turn ends.",
     "branding": {
       "icon": "./assets/icon.svg"
     },
