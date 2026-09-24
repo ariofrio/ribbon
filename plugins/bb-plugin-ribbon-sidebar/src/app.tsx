@@ -310,7 +310,12 @@ function ThreadRow({
   const accessibleTitle = preview ? `${rowTitle} — ${preview}` : rowTitle;
   const showPullRequest = pullRequest !== null && pullRequestNumberPosition !== "hidden";
   const pullRequestNumber = showPullRequest ? (
-    <span className="inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75" title={pullRequest.title}>
+    <span
+      className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ${
+        pullRequestNumberPosition === "right" ? "ml-auto" : ""
+      }`}
+      title={pullRequest.title}
+    >
       <Icon
         name={PR_STATE_ICONS[pullRequest.state].name}
         className={`size-4 shrink-0 ${PR_STATE_ICONS[pullRequest.state].className}`}
