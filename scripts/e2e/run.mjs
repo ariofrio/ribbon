@@ -20,6 +20,7 @@ import {
 } from "./ribbon-sidebar/optional-icon-layout.mjs";
 import { verifyThreadIcons } from "./ribbon-sidebar/thread-icons.mjs";
 import { verifyPrNumber } from "./ribbon-sidebar/pr-number.mjs";
+import { verifyThreadIndicators } from "./ribbon-sidebar/thread-indicators.mjs";
 import { verifySelectedTitleColor } from "./ribbon-sidebar/selected-title-color.mjs";
 import { verifyNoPaging } from "./ribbon-sidebar/no-paging.mjs";
 import { verifyThreadTitleClicks } from "./ribbon-sidebar/thread-title-clicks.mjs";
@@ -39,6 +40,12 @@ const suites = [
     cases: ["delayed-visibility"],
     plugins: ["bb-plugin-missing-keyboard-shortcuts"],
     run: verifyComposerReadiness,
+  },
+  {
+    id: "thread-indicators",
+    cases: ["parity"],
+    plugins: ["bb-plugin-ribbon-sidebar"],
+    run: verifyThreadIndicators,
   },
   {
     id: "completed-placement",

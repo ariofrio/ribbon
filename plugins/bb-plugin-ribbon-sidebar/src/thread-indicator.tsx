@@ -1,21 +1,45 @@
 import type {
   PluginSidebarThread,
   PluginSidebarThreadIndicator,
+  PluginSidebarThreadRowStatus,
 } from "@get-bb/plugin-sdk/app";
 import { Icon } from "./vendor/components/ui/icon";
+import { resolveThreadStatus, type ThreadStatus } from "./thread-status";
 
 export function ThreadIndicator({
   indicator,
   label,
+  pluginStatus = null,
+  hideIdleDraftLabel = false,
 }: {
   indicator: PluginSidebarThreadIndicator;
   label: string | null;
+  pluginStatus?: PluginSidebarThreadRowStatus | null;
+  hideIdleDraftLabel?: boolean;
 }) {
-  const className = "size-4 shrink-0";
+  const className = "pointer-events-none size-4 shrink-0";
   const ariaLabel = label ?? undefined;
+
+  if (pluginStatus) {
+    if (pluginStatus.tone === "running") {
+      return (
+        <span className="inline-flex size-4 items-center justify-center motion-safe:animate-pulse text-success">
+          <Icon name={pluginStatus.icon} aria-label={pluginStatus.label} className={`${className} animate-shine-icon`} />
+        </span>
+      );
+    }
+    return (
+      <Icon
+        name={pluginStatus.icon}
+        aria-label={pluginStatus.label}
+        className={`${className} ${pluginStatus.tone === "success" ? "text-success-foreground" : pluginStatus.tone === "error" ? "text-destructive" : "text-muted-foreground"}`}
+      />
+    );
+  }
 
   switch (indicator) {
     case "unread-error":
+    case "queued-failed":
       return (
         <Icon
           name="CircleX"
@@ -24,9 +48,10 @@ export function ThreadIndicator({
         />
       );
     case "waiting-for-input":
+    case "queued-waiting":
       return (
         <Icon
-          name="CircleQuestion"
+          name={indicator === "queued-waiting" ? "Clock" : "CircleQuestion"}
           aria-label={ariaLabel}
           className={`${className} text-muted-foreground/75`}
         />
@@ -36,7 +61,7 @@ export function ThreadIndicator({
         <Icon
           name="Loading"
           aria-label={ariaLabel}
-          className={`${className} animate-spin text-muted-foreground/50`}
+          className={`${className} animate-spin motion-reduce:animate-none text-muted-foreground/50`}
         />
       );
     case "workflow":
@@ -53,7 +78,7 @@ export function ThreadIndicator({
       return (
         <Icon
           name="Edit"
-          aria-label={ariaLabel}
+          {...(hideIdleDraftLabel ? { "aria-hidden": true } : { "aria-label": ariaLabel })}
           className={`${className} text-muted-foreground`}
         />
       );
@@ -71,7 +96,7 @@ export function ThreadIndicator({
           aria-label={ariaLabel}
           className="flex size-4 shrink-0 items-center justify-center"
         >
-          <span className="size-[5px] rounded-full bg-muted-foreground/60" />
+          <span className="size-[5px] rounded-full bg-muted-foreground/60 max-md:pointer-coarse:size-1.5" />
         </span>
       );
     case "none":
@@ -96,7 +121,7 @@ function ActiveIcon({
   );
 }
 
-// bb-app@0.43.3 provides each computed indicator and label, but does not export
+// bb-app@0.43.4 provides each computed indicator and label, but does not export
 // aggregate precedence. Keep the replacement sidebar aligned with bb and the
 // compatible Thread stages renderer, including omission of unread-success.
 const INDICATOR_PRIORITY: readonly PluginSidebarThreadIndicator[] = [
@@ -114,10 +139,13 @@ const INDICATOR_PRIORITY: readonly PluginSidebarThreadIndicator[] = [
 
 export function groupIndicator(
   threads: readonly PluginSidebarThread[],
-): PluginSidebarThread | null {
+  draftIds: ReadonlySet<string>,
+  pluginStatuses: ReadonlyMap<string, PluginSidebarThreadRowStatus>,
+): ThreadStatus | null {
+  const statuses = threads.map((thread) => resolveThreadStatus([thread], draftIds, pluginStatuses.get(thread.id)));
   for (const indicator of INDICATOR_PRIORITY) {
-    const thread = threads.find((candidate) => candidate.indicator === indicator);
-    if (thread) return thread;
+    const status = statuses.find((candidate) => candidate.indicator === indicator);
+    if (status) return status;
   }
-  return null;
+  return statuses.find((status) => status.pluginStatus !== null) ?? null;
 }
