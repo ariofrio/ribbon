@@ -111,13 +111,12 @@ const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
 /** bb keeps project-less threads in the personal project, under a reserved id. */
 const PERSONAL_PROJECT_ID = "proj_personal";
 
-// Color carries the lifecycle: green is open, amber will merge on its own
-// (GitHub's merge-queue color), purple is merged. Closed stays muted so red
-// belongs to the status mark that means "needs a fix".
+// bb's own pull request colors, plus amber for a PR that will merge on its
+// own (GitHub's merge-queue color).
 const PR_LIFECYCLE_ICONS = {
   open: { name: "GitPullRequestArrow", className: "text-success" },
   auto: { name: "GitMerge", className: "text-attention" },
-  closed: { name: "GitPullRequestClosed", className: "text-muted-foreground" },
+  closed: { name: "GitPullRequestClosed", className: "text-destructive" },
   merged: { name: "GitMerge", className: "text-pr-merged" },
   draft: { name: "GitPullRequestDraft", className: "text-muted-foreground" },
 } as const;

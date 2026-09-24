@@ -59,7 +59,7 @@ icon when the thread is open in a split and animates while work is active.
 
 A thread's pull request adds to both. Its icon beside the PR number is green
 while open, amber once auto-merge is on or it is in the merge queue, purple
-when merged, and muted when draft or closed. The status indicator adds
+when merged, red when closed, and muted while a draft. The status indicator adds
 GitHub's marks: a red ✗ when CI fails, changes are requested, or the branch
 conflicts; an amber ● while it waits on CI or a review; and a green ✓ when it
 is ready to merge. A ✗ outranks unread completions, a ✓ waits until the thread
