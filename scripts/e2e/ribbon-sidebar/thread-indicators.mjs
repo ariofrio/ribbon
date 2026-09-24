@@ -128,7 +128,10 @@ export async function verifyThreadIndicators({ stack, fixture }) {
       await observe(null); // bb places the idle draft label on the row's link.
       assert.match(await link.getAttribute("aria-label"), /unsubmitted draft/);
       await editor.fill("");
-      await glyph.waitFor({ state: "detached" });
+      await glyph.waitFor({ state: "detached" }).catch(async error => {
+        console.error("Indicator remaining after clearing draft:", provider, await row.evaluate(node => node.outerHTML));
+        throw error;
+      });
       runtime = "active";
       await page.reload();
       await ready();

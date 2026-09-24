@@ -30,6 +30,10 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
       viewport: { width: 1280, height: 800 },
     });
     await context.tracing.start({ snapshots: true, sources: true });
+    context.setDefaultTimeout(30_000);
+    await context.addInitScript(() => localStorage.setItem(
+      "bb.sidebar.threadListProvider", JSON.stringify("ribbon-sidebar/ribbon-sidebar"),
+    ));
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
