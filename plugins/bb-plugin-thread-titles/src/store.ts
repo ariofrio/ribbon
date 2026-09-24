@@ -3,6 +3,8 @@ import type { Thread } from "./history";
 
 export interface Job {
   threadId: string;
+  phase?: "initial" | "refinement";
+  initialWorkerId?: string | null;
   baseline: string | null;
   fallback: string | null;
   captured: boolean;
@@ -46,6 +48,8 @@ export function createStore(bb: BbPluginApi) {
         return;
       const job: Job = {
         threadId: thread.id,
+        phase: "initial",
+        initialWorkerId: null,
         baseline: thread.title,
         fallback: thread.titleFallback,
         captured: thread.title !== null,

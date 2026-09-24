@@ -532,3 +532,123 @@ it("rejects tool-using workers instead of applying their result", async () => {
   expect(h.updates).toHaveLength(0);
   expect(h.spawned).toHaveLength(1);
 });
+
+async function firstTitle(title = "Build a shared calendar") {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Calendar");
+  h.endTurn();
+  await h.emit();
+  h.harness.inspection.sdk.stub("threads.output", async () => ({ output: JSON.stringify({ title }) }));
+  h.worker.status = "idle";
+  h.workerEvents.push({ seq: 1, type: "turn/completed", data: { status: "completed" } });
+  await h.harness.behavior.emitThreadEvent("thread.idle", { thread: h.worker, lastAssistantText: null });
+  expect(h.updates).toEqual([{ threadId: "real", title }]);
+  h.worker.id = "refinement-worker";
+  h.worker.status = "active";
+  h.workerEvents.length = 0;
+  return h;
+}
+
+async function decide(h: Awaited<ReturnType<typeof setup>>, decision: unknown) {
+  h.harness.inspection.sdk.stub("threads.output", async () => ({ output: JSON.stringify(decision) }));
+  h.worker.status = "idle";
+  h.workerEvents.push({ seq: 1, type: "turn/completed", data: { status: "completed" } });
+  await h.harness.behavior.emitThreadEvent("thread.idle", { thread: h.worker, lastAssistantText: null });
+}
+
+it("refines a generic first title once on the third user message across reloads", async () => {
+  const h = await firstTitle("Calendar");
+  h.user("Add team sharing");
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  const next = await h.harness.lifecycle.reload(plugin);
+  cleanups.push(() => next.harness.lifecycle.dispose());
+  h.user("Add invitations to the shared calendar");
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(2);
+  expect(h.spawned[1]?.prompt).toContain('Current title: "Calendar"');
+  expect(h.spawned[1]?.prompt).toContain("generic or materially inaccurate");
+  next.harness.inspection.sdk.stub("threads.output", async () => ({ output: JSON.stringify({
+    action: "rename", reason: "generic", title: "Build a shared calendar",
+  }) }));
+  h.worker.status = "idle";
+  h.workerEvents.push({ seq: 1, type: "turn/completed", data: { status: "completed" } });
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.updates).toHaveLength(2);
+  expect(h.thread.title).toBe("Build a shared calendar");
+  const restarted = await next.harness.lifecycle.reload(plugin);
+  cleanups.push(() => restarted.harness.lifecycle.dispose());
+  h.user("One more detail");
+  await restarted.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(2);
+  expect(h.updates).toHaveLength(2);
+});
+
+it("keeps an accurate specific title and never reassesses it on later messages", async () => {
+  const h = await firstTitle();
+  h.user("Add sharing");
+  h.user("Include invitations");
+  await h.emit();
+  expect(h.spawned).toHaveLength(2);
+  await decide(h, { action: "keep" });
+  expect(h.updates).toHaveLength(1);
+  h.user("Add reminders");
+  await h.emit();
+  expect(h.spawned).toHaveLength(2);
+});
+
+it("never assesses a title changed after the first pass, even if it is restored", async () => {
+  const h = await firstTitle();
+  h.thread.title = "My calendar project";
+  await h.emit();
+  h.thread.title = "Build a shared calendar";
+  h.user("Add sharing");
+  h.user("Include invitations");
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  expect(h.updates).toHaveLength(1);
+});
+
+it("preserves a title changed while the third-message assessment is running", async () => {
+  const h = await firstTitle("Calendar");
+  h.user("Add sharing");
+  h.user("Include invitations");
+  await h.emit();
+  expect(h.spawned).toHaveLength(2);
+  h.thread.title = "My title";
+  await decide(h, { action: "rename", reason: "generic", title: "Build a shared calendar" });
+  expect(h.updates).toHaveLength(1);
+  expect(h.thread.title).toBe("My title");
+});
+
+it("rejects a third-message rename without a permitted reason", async () => {
+  const h = await firstTitle();
+  h.user("Add sharing");
+  h.user("Include invitations");
+  await h.emit();
+  expect(h.spawned).toHaveLength(2);
+  await decide(h, { action: "rename", reason: "sounds better", title: "Develop shared calendars" });
+  expect(h.updates).toHaveLength(1);
+});
+
+it("recovers the second worker without mistaking the archived first worker for it", async () => {
+  const h = await firstTitle("Calendar");
+  const initial = makeThreadResponse({ ...h.worker, id: "worker", archivedAt: Date.now() });
+  h.harness.inspection.sdk.stub("threads.get", async ({ threadId }) =>
+    threadId === "real" ? h.thread : threadId === "worker" ? initial : h.worker,
+  );
+  h.harness.inspection.sdk.stub("threads.spawn", async (args) => {
+    h.spawned.push({ ...(args as Record<string, unknown>) });
+    throw new Error("lost second worker acknowledgement");
+  });
+  h.harness.inspection.sdk.stub("threads.list", async ({ offset }) => offset === 0 ? [initial, h.worker] : []);
+  h.user("Add sharing");
+  h.user("Include invitations");
+  await h.emit();
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  await decide(h, { action: "rename", reason: "generic", title: "Build a shared calendar" });
+  expect(h.spawned).toHaveLength(2);
+  expect(h.updates).toHaveLength(2);
+  expect(h.thread.title).toBe("Build a shared calendar");
+});
