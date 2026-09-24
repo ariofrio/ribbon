@@ -28,10 +28,37 @@ it("preserves custom and cleared bindings, unrelated overrides, and newer Ribbon
 });
 it("prevents old plugin defaults from conflicting while an upgrade is in progress", () => {
   const next = migrateShortcutOverrides([], true);
-  expect(next).toHaveLength(11);
+  expect(
+    next.filter((row) => row.command.startsWith("plugin:ribbon-sidebar/")),
+  ).toHaveLength(11);
+  expect(
+    next.filter((row) => row.command.startsWith("plugin:thread-stages/")),
+  ).toEqual(
+    expect.arrayContaining([
+      { command: "plugin:thread-stages/complete-thread", shortcut: null },
+    ]),
+  );
   expect(
     next.find((row) => row.command === "plugin:ribbon-sidebar/complete-thread")
       ?.shortcut?.key,
   ).toBe(".");
   expect(migrateShortcutOverrides([], false)).toEqual([]);
+});
+
+it("keeps legacy commands disabled during a staggered upgrade, including customized and cleared bindings", () => {
+  const next = migrateShortcutOverrides(
+    [
+      { command: "plugin:thread-stages/complete-thread", shortcut },
+      { command: "plugin:thread-stages/defer-thread", shortcut: null },
+    ],
+    true,
+  );
+  expect(next).toEqual(
+    expect.arrayContaining([
+      { command: "plugin:ribbon-sidebar/complete-thread", shortcut },
+      { command: "plugin:ribbon-sidebar/defer-thread", shortcut: null },
+      { command: "plugin:thread-stages/complete-thread", shortcut: null },
+      { command: "plugin:thread-stages/defer-thread", shortcut: null },
+    ]),
+  );
 });

@@ -19,6 +19,14 @@ export function migrateShortcutOverrides(
   const next = overrides.filter(
     (override) => !commandIds.has(legacyId(override.command) ?? ""),
   );
+  if (legacyInstalled) {
+    for (const definition of WORKFLOW_COMMANDS) {
+      next.push({
+        command: `plugin:thread-stages/${definition.id}`,
+        shortcut: null,
+      });
+    }
+  }
   for (const definition of WORKFLOW_COMMANDS) {
     const command = `plugin:ribbon-sidebar/${definition.id}` as const;
     if (next.some((override) => override.command === command)) continue;
@@ -27,8 +35,7 @@ export function migrateShortcutOverrides(
         override.command === `plugin:thread-stages/${definition.id}`,
     );
     if (legacy) next.push({ command, shortcut: legacy.shortcut });
-    // Explicit new bindings also suppress defaults from an older, still-running
-    // Thread stages app until that plugin's server-only bridge is installed.
+    // Move defaults as well as overrides while the older app is disabled above.
     else if (legacyInstalled)
       next.push({
         command,
