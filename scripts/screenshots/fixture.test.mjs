@@ -31,6 +31,9 @@ test("seeding settles each checkout before starting another fixture thread", (t)
       });
       return JSON.stringify({ id });
     }
+    if (operation === "thread show") {
+      return JSON.stringify({ environment: { id: `env-${args[2]}` } });
+    }
     if (operation === "thread wait") {
       const thread = threads.get(args[2]);
       const status = value(args, "--status");
