@@ -77,6 +77,22 @@ export async function verifyThreadTitlePan({ stack, fixture }) {
         LONG_TITLE,
         { timeout: 5_000 },
       );
+      // It eases to a stop: most of the distance is covered well before the end.
+      const nearEnd = await page.evaluate((title) => {
+        const label = [...document.querySelectorAll("[data-ribbon-sidebar-root] span")]
+          .find((node) => node.childElementCount === 0 && node.textContent === title);
+        const [pan] = label.getAnimations();
+        const { delay, duration } = pan.effect.getComputedTiming();
+        pan.pause();
+        pan.currentTime = delay + duration * 0.9;
+        const overflow = label.offsetWidth - label.parentElement.clientWidth;
+        const translateX = new DOMMatrixReadOnly(getComputedStyle(label).transform).m41;
+        pan.play();
+        return -translateX / (overflow + 16);
+      }, LONG_TITLE);
+      if (!(nearEnd > 0.95)) {
+        throw new Error(`A hovered title should slow down as it reaches its end: ${nearEnd}`);
+      }
       await page.evaluate(async (title) => {
         const label = [...document.querySelectorAll("[data-ribbon-sidebar-root] span")]
           .find((node) => node.childElementCount === 0 && node.textContent === title);

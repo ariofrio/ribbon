@@ -1,6 +1,8 @@
 import { type CSSProperties, useLayoutEffect, useRef, useState } from "react";
 
-// The mask classes below spell out this fade and speed as -16px and 16s/30.
+// The pan starts at full speed and eases to a stop, and averages this speed.
+// The mask classes spell out the fade and the pan's starting speed as -16px and
+// 16s/33.
 const FADE_PX = 16;
 const PAN_PX_PER_SECOND = 30;
 
@@ -30,7 +32,7 @@ export function ThreadTitle({ title }: { title: string }) {
       ref={containerRef}
       className={`pointer-events-none min-w-0 overflow-hidden whitespace-nowrap ${
         overflowing
-          ? "[mask-position:0_0,-16px_0] motion-safe:group-hover/thread-row:[mask-position:0_0,0_0] motion-safe:group-hover/thread-row:[transition:mask-position_calc(16s/30)_linear_300ms] motion-safe:group-has-[:focus-visible]/thread-row:[mask-position:0_0,0_0] motion-safe:group-has-[:focus-visible]/thread-row:[transition:mask-position_calc(16s/30)_linear_300ms]"
+          ? "[mask-position:0_0,-16px_0] motion-safe:group-hover/thread-row:[mask-position:0_0,0_0] motion-safe:group-hover/thread-row:[transition:mask-position_calc(16s/33)_linear_300ms] motion-safe:group-has-[:focus-visible]/thread-row:[mask-position:0_0,0_0] motion-safe:group-has-[:focus-visible]/thread-row:[transition:mask-position_calc(16s/33)_linear_300ms]"
           : ""
       }`}
       style={
@@ -49,7 +51,7 @@ export function ThreadTitle({ title }: { title: string }) {
         ref={textRef}
         className={`inline-block ${
           overflowing
-            ? "motion-safe:group-hover/thread-row:[transform:translateX(var(--ribbon-title-pan))] motion-safe:group-hover/thread-row:[transition:transform_var(--ribbon-title-pan-duration)_linear_300ms] motion-safe:group-has-[:focus-visible]/thread-row:[transform:translateX(var(--ribbon-title-pan))] motion-safe:group-has-[:focus-visible]/thread-row:[transition:transform_var(--ribbon-title-pan-duration)_linear_300ms]"
+            ? "motion-safe:group-hover/thread-row:[transform:translateX(var(--ribbon-title-pan))] motion-safe:group-hover/thread-row:[transition:transform_var(--ribbon-title-pan-duration)_cubic-bezier(0.44,0.49,0.71,0.95)_300ms] motion-safe:group-has-[:focus-visible]/thread-row:[transform:translateX(var(--ribbon-title-pan))] motion-safe:group-has-[:focus-visible]/thread-row:[transition:transform_var(--ribbon-title-pan-duration)_cubic-bezier(0.44,0.49,0.71,0.95)_300ms]"
             : ""
         }`}
         style={
