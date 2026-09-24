@@ -9,37 +9,12 @@ import {
   placementMigrationSnapshotSchema,
 } from "./contracts";
 import {
-  AUTO_ARCHIVE_OPTIONS,
-  registerCompletedAutoArchive,
-} from "./auto-archive";
-import { listAllThreads } from "./list-all-threads";
-import {
-  RibbonSidebarDependencyError,
-  THREAD_STAGES_GROUPING_KEY,
-  createRibbonSidebarClient,
-  type RibbonSidebarClient,
-} from "./ribbon-sidebar-client";
-import { resolveStageChord } from "./workflow-chords";
-import { resolveWorkflowReorder } from "./workflow-reorder";
-import {
-  createWorkflowObservationState,
-  registerThreadWorkflow,
-} from "./workflow-automation";
-import {
-  WORKFLOW_STAGES,
-  enabledWorkflowStages,
-  parseWorkflowStage,
-  type WorkflowStage,
-} from "./workflow-stage";
-import {
-  partitionWorkflowThreads,
-  rootThreadIdByThreadId,
-  type WorkflowHierarchyThread,
-} from "./root-thread-ownership";
-import {
   THREAD_STAGE_SOURCE_MIGRATIONS,
   createThreadStageMigrationSource,
 } from "./migration-source";
+import { WORKFLOW_STAGES } from "./workflow-stage";
+
+const AUTO_ARCHIVE_OPTIONS = ["Never", "1 day", "7 days", "30 days"] as const;
 
 const workflowStageSchema = z.enum(WORKFLOW_STAGES);
 const assignmentSchema = z
@@ -50,7 +25,9 @@ const assignmentSchema = z
     updatedAt: z.number().int(),
   })
   .strict();
-const stateSchema = z.object({ assignments: z.array(assignmentSchema) }).strict();
+const stateSchema = z
+  .object({ assignments: z.array(assignmentSchema) })
+  .strict();
 const destinationSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("stay") }).strict(),
   z
@@ -62,7 +39,6 @@ const destinationSchema = z.discriminatedUnion("kind", [
     .strict(),
   z.object({ kind: z.literal("compose") }).strict(),
 ]);
-type ChordDestination = z.infer<typeof destinationSchema>;
 
 export const rpcContract = defineRpcContract({
   setWorkflowStage: {
@@ -138,239 +114,21 @@ export default async function plugin(bb: BbPluginApi) {
       default: "7 days",
     },
   });
-  const ribbonSidebar = createRibbonSidebarClient({
-    callRpc: (method, input) => bb.sdk.plugins.callRpc({
-      pluginId: "ribbon-sidebar", method, input, outputSchema: z.unknown(),
-    }),
-  });
-
-  async function updatePlacement(
-    input: Parameters<RibbonSidebarClient["updatePlacementV1"]>[0],
-  ): Promise<void> {
-    const result = await ribbonSidebar.updatePlacementV1(input);
-    if (!result.ok) {
-      throw new RibbonSidebarDependencyError(
-        `placement update was rejected (${result.error.code}): ${result.error.message}`,
-      );
-    }
-  }
-
-  async function listPlacements(
-    input: Parameters<RibbonSidebarClient["listPlacementsV1"]>[0],
-  ) {
-    const result = await ribbonSidebar.listPlacementsV1(input);
-    if (!result.ok) {
-      throw new RibbonSidebarDependencyError(
-        `placement list was rejected (${result.error.code}): ${result.error.message}`,
-      );
-    }
-    return result.value;
-  }
-
-  async function ribbonAssignments(threadIds: readonly string[]) {
-    const placementState = await listPlacements({
-      groupingKey: THREAD_STAGES_GROUPING_KEY,
-      threadIds: [...threadIds],
-    });
-    return {
-      assignments: placementState.items.map((placement, index) => {
-        const workflowStage = parseWorkflowStage(placement.groupId);
-        if (workflowStage === null) {
-          throw new RibbonSidebarDependencyError(
-            `Ribbon sidebar returned unknown stage ${placement.groupId}.`,
-          );
-        }
-        return {
-          threadId: placement.threadId,
-          workflowStage,
-          sortKey: index.toString().padStart(12, "0"),
-          updatedAt: placement.enteredAtMs ?? 0,
-        };
-      }),
-      placements: placementState.items,
-      revision: placementState.revision,
-    };
-  }
-
-  async function updateLifecycleStage(
-    threadId: string,
-    stage: Extract<WorkflowStage, "Active" | "Idle">,
-  ): Promise<void> {
-    const current = await ribbonSidebar.getPlacementV1({
-      groupingKey: THREAD_STAGES_GROUPING_KEY,
-      threadId,
-    });
-    if (!current.ok) {
-      throw new RibbonSidebarDependencyError(
-        `placement read was rejected (${current.error.code}): ${current.error.message}`,
-      );
-    }
-    if (
-      (stage === "Active" && current.value.placement.groupId !== "Idle") ||
-      (stage === "Idle" && current.value.placement.groupId !== "Active")
-    ) {
-      return;
-    }
-    await updatePlacement({
-      groupingKey: THREAD_STAGES_GROUPING_KEY,
-      groupId: stage,
-      threadId,
-      expectedRevision: current.value.revision,
-      origin: "auto",
-    });
-  }
-
-  function requireRootThread(
-    threadId: string,
-    threads: readonly WorkflowHierarchyThread[],
-  ): void {
-    const rootId = rootThreadIdByThreadId(threads).get(threadId);
-    if (rootId === threadId) return;
-    throw new Error(
-      rootId
-        ? `Child thread ${threadId} has no stage; its stage belongs to root thread ${rootId}.`
-        : `Thread ${threadId} is not a root thread.`,
-    );
-  }
-
-  async function requireEnabledStage(stage: WorkflowStage): Promise<void> {
-    if (enabledWorkflowStages(await settings.get()).includes(stage)) return;
-    throw new Error(`Stage ${stage} is disabled in Thread stages settings.`);
-  }
-
   bb.rpc.register(rpcContract, {
-    async setWorkflowStage({
-      threadId,
-      workflowStage,
-      scope,
-    }) {
-      await requireEnabledStage(workflowStage);
-      const threads = await listAllThreads(({ limit, offset }) =>
-        bb.sdk.threads.list({ archived: false, limit, offset }),
-      );
-      requireRootThread(threadId, threads);
-      const rootThreadIds = partitionWorkflowThreads(threads).rootThreads.map(
-        ({ id }) => id,
-      );
-      const placementState = await ribbonAssignments(rootThreadIds);
-      const scopedThreadIds =
-        scope === null || scope === undefined
-          ? undefined
-          : (
-              await listPlacements({
-                groupingKey: scope.groupingKey,
-                groupIds: [scope.groupId],
-              })
-            ).items.map(({ threadId: id }) => id);
-      const undoCandidates = placementState.placements
-        .filter(
-          (placement) =>
-            placement.origin === "ui" &&
-            (placement.groupId === "Deferred" ||
-              placement.groupId === "Blocked" ||
-              placement.groupId === "Completed"),
-        )
-        .map((placement) => {
-          const previousStage = placement.previousGroupId
-            ? parseWorkflowStage(placement.previousGroupId)
-            : null;
-          return {
-            threadId: placement.threadId,
-            previousStage,
-            previousSortKey: previousStage === "Idle" ? "preserve" : null,
-            updatedAt: placement.enteredAtMs ?? 0,
-          };
-        })
-        .sort((left, right) => right.updatedAt - left.updatedAt);
-      const chord = resolveStageChord({
-        threadId,
-        workflowStage,
-        threads,
-        assignments: placementState.assignments,
-        undoCandidates,
-        scopedThreadIds,
-      });
-      const stay: ChordDestination = { kind: "stay" };
-      if (chord.kind === "none") return { destination: stay };
-
-      if (chord.kind === "restore") {
-        await updatePlacement({
-          groupingKey: THREAD_STAGES_GROUPING_KEY,
-          groupId: "Idle",
-          threadId: chord.threadId,
-          anchor:
-            chord.sortKey !== null ? { kind: "preserve" } : { kind: "end" },
-          expectedRevision: placementState.revision,
-          origin: "ui",
-        });
-      } else {
-        await updatePlacement({
-          groupingKey: THREAD_STAGES_GROUPING_KEY,
-          groupId: chord.workflowStage,
-          threadId,
-          expectedRevision: placementState.revision,
-          origin: "ui",
-        });
-      }
-
-      const next = chord.next;
-      const destination: ChordDestination =
-        next.kind === "thread"
-          ? {
-              kind: "thread",
-              threadId: next.threadId,
-              projectId:
-                threads.find(({ id }) => id === next.threadId)?.projectId ??
-                null,
-            }
-          : next;
-      return { destination };
-    },
-    async reorderThread({ threadId, scope, direction }) {
-      const threads = await listAllThreads(({ limit, offset }) =>
-        bb.sdk.threads.list({ archived: false, limit, offset }),
-      );
-      requireRootThread(threadId, threads);
-      const placementState = await ribbonAssignments(
-        partitionWorkflowThreads(threads).rootThreads.map(({ id }) => id),
-      );
-      const assignments = placementState.assignments;
-      const move = resolveWorkflowReorder({
-        threads,
-        assignments,
-        threadId,
-        workflowStage:
-          assignments.find(({ threadId: id }) => id === threadId)
-            ?.workflowStage ?? "Idle",
-        enabledStages: enabledWorkflowStages(await settings.get()),
-        intent: { scope, direction },
-      });
-      if (move.kind === "none") return { assignments };
-      if (move.kind === "pinned") {
-        await bb.sdk.threads.reorderPinned({
-          threadId,
-          previousThreadId: move.previousThreadId,
-          nextThreadId: move.nextThreadId,
-        });
-        return { assignments };
-      }
-      await updatePlacement({
-        groupingKey: THREAD_STAGES_GROUPING_KEY,
-        groupId: move.workflowStage,
-        threadId,
-        anchor:
-          move.kind === "stage"
-            ? undefined
-            : move.nextThreadId !== null
-              ? { kind: "before", threadId: move.nextThreadId }
-              : move.previousThreadId !== null
-                ? { kind: "after", threadId: move.previousThreadId }
-                : { kind: "preserve" },
-        expectedRevision: placementState.revision,
-        origin: "ui",
-      });
-      return { assignments };
-    },
+    setWorkflowStage: (input) =>
+      bb.sdk.plugins.callRpc({
+        pluginId: "ribbon-sidebar",
+        method: "setWorkflowStage",
+        input,
+        outputSchema: rpcContract.setWorkflowStage.output,
+      }),
+    reorderThread: (input) =>
+      bb.sdk.plugins.callRpc({
+        pluginId: "ribbon-sidebar",
+        method: "reorderThread",
+        input,
+        outputSchema: rpcContract.reorderThread.output,
+      }),
     async getGroupingCatalogV1() {
       return createGroupingCatalog(await settings.get());
     },
@@ -381,53 +139,20 @@ export default async function plugin(bb: BbPluginApi) {
       return migrationSource.acknowledge(input);
     },
   });
-
-  registerThreadWorkflow(
-    bb,
-    updateLifecycleStage,
-    createWorkflowObservationState(database),
-  );
-  registerCompletedAutoArchive(
-    bb,
-    {
-      async listCompletedBefore(cutoff) {
-        const placements = await listPlacements({
-          groupingKey: THREAD_STAGES_GROUPING_KEY,
-          groupIds: ["Completed"],
-          enteredBeforeMs: cutoff + 1,
-        });
-        return placements.items.flatMap((placement) =>
-          placement.enteredAtMs === null
-            ? []
-            : [{
-                threadId: placement.threadId,
-                enteredAt: placement.enteredAtMs,
-              }],
-        );
-      },
-    },
-    async () => (await settings.get()).autoArchiveCompletedAfter,
-  );
-
   settings.onChange(() => {
-    void ribbonSidebar
-      .invalidateGroupingCatalogV1({ providerPluginId: "thread-stages" })
-      .catch((error: unknown) => {
-        bb.log.warn(
-          `Could not invalidate Ribbon sidebar's Thread stages catalog: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
+    void settings
+      .get()
+      .then((values) =>
+        bb.sdk.plugins.updateSettings({
+          pluginId: "ribbon-sidebar",
+          values,
+        }),
+      )
+      .catch((error) =>
+        bb.log.warn(`Could not update Ribbon stage settings: ${String(error)}`),
+      );
   });
-
-  try {
-    await ribbonSidebar.invalidateGroupingCatalogV1({
-      providerPluginId: "thread-stages",
-    });
-  } catch (error: unknown) {
-    bb.log.warn(
-      `Could not announce Thread stages to Ribbon sidebar: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-
-  bb.log.info("Thread stages loaded; Ribbon sidebar owns placement and rendering");
+  bb.log.info(
+    "Thread stages compatibility bridge loaded; Ribbon owns stages and automation",
+  );
 }

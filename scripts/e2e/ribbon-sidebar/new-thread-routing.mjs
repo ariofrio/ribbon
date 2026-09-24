@@ -82,6 +82,7 @@ async function verifyProjectComposerIsStable({ browser, stack, fixture }) {
     browser,
     stack,
     group: { groupingKey: "builtin:projects", groupId: project.id },
+    path: `/projects/${project.id}`,
   });
   try {
     await composer
@@ -106,9 +107,9 @@ async function verifyProjectComposerIsStable({ browser, stack, fixture }) {
   }
 }
 
-async function verifyStagePlacement({ browser, stack, fixture }) {
-  const groupingKey = "plugin:thread-stages:stages";
-  const groupId = "Deferred";
+async function verifySectionPlacement({ browser, stack, fixture }) {
+  const groupingKey = "builtin:sections";
+  const groupId = fixture.section.id;
   const project = fixture.projects.get("atlas-api");
   assert.ok(project, "The routing fixture is missing atlas-api");
   const { context, page, composer } = await openScopedComposer({
@@ -118,6 +119,9 @@ async function verifyStagePlacement({ browser, stack, fixture }) {
     path: `/projects/${encodeURIComponent(project.id)}`,
   });
   try {
+    const create = page.locator("[data-ribbon-sidebar-root]").getByRole("button", { name: "New thread in Atlas", exact: true });
+    await create.locator('xpath=..').hover();
+    await create.click();
     const environmentButton = composer.getByRole("button", {
       name: "Environment",
     });
@@ -159,13 +163,18 @@ async function verifyStagePlacement({ browser, stack, fixture }) {
       stage = placements.find(
         ({ placement }) => placement.groupingKey === groupingKey,
       )?.placement.groupId;
-      if (stage === groupId) return;
+      if (stage === groupId) {
+        const section = page.locator("[data-ribbon-sidebar-root]").getByRole("region", { name: "Atlas group", exact: true });
+        await section.locator(`a[data-sidebar-thread-id="${threadId}"]`).waitFor();
+        assert.equal(await section.locator("a[data-sidebar-thread-id]").first().getAttribute("data-sidebar-thread-id"), threadId, "New roots enter at the top of their section");
+        return;
+      }
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
     assert.equal(
       stage,
       groupId,
-      `Stage-scoped New thread was placed in ${stage ?? "no stage"}`,
+      `Section New thread was placed in ${stage ?? "no section"}`,
     );
   } finally {
     await context.close();
@@ -183,7 +192,7 @@ export async function verifyNewThreadRouting({
       await verifyProjectComposerIsStable({ browser, stack, fixture });
     }
     if (cases.includes("stage")) {
-      await verifyStagePlacement({ browser, stack, fixture });
+      await verifySectionPlacement({ browser, stack, fixture });
     }
   } finally {
     await browser.close();

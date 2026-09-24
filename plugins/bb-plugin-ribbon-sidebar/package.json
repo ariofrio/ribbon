@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-ribbon-sidebar",
   "version": "0.2.0",
-  "description": "Organize threads by projects, sections, and provider-defined groupings in one sidebar.",
+  "description": "Organize every section in one sidebar with stable thread order and workflow stages.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -40,7 +40,7 @@
   },
   "bb": {
     "name": "Ribbon sidebar",
-    "description": "Organize threads by projects, sections, and provider-defined groupings in one sidebar.",
+    "description": "Organize every section in one sidebar with stable thread order and workflow stages.",
     "branding": {
       "icon": "./assets/icon.svg"
     },

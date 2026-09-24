@@ -31,13 +31,20 @@ describe("flattenThreadHierarchy", () => {
 
   it("promotes a child to a root when its parent is in another group", () => {
     expect(
-      flattenThreadHierarchy([thread("child", "parent-in-other-status")], new Set()),
+      flattenThreadHierarchy(
+        [thread("child", "parent-in-other-status")],
+        new Set(),
+      ),
     ).toMatchObject([{ thread: { id: "child" }, depth: 0 }]);
   });
 
   it("hides descendants behind a collapsed parent while retaining rollup data", () => {
     const rows = flattenThreadHierarchy(
-      [thread("parent"), thread("child", "parent"), thread("grandchild", "child")],
+      [
+        thread("parent"),
+        thread("child", "parent"),
+        thread("grandchild", "child"),
+      ],
       new Set(["parent"]),
     );
 
@@ -68,11 +75,7 @@ describe("canDropThreadBeside", () => {
       ),
     ).toBe(true);
     expect(
-      canDropThreadBeside(
-        thread("child-one", "parent"),
-        thread("root"),
-        ids,
-      ),
+      canDropThreadBeside(thread("child-one", "parent"), thread("root"), ids),
     ).toBe(false);
   });
 

@@ -299,29 +299,15 @@ export async function openApp({ browser, stack, fixture, theme, viewport, style 
     (mode) => window.localStorage.setItem("bb.theme", mode),
     theme,
   );
-  // The sidebar opens focused on the product rather than on everything bb
-  // knows about, which is what a section is for and what the shots are of.
-  // Ribbon keeps this choice per client, so it is set here rather than seeded
-  // on the server.
-  await context.addInitScript(
-    (id) =>
-      window.localStorage.setItem(
-        "bb.plugin.ribbon-sidebar.preferences.v1",
-        JSON.stringify({
-          view: {
-            scope: {
-              kind: "group",
-              group: { groupingKey: "builtin:sections", groupId: id },
-            },
-            groupingKey: "plugin:thread-stages:stages",
-          },
-          collapsed: [
-            "plugin:thread-stages:stages/Deferred",
-            "plugin:thread-stages:stages/Completed",
-          ],
-        }),
-      ),
-    fixture.section.id,
+  // Capture the default flat section layout with every section expanded.
+  await context.addInitScript(() =>
+    window.localStorage.setItem(
+      "bb.plugin.ribbon-sidebar.preferences.v1",
+      JSON.stringify({
+        view: { scope: { kind: "all" }, groupingKey: "builtin:sections" },
+        collapsed: [],
+      }),
+    ),
   );
   // Thread stages no longer registers a list, so every shot starts on Ribbon.
   await context.addInitScript(() => {

@@ -7,10 +7,7 @@ import {
 
 const DAY = 24 * 60 * 60 * 1_000;
 
-function thread(
-  id: string,
-  overrides: Record<string, unknown> = {},
-) {
+function thread(id: string, overrides: Record<string, unknown> = {}) {
   return {
     id,
     parentThreadId: null,

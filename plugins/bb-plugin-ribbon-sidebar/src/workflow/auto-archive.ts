@@ -9,7 +9,9 @@ export interface CompletedThreadCandidate {
 export interface CompletedPlacementSource {
   listCompletedBefore(
     cutoff: number,
-  ): readonly CompletedThreadCandidate[] | Promise<readonly CompletedThreadCandidate[]>;
+  ):
+    | readonly CompletedThreadCandidate[]
+    | Promise<readonly CompletedThreadCandidate[]>;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1_000;

@@ -28,8 +28,7 @@ type RealtimeConnectionEvent = {
 
 type RealtimeCallback = (event: never) => Promise<void> | void;
 
-interface WorkflowThreadFixture
-  extends ReturnType<typeof makeThreadResponse> {
+interface WorkflowThreadFixture extends ReturnType<typeof makeThreadResponse> {
   activity: {
     activeBackgroundCommandCount: number;
   };
@@ -60,9 +59,11 @@ function makeWorkflowThread({
 function setup(threads: WorkflowThreadFixture[]) {
   const subscriptions = new Map<string, RealtimeCallback>();
   const list = vi.fn(
-    async (
-      { limit = 100, offset = 0 }: { limit?: number; offset?: number } = {},
-    ) => threads.slice(offset, offset + limit),
+    async ({
+      limit = 100,
+      offset = 0,
+    }: { limit?: number; offset?: number } = {}) =>
+      threads.slice(offset, offset + limit),
   );
   const get = vi.fn(async ({ threadId }: { threadId: string }) => {
     const thread = threads.find(({ id }) => id === threadId);
@@ -101,9 +102,7 @@ function setup(threads: WorkflowThreadFixture[]) {
 
   const start = async () => {
     host.harness.behavior.runService("stage-automation");
-    await host.harness.behavior.runSchedule(
-      "stage-automation-reconciliation",
-    );
+    await host.harness.behavior.runSchedule("stage-automation-reconciliation");
   };
   const emit = async (
     event: "thread:changed" | "realtime:connection",
@@ -190,11 +189,7 @@ describe("stage automation", () => {
     const threads = [makeWorkflowThread({ id: "root" })];
     const host = setup(threads);
     const updateStage = vi.fn(async () => {});
-    registerThreadWorkflow(
-      host.bb,
-      updateStage,
-      new Map([["root", false]]),
-    );
+    registerThreadWorkflow(host.bb, updateStage, new Map([["root", false]]));
     await host.start();
 
     threads[0] = makeWorkflowThread({ id: "root", status: "active" });
@@ -215,11 +210,7 @@ describe("stage automation", () => {
     const threads = [makeWorkflowThread({ id: "root", status: "active" })];
     const host = setup(threads);
     const updateStage = vi.fn(async () => {});
-    registerThreadWorkflow(
-      host.bb,
-      updateStage,
-      new Map([["root", true]]),
-    );
+    registerThreadWorkflow(host.bb, updateStage, new Map([["root", true]]));
     await host.start();
 
     const callback = host.sdk.subscribe.mock.calls.find(
@@ -298,11 +289,7 @@ describe("stage automation", () => {
     ];
     const host = setup(threads);
     const updateStage = vi.fn(async () => {});
-    registerThreadWorkflow(
-      host.bb,
-      updateStage,
-      new Map([["root", true]]),
-    );
+    registerThreadWorkflow(host.bb, updateStage, new Map([["root", true]]));
     await host.start();
 
     threads[0] = makeWorkflowThread({
@@ -324,11 +311,7 @@ describe("stage automation", () => {
     const threads = [makeWorkflowThread({ id: "root" })];
     const host = setup(threads);
     const updateStage = vi.fn(async () => {});
-    registerThreadWorkflow(
-      host.bb,
-      updateStage,
-      new Map([["root", false]]),
-    );
+    registerThreadWorkflow(host.bb, updateStage, new Map([["root", false]]));
     await host.start();
 
     threads[0] = makeWorkflowThread({
@@ -387,11 +370,7 @@ describe("stage automation", () => {
       .fn<() => Promise<void>>()
       .mockRejectedValueOnce(new Error("Ribbon is starting"))
       .mockResolvedValue(undefined);
-    registerThreadWorkflow(
-      host.bb,
-      updateStage,
-      new Map([["root", false]]),
-    );
+    registerThreadWorkflow(host.bb, updateStage, new Map([["root", false]]));
     await host.start();
 
     threads[0] = makeWorkflowThread({ id: "root", status: "active" });
@@ -401,9 +380,7 @@ describe("stage automation", () => {
     );
     expect(updateStage).toHaveBeenCalledTimes(1);
 
-    await host.harness.behavior.runSchedule(
-      "stage-automation-reconciliation",
-    );
+    await host.harness.behavior.runSchedule("stage-automation-reconciliation");
 
     expect(updateStage).toHaveBeenCalledTimes(2);
     expect(host.sdk.list).toHaveBeenCalledTimes(1);
@@ -415,11 +392,7 @@ describe("stage automation", () => {
     const threads = [makeWorkflowThread({ id: "root" })];
     const host = setup(threads);
     const updateStage = vi.fn(async () => {});
-    registerThreadWorkflow(
-      host.bb,
-      updateStage,
-      new Map([["root", false]]),
-    );
+    registerThreadWorkflow(host.bb, updateStage, new Map([["root", false]]));
     await host.start();
     host.sdk.get.mockRejectedValueOnce(new Error("host reconnecting"));
 
@@ -430,9 +403,7 @@ describe("stage automation", () => {
     );
     expect(updateStage).not.toHaveBeenCalled();
 
-    await host.harness.behavior.runSchedule(
-      "stage-automation-reconciliation",
-    );
+    await host.harness.behavior.runSchedule("stage-automation-reconciliation");
 
     expect(host.sdk.list).toHaveBeenCalledTimes(1);
     expect(host.sdk.get).toHaveBeenCalledTimes(2);

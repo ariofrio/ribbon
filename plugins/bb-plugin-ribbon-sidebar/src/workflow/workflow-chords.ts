@@ -1,9 +1,9 @@
+import { partitionWorkflowThreads } from "./root-thread-ownership";
 import {
   listedThreads,
   pinnedThreadIds,
   type ReorderThreadLike,
 } from "./workflow-reorder";
-import { partitionWorkflowThreads } from "./root-thread-ownership";
 import type { ThreadAssignment, WorkflowStage } from "./workflow-stage";
 
 /** Where the client should go once the chord has been applied. */
@@ -79,15 +79,16 @@ export function resolveStageChord({
     };
   }
 
-  // Walk the Idle section the way the sidebar renders it, so "the row below"
+  // Walk the main list the way the sidebar renders it, so "the row below"
   // means the row below on screen.
   const threadById = new Map(rootThreads.map((thread) => [thread.id, thread]));
   const pinned = pinnedThreadIds(listed);
-  const scoped = scopedThreadIds === undefined ? null : new Set(scopedThreadIds);
+  const scoped =
+    scopedThreadIds === undefined ? null : new Set(scopedThreadIds);
   const toDo = assignments
     .filter(
       (assignment) =>
-        assignment.workflowStage === "Idle" &&
+        !["Deferred", "Completed"].includes(assignment.workflowStage) &&
         threadById.has(assignment.threadId) &&
         (scoped === null || scoped.has(assignment.threadId)) &&
         !pinned.has(assignment.threadId),

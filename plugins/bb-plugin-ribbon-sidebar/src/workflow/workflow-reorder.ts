@@ -2,18 +2,18 @@ import {
   buildPinnedThreadState,
   sortExplicitPinnedThreadIds,
 } from "./pinned-threads";
-import { reorderTargetId, type ReorderIntent } from "./workflow-shortcuts";
+import { rootThreadIdByThreadId } from "./root-thread-ownership";
 import {
   effectiveHierarchyParentId,
   flattenThreadHierarchy,
 } from "./thread-hierarchy";
+import { reorderTargetId, type ReorderIntent } from "./workflow-shortcuts";
 import {
   WORKFLOW_STAGES,
   destinationOrder,
   type ThreadAssignment,
   type WorkflowStage,
 } from "./workflow-stage";
-import { rootThreadIdByThreadId } from "./root-thread-ownership";
 
 /** The thread fields the sidebar's grouping and pinning rules depend on. */
 export interface ReorderThreadLike {
@@ -35,7 +35,11 @@ export type WorkflowReorder =
       previousThreadId: string | null;
       nextThreadId: string | null;
     }
-  | { kind: "pinned"; previousThreadId: string | null; nextThreadId: string | null };
+  | {
+      kind: "pinned";
+      previousThreadId: string | null;
+      nextThreadId: string | null;
+    };
 
 export interface ResolveWorkflowReorderInput {
   threads: readonly ReorderThreadLike[];
@@ -150,7 +154,7 @@ export function resolveWorkflowReorder({
 
   const threadById = new Map(listed.map((thread) => [thread.id, thread]));
   const orderedIds = assignments
-    .filter((item) => item.workflowStage === workflowStage)
+    .filter((item) => band(item.workflowStage) === band(workflowStage))
     .map((item) => item.threadId)
     .filter(
       (id) =>
@@ -177,4 +181,8 @@ export function resolveWorkflowReorder({
     workflowStage,
     ...neighbors(orderedIds, threadId, target.beforeThreadId),
   };
+}
+
+function band(stage: WorkflowStage) {
+  return stage === "Deferred" || stage === "Completed" ? stage : "main";
 }

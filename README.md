@@ -20,11 +20,11 @@
 
 <p><img src="assets/spacer.svg" alt="" width="1120" height="48" align="left"></p>
 
-<a href="plugins/bb-plugin-ribbon-sidebar#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-ribbon-sidebar/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-ribbon-sidebar/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-ribbon-sidebar/assets/card-beside-dark.png"><img src="plugins/bb-plugin-ribbon-sidebar/assets/card-beside-light.png" alt="Ribbon sidebar grouping bb threads by a provider-defined workflow" align="right" width="45%"></picture></a>
+<a href="plugins/bb-plugin-ribbon-sidebar#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-ribbon-sidebar/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-ribbon-sidebar/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-ribbon-sidebar/assets/card-beside-dark.png"><img src="plugins/bb-plugin-ribbon-sidebar/assets/card-beside-light.png" alt="Ribbon sidebar organizing bb threads within sections" align="right" width="45%"></picture></a>
 
 ### <img src="assets/icons/ribbon-sidebar.svg" alt="" width="26" align="absmiddle"> &nbsp;Ribbon sidebar
 
-Organize threads by projects, sections, and provider-defined groupings in one sidebar.
+Organize every section in one sidebar with stable thread order and workflow stages.
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon
@@ -39,7 +39,7 @@ bb plugin install ribbon-sidebar@ribbon
 
 ### <img src="assets/icons/thread-stages.svg" alt="" width="26" align="absmiddle"> &nbsp;Thread stages
 
-Provide workflow stages, automation, and shortcuts to Ribbon sidebar.
+Preserve existing stage shortcuts and migrate saved state to Ribbon sidebar. New installations need only Ribbon.
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon

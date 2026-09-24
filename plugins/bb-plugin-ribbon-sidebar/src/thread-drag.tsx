@@ -2,6 +2,7 @@ import {
   closestCenter,
   DndContext,
   DragOverlay,
+  KeyboardCode,
   KeyboardSensor,
   MouseSensor,
   pointerWithin,
@@ -30,7 +31,8 @@ import {
 } from "react";
 
 export type ThreadDragGroup =
-  { kind: "pinned" } | { kind: "placement"; groupId: string };
+  | { kind: "pinned" }
+  | { kind: "placement"; groupId: string };
 export type ThreadDragTarget = ThreadDragGroup & {
   threadId?: string;
   atStart?: boolean;
@@ -87,7 +89,7 @@ const collisionDetection: CollisionDetection = (args) => {
   // A preview can grow a group into the gap before dnd-kit's resize measurement.
   // Use the same current bounds for group hits and the gaps between groups.
   for (const candidate of candidates) {
-    if (!candidate.data.current?.target?.threadId && candidate.node.current) {
+    if (candidate.node.current) {
       droppableRects.set(
         candidate.id,
         candidate.node.current.getBoundingClientRect(),
@@ -233,6 +235,11 @@ export function ThreadDragProvider({
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
+      keyboardCodes: {
+        start: [KeyboardCode.Space],
+        cancel: [KeyboardCode.Esc],
+        end: [KeyboardCode.Space, KeyboardCode.Enter],
+      },
     }),
   );
   useEffect(() => {
@@ -261,7 +268,8 @@ export function ThreadDragProvider({
   function move(event: DragMoveEvent) {
     const sourceId = String(event.active.id);
     const target = event.over?.data.current?.target as
-      ThreadDragTarget | undefined;
+      | ThreadDragTarget
+      | undefined;
     let next: ThreadDragDestination | null = null;
     if (target && canDrop(sourceId, target)) {
       const roots = target.roots.filter(({ id }) => id !== sourceId);
@@ -304,7 +312,19 @@ export function ThreadDragProvider({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={collisionDetection}
+      collisionDetection={(args) =>
+        collisionDetection({
+          ...args,
+          droppableContainers: args.droppableContainers.filter((container) => {
+            const target = container.data.current?.target as
+              | ThreadDragTarget
+              | undefined;
+            return (
+              target !== undefined && canDrop(String(args.active.id), target)
+            );
+          }),
+        })
+      }
       onDragStart={({ active }) => {
         if (resetTimer.current) clearTimeout(resetTimer.current);
         suppressed.current = true;
@@ -325,7 +345,8 @@ export function ThreadDragProvider({
         const target = destination.current;
         destination.current = null;
         const source = active.data.current?.target as
-          ThreadDragTarget | undefined;
+          | ThreadDragTarget
+          | undefined;
         const nextThreadId =
           source?.roots[
             source.roots.findIndex(({ id }) => id === active.id) + 1

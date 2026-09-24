@@ -28,8 +28,6 @@ export async function verifyThreadIcons({ stack, fixture }) {
     await sidebar.waitFor({ timeout: 120_000 });
     const row = sidebar.locator("li").filter({ has: page.locator(`a[data-sidebar-thread-id="${thread.id}"]`) });
 
-    const controls = page.locator("[data-ribbon-sidebar-top-controls]");
-
     const alignment = await row.evaluate((rowNode, title) => {
       const icon = rowNode.querySelector("[data-ribbon-sidebar-icon-slot] > *");
       const titleNode = rowNode.querySelector(`[title="${CSS.escape(title)}"] > span`);
@@ -54,14 +52,6 @@ export async function verifyThreadIcons({ stack, fixture }) {
       `Without previews, the thread icon/title gap was ${alignment.horizontalGap}px instead of 8px`,
     );
 
-    async function chooseIcons(current, next) {
-      await controls.hover();
-      await controls.getByRole("button", { name: "Sidebar display options" }).click();
-      await page.getByRole("menuitem", { name: `Icons ${current}`, exact: true }).hover();
-      await page.getByRole("menuitemcheckbox", { name: next, exact: true }).click();
-      await controls.getByRole("button", { name: "Sidebar display options" }).waitFor();
-    }
-
     async function paintedIcon(selector, mask) {
       await page.waitForFunction(({ threadId, selector, mask }) => {
         const row = document.querySelector(`[data-ribbon-sidebar-root] a[data-sidebar-thread-id="${threadId}"]`)?.closest("li");
@@ -74,15 +64,10 @@ export async function verifyThreadIcons({ stack, fixture }) {
       }, { threadId: thread.id, selector, mask });
     }
 
-    await chooseIcons("Projects", "Stages");
-    await paintedIcon('[aria-label="Idle group icon"] svg', false);
+    await paintedIcon('[aria-label="Idle stage"] svg', false);
     await page.reload();
     await sidebar.waitFor({ timeout: 120_000 });
-    await paintedIcon('[aria-label="Idle group icon"] svg', false);
-    await chooseIcons("Stages", "Sections");
-    await paintedIcon(`[data-ribbon-icons-section="${fixture.section.id}"]`, true);
-    await chooseIcons("Sections", "No icons");
-    assert.equal(await row.locator("[data-ribbon-sidebar-icon], [aria-label$='group icon']").count(), 0);
+    await paintedIcon('[aria-label="Idle stage"] svg', false);
     const workingThread = fixture.threads.get("Investigate webhook retries");
     const workingRow = sidebar.locator("li").filter({
       has: page.locator(`a[data-sidebar-thread-id="${workingThread.id}"]`),
@@ -94,19 +79,12 @@ export async function verifyThreadIcons({ stack, fixture }) {
     });
     assert.ok(
       Math.abs(indicatorGap - 4) < 0.5,
-      `With No icons, the title-to-indicator gap was ${indicatorGap}px instead of 4px`,
+      `With stage icons, the title-to-indicator gap was ${indicatorGap}px instead of 4px`,
     );
-    await chooseIcons("None", "Projects");
-    await paintedIcon(`[data-ribbon-icons-project="${project.id}"]`, true);
-    const gapWithIcons = await workingRow.evaluate((node) => {
-      const space = node.querySelector("[data-ribbon-sidebar-icon-indicator-space]");
-      return space.getBoundingClientRect().left - space.previousElementSibling.getBoundingClientRect().right;
-    });
-    assert.equal(gapWithIcons, 4, "Project icons should preserve the 4px title-to-indicator gap");
     const view = await page.evaluate(() => JSON.parse(localStorage.getItem("bb.plugin.ribbon-sidebar.preferences.v1")).view);
-    assert.equal(view.iconGroupingKey, "builtin:projects");
-    assert.equal(view.groupingKey, "plugin:thread-stages:stages");
-    assert.equal(view.filterGroupingKey, "builtin:sections");
+    assert.equal(view.iconGroupingKey, "plugin:thread-stages:stages");
+    assert.equal(view.groupingKey, "builtin:sections");
+    assert.equal(view.filterGroupingKey, null);
 
     let prState = "open";
     await page.route("**/api/v1/environments/*/pull-request", (route) => route.fulfill({
