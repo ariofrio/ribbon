@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { IconDataV1 } from "./contracts";
 import type { GroupingKey } from "./placement-store";
@@ -27,7 +27,17 @@ async function beginThreadDrag(source: Element) {
   const groups = Array.from(
     document.querySelectorAll("[data-ribbon-sidebar-root] section"),
   );
-  const rectFor = (node: Element) => {
+  const rectFor = (node: Element): DOMRect => {
+    if (node.matches("[data-ribbon-thread-drop-preview]")) {
+      const next = node.closest("li")?.nextElementSibling;
+      const previous = node.closest("li")?.previousElementSibling;
+      const adjacent = next ?? previous;
+      if (adjacent) {
+        const rect = rectFor(adjacent);
+        const top = next ? rect.top : rect.bottom;
+        return { ...rect, y: top, top, bottom: top + 50, height: 50 };
+      }
+    }
     const group = node.closest("section");
     const groupIndex = groups.indexOf(group!);
     const row = node.closest("li[data-thread-id]");
@@ -486,6 +496,53 @@ function useManualSort(groupingKey = "plugin:thread-stages:stages") {
 }
 
 describe("Ribbon sidebar app", () => {
+  it("keeps the latest section order when an older placement read finishes last", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const response = (revision: number, ids: string[]) => ({
+      ok: true as const,
+      value: {
+        groupingKey: "builtin:sections",
+        revision,
+        items: ids.map((threadId) => ({
+          groupingKey: "builtin:sections",
+          groupId: "section-a",
+          threadId,
+          enteredAtMs: null,
+        })),
+      },
+    });
+    let reads = 0;
+    let resolveOld!: (result: ReturnType<typeof response>) => void;
+    const old = new Promise<ReturnType<typeof response>>((resolve) => {
+      resolveOld = resolve;
+    });
+    const original = fixture.listPlacementsV1.getMockImplementation()!;
+    fixture.listPlacementsV1.mockImplementation(async (raw) => {
+      if ((raw as { groupingKey: string }).groupingKey !== "builtin:sections")
+        return original(raw);
+      reads++;
+      if (reads === 2) return old;
+      return response(
+        reads === 1 ? 1 : 2,
+        reads === 1 ? ["thread-a", "thread-b"] : ["thread-b", "thread-a"],
+      );
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+    const group = slot.getByRole("region", { name: "Release group" });
+    const titles = () =>
+      within(group)
+        .getAllByRole("link")
+        .map((node) => node.textContent || node.getAttribute("aria-label"));
+    await slot.emitRealtime("placements-changed", null);
+    await slot.emitRealtime("placements-changed", null);
+    await waitFor(() => expect(titles()[0]).toContain("Ship UI"));
+    await act(async () => resolveOld(response(1, ["thread-a", "thread-b"])));
+    expect(titles()[0]).toContain("Ship UI");
+    slot.lifecycle.unmount();
+  }, 15_000);
+
   it("shows archived threads when Archived is removed from Hide", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
@@ -1628,7 +1685,7 @@ describe("Ribbon sidebar app", () => {
     ).toBeNull();
     const idleGroup = slot.getByRole("region", { name: "Release group" });
     drag.hover(idleGroup);
-    drag.drop();
+    await act(async () => drag.drop());
     expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
       expect.objectContaining({
         threadId: "thread-b",
@@ -1657,7 +1714,7 @@ describe("Ribbon sidebar app", () => {
     expect(
       activeGroup.querySelector("[data-ribbon-thread-drop-preview]"),
     ).toBeTruthy();
-    drag.drop();
+    await act(async () => drag.drop());
     expect(fixture.updatePlacementV1).not.toHaveBeenCalled();
     expect(within(activeGroup).getByText("Ship UI")).toBeTruthy();
     slot.lifecycle.unmount();
@@ -1677,7 +1734,7 @@ describe("Ribbon sidebar app", () => {
     expect(
       idleGroup.querySelector("[data-ribbon-thread-drop-preview]"),
     ).toBeTruthy();
-    drag.drop();
+    await act(async () => drag.drop());
     expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
       expect.objectContaining({
         threadId: "thread-b",
@@ -1699,7 +1756,7 @@ describe("Ribbon sidebar app", () => {
       slot.getByText("Ship UI").closest("li")!,
     );
     drag.hoverJustBelow(group.querySelector('[data-sidebar="group-label"]')!);
-    drag.drop();
+    await act(async () => drag.drop());
     expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
       expect.objectContaining({
         threadId: "thread-b",
@@ -1727,7 +1784,7 @@ describe("Ribbon sidebar app", () => {
         slot.getByText("Ship UI").closest("li")!,
       );
       drag.hover(group.querySelector('[data-sidebar="group-label"]')!);
-      drag.drop();
+      await act(async () => drag.drop());
       expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
         expect.objectContaining({
           threadId: "thread-b",
@@ -1765,7 +1822,7 @@ describe("Ribbon sidebar app", () => {
       drag.hover(
         header ? target.querySelector('[data-sidebar="group-label"]')! : target,
       );
-      drag.drop();
+      await act(async () => drag.drop());
 
       expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1820,7 +1877,7 @@ describe("Ribbon sidebar app", () => {
               .querySelector('[data-sidebar="group-label"]')!
           : target,
       );
-      drag.drop();
+      await act(async () => drag.drop());
       await waitFor(() =>
         expect(fixture.reorderPinnedV1).toHaveBeenCalledWith({
           threadId: "thread-pin-b",
@@ -1846,7 +1903,7 @@ describe("Ribbon sidebar app", () => {
       slot.getByText("Ship UI").closest("li")!,
     );
     drag.hover(slot.getByRole("region", { name: "Release group" }));
-    drag.drop();
+    await act(async () => drag.drop());
     await slot.findByText("Move failed");
     await waitFor(() =>
       expect(
@@ -1914,7 +1971,7 @@ describe("Ribbon sidebar app", () => {
     const drag = await beginThreadDrag(row);
     const idleGroup = slot.getByRole("region", { name: "Release group" });
     drag.hover(idleGroup);
-    drag.drop();
+    await act(async () => drag.drop());
     await waitFor(() =>
       expect(fixture.updatePlacementV1).toHaveBeenCalledTimes(2),
     );

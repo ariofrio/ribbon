@@ -87,7 +87,8 @@ import { registerWorkflowCommands } from "./workflow/commands";
 import { parseWorkflowStage } from "./workflow/workflow-stage";
 
 // bb clears its legacy key during preference hydration; Ribbon owns this key.
-const COLLAPSED_THREADS_STORAGE_KEY = "bb.plugin.ribbon-sidebar.collapsedThreads";
+const COLLAPSED_THREADS_STORAGE_KEY =
+  "bb.plugin.ribbon-sidebar.collapsedThreads";
 const LEGACY_COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
 /** bb keeps project-less threads in the personal project, under a reserved id. */
 const PERSONAL_PROJECT_ID = "proj_personal";
@@ -233,6 +234,7 @@ function ThreadRow({
   preview,
   pullRequestNumberPosition,
   reorderable,
+  rootThreadId,
   sections,
   thread,
 }: {
@@ -266,6 +268,7 @@ function ThreadRow({
   preview: string | null;
   pullRequestNumberPosition: PullRequestNumberPosition;
   reorderable: boolean;
+  rootThreadId: string;
   sections: readonly { id: string; label: string }[];
   thread: PluginSidebarThread;
 }) {
@@ -334,6 +337,7 @@ function ThreadRow({
     <li
       className="relative list-none"
       data-thread-id={thread.id}
+      data-ribbon-root-id={rootThreadId}
       style={
         dragging
           ? {
@@ -641,7 +645,7 @@ function RibbonSidebarList({
     ReadonlyMap<string, ReadonlyMap<string, PlacementRecordV1>>
   >(new Map());
   const assignmentRequest = useRef(0);
-  const [revision, setRevision] = useState(0);
+  const latestPlacementRevision = useRef(-1);
   const [previews, setPreviews] = useState<ReadonlyMap<string, string | null>>(
     new Map(),
   );
@@ -665,10 +669,15 @@ function RibbonSidebarList({
   const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
   const [dragDestination, setDragDestination] =
     useState<ThreadDragDestination | null>(null);
-  const [optimisticMove, setOptimisticMove] = useState<{
-    threadId: string;
-    destination: ThreadDragDestination;
-  } | null>(null);
+  const [optimisticMoves, setOptimisticMoves] = useState<
+    {
+      id: number;
+      threadId: string;
+      destination: ThreadDragDestination;
+    }[]
+  >([]);
+  const moveSequence = useRef(0);
+  const moveQueue = useRef(Promise.resolve());
   const [entityDialog, setEntityDialog] = useState<EntityDialog | null>(null);
   const [entityPending, setEntityPending] = useState(false);
   const [searchResult, setSearchResult] = useState<{
@@ -734,8 +743,10 @@ function RibbonSidebarList({
       groupingKey: "builtin:sections",
     });
     if (!result.ok) throw new Error(result.error.message);
+    // Realtime refreshes can finish after the refresh following a drop.
+    if (result.value.revision < latestPlacementRevision.current) return;
+    latestPlacementRevision.current = result.value.revision;
     setPlacements(result.value.items as PlacementRecordV1[]);
-    setRevision(result.value.revision);
     setPlacementsLoaded(true);
   }, [rpc]);
 
@@ -1015,28 +1026,37 @@ function RibbonSidebarList({
     [displayRootThreads, matchesSearch],
   );
   function projectedOrder(roots: readonly PluginSidebarThread[]) {
-    if (!optimisticMove) return roots;
-    const source = roots.find(({ id }) => id === optimisticMove.threadId);
-    if (!source) return roots;
-    const remaining = roots.filter(({ id }) => id !== source.id);
-    const before = optimisticMove.destination.beforeThreadId;
-    const index =
-      before === null
-        ? remaining.length
-        : remaining.findIndex(({ id }) => id === before);
-    if (index < 0) return roots;
-    return [...remaining.slice(0, index), source, ...remaining.slice(index)];
+    return optimisticMoves.reduce<readonly PluginSidebarThread[]>(
+      (current, move) => {
+        const source = current.find(({ id }) => id === move.threadId);
+        if (!source) return current;
+        const remaining = current.filter(({ id }) => id !== source.id);
+        const before = move.destination.beforeThreadId;
+        const index =
+          before === null
+            ? remaining.length
+            : remaining.findIndex(({ id }) => id === before);
+        if (index < 0) return current;
+        return [
+          ...remaining.slice(0, index),
+          source,
+          ...remaining.slice(index),
+        ];
+      },
+      roots,
+    );
   }
   const pinnedRoots = projectedOrder(savedPinnedRoots);
   const placementOrder = new Map(
     placements.map(({ threadId }, index) => [threadId, index]),
   );
-  const displayGroupId = (thread: PluginSidebarThread) =>
-    optimisticMove?.threadId === thread.id &&
-    optimisticMove.destination.kind === "placement"
-      ? optimisticMove.destination.groupId
-      : grouping
-        ? (placementByThread.get(thread.id)?.groupId ??
+  const displayGroupId = (thread: PluginSidebarThread) => {
+    const move = [...optimisticMoves]
+      .reverse()
+      .find((move) => move.threadId === thread.id);
+    if (move?.destination.kind === "placement") return move.destination.groupId;
+    return grouping
+      ? (placementByThread.get(thread.id)?.groupId ??
           (grouping.groupingKey === "builtin:projects"
             ? thread.projectId
             : grouping.groupingKey === "builtin:sections"
@@ -1045,7 +1065,8 @@ function RibbonSidebarList({
                   supplementalThreadIds.has(thread.id)
                 ? grouping.defaultGroupId
                 : undefined))
-        : "ungrouped";
+      : "ungrouped";
+  };
   const unpinnedRoots = displayRootThreads.filter(
     (thread) =>
       !thread.isPinned &&
@@ -1172,7 +1193,7 @@ function RibbonSidebarList({
         groupId,
         threadId,
         anchor,
-        expectedRevision: revision,
+        expectedRevision: latestPlacementRevision.current,
         origin: "ui" as const,
       };
       let result = await rpc.call("updatePlacementV1", input);
@@ -1193,7 +1214,7 @@ function RibbonSidebarList({
       }
       await loadPlacements();
     },
-    [loadPlacements, preferences, revision, rpc],
+    [loadPlacements, preferences, rpc],
   );
 
   const updateSection = useCallback(
@@ -1301,7 +1322,7 @@ function RibbonSidebarList({
     ) {
       return false;
     }
-    if (movingPlacement.groupId === groupId) return true;
+    if (displayGroupId(movingThread) === groupId) return true;
     const destination = groupDefinitions.find(({ id }) => id === groupId);
     return (
       grouping.membershipWritable && destination?.acceptsAssignments === true
@@ -1343,8 +1364,6 @@ function RibbonSidebarList({
           ? error.message
           : "Could not reorder pinned thread",
       );
-    } finally {
-      clearDrag();
     }
   }
 
@@ -1356,6 +1375,14 @@ function RibbonSidebarList({
           ?.groupId ?? "Idle",
       ) ?? "Idle"
     );
+  }
+  function threadBand(thread: PluginSidebarThread) {
+    const stage = threadStage(thread);
+    return stage === "Deferred"
+      ? "deferred"
+      : stage === "Completed"
+        ? "completed"
+        : "main";
   }
   function threadIcon(thread: PluginSidebarThread): ReactNode {
     const stage = threadStage(thread);
@@ -1389,7 +1416,6 @@ function RibbonSidebarList({
       ?.get(stageOwner.id)?.groupId;
     const reorderable =
       depth === 0 &&
-      optimisticMove === null &&
       !normalizedSearch &&
       !root.isArchived &&
       rowContext !== undefined;
@@ -1401,6 +1427,7 @@ function RibbonSidebarList({
           </li>
         ) : null}
         <ThreadRow
+          rootThreadId={stageOwner.id}
           pullRequestNumberPosition={preferences.view.pullRequestNumberPosition}
           active={activeThreadId === root.id}
           alignAdornmentsToEntireItem={
@@ -1516,13 +1543,10 @@ function RibbonSidebarList({
           const row = rootThreads.find(
             (thread) => thread.id === target.threadId,
           );
-          const band = (thread: PluginSidebarThread) =>
-            ["Deferred", "Completed"].includes(threadStage(thread))
-              ? threadStage(thread)
-              : "main";
           if (
             row &&
-            (band(row) !== band(source) || band(source) === "Completed")
+            (threadBand(row) !== threadBand(source) ||
+              threadBand(source) === "completed")
           )
             return false;
         }
@@ -1532,25 +1556,35 @@ function RibbonSidebarList({
       onDestination={setDragDestination}
       onCancel={clearDrag}
       onDrop={(threadId, destination) => {
-        setOptimisticMove({ threadId, destination });
+        const id = ++moveSequence.current;
+        setOptimisticMoves((current) => [
+          ...current,
+          { id, threadId, destination },
+        ]);
         clearDrag();
-        const update =
-          destination.kind === "pinned"
-            ? updatePinnedOrder(threadId, destination.beforeThreadId)
-            : updatePlacement(
-                threadId,
-                destination.groupId,
-                destination.beforeThreadId === null
-                  ? { kind: "end" }
-                  : { kind: "before", threadId: destination.beforeThreadId },
-              );
-        void update
+        // Keep later gestures interactive, but commit their anchors in order.
+        moveQueue.current = moveQueue.current
+          .then(() =>
+            destination.kind === "pinned"
+              ? updatePinnedOrder(threadId, destination.beforeThreadId)
+              : updatePlacement(
+                  threadId,
+                  destination.groupId,
+                  destination.beforeThreadId === null
+                    ? { kind: "end" }
+                    : { kind: "before", threadId: destination.beforeThreadId },
+                ),
+          )
           .catch((error: unknown) => {
             setMutationError(
               error instanceof Error ? error.message : "Could not move thread",
             );
           })
-          .finally(() => setOptimisticMove(null));
+          .finally(() =>
+            setOptimisticMoves((current) =>
+              current.filter((move) => move.id !== id),
+            ),
+          );
       }}
     >
       <div
@@ -1849,6 +1883,47 @@ function RibbonSidebarList({
                     .get(THREAD_STAGES_GROUPING_KEY)
                     ?.get(root.id)?.enteredAtMs ?? 0,
               );
+              const movingBand = movingThread
+                ? threadBand(movingThread)
+                : "main";
+              const dragRoots = bands[movingBand];
+              const otherRoots = dragRoots.filter(
+                (root) => root.id !== draggingThreadId,
+              );
+              const startPreview =
+                movingBand === "main"
+                  ? undefined
+                  : {
+                      before:
+                        otherRoots[0]?.id ??
+                        (movingBand === "deferred"
+                          ? bands.completed[0]?.id
+                          : null) ??
+                        null,
+                      after:
+                        otherRoots.length ||
+                        (movingBand === "deferred" && bands.completed.length)
+                          ? null
+                          : (bands.main.at(-1)?.id ?? null),
+                    };
+              // Group padding is an end-of-list target for the moving stage.
+              // Its marker must stay above the later stages, including hidden rows.
+              const endPreview =
+                movingBand === "main"
+                  ? {
+                      before: otherRoots.length
+                        ? null
+                        : (bands.deferred[0]?.id ??
+                          bands.completed[0]?.id ??
+                          null),
+                      after: otherRoots.at(-1)?.id ?? null,
+                    }
+                  : movingBand === "deferred" && bands.completed.length
+                    ? {
+                        before: bands.completed[0]!.id,
+                        after: null,
+                      }
+                    : undefined;
               const selectedRootId = activeThreadId
                 ? (rootForThread(activeThreadId, liveThreads)?.id ??
                   activeThreadId)
@@ -1856,7 +1931,7 @@ function RibbonSidebarList({
               const renderSectionRow = (root: PluginSidebarThread) =>
                 renderRoot(root, 0, true, {
                   kind: "placement",
-                  roots,
+                  roots: bands[threadBand(root)],
                   groupId: group.id,
                 });
               if (normalizedSearch && roots.length === 0) return null;
@@ -1866,6 +1941,19 @@ function RibbonSidebarList({
                 grouping !== undefined &&
                 !normalizedSearch &&
                 preferences.collapsed.has(ref);
+              const groupTarget = {
+                kind: "placement" as const,
+                groupId: group.id,
+                roots: dragRoots,
+                startPreview:
+                  !collapsed && (startPreview?.before || startPreview?.after)
+                    ? startPreview
+                    : undefined,
+                endPreview:
+                  !collapsed && (endPreview?.before || endPreview?.after)
+                    ? endPreview
+                    : undefined,
+              };
               const groupThreads = roots.flatMap((root) => [
                 root,
                 ...descendants(root.id, childrenByParent),
@@ -1939,11 +2027,11 @@ function RibbonSidebarList({
                   className="group/sidebar-section min-w-0 rounded-md"
                   data-sidebar-sticky-group=""
                   key={group.id}
-                  target={{ kind: "placement", groupId: group.id, roots }}
+                  target={groupTarget}
                   disabled={Boolean(normalizedSearch) || !grouping}
                 >
                   <ThreadDragHeader
-                    target={{ kind: "placement", groupId: group.id, roots }}
+                    target={groupTarget}
                     disabled={Boolean(normalizedSearch) || !grouping}
                     className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} transition-colors max-md:pointer-coarse:h-9`}
                     data-sidebar="group-label"

@@ -37,6 +37,8 @@ export type ThreadDragTarget = ThreadDragGroup & {
   threadId?: string;
   atStart?: boolean;
   roots: readonly { id: string }[];
+  startPreview?: { before: string | null; after: string | null };
+  endPreview?: { before: string | null; after: string | null };
 };
 export type ThreadDragDestination = ThreadDragGroup & {
   beforeThreadId: string | null;
@@ -90,10 +92,25 @@ const collisionDetection: CollisionDetection = (args) => {
   // Use the same current bounds for group hits and the gaps between groups.
   for (const candidate of candidates) {
     if (candidate.node.current) {
-      droppableRects.set(
-        candidate.id,
-        candidate.node.current.getBoundingClientRect(),
-      );
+      const node = candidate.node.current;
+      const rect = node.getBoundingClientRect();
+      let bottom = rect.bottom;
+      let sibling = node.closest("li")?.nextElementSibling;
+      while (
+        sibling instanceof HTMLElement &&
+        sibling.dataset.ribbonRootId === String(candidate.id)
+      ) {
+        bottom = Math.max(bottom, sibling.getBoundingClientRect().bottom);
+        sibling = sibling.nextElementSibling;
+      }
+      droppableRects.set(candidate.id, {
+        top: rect.top,
+        bottom,
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+        height: bottom - rect.top,
+      });
     }
   }
   const hits = pointerWithin({
@@ -222,6 +239,17 @@ export function ThreadDragProvider({
   onDrop(id: string, destination: ThreadDragDestination): void;
   onCancel(): void;
 }) {
+  const container = useRef<HTMLDivElement>(null);
+  const hit = useRef<{
+    pointer: { x: number; y: number } | null;
+    target: ThreadDragTarget | undefined;
+    rect: DOMRect | undefined;
+  } | null>(null);
+  const lastPointerDecision = useRef<{
+    x: number;
+    y: number;
+    scroll: string;
+  } | null>(null);
   const [label, setLabel] = useState<string | null>(null);
   const suppressed = useRef(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -266,22 +294,59 @@ export function ThreadDragProvider({
     }, 350);
   }
   function move(event: DragMoveEvent) {
+    const pointer = hit.current?.pointer;
+    const target = pointer
+      ? hit.current?.target
+      : (event.over?.data.current?.target as ThreadDragTarget | undefined);
+    if (pointer) {
+      const offsets = [];
+      for (
+        let node = container.current?.parentElement;
+        node;
+        node = node.parentElement
+      )
+        offsets.push(node.scrollTop, node.scrollLeft);
+      const scroll = offsets.join(",");
+      const previous = lastPointerDecision.current;
+      // A preview can move rows and headings underneath a stationary cursor.
+      // Reconsider the destination only after pointer movement or scrolling.
+      if (
+        previous &&
+        previous.scroll === scroll &&
+        Math.hypot(pointer.x - previous.x, pointer.y - previous.y) < 2
+      )
+        return;
+      lastPointerDecision.current = { ...pointer, scroll };
+      const preview = container.current
+        ?.querySelector("[data-ribbon-thread-drop-preview]")
+        ?.getBoundingClientRect();
+      const rect = hit.current?.rect;
+      const overVisibleHeader =
+        target?.atStart &&
+        rect &&
+        pointer.y >= rect.top &&
+        pointer.y <= rect.bottom;
+      if (
+        destination.current &&
+        preview &&
+        !overVisibleHeader &&
+        pointer.x >= preview.left &&
+        pointer.x <= preview.right &&
+        pointer.y >= preview.top - 4 &&
+        pointer.y <= preview.bottom + 4
+      )
+        return;
+    }
     const sourceId = String(event.active.id);
-    const target = event.over?.data.current?.target as
-      | ThreadDragTarget
-      | undefined;
     let next: ThreadDragDestination | null = null;
     if (target && canDrop(sourceId, target)) {
       const roots = target.roots.filter(({ id }) => id !== sourceId);
       const index = roots.findIndex(({ id }) => id === target.threadId);
       const coordinates = getEventCoordinates(event.activatorEvent);
-      const y = coordinates
-        ? coordinates.y + event.delta.y
-        : event.active.rect.current.translated?.top;
+      const y = pointer?.y ?? event.active.rect.current.translated?.top;
+      const overRect = pointer ? hit.current?.rect : event.over?.rect;
       const after = coordinates
-        ? y !== undefined &&
-          event.over &&
-          y > event.over.rect.top + event.over.rect.height / 2
+        ? y !== undefined && overRect && y > overRect.top + overRect.height / 2
         : event.delta.y > 0;
       const atSource = target.threadId === sourceId;
       const beforeThreadId = atSource
@@ -294,38 +359,47 @@ export function ThreadDragProvider({
             : after
               ? (roots[index + 1]?.id ?? null)
               : target.threadId!;
+      const edge = !target.threadId
+        ? target.atStart
+          ? target.startPreview
+          : target.endPreview
+        : undefined;
       next = {
         ...(target.kind === "pinned"
           ? { kind: "pinned" as const }
           : { kind: "placement" as const, groupId: target.groupId }),
         beforeThreadId,
-        ...(target.atStart ? { atStart: true } : {}),
+        ...(target.atStart && !target.startPreview ? { atStart: true } : {}),
         indicatorBefore:
-          atSource || (index >= 0 && !after) ? target.threadId! : null,
+          edge?.before ??
+          (atSource || (index >= 0 && !after) ? target.threadId! : null),
         indicatorAfter:
-          !atSource && index >= 0 && after ? target.threadId! : null,
+          edge?.after ??
+          (!atSource && index >= 0 && after ? target.threadId! : null),
       };
     }
-    destination.current = next;
-    onDestination(next);
+    if (JSON.stringify(destination.current) !== JSON.stringify(next)) {
+      destination.current = next;
+      onDestination(next);
+    }
   }
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={(args) =>
-        collisionDetection({
-          ...args,
-          droppableContainers: args.droppableContainers.filter((container) => {
-            const target = container.data.current?.target as
-              | ThreadDragTarget
-              | undefined;
-            return (
-              target !== undefined && canDrop(String(args.active.id), target)
-            );
-          }),
-        })
-      }
+      collisionDetection={(args) => {
+        const collisions = collisionDetection(args);
+        const over = args.droppableContainers.find(
+          (container) => container.id === collisions[0]?.id,
+        );
+        hit.current = {
+          pointer: args.pointerCoordinates,
+          target: over?.data.current?.target,
+          rect: over?.node.current?.getBoundingClientRect(),
+        };
+        return collisions;
+      }}
       onDragStart={({ active }) => {
+        lastPointerDecision.current = null;
         if (resetTimer.current) clearTimeout(resetTimer.current);
         suppressed.current = true;
         document.body.dataset.sidebarDragging = "true";
@@ -370,6 +444,7 @@ export function ThreadDragProvider({
     >
       <div
         className="contents"
+        ref={container}
         onClickCapture={(event) => {
           if (!suppressed.current) return;
           event.preventDefault();

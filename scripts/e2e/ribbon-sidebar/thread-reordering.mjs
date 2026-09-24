@@ -562,6 +562,11 @@ export async function verifyHeadingBoundary({ stack, fixture }) {
             }),
           );
         }
+        const finalHeader = await following.locator('[data-sidebar="group-label"]').boundingBox();
+        if (offset === 4 && pointerY >= finalHeader.y && pointerY < finalHeader.y + finalHeader.height) {
+          assert.ok(placements.at(-1).placement.startsWith("Boundary group:"),
+            `The visible section heading must receive the drop (${scenario}): ${JSON.stringify(placements.at(-1))}`);
+        }
         const transitions = placements.filter(
           (value, index) =>
             index === 0 ||
