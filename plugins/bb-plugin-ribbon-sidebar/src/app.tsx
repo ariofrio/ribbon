@@ -19,6 +19,8 @@ import {
   useRealtimeConnectionState,
   useRpc,
   useSettings,
+  useSidebarThreadDraftIds,
+  useSidebarThreadRowStatuses,
   type PluginSidebarThread,
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
@@ -59,6 +61,7 @@ import {
 } from "./vendor/components/ui/dialog";
 import { Input } from "./vendor/components/ui/input";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
+import { resolveThreadStatus, type ThreadStatus } from "./thread-status";
 import { ThreadTitle } from "./thread-title";
 import {
   ICON_INDICATOR_SPACE_ATTRIBUTE,
@@ -123,7 +126,7 @@ type EntityDialog =
   | { kind: "rename"; scope: BuiltinGroupRef; label: string; name: string }
   | { kind: "delete"; scope: BuiltinGroupRef; label: string };
 
-function title(thread: PluginSidebarThread) {
+function title(thread: Pick<PluginSidebarThread, "title" | "titleFallback">) {
   return thread.title ?? thread.titleFallback ?? "Untitled thread";
 }
 
@@ -175,6 +178,17 @@ function rootForThread(
 function archivedSearchThread(thread: SearchThread): PluginSidebarThread {
   return {
     ...thread,
+    displayTitle: title(thread),
+    lifecycleOwnerThreadId: null,
+    sourceThreadId: null,
+    status: "idle",
+    runtimeStatus: "idle",
+    queuedWork: "none",
+    pinnedAt: null,
+    pinSortKey: null,
+    archivedAt: null,
+    href: `/projects/${encodeURIComponent(thread.projectId)}/threads/${encodeURIComponent(thread.id)}`,
+    isHidden: false,
     sectionId: null,
     originKind: null,
     originPluginId: null,
@@ -203,7 +217,9 @@ function supplementalSidebarThread(
   thread: SupplementalThread,
 ): PluginSidebarThread {
   return {
+    ...archivedSearchThread(thread),
     ...thread,
+    isHidden: thread.visibility === "hidden",
     hasPendingInteraction: false,
     activity: {
       workflows: 0,
@@ -229,6 +245,7 @@ function ThreadRow({
   depth,
   hasChildren,
   indicatorThread,
+  hasUnsubmittedDraft,
   icon,
   dragging,
   dragTarget,
@@ -260,7 +277,8 @@ function ThreadRow({
   childrenCollapsed: boolean;
   depth: number;
   hasChildren: boolean;
-  indicatorThread: PluginSidebarThread;
+  indicatorThread: ThreadStatus;
+  hasUnsubmittedDraft: boolean;
   icon: ReactNode;
   dragging: boolean;
   dragTarget?: ThreadDragTarget;
@@ -306,7 +324,7 @@ function ThreadRow({
   const hasIcon = icon !== null;
   const iconSpansEntireItem = alignAdornmentsToEntireItem && preview !== null;
   const hasTrailingIndicator =
-    layout !== null || indicatorThread.indicator !== "none";
+    layout !== null || indicatorThread.indicator !== "none" || indicatorThread.pluginStatus !== null;
   const alignsTrailingIndicatorToTitle =
     hasTrailingIndicator && !alignAdornmentsToEntireItem;
   const reservesTrailingLane =
@@ -372,7 +390,7 @@ function ThreadRow({
           ref={sortable.setActivatorNodeRef}
           role="link"
           aria-current={active ? "page" : undefined}
-          aria-label={`Open ${accessibleTitle}${showPullRequest ? ` (PR #${pullRequest.number})` : ""}`}
+          aria-label={`Open ${accessibleTitle}${showPullRequest ? ` (PR #${pullRequest.number})` : ""}${hasUnsubmittedDraft ? " (unsubmitted draft)" : ""}`}
           className="absolute inset-0 rounded-md outline-none ring-sidebar-ring focus-visible:ring-2"
           data-sidebar-thread-id={thread.id}
           data-sidebar-thread-shortcut-target=""
@@ -502,15 +520,7 @@ function ThreadRow({
                   data-sidebar-thread-trailing-indicator=""
                 >
                   <SplitPaneMiniMap
-                    active={[
-                      "working-draft",
-                      "workflow",
-                      "background-agent",
-                      "background-command",
-                      "plan-mode",
-                      "goal",
-                      "runtime",
-                    ].includes(indicatorThread.indicator)}
+                    active={indicatorThread.isWorking}
                     label={
                       indicatorThread.indicatorLabel
                         ? `${rowTitle} — open in split; ${indicatorThread.indicatorLabel}`
@@ -527,6 +537,8 @@ function ThreadRow({
                   <ThreadIndicator
                     indicator={indicatorThread.indicator}
                     label={indicatorThread.indicatorLabel}
+                    pluginStatus={indicatorThread.pluginStatus}
+                    hideIdleDraftLabel={!(hasChildren && childrenCollapsed)}
                   />
                 </span>
               )}
@@ -638,7 +650,6 @@ function NewThreadProjectSync() {
 
 function RibbonSidebarList({
   activeThreadId,
-  Original: OriginalThreadList,
   onNavigate,
   searchQuery,
 }: PluginThreadListProps) {
@@ -646,6 +657,8 @@ function RibbonSidebarList({
   const navigate = useBbNavigate();
   const sidebar = experimental_useSidebarThreads();
   const actions = experimental_useSidebarThreadActions();
+  const draftThreadIds = useSidebarThreadDraftIds();
+  const threadRowStatuses = useSidebarThreadRowStatuses();
   const settings = useSettings();
   const connection = useRealtimeConnectionState();
   const [snapshot, setSnapshot] = useState<SidebarSnapshot | null>(null);
@@ -1011,7 +1024,7 @@ function RibbonSidebarList({
       ) {
         return false;
       }
-      const threadVisibility = visibility.get(thread.id) ?? "visible";
+      const threadVisibility = visibility.get(thread.id) ?? (thread.isHidden ? "hidden" : "visible");
       return threadVisibility === "hidden"
         ? !preferences.view.hide.hidden
         : !preferences.view.hide.visible;
@@ -1490,7 +1503,6 @@ function RibbonSidebarList({
         >
           Ribbon sidebar unavailable: {fatalError}
         </SidebarMessage>
-        <OriginalThreadList />
       </div>
     );
   }
@@ -1635,10 +1647,11 @@ function RibbonSidebarList({
     const destination = placementByThread.get(root.id);
     const children = childrenByParent.get(root.id) ?? [];
     const childrenCollapsed = collapsedThreadIds.has(root.id);
-    const indicatorThread =
-      childrenCollapsed && children.length > 0
-        ? (groupIndicator([root, ...descendants(root.id, childrenByParent)]) ?? root)
-        : root;
+    const indicatorThread = resolveThreadStatus(
+      childrenCollapsed ? [root, ...descendants(root.id, childrenByParent)] : [root],
+      draftThreadIds,
+      threadRowStatuses.get(root.id),
+    );
     const stageOwner = root.parentThreadId
       ? rootForThread(root.id, liveThreads) ?? root
       : root;
@@ -1699,6 +1712,7 @@ function RibbonSidebarList({
           depth={depth}
           hasChildren={children.length > 0}
           indicatorThread={indicatorThread}
+          hasUnsubmittedDraft={draftThreadIds.has(root.id)}
           icon={threadIcon(root)}
           dragging={draggingThreadId === root.id}
           muted={stage === "Deferred" || stage === "Blocked" || stage === "Completed"}
@@ -2195,7 +2209,7 @@ function RibbonSidebarList({
           collapsed &&
           (grouping?.groupingKey === "plugin:thread-stages:stages" ||
             settings.values?.showCollapsedGroupIndicators === true)
-            ? groupIndicator(groupThreads)
+            ? groupIndicator(groupThreads, draftThreadIds, threadRowStatuses)
             : null;
         const activePreview =
           collapsed && activeThreadId !== null
@@ -2390,6 +2404,7 @@ function RibbonSidebarList({
                       <ThreadIndicator
                         indicator={activityThread.indicator}
                         label={activityThread.indicatorLabel}
+                        pluginStatus={activityThread.pluginStatus}
                       />
                     ) : collapsed && roots.length > 0 ? (
                       <span
