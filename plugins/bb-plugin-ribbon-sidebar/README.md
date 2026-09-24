@@ -57,6 +57,18 @@ active work, queued messages, unread completions, and drafts. Plugin-provided
 statuses use bb's colors and animations. A split-pane map replaces the status
 icon when the thread is open in a split and animates while work is active.
 
+A thread's pull request adds to both. Its icon beside the PR number is green
+while open, amber once auto-merge is on or it is in the merge queue, purple
+when merged, red when closed, and muted while a draft. The status indicator adds
+GitHub's marks: a red ✗ when CI fails, changes are requested, or the branch
+conflicts; an amber ● while it waits on CI or a review; and a green ✓ when it
+is ready to merge. A ✗ outranks unread completions, a ✓ waits until the thread
+is read, and a ● shows only when nothing else needs the row; errors, input
+requests, and active work always win. Hover the PR number to see what the
+mark stands for. Auto-merge, reviewers, and check counts come from the GitHub
+CLI (`gh`) signed in on the bb server's machine; without it, marks follow bb's
+own pull request status.
+
 bb's New thread UI uses the selected Ribbon scope. Projects and Sections,
 including Unorganized, are selected before creation through bb's composer
 state. Writable provider groups are applied after bb returns the new thread ID.
@@ -105,8 +117,9 @@ switcher. Headings and icons keep their current settings. The choice persists
 across reloads; select a Pages grouping to restore the switcher.
 
 Use **Display options → PR number** to place the linked GitHub PR number to
-the Left or Right of each thread title, or choose Hidden. Right is the default.
-The choice is saved on this client and persists across reloads.
+the Left or Right of each thread title, or choose Hidden, which also drops its
+status mark. Right is the default. The choice is saved on this client and
+persists across reloads.
 
 Use **Display options → Icons** to choose the grouping that supplies each
 thread's leading icon: Projects (the default), Sections, any available provider

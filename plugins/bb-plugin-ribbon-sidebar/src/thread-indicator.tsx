@@ -4,21 +4,46 @@ import type {
   PluginSidebarThreadRowStatus,
 } from "@get-bb/plugin-sdk/app";
 import { Icon } from "./vendor/components/ui/icon";
+import type { PullRequestMark } from "./pull-request-status";
 import { resolveThreadStatus, type ThreadStatus } from "./thread-status";
 
 export function ThreadIndicator({
   indicator,
   label,
   pluginStatus = null,
+  pullRequestMark = null,
   hideIdleDraftLabel = false,
 }: {
   indicator: PluginSidebarThreadIndicator;
   label: string | null;
   pluginStatus?: PluginSidebarThreadRowStatus | null;
+  pullRequestMark?: PullRequestMark | null;
   hideIdleDraftLabel?: boolean;
 }) {
   const className = "pointer-events-none size-4 shrink-0";
   const ariaLabel = label ?? undefined;
+
+  // GitHub's marks: red ✗ needs a fix, amber ● is pending, green ✓ is done.
+  if (pullRequestMark === "failing" || pullRequestMark === "ready") {
+    return (
+      <Icon
+        name={pullRequestMark === "failing" ? "X" : "Check"}
+        aria-label={ariaLabel}
+        className={`${className} ${pullRequestMark === "failing" ? "text-destructive" : "text-success"}`}
+      />
+    );
+  }
+  if (pullRequestMark === "waiting") {
+    return (
+      <span
+        aria-label={ariaLabel}
+        className="flex size-4 shrink-0 items-center justify-center"
+        role="img"
+      >
+        <span className="size-[7px] rounded-full bg-attention" />
+      </span>
+    );
+  }
 
   if (pluginStatus) {
     if (pluginStatus.tone === "running") {
