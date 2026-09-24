@@ -90,6 +90,80 @@ describe("validateSideChat RPC", () => {
 });
 
 describe("createSideChat RPC", () => {
+  it("does not return a newly created side chat before provisioning finishes", async () => {
+    let finishProvisioning!: () => void;
+    let reachedWait!: () => void;
+    const waiting = new Promise<void>((resolve) => {
+      reachedWait = resolve;
+    });
+    const ready = new Promise<void>((resolve) => {
+      finishProvisioning = resolve;
+    });
+    const wait = vi.fn(async () => {
+      reachedWait();
+      await ready;
+    });
+    const host = createFakePluginHost({
+      pluginId: "missing-keyboard-shortcuts",
+      sdk: {
+        plugins: { callRpc: async () => ({ threadId: "thr_child" }) },
+        threads: {
+          wait,
+          tabs: { get: async () => ({ revision: 0, tabs: [] }) },
+        },
+      },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+    let returned = false;
+    const result = host.harness.behavior.callRpc("createSideChat", {
+      sourceThreadId: "thr_parent",
+    }).then((value) => {
+      returned = true;
+      return value;
+    });
+    try {
+      expect(
+        await Promise.race([
+          waiting.then(() => "waiting"),
+          result.then(() => "returned"),
+        ]),
+      ).toBe("waiting");
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(returned).toBe(false);
+      expect(wait).toHaveBeenCalledWith({
+        threadId: "thr_child",
+        status: "idle",
+        timeoutMs: 120_000,
+      });
+    } finally {
+      finishProvisioning();
+    }
+    await expect(result).resolves.toEqual({ threadId: "thr_child" });
+  });
+
+  it("reports provisioning failures instead of opening a stuck composer", async () => {
+    const host = createFakePluginHost({
+      pluginId: "missing-keyboard-shortcuts",
+      sdk: {
+        plugins: { callRpc: async () => ({ threadId: "thr_child" }) },
+        threads: {
+          wait: async () => {
+            throw new Error("Side chat provisioning failed");
+          },
+          tabs: { get: async () => ({ revision: 0, tabs: [] }) },
+        },
+      },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+    await expect(
+      host.harness.behavior.callRpc("createSideChat", {
+        sourceThreadId: "thr_parent",
+      }),
+    ).rejects.toThrow("Side chat provisioning failed");
+  });
+
   it("forwards to the Side chat plugin through the bb SDK", async () => {
     const callRpc = vi.fn(async () => ({ threadId: "thr_child" }));
     const host = createFakePluginHost({
@@ -97,6 +171,7 @@ describe("createSideChat RPC", () => {
       sdk: {
         plugins: { callRpc },
         threads: {
+          wait: async () => undefined,
           tabs: {
             get: async () => ({ revision: 0, tabs: [] }),
             update: async () => ({ revision: 1, tabs: [] }),
@@ -132,7 +207,10 @@ describe("createSideChat RPC", () => {
       pluginId: "missing-keyboard-shortcuts",
       sdk: {
         plugins: { callRpc },
-        threads: { tabs: { get: getTabs, update: updateTabs } },
+        threads: {
+          wait: async () => undefined,
+          tabs: { get: getTabs, update: updateTabs },
+        },
       },
     });
     plugin(host.bb);

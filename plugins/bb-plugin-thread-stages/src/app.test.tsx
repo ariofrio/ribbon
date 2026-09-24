@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   window.history.replaceState({}, "", "/");
   document.body.replaceChildren();
 });
@@ -21,7 +22,28 @@ describe("thread stages overlay", () => {
     ).commandPaletteActions;
   }
 
+  it.each(["MacIntel", "Linux x86_64", "Win32"])(
+    "keeps stage defaults distinct on %s",
+    async (platform) => {
+      vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+      const app = await loadPluginApp(() => import("./app"));
+      const isMac = platform === "MacIntel";
+      const shortcuts = commands(app).map(({ defaultShortcut: shortcut }) => {
+        if (!shortcut) return null;
+        return [
+          shortcut.key,
+          Boolean(shortcut.meta || (shortcut.mod && isMac)),
+          Boolean(shortcut.control || (shortcut.mod && !isMac)),
+          Boolean(shortcut.alt),
+          Boolean(shortcut.shift),
+        ].join(":");
+      });
+      expect(new Set(shortcuts).size).toBe(shortcuts.length);
+    },
+  );
+
   it("registers every stage and reorder shortcut as a rebindable command", async () => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
     const app = await loadPluginApp(() => import("./app"));
 
     expect(
