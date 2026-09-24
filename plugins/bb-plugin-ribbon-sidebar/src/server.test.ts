@@ -891,6 +891,7 @@ describe("Ribbon sidebar server", () => {
       "listProjectActionStatesV1",
       "listThreadsV1",
       "placeNewThreadV1",
+      "pullRequestDetailsV1",
       "searchThreadIdsV1",
       "renameEntityV1",
       "reorderPinnedV1",

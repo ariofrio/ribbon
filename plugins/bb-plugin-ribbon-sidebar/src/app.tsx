@@ -61,7 +61,17 @@ import {
 } from "./vendor/components/ui/dialog";
 import { Input } from "./vendor/components/ui/input";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
-import { resolveThreadStatus, type ThreadStatus } from "./thread-status";
+import {
+  resolveThreadStatus,
+  withPullRequestSignal,
+  type ThreadStatus,
+} from "./thread-status";
+import { pullRequestSignal } from "./pull-request-status";
+import {
+  PullRequestDetailsProvider,
+  usePullRequestDetails,
+  type PullRequestDetailsRequest,
+} from "./pull-request-details-store";
 import { ThreadTitle } from "./thread-title";
 import {
   ICON_INDICATOR_SPACE_ATTRIBUTE,
@@ -101,9 +111,13 @@ const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
 /** bb keeps project-less threads in the personal project, under a reserved id. */
 const PERSONAL_PROJECT_ID = "proj_personal";
 
-const PR_STATE_ICONS = {
+// Color carries the lifecycle: green is open, amber will merge on its own
+// (GitHub's merge-queue color), purple is merged. Closed stays muted so red
+// belongs to the status mark that means "needs a fix".
+const PR_LIFECYCLE_ICONS = {
   open: { name: "GitPullRequestArrow", className: "text-success" },
-  closed: { name: "GitPullRequestClosed", className: "text-destructive" },
+  auto: { name: "GitMerge", className: "text-attention" },
+  closed: { name: "GitPullRequestClosed", className: "text-muted-foreground" },
   merged: { name: "GitMerge", className: "text-pr-merged" },
   draft: { name: "GitPullRequestDraft", className: "text-muted-foreground" },
 } as const;
@@ -299,6 +313,12 @@ function ThreadRow({
   const { splitProps, isAvailable: splitAvailable, layout } =
     experimental_useSidebarThreadSplit(thread.id);
   const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
+  const visiblePullRequest = pullRequestNumberPosition === "hidden" ? null : pullRequest;
+  const pullRequestDetails = usePullRequestDetails(visiblePullRequest);
+  const pullRequestStatus = visiblePullRequest
+    ? pullRequestSignal(visiblePullRequest, pullRequestDetails)
+    : null;
+  const status = withPullRequestSignal(indicatorThread, pullRequestStatus);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const rowTitle = title(thread);
@@ -308,20 +328,25 @@ function ThreadRow({
     data: { target: dragTarget, label: rowTitle },
   });
   const accessibleTitle = preview ? `${rowTitle} — ${preview}` : rowTitle;
-  const showPullRequest = pullRequest !== null && pullRequestNumberPosition !== "hidden";
-  const pullRequestNumber = showPullRequest ? (
+  const showPullRequest = visiblePullRequest !== null && pullRequestStatus !== null;
+  const pullRequestIcon = pullRequestStatus ? PR_LIFECYCLE_ICONS[pullRequestStatus.lifecycle] : null;
+  const pullRequestNumber = showPullRequest && pullRequestIcon ? (
     <span
       className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ${
         pullRequestNumberPosition === "right" ? "ml-auto" : ""
       }`}
-      title={pullRequest.title}
+      title={
+        pullRequestStatus.label
+          ? `${visiblePullRequest.title} — ${pullRequestStatus.label}`
+          : visiblePullRequest.title
+      }
     >
       <Icon
-        name={PR_STATE_ICONS[pullRequest.state].name}
-        className={`size-4 shrink-0 ${PR_STATE_ICONS[pullRequest.state].className}`}
+        name={pullRequestIcon.name}
+        className={`size-4 shrink-0 ${pullRequestIcon.className}`}
         aria-hidden
       />
-      #{pullRequest.number}
+      #{visiblePullRequest.number}
     </span>
   ) : null;
   const actionsOpen = dropdownOpen || contextOpen;
@@ -329,7 +354,10 @@ function ThreadRow({
   const hasIcon = icon !== null;
   const iconSpansEntireItem = alignAdornmentsToEntireItem && preview !== null;
   const hasTrailingIndicator =
-    layout !== null || indicatorThread.indicator !== "none" || indicatorThread.pluginStatus !== null;
+    layout !== null ||
+    status.indicator !== "none" ||
+    status.pluginStatus !== null ||
+    status.pullRequestMark !== null;
   const alignsTrailingIndicatorToTitle =
     hasTrailingIndicator && !alignAdornmentsToEntireItem;
   const reservesTrailingLane =
@@ -395,7 +423,7 @@ function ThreadRow({
           ref={sortable.setActivatorNodeRef}
           role="link"
           aria-current={active ? "page" : undefined}
-          aria-label={`Open ${accessibleTitle}${showPullRequest ? ` (PR #${pullRequest.number})` : ""}${hasUnsubmittedDraft ? " (unsubmitted draft)" : ""}`}
+          aria-label={`Open ${accessibleTitle}${showPullRequest ? ` (PR #${visiblePullRequest.number})` : ""}${hasUnsubmittedDraft ? " (unsubmitted draft)" : ""}`}
           className="absolute inset-0 rounded-md outline-none ring-sidebar-ring focus-visible:ring-2"
           data-sidebar-thread-id={thread.id}
           data-sidebar-thread-shortcut-target=""
@@ -525,10 +553,10 @@ function ThreadRow({
                   data-sidebar-thread-trailing-indicator=""
                 >
                   <SplitPaneMiniMap
-                    active={indicatorThread.isWorking}
+                    active={status.isWorking}
                     label={
-                      indicatorThread.indicatorLabel
-                        ? `${rowTitle} — open in split; ${indicatorThread.indicatorLabel}`
+                      status.indicatorLabel
+                        ? `${rowTitle} — open in split; ${status.indicatorLabel}`
                         : `${rowTitle} — open in split`
                     }
                     layout={layout}
@@ -540,9 +568,10 @@ function ThreadRow({
                   data-sidebar-thread-trailing-indicator=""
                 >
                   <ThreadIndicator
-                    indicator={indicatorThread.indicator}
-                    label={indicatorThread.indicatorLabel}
-                    pluginStatus={indicatorThread.pluginStatus}
+                    indicator={status.indicator}
+                    label={status.indicatorLabel}
+                    pluginStatus={status.pluginStatus}
+                    pullRequestMark={status.pullRequestMark}
                     hideIdleDraftLabel={!(hasChildren && childrenCollapsed)}
                   />
                 </span>
@@ -659,6 +688,15 @@ function RibbonSidebarList({
   searchQuery,
 }: PluginThreadListProps) {
   const rpc = useRpc<typeof rpcContract>();
+  const rpcRef = useRef(rpc);
+  rpcRef.current = rpc;
+  const loadPullRequestDetails = useCallback(
+    (requests: readonly PullRequestDetailsRequest[]) =>
+      rpcRef.current
+        .call("pullRequestDetailsV1", { requests: [...requests] })
+        .then(({ details }) => details),
+    [],
+  );
   const navigate = useBbNavigate();
   const sidebar = experimental_useSidebarThreads();
   const actions = experimental_useSidebarThreadActions();
@@ -1770,6 +1808,7 @@ function RibbonSidebarList({
   };
 
   return (
+    <PullRequestDetailsProvider load={loadPullRequestDetails}>
     <ThreadDragProvider
       canDrop={(sourceId, target) => {
         const source = rootThreads.find(({ id }) => id === sourceId);
@@ -2464,6 +2503,7 @@ function RibbonSidebarList({
       )}
     </div>
     </ThreadDragProvider>
+    </PullRequestDetailsProvider>
   );
 }
 
