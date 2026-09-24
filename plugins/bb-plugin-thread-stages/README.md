@@ -52,15 +52,15 @@ Stage commands appear in bb's command palette and Keyboard settings, where
 every shortcut can be rebound or cleared. Their default shortcuts remain
 active while Ribbon sidebar is selected and while another sidebar is visible:
 
-| Shortcut | Action |
-| ---: | --- |
-| ⌘. / ⌥⌘. | File as Completed |
-| ⇧⌘. | Return to Idle, or undo the latest filing |
-| ⌃⇧⌘. | File as Blocked |
-| ⌃⌘. | File as Deferred |
-| ⌥⌘↑ / ⌥⌘↓ | Move one position within the stage |
-| ⌥⇧⌘↑ / ⌥⇧⌘↓ | Move to the stage edge |
-| ⌃⌘↑ / ⌃⌘↓ | Move to the adjacent enabled stage |
+| macOS | Linux / Windows | Action |
+| ---: | ---: | --- |
+| ⌘. / ⌥⌘. | Ctrl+. / Ctrl+Alt+. | File as Completed |
+| ⇧⌘. | Ctrl+Shift+. | Return to Idle, or undo the latest filing |
+| ⌃⇧⌘. | Ctrl+Alt+Shift+, | File as Blocked |
+| ⌃⌘. | Ctrl+Alt+, | File as Deferred |
+| ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move one position within the stage |
+| ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to the stage edge |
+| ⌃⌘↑ / ⌃⌘↓ | Ctrl+↑ / Ctrl+↓ | Move to the adjacent enabled stage |
 
 The filing commands walk through Idle threads, preserve root hierarchies, and
 reject child thread IDs. Commands for disabled stages are unavailable.

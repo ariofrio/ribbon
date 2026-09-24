@@ -185,6 +185,9 @@ export default function plugin(bb: BbPluginApi) {
         input: { sourceThreadId, anchorText: "" },
         outputSchema: sideChatThreadSchema,
       });
+      // A fork is returned while it is still starting. Mounting ThreadChat then
+      // can leave BB's initial thread fetch stale across the ready-state event.
+      await bb.sdk.threads.wait({ threadId, status: "idle", timeoutMs: 120_000 });
       return { threadId };
     },
     async sendToMain({ senderThreadId, sourceThreadId, text }) {
