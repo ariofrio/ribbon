@@ -88,6 +88,15 @@ function setup({
     ],
   }));
   const updateSettings = vi.fn(async () => ({ values: {} }));
+  const getSettings = vi.fn(async () => ({ ok: true, schema: {}, values: {} }));
+  const pluginsList = vi.fn(async () => ({
+    plugins: [
+      { id: "ribbon-sidebar", status: "running" },
+      ...(includeThreadStages
+        ? [{ id: "thread-stages", status: "running" }]
+        : []),
+    ],
+  }));
   const get = vi.fn(
     threadGet ??
       (async ({ threadId }) => {
@@ -237,15 +246,8 @@ function setup({
         ],
       },
       plugins: {
-        getSettings: async () => ({ ok: true, schema: {}, values: {} }),
-        list: async () => ({
-          plugins: [
-            { id: "ribbon-sidebar", status: "running" },
-            ...(includeThreadStages
-              ? [{ id: "thread-stages", status: "running" as const }]
-              : []),
-          ],
-        }),
+        getSettings,
+        list: pluginsList,
         callRpc,
         updateSettings,
       },
@@ -260,6 +262,8 @@ function setup({
     update,
     timeline,
     updateSettings,
+    getSettings,
+    pluginsList,
     setThreadStagesCatalog(catalog: typeof threadStagesCatalog) {
       currentThreadStagesCatalog = catalog;
     },
@@ -398,13 +402,53 @@ describe("Ribbon sidebar server", () => {
     await harness.lifecycle.dispose();
   });
 
+  it("loads while the legacy plugin is installed but disabled", async () => {
+    const { bb, harness, pluginsList, getSettings } = setup();
+    pluginsList.mockResolvedValue({
+      plugins: [{ id: "thread-stages", status: "disabled" }],
+    });
+    getSettings.mockRejectedValue(new Error("plugin is not running"));
+    await plugin(bb);
+    expect(getSettings).not.toHaveBeenCalled();
+    await harness.lifecycle.dispose();
+  });
+
+  it("migrates legacy settings before the public plugin factory becomes available", async () => {
+    const { bb, harness, updateSettings, getSettings } = setup();
+    updateSettings.mockRejectedValue(new Error("plugin is not running"));
+    getSettings.mockResolvedValue({
+      ok: true,
+      schema: {},
+      values: { showBlockedStage: false, autoArchiveCompletedAfter: "Never" },
+    });
+    await plugin(bb);
+    const snapshot = await harness.behavior.callRpc("sidebarSnapshotV1", null);
+    expect(snapshot).toMatchObject({
+      groupings: expect.arrayContaining([
+        expect.objectContaining({
+          groupingKey: "plugin:thread-stages:stages",
+          groups: expect.arrayContaining([
+            expect.objectContaining({
+              id: "Blocked",
+              acceptsAssignments: false,
+            }),
+          ]),
+        }),
+      ]),
+    });
+    expect(updateSettings).not.toHaveBeenCalled();
+    await harness.lifecycle.dispose();
+  });
+
   it("applies stage settings to placement validation immediately", async () => {
     const { bb, harness } = setup();
     await plugin(bb);
     await harness.behavior.setSettings({ showBlockedStage: false });
     const result = await harness.behavior.callRpc("updatePlacementV1", {
-      groupingKey: "plugin:thread-stages:stages", groupId: "Blocked",
-      threadId: "thread-a", origin: "ui",
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Blocked",
+      threadId: "thread-a",
+      origin: "ui",
     });
     expect(result).toMatchObject({ ok: false });
     await harness.lifecycle.dispose();
@@ -439,8 +483,7 @@ describe("Ribbon sidebar server", () => {
       showCollapsedGroupIndicators: {
         type: "boolean",
         label: "Show collapsed-group indicators (experimental)",
-        description:
-          "Show live activity indicators on collapsed sections.",
+        description: "Show live activity indicators on collapsed sections.",
         default: false,
       },
       showGroupHeaderIcons: {

@@ -374,8 +374,7 @@ export default async function plugin(bb: BbPluginApi) {
     showCollapsedGroupIndicators: {
       type: "boolean",
       label: "Show collapsed-group indicators (experimental)",
-      description:
-        "Show live activity indicators on collapsed sections.",
+      description: "Show live activity indicators on collapsed sections.",
       default: false,
     },
     showGroupHeaderIcons: {
@@ -476,7 +475,7 @@ export default async function plugin(bb: BbPluginApi) {
     );
 
     if (
-      installed.plugins.some((plugin) => plugin.id === "thread-stages") &&
+      threadStagesInstalled &&
       !database
         .prepare("SELECT key FROM ribbon_upgrade WHERE key = 'stage-settings'")
         .get()
@@ -493,7 +492,7 @@ export default async function plugin(bb: BbPluginApi) {
           legacy.values[key] === undefined ? [] : [[key, legacy.values[key]]],
         ),
       );
-      await bb.sdk.plugins.updateSettings({ pluginId: bb.pluginId, values });
+      await settings.experimental_set(values);
       stageSettings = await settings.get();
       database
         .prepare(
