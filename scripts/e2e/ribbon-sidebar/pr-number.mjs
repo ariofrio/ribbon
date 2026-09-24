@@ -51,7 +51,12 @@ export async function verifyPrNumber({ stack, fixture }) {
         return numberBox.width > 0 && numberBox.height > 0 && titleBox.width > 0 &&
           style.display !== "none" && style.visibility === "visible" && Number(style.opacity) > 0 &&
           Math.abs(numberBox.y - titleBox.y) < 1 &&
-          (position === "left" ? numberBox.right < titleBox.left : numberBox.left > titleBox.right);
+          (position === "left"
+            ? numberBox.right < titleBox.left
+            // A right-hand number sits at the end of the title's lane, not
+            // beside a title shorter than the lane.
+            : numberBox.left > titleBox.right &&
+              Math.abs(numberBox.right - number.parentElement.getBoundingClientRect().right) < 1);
       }, { threadId: thread.id, title: FEATURED_THREAD, position });
     }
 
