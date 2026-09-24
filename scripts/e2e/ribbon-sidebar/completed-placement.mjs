@@ -82,7 +82,7 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     await completed.locator("[data-ribbon-thread-drop-preview]").waitFor();
     await page.mouse.up();
     await first(shortcut);
-    assert.ok(await completed.getByText(shortcut.title, { exact: true }).isVisible());
+    await completed.getByText(shortcut.title, { exact: true }).waitFor({ state: "visible" });
     await context.close();
   } finally {
     await browser.close();

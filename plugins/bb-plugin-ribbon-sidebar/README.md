@@ -21,7 +21,7 @@ readable, so installing Ribbon later restores the previous organization.
 
 Add this repository as a bb marketplace, install both the sidebar and the
 provider, then select **Ribbon sidebar** under **Settings → Appearance →
-Sidebar**:
+Sidebar** (bb 0.43.4 or newer):
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon
@@ -49,8 +49,13 @@ dimension at once; choosing one clears the other when necessary. Opening a
 thread moves an existing Project or Section scope to that thread's root, and a
 collapsed group previews only the opened thread. Search temporarily ignores
 scope and collapse state. The Groups menu retains project and section creation
-plus entity actions. If the Ribbon UI cannot load, it delegates to bb's
-original list.
+plus entity actions. If the Ribbon UI cannot load, it shows an error and a
+Retry action.
+
+Thread status indicators follow bb's priority for errors, input requests,
+active work, queued messages, unread completions, and drafts. Plugin-provided
+statuses use bb's colors and animations. A split-pane map replaces the status
+icon when the thread is open in a split and animates while work is active.
 
 bb's New thread UI uses the selected Ribbon scope. Projects and Sections,
 including Unorganized, are selected before creation through bb's composer

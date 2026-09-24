@@ -75,7 +75,7 @@ describe("project icon app registration", () => {
         },
         sidebarThreads: {
           projects: [
-            { id: "project-1", name: "Example project", isPersonal: false },
+            { id: "project-1", name: "Example project", isPersonal: false, href: "/projects/project-1", settingsHref: "/projects/project-1/settings" },
           ],
         },
       },
