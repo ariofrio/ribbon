@@ -288,7 +288,9 @@ function ThreadRow({
     pullRequest !== null && pullRequestNumberPosition !== "hidden";
   const pullRequestNumber = showPullRequest ? (
     <span
-      className="inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75"
+      className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ${
+        pullRequestNumberPosition === "right" ? "ml-auto" : ""
+      }`}
       title={pullRequest.title}
     >
       <Icon
