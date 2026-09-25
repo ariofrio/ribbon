@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { applyPluginState, FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
+import { reportBackgroundCommand } from "./background-command.mjs";
 
 export async function verifyThreadIcons({ stack, fixture }) {
   const thread = fixture.threads.get(FEATURED_THREAD);
@@ -22,6 +23,8 @@ export async function verifyThreadIcons({ stack, fixture }) {
       localStorage.setItem("bb.sidebar.threadListProvider", JSON.stringify("ribbon-sidebar/ribbon-sidebar"));
     });
     const page = await context.newPage();
+    const workingThread = fixture.threads.get("Investigate webhook retries");
+    await reportBackgroundCommand(page, workingThread.id);
     const project = fixture.projects.get(FEATURED_PROJECT);
     await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
     const sidebar = page.locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]");
@@ -68,10 +71,16 @@ export async function verifyThreadIcons({ stack, fixture }) {
     await page.reload();
     await sidebar.waitFor({ timeout: 120_000 });
     await paintedIcon('[aria-label="Idle stage"] svg', false);
-    const workingThread = fixture.threads.get("Investigate webhook retries");
     const workingRow = sidebar.locator("li").filter({
       has: page.locator(`a[data-sidebar-thread-id="${workingThread.id}"]`),
     });
+    // Its turn never ends, so its stage ring turns in place of bb's spinner.
+    const ring = await workingRow.locator('[aria-label$=" stage, working"] svg').first().evaluate((node) => ({
+      animation: getComputedStyle(node).animationName,
+      width: getComputedStyle(node).width,
+    }));
+    assert.deepEqual(ring, { animation: "spin", width: "16px" });
+    await workingRow.locator("[data-sidebar-thread-trailing-indicator]").getByLabel("Background command running").waitFor();
     const indicatorGap = await workingRow.evaluate((node) => {
       const space = node.querySelector("[data-ribbon-sidebar-icon-indicator-space]");
       const title = space.previousElementSibling;

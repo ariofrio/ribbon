@@ -157,6 +157,9 @@ export async function verifyThreadTitlePan({ stack, fixture }) {
           .map((link) => link.dataset.sidebarThreadId));
       let narrowing = null;
       for (const id of ids) {
+        // The long title belongs to the other cases; retitling it here would
+        // restore the fixture's short title instead.
+        if (id === thread.id) continue;
         const link = page.locator(`a[data-sidebar-thread-id="${id}"]`);
         if (!(await link.isVisible())) continue;
         await page.mouse.move(1000, 400);

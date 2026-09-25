@@ -48,6 +48,8 @@ export function resolveThreadStatus(
   threads: readonly PluginSidebarThread[],
   draftIds: ReadonlySet<string>,
   pluginStatus: PluginSidebarThreadRowStatus | null = null,
+  /** Rows leave runtime to their stage ring; headings have no ring. */
+  { showRuntime = true }: { showRuntime?: boolean } = {},
 ): ThreadStatus {
   const has = (kind: PluginSidebarThreadIndicator) =>
     threads.some((thread) => thread.indicator === kind);
@@ -75,7 +77,7 @@ export function resolveThreadStatus(
     : hasDraft && hasWork ? "working-draft"
     : active.has("plan-mode") ? "plan-mode"
     : active.has("goal") ? "goal"
-    : active.has("runtime") ? "runtime"
+    : showRuntime && active.has("runtime") ? "runtime"
     : active.has("workflow") ? "workflow"
     : active.has("background-agent") ? "background-agent"
     : active.has("background-command") ? "background-command"
@@ -123,13 +125,6 @@ const PULL_REQUEST_MARK_RANK: Record<PullRequestMark, number> = {
   ready: 6,
   waiting: 9,
 };
-
-/** A spinning stage ring stands in for bb's plain runtime spinner. */
-export function withoutRuntimeIndicator(status: ThreadStatus): ThreadStatus {
-  return status.indicator === "runtime"
-    ? { ...status, indicator: "none", indicatorLabel: null }
-    : status;
-}
 
 export function withPullRequestSignal(
   status: ThreadStatus,

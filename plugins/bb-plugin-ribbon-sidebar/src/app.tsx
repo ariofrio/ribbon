@@ -63,7 +63,6 @@ import {
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
 import {
   resolveThreadStatus,
-  withoutRuntimeIndicator,
   withPullRequestSignal,
   type ThreadStatus,
 } from "./thread-status";
@@ -1499,6 +1498,7 @@ function RibbonSidebarList({
         : [root],
       draftThreadIds,
       threadRowStatuses.get(root.id),
+      { showRuntime: false },
     );
     const stageOwner = root.parentThreadId
       ? (rootForThread(root.id, liveThreads) ?? root)
@@ -1562,7 +1562,7 @@ function RibbonSidebarList({
           childrenCollapsed={childrenCollapsed}
           depth={depth}
           hasChildren={children.length > 0}
-          indicatorThread={withoutRuntimeIndicator(indicatorThread)}
+          indicatorThread={indicatorThread}
           hasUnsubmittedDraft={draftThreadIds.has(root.id)}
           icon={threadIcon(root, indicatorThread.spinsStageRing)}
           dragging={draggingThreadId === root.id}

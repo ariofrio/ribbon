@@ -724,7 +724,7 @@ describe("Ribbon sidebar app", () => {
 
   it.each([
     ["none", false, "Saving draft"],
-    ["runtime", false, "Idle stage, working"],
+    ["runtime", false, "Saving draft"],
     ["runtime", true, "Saving draft"],
     ["unread-error", true, "Unread thread failed"],
     ["waiting-for-input", true, "Thread needs user input"],
@@ -788,6 +788,28 @@ describe("Ribbon sidebar app", () => {
     expect(
       working.closest("li")!.querySelector("[data-sidebar-thread-trailing-indicator]"),
     ).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("shows a background command beside a working thread's spinning ring", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        ...options().value.sidebarThreads,
+        threads: [
+          thread({
+            id: "thread-a",
+            indicator: "runtime",
+            indicatorLabel: "Thread working",
+            activity: { ...activity, backgroundCommands: 1 },
+          }),
+        ],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    expect(await slot.findByLabelText("Idle stage, working")).toBeTruthy();
+    expect(slot.getByLabelText("Background command running")).toBeTruthy();
+    expect(slot.queryByLabelText("Thread working")).toBeNull();
     slot.lifecycle.unmount();
   });
 

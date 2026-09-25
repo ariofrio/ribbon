@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { AGENT, FEATURED_PROJECT } from "../../screenshots/fixture.mjs";
+import { reportBackgroundCommand } from "./background-command.mjs";
 
 const INDICATOR_THREAD = "Investigate webhook retries";
 const ICONS_PLUGIN_ID = "icons";
@@ -56,6 +57,7 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
       });
 
       const page = await context.newPage();
+      await reportBackgroundCommand(page, fixture.threads.get(INDICATOR_THREAD).id);
       await page.goto(stack.serverUrl, { waitUntil: "domcontentloaded" });
       await page
         .locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]")
