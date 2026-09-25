@@ -97,12 +97,15 @@ describe("Thread stages provider contracts", () => {
     expect(iconByStage.get("Idle")?.children).toEqual([ring]);
     // Working is drawn on each stage's ring by Ribbon, not stored as a stage.
     expect(iconByStage.has("Active")).toBe(false);
-    // Lucide's Ban: the ring crossed by a diagonal.
+    // Half of Completed's dot.
     expect(iconByStage.get("Blocked")?.children).toEqual([
       ring,
       expect.objectContaining({
         tag: "path",
-        attrs: expect.objectContaining({ d: "M6.343 6.343 17.657 17.657" }),
+        attrs: expect.objectContaining({
+          d: "M12 7A5 5 0 0 1 12 17Z",
+          fill: "currentColor",
+        }),
       }),
     ]);
     expect(iconByStage.get("Completed")?.children).toEqual([

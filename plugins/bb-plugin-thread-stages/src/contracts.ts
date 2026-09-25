@@ -264,16 +264,6 @@ const stageIcon = (children: IconDataV1[]): IconDataV1 => ({
   attrs: { viewBox: "0 0 24 24", fill: "none" },
   children,
 });
-const strokedPath = (d: string): IconDataV1 => ({
-  tag: "path",
-  attrs: {
-    d,
-    stroke: "currentColor",
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-    strokeWidth: 1.5,
-  },
-});
 // Six dashes around the ring, one centred every 60 degrees from 30.
 const RING_SIXTH = (2 * Math.PI * 8) / 6;
 
@@ -290,10 +280,17 @@ const STAGE_ICONS: Record<WorkflowStage, IconDataV1> = {
     },
   ]),
   Idle: stageIcon([progressRing]),
-  // Lucide's Ban, drawn on the same ring.
+  // Half filled, the same size as Completed's dot.
   Blocked: stageIcon([
     progressRing,
-    strokedPath("M6.343 6.343 17.657 17.657"),
+    {
+      tag: "path",
+      attrs: {
+        d: "M12 7A5 5 0 0 1 12 17Z",
+        fill: "currentColor",
+        transform: "rotate(-45 12 12)",
+      },
+    },
   ]),
   Completed: stageIcon([
     progressRing,

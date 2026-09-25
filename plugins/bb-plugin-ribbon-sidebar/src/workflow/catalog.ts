@@ -51,8 +51,17 @@ const STAGE_RINGS = byStage((stage) =>
 const STAGE_MARKS: Record<WorkflowStage, IconDataV1[]> = {
   Deferred: [],
   Idle: [],
-  // Lucide's Ban, drawn on the same ring.
-  Blocked: [strokedPath("M6.343 6.343 17.657 17.657")],
+  // Half filled, the same size as Completed's dot.
+  Blocked: [
+    {
+      tag: "path",
+      attrs: {
+        d: "M12 7A5 5 0 0 1 12 17Z",
+        fill: "currentColor",
+        transform: "rotate(-45 12 12)",
+      },
+    },
+  ],
   Completed: [
     {
       tag: "circle",
