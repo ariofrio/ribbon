@@ -7,6 +7,9 @@ import { Icon } from "./vendor/components/ui/icon";
 import type { PullRequestMark } from "./pull-request-status";
 import { resolveThreadStatus, type ThreadStatus } from "./thread-status";
 
+/** bb's unread dot; a pending pull request draws the same circle in amber. */
+const DOT_CLASS = "size-[5px] rounded-full max-md:pointer-coarse:size-1.5";
+
 export function ThreadIndicator({
   indicator,
   label,
@@ -40,7 +43,7 @@ export function ThreadIndicator({
         className="flex size-4 shrink-0 items-center justify-center"
         role="img"
       >
-        <span className="size-[7px] rounded-full bg-attention" />
+        <span className={`${DOT_CLASS} bg-attention`} />
       </span>
     );
   }
@@ -121,7 +124,7 @@ export function ThreadIndicator({
           aria-label={ariaLabel}
           className="flex size-4 shrink-0 items-center justify-center"
         >
-          <span className="size-[5px] rounded-full bg-muted-foreground/60 max-md:pointer-coarse:size-1.5" />
+          <span className={`${DOT_CLASS} bg-muted-foreground/60`} />
         </span>
       );
     case "none":

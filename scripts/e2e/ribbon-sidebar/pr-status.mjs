@@ -79,7 +79,19 @@ async function renderedStatus(page, threadId, label) {
     };
     probe.remove();
     const dot = mark.querySelector("span");
+    // bb's unread dot, drawn in another row's indicator slot, is the circle a
+    // pending mark sits beside.
+    const unread = [...document.querySelectorAll(
+      "[data-ribbon-sidebar-root] [data-sidebar-thread-trailing-indicator] [aria-label] > span",
+    )].find((node) => node !== dot);
+    const size = (node) => {
+      const { width, height } = node.getBoundingClientRect();
+      return { width, height };
+    };
+    if (dot && !unread) return null;
     return {
+      dotSize: dot ? size(dot) : null,
+      unreadSize: unread ? size(unread) : null,
       mark: dot ? getComputedStyle(dot).backgroundColor : getComputedStyle(mark).color,
       icon: getComputedStyle(number.querySelector("svg")).color,
       title: number.getAttribute("title"),
@@ -101,6 +113,7 @@ export async function verifyPrStatus({ stack, fixture, cases }) {
       assert.equal(status.mark, status.tokens.attention, "waiting mark is amber");
       assert.equal(status.icon, status.tokens.attention, "auto-merge icon is amber");
       assert.equal(status.title, `Sidebar placement fixture — ${label}`);
+      assert.deepEqual(status.dotSize, status.unreadSize, "waiting mark matches the unread dot's size");
       await context.close();
     }
     if (cases.includes("attention-fallback")) {
