@@ -1679,7 +1679,7 @@ function RibbonSidebarList({
           {settings.values?.showProjectsAndSections !== false ? (
             <SidebarTopControls>
               <Button
-                className="h-7 flex-1 justify-start px-2 text-xs text-subtle-foreground"
+                className="h-7 flex-1 justify-start px-2 text-xs text-subtle-foreground hover:bg-sidebar-accent"
                 variant="ghost"
                 size="sm"
                 onClick={() =>
