@@ -301,7 +301,7 @@ const STAGE_ICONS: Record<WorkflowStage, IconDataV1> = {
     progressRing,
     {
       tag: "circle",
-      attrs: { cx: 12, cy: 12, r: 5.5, fill: "currentColor" },
+      attrs: { cx: 12, cy: 12, r: 5, fill: "currentColor" },
     },
   ]),
 };
