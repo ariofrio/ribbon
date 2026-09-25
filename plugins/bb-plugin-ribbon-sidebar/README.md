@@ -70,6 +70,10 @@ showing bb's spinner, and a collapsed root's ring also turns for work in its
 hidden descendants. A pending question or approval stops the ring. Earlier
 versions had an Active stage; its threads return to Idle on upgrade.
 
+A working row also shimmers across its icon, title, preview, and indicator, in
+place of the shimmer bb draws on the indicator alone. Turn off **Shimmer working
+rows** in Ribbon settings to keep bb's.
+
 Completed hierarchies auto-archive after seven days by default. Ribbon settings
 can select 1 or 30 days, or Never. Completion and subsequent root or descendant
 updates restart the timer. Any pinned member prevents archival.

@@ -1,9 +1,11 @@
 import type { PluginSidebarThreadSplit } from "@get-bb/plugin-sdk/app";
 
 export function SplitPaneMiniMap({
+  active,
   label,
   layout,
 }: {
+  active: boolean;
   label: string;
   layout: NonNullable<PluginSidebarThreadSplit["layout"]>;
 }) {
@@ -13,7 +15,7 @@ export function SplitPaneMiniMap({
       aria-label={label}
       className={`pointer-events-none size-3.5 shrink-0 ${
         focused ? "" : "opacity-60"
-      }`}
+      } ${active ? "animate-shine-icon" : ""}`}
       height="14"
       role="img"
       shapeRendering="crispEdges"

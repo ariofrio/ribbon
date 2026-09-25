@@ -505,6 +505,13 @@ describe("Ribbon sidebar server", () => {
         description: "Show each group’s icon beside its sidebar heading.",
         default: true,
       },
+      shimmerWorkingRows: {
+        type: "boolean",
+        label: "Shimmer working rows",
+        description:
+          "Shimmer a working thread's whole row instead of its activity indicator.",
+        default: true,
+      },
     });
   });
 

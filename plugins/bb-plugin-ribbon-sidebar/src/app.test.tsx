@@ -838,6 +838,31 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("leaves the shimmer on a working row's indicator when row shimmer is off", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      settings: { shimmerWorkingRows: false },
+      sidebarThreads: {
+        ...options().value.sidebarThreads,
+        threads: [
+          thread({
+            id: "thread-a",
+            indicator: "runtime",
+            indicatorLabel: "Thread working",
+            activity: { ...activity, backgroundCommands: 1 },
+          }),
+        ],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const icon = await slot.findByLabelText("Idle stage, working");
+    expect(icon.closest("[data-ribbon-shine-row]")).toBeNull();
+    expect(
+      slot.getByLabelText("Background command running").getAttribute("class"),
+    ).toContain("animate-shine-icon");
+    slot.lifecycle.unmount();
+  });
+
   it("shows a background command beside a working thread's spinning ring", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({

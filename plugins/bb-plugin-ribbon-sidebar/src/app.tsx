@@ -259,6 +259,7 @@ function ThreadRow({
   reorderable,
   rootThreadId,
   sections,
+  shimmerRow,
   thread,
 }: {
   active: boolean;
@@ -293,6 +294,8 @@ function ThreadRow({
   reorderable: boolean;
   rootThreadId: string;
   sections: readonly { id: string; label: string }[];
+  /** Shimmer the working row rather than its indicator. */
+  shimmerRow: boolean;
   thread: PluginSidebarThread;
 }) {
   const {
@@ -308,9 +311,10 @@ function ThreadRow({
     ? pullRequestSignal(visiblePullRequest, pullRequestDetails)
     : null;
   const status = withPullRequestSignal(indicatorThread, pullRequestStatus);
-  const shines =
+  const working =
     indicatorThread.isWorking &&
     indicatorThread.indicator !== "waiting-for-input";
+  const shines = shimmerRow && working;
   const rowRef = useRef<HTMLDivElement | null>(null);
   useRowShine(rowRef, shines);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -580,6 +584,7 @@ function ThreadRow({
                   {...{ [SHINE_ATTRIBUTE]: "" }}
                 >
                   <SplitPaneMiniMap
+                    active={!shimmerRow && status.isWorking}
                     label={
                       status.indicatorLabel
                         ? `${rowTitle} — open in split; ${status.indicatorLabel}`
@@ -600,6 +605,7 @@ function ThreadRow({
                     pluginStatus={status.pluginStatus}
                     pullRequestMark={status.pullRequestMark}
                     hideIdleDraftLabel={!(hasChildren && childrenCollapsed)}
+                    shine={!shimmerRow}
                   />
                 </span>
               )}
@@ -1550,6 +1556,7 @@ function RibbonSidebarList({
           alignAdornmentsToEntireItem={
             settings.values?.threadAdornmentAlignment === "Entire item"
           }
+          shimmerRow={settings.values?.shimmerWorkingRows !== false}
           actions={actions}
           assignments={
             depth === 0

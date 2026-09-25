@@ -405,6 +405,13 @@ export default async function plugin(bb: BbPluginApi) {
       description: "Show each group’s icon beside its sidebar heading.",
       default: true,
     },
+    shimmerWorkingRows: {
+      type: "boolean",
+      label: "Shimmer working rows",
+      description:
+        "Shimmer a working thread's whole row instead of its activity indicator.",
+      default: true,
+    },
   });
   const database = bb.storage.database();
   bb.storage.migrate(database, RIBBON_SIDEBAR_MIGRATIONS);
