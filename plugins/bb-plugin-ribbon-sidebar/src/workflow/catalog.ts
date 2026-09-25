@@ -58,7 +58,7 @@ const STAGE_MARKS: Record<WorkflowStage, IconDataV1[]> = {
       attrs: {
         d: "M12 7A5 5 0 0 1 12 17Z",
         fill: "currentColor",
-        transform: "rotate(-45 12 12)",
+        transform: "rotate(45 12 12)",
       },
     },
   ],
