@@ -1,4 +1,5 @@
 import { createElement, type ReactElement } from "react";
+import { CHROME_TITLE_COLOR_CLASS } from "./chrome-style-tokens";
 import type { IconDataV1 } from "./contracts";
 
 function renderNode(
@@ -33,8 +34,8 @@ export function ProviderIcon({
 }
 
 /**
- * A stage icon for a working thread: the ring turns while the stage's own
- * marks, like Blocked's slash, stay upright on top of it.
+ * A stage icon for a working thread: the ring turns in the title's color while
+ * the stage's own marks, like Blocked's slash, stay upright on top of it.
  */
 export function WorkingStageIcon({
   ring,
@@ -52,7 +53,11 @@ export function WorkingStageIcon({
       aria-label={label}
       className={`relative inline-flex size-4 shrink-0 [&_svg]:absolute [&_svg]:inset-0 [&_svg]:size-4 ${className}`}
     >
-      {renderNode(ring, "ring", "motion-safe:animate-spin")}
+      {renderNode(
+        ring,
+        "ring",
+        `motion-safe:animate-spin ${CHROME_TITLE_COLOR_CLASS}`,
+      )}
       {marks.children?.length ? renderNode(marks, "marks") : null}
     </span>
   );
