@@ -274,62 +274,75 @@ function setup({
 }
 
 describe("Ribbon sidebar server", () => {
-  it("owns stages without a provider and reorders the mixed main list in section rank", async () => {
-    const threads = ["first", "second", "third"].map((id, index) =>
-      makeThreadResponse({ id, sectionId: "section-a", createdAt: 3 - index }),
-    );
-    const { bb, harness, callRpc } = setup({
-      threads,
-      includeThreadStages: false,
-    });
-    await plugin(bb);
-    try {
-      for (const [threadId, groupId] of [
-        ["first", "Blocked"],
-        ["second", "Active"],
-      ]) {
-        await harness.behavior.callRpc("updatePlacementV1", {
-          groupingKey: "plugin:thread-stages:stages",
-          threadId,
-          groupId,
-          origin: "ui",
-        });
-      }
-      const ids = async () =>
-        (
-          (await harness.behavior.callRpc("listPlacementsV1", {
-            groupingKey: "builtin:sections",
-          })) as { value: { items: { threadId: string }[] } }
-        ).value.items.map((item) => item.threadId);
-      expect(await ids()).toEqual(["first", "second", "third"]);
-      await harness.behavior.callRpc("reorderThread", {
-        threadId: "second",
-        scope: "step",
-        direction: -1,
+  it.each(["builtin:sections", "builtin:projects"] as const)(
+    "reorders and completes the mixed main list in %s order",
+    async (groupingKey) => {
+      const threads = ["first", "second", "third"].map((id, index) =>
+        makeThreadResponse({
+          id,
+          projectId: "project-a",
+          sectionId:
+            groupingKey === "builtin:projects"
+              ? `section-${index}`
+              : "section-a",
+          createdAt: 3 - index,
+        }),
+      );
+      const { bb, harness, callRpc } = setup({
+        threads,
+        includeThreadStages: false,
       });
-      expect(await ids()).toEqual(["second", "first", "third"]);
-      expect(
+      await plugin(bb);
+      try {
+        for (const [threadId, groupId] of [
+          ["first", "Blocked"],
+          ["second", "Active"],
+        ]) {
+          await harness.behavior.callRpc("updatePlacementV1", {
+            groupingKey: "plugin:thread-stages:stages",
+            threadId,
+            groupId,
+            origin: "ui",
+          });
+        }
+        const ids = async () =>
+          (
+            (await harness.behavior.callRpc("listPlacementsV1", {
+              groupingKey,
+            })) as { value: { items: { threadId: string }[] } }
+          ).value.items.map((item) => item.threadId);
+        expect(await ids()).toEqual(["first", "second", "third"]);
+        await harness.behavior.callRpc("reorderThread", {
+          threadId: "second",
+          groupingKey,
+          scope: "step",
+          direction: -1,
+        });
+        expect(await ids()).toEqual(["second", "first", "third"]);
+        expect(
+          await harness.behavior.callRpc("setWorkflowStage", {
+            threadId: "second",
+            groupingKey,
+            workflowStage: "Completed",
+          }),
+        ).toEqual({
+          destination: {
+            kind: "thread",
+            threadId: "first",
+            projectId: threads[0]!.projectId,
+          },
+        });
         await harness.behavior.callRpc("setWorkflowStage", {
           threadId: "second",
-          workflowStage: "Completed",
-        }),
-      ).toEqual({
-        destination: {
-          kind: "thread",
-          threadId: "first",
-          projectId: threads[0]!.projectId,
-        },
-      });
-      await harness.behavior.callRpc("setWorkflowStage", {
-        threadId: "second",
-        workflowStage: "Idle",
-      });
-      expect(await ids()).toEqual(["second", "first", "third"]);
-      expect(callRpc).not.toHaveBeenCalled();
-    } finally {
-      await harness.lifecycle.dispose();
-    }
-  });
+          workflowStage: "Idle",
+        });
+        expect(await ids()).toEqual(["second", "first", "third"]);
+        expect(callRpc).not.toHaveBeenCalled();
+      } finally {
+        await harness.lifecycle.dispose();
+      }
+    },
+  );
 
   it("applies and exposes a provider's default placement", async () => {
     const { bb, harness, setThreadStagesCatalog } = setup({

@@ -3,6 +3,7 @@ import type { GroupingKey } from "./placement-store";
 export type GroupRef = { groupingKey: GroupingKey; groupId: string };
 export type Scope = { kind: "all" } | { kind: "group"; group: GroupRef };
 export type SidebarSort = "updated" | "created" | "alphabetical" | "manual";
+export type SidebarGroupingKey = "builtin:sections" | "builtin:projects";
 export type PullRequestNumberPosition = "left" | "right" | "hidden";
 export interface HiddenThreadKinds {
   notArchived: boolean;
@@ -207,7 +208,10 @@ export function loadSidebarPreferences(
   const preferences: SidebarPreferences = {
     view: {
       scope: { kind: "all" },
-      groupingKey: "builtin:sections",
+      groupingKey:
+        stored?.view.groupingKey === "builtin:projects"
+          ? "builtin:projects"
+          : "builtin:sections",
       filterGroupingKey: null,
       iconGroupingKey: "plugin:thread-stages:stages",
       sort: "manual",

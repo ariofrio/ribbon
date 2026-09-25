@@ -677,14 +677,20 @@ function RibbonSidebarList({
   const [preferences, setPreferences] = useState<SidebarPreferences | null>(
     null,
   );
-  const [placements, setPlacements] = useState<readonly PlacementRecordV1[]>(
-    [],
+  const [placementLists, setPlacementLists] = useState<
+    ReadonlyMap<GroupingKey, readonly PlacementRecordV1[]>
+  >(new Map());
+  const selectedGroupingKey =
+    preferences?.view.groupingKey ?? "builtin:sections";
+  const placements = useMemo(
+    () => placementLists.get(selectedGroupingKey) ?? [],
+    [placementLists, selectedGroupingKey],
   );
   const [assignmentPlacements, setAssignmentPlacements] = useState<
     ReadonlyMap<string, ReadonlyMap<string, PlacementRecordV1>>
   >(new Map());
   const assignmentRequest = useRef(0);
-  const latestPlacementRevision = useRef(-1);
+  const latestPlacementRevisions = useRef(new Map<GroupingKey, number>());
   const [previews, setPreviews] = useState<ReadonlyMap<string, string | null>>(
     new Map(),
   );
@@ -711,6 +717,7 @@ function RibbonSidebarList({
   const [optimisticMoves, setOptimisticMoves] = useState<
     {
       id: number;
+      groupingKey: GroupingKey;
       threadId: string;
       destination: ThreadDragDestination;
     }[]
@@ -778,14 +785,31 @@ function RibbonSidebarList({
   }, [connection, synchronize]);
 
   const loadPlacements = useCallback(async () => {
-    const result = await rpc.call("listPlacementsV1", {
-      groupingKey: "builtin:sections",
-    });
-    if (!result.ok) throw new Error(result.error.message);
-    // Realtime refreshes can finish after the refresh following a drop.
-    if (result.value.revision < latestPlacementRevision.current) return;
-    latestPlacementRevision.current = result.value.revision;
-    setPlacements(result.value.items as PlacementRecordV1[]);
+    await Promise.all(
+      (["builtin:sections", "builtin:projects"] as const).map(
+        async (groupingKey) => {
+          const result = await rpc.call("listPlacementsV1", { groupingKey });
+          if (!result.ok) throw new Error(result.error.message);
+          // Each grouping keeps its own snapshot; switching views cannot apply a
+          // late section response to projects, or undo a newer saved order.
+          if (
+            result.value.revision <
+            (latestPlacementRevisions.current.get(groupingKey) ?? -1)
+          )
+            return;
+          latestPlacementRevisions.current.set(
+            groupingKey,
+            result.value.revision,
+          );
+          setPlacementLists((current) =>
+            new Map(current).set(
+              groupingKey,
+              result.value.items as PlacementRecordV1[],
+            ),
+          );
+        },
+      ),
+    );
     setPlacementsLoaded(true);
   }, [rpc]);
 
@@ -1067,6 +1091,11 @@ function RibbonSidebarList({
   function projectedOrder(roots: readonly PluginSidebarThread[]) {
     return optimisticMoves.reduce<readonly PluginSidebarThread[]>(
       (current, move) => {
+        if (
+          move.destination.kind === "placement" &&
+          move.groupingKey !== selectedGroupingKey
+        )
+          return current;
         const source = current.find(({ id }) => id === move.threadId);
         if (!source) return current;
         const remaining = current.filter(({ id }) => id !== source.id);
@@ -1092,7 +1121,11 @@ function RibbonSidebarList({
   const displayGroupId = (thread: PluginSidebarThread) => {
     const move = [...optimisticMoves]
       .reverse()
-      .find((move) => move.threadId === thread.id);
+      .find(
+        (move) =>
+          move.threadId === thread.id &&
+          move.groupingKey === selectedGroupingKey,
+      );
     if (move?.destination.kind === "placement") return move.destination.groupId;
     return grouping
       ? (placementByThread.get(thread.id)?.groupId ??
@@ -1224,15 +1257,15 @@ function RibbonSidebarList({
       threadId: string,
       groupId: string,
       anchor: { kind: "before"; threadId: string } | { kind: "start" | "end" },
+      groupingKey: GroupingKey,
     ) => {
-      if (!preferences?.view.groupingKey) return;
       setMutationError(null);
       const input = {
-        groupingKey: preferences.view.groupingKey,
+        groupingKey,
         groupId,
         threadId,
         anchor,
-        expectedRevision: latestPlacementRevision.current,
+        expectedRevision: latestPlacementRevisions.current.get(groupingKey),
         origin: "ui" as const,
       };
       let result = await rpc.call("updatePlacementV1", input);
@@ -1253,7 +1286,7 @@ function RibbonSidebarList({
       }
       await loadPlacements();
     },
-    [loadPlacements, preferences, rpc],
+    [loadPlacements, rpc],
   );
 
   const updateSection = useCallback(
@@ -1599,7 +1632,7 @@ function RibbonSidebarList({
           const id = ++moveSequence.current;
           setOptimisticMoves((current) => [
             ...current,
-            { id, threadId, destination },
+            { id, groupingKey: selectedGroupingKey, threadId, destination },
           ]);
           clearDrag();
           // Keep later gestures interactive, but commit their anchors in order.
@@ -1616,6 +1649,7 @@ function RibbonSidebarList({
                           kind: "before",
                           threadId: destination.beforeThreadId,
                         },
+                    selectedGroupingKey,
                   ),
             )
             .catch((error: unknown) => {
@@ -1655,6 +1689,18 @@ function RibbonSidebarList({
                 <Icon aria-hidden name="Plus" className="size-4" /> New section
               </Button>
               <SidebarDisplayOptionsMenu
+                groupingKey={
+                  selectedGroupingKey === "builtin:projects"
+                    ? "builtin:projects"
+                    : "builtin:sections"
+                }
+                onGroupingChange={(groupingKey) => {
+                  clearDrag();
+                  changePreferences((current) => ({
+                    ...current,
+                    view: { ...current.view, groupingKey },
+                  }));
+                }}
                 hide={preferences.view.hide}
                 onHideChange={(kind, hidden) =>
                   changePreferences((current) => ({
@@ -2127,8 +2173,8 @@ function RibbonSidebarList({
                             aria-expanded={!collapsed}
                             aria-label={
                               collapsed
-                                ? `Expand ${group.label} section`
-                                : `Collapse ${group.label} section`
+                                ? `Expand ${group.label} ${selectedGroupingKey === "builtin:projects" ? "project" : "section"}`
+                                : `Collapse ${group.label} ${selectedGroupingKey === "builtin:projects" ? "project" : "section"}`
                             }
                             className={`${collapsed ? "" : "bb-sidebar-hover-actions"} relative z-20 mx-2 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
                             onClick={(event) => {
@@ -2159,8 +2205,14 @@ function RibbonSidebarList({
                         aria-label={`New thread in ${group.label}`}
                         onClick={() =>
                           actions.openNewThread({
-                            sectionId:
-                              group.id === "unsectioned" ? undefined : group.id,
+                            ...(grouping?.groupingKey === "builtin:projects"
+                              ? { projectId: group.id }
+                              : {
+                                  sectionId:
+                                    group.id === "unsectioned"
+                                      ? undefined
+                                      : group.id,
+                                }),
                             focusPrompt: true,
                           })
                         }

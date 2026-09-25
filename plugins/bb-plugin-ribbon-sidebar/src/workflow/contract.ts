@@ -30,6 +30,9 @@ export const workflowRpcMethods = {
     input: z
       .object({
         threadId: z.string().min(1).max(256),
+        groupingKey: z
+          .enum(["builtin:sections", "builtin:projects"])
+          .optional(),
         workflowStage: workflowStageSchema,
         scope: z
           .object({
@@ -51,6 +54,9 @@ export const workflowRpcMethods = {
     input: z
       .object({
         threadId: z.string().min(1).max(256),
+        groupingKey: z
+          .enum(["builtin:sections", "builtin:projects"])
+          .optional(),
         scope: z.enum(["step", "edge", "stage"]),
         direction: z.union([z.literal(-1), z.literal(1)]),
       })

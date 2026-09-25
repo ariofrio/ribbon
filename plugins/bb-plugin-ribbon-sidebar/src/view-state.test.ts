@@ -68,3 +68,18 @@ it("uses the fixed layout if local storage cannot be read or written", () => {
   } as unknown as Storage;
   expect(loadSidebarPreferences(storage, []).view.sort).toBe("manual");
 });
+
+it("persists project grouping independently of section collapse state", () => {
+  const preferences = loadSidebarPreferences(localStorage, []);
+  preferences.view.groupingKey = "builtin:projects";
+  preferences.collapsed.add("builtin:sections/work");
+  saveSidebarPreferences(localStorage, preferences);
+  expect(loadSidebarPreferences(localStorage, []).view.groupingKey).toBe(
+    "builtin:projects",
+  );
+  expect(
+    loadSidebarPreferences(localStorage, []).collapsed.has(
+      "builtin:sections/work",
+    ),
+  ).toBe(true);
+});

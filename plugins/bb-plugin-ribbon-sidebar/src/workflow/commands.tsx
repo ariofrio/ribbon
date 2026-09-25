@@ -13,6 +13,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { useEffect } from "react";
 import { toast } from "sonner";
+import { loadSidebarPreferences } from "../view-state";
 import type { rpcContract } from "../server";
 import {
   enabledWorkflowStages,
@@ -83,10 +84,16 @@ function WorkflowShortcuts() {
         const { threadId } = context;
         if (threadId === null) return;
 
+        const groupingKey =
+          loadSidebarPreferences(window.localStorage, []).view.groupingKey ===
+          "builtin:projects"
+            ? "builtin:projects"
+            : "builtin:sections";
         const request =
           action.kind === "stage"
             ? rpc
                 .call("setWorkflowStage", {
+                  groupingKey,
                   workflowStage: action.stage,
                   threadId,
                 })
@@ -94,6 +101,7 @@ function WorkflowShortcuts() {
                   goTo(destination, navigate);
                 })
             : rpc.call("reorderThread", {
+                groupingKey,
                 threadId,
                 scope: action.scope,
                 direction: action.direction,

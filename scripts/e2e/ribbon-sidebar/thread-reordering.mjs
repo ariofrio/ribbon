@@ -47,7 +47,7 @@ export async function verifyThreadReordering({ stack, fixture }) {
         JSON.stringify({
           view: {
             scope: { kind: "all" },
-            groupingKey: "builtin:projects",
+            groupingKey: "builtin:sections",
             sort: "manual",
           },
           collapsed: [],

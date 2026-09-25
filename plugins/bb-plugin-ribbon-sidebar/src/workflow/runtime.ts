@@ -59,17 +59,20 @@ export function createWorkflowRuntime(
     return result.value;
   }
 
-  async function ribbonAssignments(threadIds: readonly string[]) {
+  async function ribbonAssignments(
+    threadIds: readonly string[],
+    groupingKey: "builtin:sections" | "builtin:projects" = "builtin:sections",
+  ) {
     const placementState = await listPlacements({
       groupingKey: THREAD_STAGES_GROUPING_KEY,
       threadIds: [...threadIds],
     });
-    const sectionOrder = await listPlacements({
-      groupingKey: "builtin:sections",
+    const groupOrder = await listPlacements({
+      groupingKey,
       threadIds: [...threadIds],
     });
     const rank = new Map(
-      sectionOrder.items.map((item, index) => [item.threadId, index]),
+      groupOrder.items.map((item, index) => [item.threadId, index]),
     );
     placementState.items.sort(
       (a, b) => (rank.get(a.threadId) ?? 0) - (rank.get(b.threadId) ?? 0),
@@ -91,7 +94,8 @@ export function createWorkflowRuntime(
       }),
       placements: placementState.items,
       revision: placementState.revision,
-      sectionRevision: sectionOrder.revision,
+      orderRevision: groupOrder.revision,
+      orderPlacements: groupOrder.items,
     };
   }
 
@@ -145,6 +149,7 @@ export function createWorkflowRuntime(
     async setWorkflowStage({
       threadId,
       workflowStage,
+      groupingKey = "builtin:sections",
     }: z.input<typeof workflowRpcMethods.setWorkflowStage.input>) {
       await requireEnabledStage(workflowStage);
       const threads = await listAllThreads(({ limit, offset }) =>
@@ -154,16 +159,16 @@ export function createWorkflowRuntime(
       const rootThreadIds = partitionWorkflowThreads(threads).rootThreads.map(
         ({ id }) => id,
       );
-      const placementState = await ribbonAssignments(rootThreadIds);
-      const sectionId =
-        threads.find((thread) => thread.id === threadId)?.sectionId ??
-        "unsectioned";
-      const scopedThreadIds = (
-        await listPlacements({
-          groupingKey: "builtin:sections",
-          groupIds: [sectionId],
-        })
-      ).items.map((item) => item.threadId);
+      const placementState = await ribbonAssignments(
+        rootThreadIds,
+        groupingKey,
+      );
+      const groupId = placementState.orderPlacements.find(
+        (item) => item.threadId === threadId,
+      )?.groupId;
+      const scopedThreadIds = placementState.orderPlacements
+        .filter((item) => item.groupId === groupId)
+        .map((item) => item.threadId);
       const undoCandidates = placementState.placements
         .filter(
           (placement) =>
@@ -233,6 +238,7 @@ export function createWorkflowRuntime(
       threadId,
       scope,
       direction,
+      groupingKey = "builtin:sections",
     }: z.input<typeof workflowRpcMethods.reorderThread.input>) {
       const threads = await listAllThreads(({ limit, offset }) =>
         bb.sdk.threads.list({ archived: false, limit, offset }),
@@ -240,13 +246,15 @@ export function createWorkflowRuntime(
       requireRootThread(threadId, threads);
       const placementState = await ribbonAssignments(
         partitionWorkflowThreads(threads).rootThreads.map(({ id }) => id),
+        groupingKey,
       );
-      const sectionId =
-        threads.find((thread) => thread.id === threadId)?.sectionId ?? null;
+      const groupId = placementState.orderPlacements.find(
+        (item) => item.threadId === threadId,
+      )?.groupId;
       const scopedIds = new Set(
-        threads
-          .filter((thread) => (thread.sectionId ?? null) === sectionId)
-          .map((thread) => thread.id),
+        placementState.orderPlacements
+          .filter((item) => item.groupId === groupId)
+          .map((item) => item.threadId),
       );
       const assignments = placementState.assignments.filter((item) =>
         scopedIds.has(item.threadId),
@@ -278,13 +286,11 @@ export function createWorkflowRuntime(
       }
       await updatePlacement({
         groupingKey:
-          move.kind === "stage"
-            ? THREAD_STAGES_GROUPING_KEY
-            : "builtin:sections",
+          move.kind === "stage" ? THREAD_STAGES_GROUPING_KEY : groupingKey,
         groupId:
           move.kind === "stage"
             ? move.workflowStage
-            : (sectionId ?? "unsectioned"),
+            : (groupId ?? "unsectioned"),
         threadId,
         anchor:
           move.kind === "stage"
@@ -297,7 +303,7 @@ export function createWorkflowRuntime(
         expectedRevision:
           move.kind === "stage"
             ? placementState.revision
-            : placementState.sectionRevision,
+            : placementState.orderRevision,
         origin: "ui",
       });
       return { assignments };

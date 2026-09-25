@@ -1,6 +1,6 @@
 # Ribbon sidebar
 
-Keep every section visible, with stable thread order and workflow stage icons.
+Keep every section or project visible, with stable thread order and workflow stage icons.
 
 ![Ribbon sidebar](assets/screenshot.png)
 
@@ -11,32 +11,35 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install ribbon-sidebar@ribbon
 ```
 
-## Sections and ordering
+## Grouping and ordering
 
-Sections are the only headings. Inside each section, Idle, Active, and Blocked
-share one manually ordered list, followed immediately by Deferred and Completed.
+Choose **Display options → Group by → Section or Project**. The choice persists
+across reloads, and each grouping keeps its own order and collapsed headings.
+Inside each group, Idle, Active, and Blocked share one manually ordered list,
+followed immediately by Deferred and Completed.
 New roots enter at the top. Activity changes leave their positions unchanged.
 
-Deferred initially shows two roots in section order; Completed shows the two
+Deferred initially shows two roots in group order; Completed shows the two
 most recent completions. **Show N more deferred/completed** expands the rest,
 and **Show fewer** restores the preview. The open thread's hierarchy remains
 visible even outside that preview. Search reveals every matching result.
 
-Use a section's chevron to collapse it; the label keeps bb's existing behavior.
-A collapsed section previews the open thread. Its plus button creates a thread
-in that section. Section names, icons, menus, row styles, and focus treatments
-use Ribbon's existing bb components and theme tokens.
+Use a heading's chevron to collapse it; the label keeps bb's existing behavior.
+A collapsed group previews the open thread. Its plus button creates a thread
+in that section or project. Headings, icons, menus, row styles, and focus
+treatments use Ribbon's existing bb components and theme tokens.
 
 Drag a root to reorder it within its list, or onto another section's header to
 move it there. Dragging preserves its stage. Change stages through the thread
 menu, CLI, or keyboard shortcuts. Completed stays ordered by completion time.
-Section rank survives stage changes, so returning a deferred or completed root
+Project grouping supports reordering within a project; bb owns project membership.
+Group rank survives stage changes, so returning a deferred or completed root
 to the main list restores its place.
 
 bb owns section membership, pins, pinned order, and lifecycle. Ribbon stores
-section rank and workflow stage separately. Children inherit their root's stage
-and remain nested. Forks inherit their source hierarchy's section and stage;
-unparenting copies the former root's placement.
+section and project ranks separately from workflow stage. Children inherit
+their root's stage and remain nested. Forks inherit their source hierarchy's
+section and stage; unparenting copies the former root's placement.
 
 Thread status indicators retain bb's priority for errors, input requests, active
 work, queued messages, unread completions, and drafts. Split-pane maps, previews,
@@ -72,8 +75,8 @@ updates restart the timer. Any pinned member prevents archival.
 
 | macOS | Linux / Windows | Action |
 | --- | --- | --- |
-| ⌘. / ⌥⌘. | Ctrl+. / Ctrl+Alt+. | Complete and select the next main-list thread in this section |
-| ⇧⌘. | Ctrl+Shift+. | Return to Idle, or undo the latest filing in this section |
+| ⌘. / ⌥⌘. | Ctrl+. / Ctrl+Alt+. | Complete and select the next main-list thread in this section or project |
+| ⇧⌘. | Ctrl+Shift+. | Return to Idle, or undo the latest filing in this section or project |
 | ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked |
 | ⌃⌘. | Ctrl+Alt+, | Defer |
 | ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list |

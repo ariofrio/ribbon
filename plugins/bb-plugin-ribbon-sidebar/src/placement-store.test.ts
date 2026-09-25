@@ -26,47 +26,53 @@ describe("placement persistence", () => {
     for (const database of databases.splice(0)) database.close();
   });
 
-  it("retains section ranks across refreshes and prepends newly created roots", () => {
-    const database = new Database(":memory:");
-    databases.push(database);
-    for (const migration of RIBBON_SIDEBAR_MIGRATIONS) database.exec(migration);
-    const section: GroupingDescriptor = {
-      groupingKey: "builtin:sections",
-      singularLabel: "Section",
-      pluralLabel: "Sections",
-      defaultGroupId: "work",
-      groups: [{ id: "work", label: "Work", acceptsAssignments: true }],
-      membership: {
-        kind: "external",
-        writable: true,
-        groupIdForThread: () => "work",
-        setGroupIdForThread: () => {},
-      },
-    };
-    const store = createPlacementStore(database, {
-      grouping: () => section,
-      groupings: () => [section],
-    });
-    const order = () => {
-      const result = store.listPlacements({ groupingKey: section.groupingKey });
-      if (!result.ok) throw new Error(result.error.message);
-      return result.value.items.map((item) => item.threadId);
-    };
-    store.reconcileRoots(["b", "a"], []);
-    store.reconcileRoots(["a", "b"], []);
-    expect(order()).toEqual(["b", "a"]);
-    store.reconcileRoot("c", true);
-    expect(order()).toEqual(["c", "b", "a"]);
-    store.updatePlacement({
-      groupingKey: section.groupingKey,
-      groupId: "work",
-      threadId: "a",
-      anchor: { kind: "start" },
-      origin: "ui",
-    });
-    store.reconcileRoots(["d", "c", "b", "a"], []);
-    expect(order()).toEqual(["d", "a", "c", "b"]);
-  });
+  it.each(["builtin:sections", "builtin:projects"] as const)(
+    "retains %s ranks across refreshes and prepends newly created roots",
+    (groupingKey) => {
+      const database = new Database(":memory:");
+      databases.push(database);
+      for (const migration of RIBBON_SIDEBAR_MIGRATIONS)
+        database.exec(migration);
+      const section: GroupingDescriptor = {
+        groupingKey,
+        singularLabel: "Section",
+        pluralLabel: "Sections",
+        defaultGroupId: "work",
+        groups: [{ id: "work", label: "Work", acceptsAssignments: true }],
+        membership: {
+          kind: "external",
+          writable: true,
+          groupIdForThread: () => "work",
+          setGroupIdForThread: () => {},
+        },
+      };
+      const store = createPlacementStore(database, {
+        grouping: (key) => (key === groupingKey ? section : null),
+        groupings: () => [section],
+      });
+      const order = () => {
+        const result = store.listPlacements({
+          groupingKey: section.groupingKey,
+        });
+        if (!result.ok) throw new Error(result.error.message);
+        return result.value.items.map((item) => item.threadId);
+      };
+      store.reconcileRoots(["b", "a"], []);
+      store.reconcileRoots(["a", "b"], []);
+      expect(order()).toEqual(["b", "a"]);
+      store.reconcileRoot("c", true);
+      expect(order()).toEqual(["c", "b", "a"]);
+      store.updatePlacement({
+        groupingKey: section.groupingKey,
+        groupId: "work",
+        threadId: "a",
+        anchor: { kind: "start" },
+        origin: "ui",
+      });
+      store.reconcileRoots(["d", "c", "b", "a"], []);
+      expect(order()).toEqual(["d", "a", "c", "b"]);
+    },
+  );
 
   it("reconciles visible roots to provider defaults in stable BB order", () => {
     const database = new Database(":memory:");

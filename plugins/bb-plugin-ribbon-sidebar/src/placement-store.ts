@@ -452,36 +452,39 @@ export function createPlacementStore(
     };
   }
 
-  function retainSectionRanks(changed: Set<GroupingKey>) {
-    const section = options.grouping("builtin:sections");
-    if (!section || section.groupingKey !== "builtin:sections") return;
-    const initialized = database
-      .prepare("SELECT key FROM ribbon_upgrade WHERE key = 'section-ranks'")
-      .get();
-    for (const group of section.groups) {
-      const members = orderedMemberIds(section, group.id);
-      if (!initialized) {
-        materializeOrder(section.groupingKey, group.id, members, now());
-        if (members.length) changed.add(section.groupingKey);
-        continue;
+  function retainBuiltinRanks(changed: Set<GroupingKey>) {
+    for (const [groupingKey, migrationKey] of [
+      ["builtin:sections", "section-ranks"],
+      ["builtin:projects", "project-ranks"],
+    ] as const) {
+      const grouping = options.grouping(groupingKey);
+      if (!grouping || grouping.groupingKey !== groupingKey) continue;
+      const initialized = database
+        .prepare("SELECT key FROM ribbon_upgrade WHERE key = ?")
+        .get(migrationKey);
+      for (const group of grouping.groups) {
+        const members = orderedMemberIds(grouping, group.id);
+        if (!initialized) {
+          materializeOrder(grouping.groupingKey, group.id, members, now());
+          if (members.length) changed.add(grouping.groupingKey);
+          continue;
+        }
+        const missing = members.filter(
+          (id) => !getOrder.get(grouping.groupingKey, group.id, id),
+        );
+        let first =
+          (listOrders.all(grouping.groupingKey, group.id) as OrderRow[])[0]
+            ?.sort_key ?? null;
+        for (const id of missing.reverse()) {
+          first = createOrderKeyBetween(null, first);
+          upsertOrder.run(grouping.groupingKey, group.id, id, first, now());
+          changed.add(grouping.groupingKey);
+        }
       }
-      const missing = members.filter(
-        (id) => !getOrder.get(section.groupingKey, group.id, id),
-      );
-      let first =
-        (listOrders.all(section.groupingKey, group.id) as OrderRow[])[0]
-          ?.sort_key ?? null;
-      for (const id of missing.reverse()) {
-        first = createOrderKeyBetween(null, first);
-        upsertOrder.run(section.groupingKey, group.id, id, first, now());
-        changed.add(section.groupingKey);
-      }
+      database
+        .prepare("INSERT OR IGNORE INTO ribbon_upgrade(key) VALUES (?)")
+        .run(migrationKey);
     }
-    database
-      .prepare(
-        "INSERT OR IGNORE INTO ribbon_upgrade(key) VALUES ('section-ranks')",
-      )
-      .run();
   }
 
   const reconcile = database.transaction(
@@ -526,7 +529,7 @@ export function createPlacementStore(
         }
       }
 
-      retainSectionRanks(changed);
+      retainBuiltinRanks(changed);
       for (const groupingKey of changed) {
         ensureRevision.run(groupingKey);
         incrementRevision.run(groupingKey);
@@ -571,7 +574,7 @@ export function createPlacementStore(
           changed.add(row.grouping_key);
         }
       }
-      retainSectionRanks(changed);
+      retainBuiltinRanks(changed);
       for (const groupingKey of changed) {
         ensureRevision.run(groupingKey);
         incrementRevision.run(groupingKey);

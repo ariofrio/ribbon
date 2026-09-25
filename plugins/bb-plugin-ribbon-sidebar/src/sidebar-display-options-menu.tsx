@@ -21,10 +21,13 @@ import {
 } from "./vendor/components/ui/tooltip";
 import type {
   HiddenThreadKinds,
+  SidebarGroupingKey,
   PullRequestNumberPosition,
 } from "./view-state";
 
 interface SidebarDisplayOptionsMenuProps {
+  groupingKey: SidebarGroupingKey;
+  onGroupingChange(groupingKey: SidebarGroupingKey): void;
   hide: HiddenThreadKinds;
   onHideChange(kind: keyof HiddenThreadKinds, hidden: boolean): void;
   onPullRequestNumberPositionChange(position: PullRequestNumberPosition): void;
@@ -50,6 +53,8 @@ function MenuValueRow({ label, value }: { label: string; value: string }) {
 }
 
 export function SidebarDisplayOptionsMenu({
+  groupingKey,
+  onGroupingChange,
   hide,
   onHideChange,
   onPullRequestNumberPositionChange,
@@ -93,6 +98,37 @@ export function SidebarDisplayOptionsMenu({
           </Tooltip>
         </TooltipProvider>
         <DropdownMenuContent align="end" mobileTitle="Display options">
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger
+              aria-label={`Group by ${groupingKey === "builtin:projects" ? "Project" : "Section"}`}
+            >
+              <MenuValueRow
+                label="Group by"
+                value={
+                  groupingKey === "builtin:projects" ? "Project" : "Section"
+                }
+              />
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent>
+                {(
+                  [
+                    { value: "builtin:sections", label: "Section" },
+                    { value: "builtin:projects", label: "Project" },
+                  ] as const
+                ).map((option) => (
+                  <DropdownMenuCheckboxItem
+                    key={option.value}
+                    checked={groupingKey === option.value}
+                    onCheckedChange={() => onGroupingChange(option.value)}
+                  >
+                    {option.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+
           <DropdownMenuSub>
             <DropdownMenuSubTrigger
               aria-label={`PR number ${PR_NUMBER_OPTIONS.find(({ value }) => value === pullRequestNumberPosition)?.label}`}

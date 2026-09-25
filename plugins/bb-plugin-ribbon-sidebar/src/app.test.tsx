@@ -496,6 +496,24 @@ function useManualSort(groupingKey = "plugin:thread-stages:stages") {
 }
 
 describe("Ribbon sidebar app", () => {
+  it("groups by project and creates threads in that project", async () => {
+    useManualSort("builtin:projects");
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const group = await slot.findByRole("region", { name: "Storefront group" });
+    expect(within(group).getByText("Design migration")).toBeTruthy();
+    expect(within(group).getByText("Ship UI")).toBeTruthy();
+    fireEvent.click(
+      within(group).getByRole("button", { name: "New thread in Storefront" }),
+    );
+    expect(slot.inspection.sidebarActionCalls).toContainEqual({
+      method: "openNewThread",
+      options: { projectId: "project-a", focusPrompt: true },
+    });
+    slot.lifecycle.unmount();
+  });
+
   it("keeps the latest section order when an older placement read finishes last", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
