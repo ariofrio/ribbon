@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-ribbon-sidebar",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Organize every section in one sidebar with stable thread order and workflow stages.",
   "license": "MIT",
   "repository": {
