@@ -31,21 +31,23 @@ export async function verifyNoPaging({ stack, fixture }) {
     await featured.waitFor({ state: "hidden" });
     await heading.getByRole("button", { name: `Expand ${SECTION.name} section`, exact: true }).click();
     await featured.waitFor();
-    const control = page.locator("[data-ribbon-sidebar-top-controls]");
-    const navigation = page.getByRole("navigation", { name: "Sidebar navigation", exact: true });
-    const [navigationBox, controlsBox, headingBox] = await Promise.all([
-      navigation.boundingBox(), control.boundingBox(), heading.boundingBox(),
-    ]);
-    assert.ok(navigationBox && controlsBox && headingBox);
-    assert.ok(controlsBox.y >= navigationBox.y + navigationBox.height,
-      "Section controls belong below navigation");
-    assert.ok(controlsBox.y + controlsBox.height <= headingBox.y,
-      "Section controls precede the section list");
-    await control.getByRole("button", { name: "New section", exact: true }).click();
+    async function openHeadingOptions(label) {
+      const header = sidebar.getByRole("button", { name: `${label} options`, exact: true })
+        .locator('xpath=ancestor::*[@data-sidebar="group-label"][1]');
+      await header.hover();
+      await header.getByRole("button", { name: `${label} options`, exact: true }).click();
+    }
+    assert.equal(await sidebar.getByRole("button", { name: "New section", exact: true }).count(), 0);
+    const topSpacing = await sidebar.evaluate(node => {
+      const heading = node.querySelector('[data-sidebar="group-label"]');
+      return heading.getBoundingClientRect().top - node.getBoundingClientRect().top - parseFloat(getComputedStyle(node).paddingTop);
+    });
+    assert.equal(topSpacing, 0, "The first heading starts the list with no standalone controls row");
+    await openHeadingOptions(SECTION.name);
+    await page.getByRole("menuitem", { name: "New section", exact: true }).click();
     await page.getByRole("dialog", { name: "New section", exact: true }).waitFor();
     await page.keyboard.press("Escape");
-    await control.hover();
-    await control.getByRole("button", { name: "Sidebar display options" }).click();
+    await openHeadingOptions(SECTION.name);
     assert.equal(await page.getByRole("menuitem", { name: /^(Pages|Headings|Icons|Sort) / }).count(), 0);
     await page.keyboard.press("Escape");
     await page.reload();
@@ -53,12 +55,21 @@ export async function verifyNoPaging({ stack, fixture }) {
     await featured.waitFor();
     await otherProject.waitFor();
     async function chooseGrouping(current, next) {
-      await control.hover();
-      await control.getByRole("button", { name: "Sidebar display options" }).click();
+      await openHeadingOptions(current === "Section" ? SECTION.name : "atlas-web");
       await page.getByRole("menuitem", { name: `Group by ${current}`, exact: true }).hover();
       await page.getByRole("menuitemcheckbox", { name: next, exact: true }).click();
       await page.keyboard.press("Escape");
     }
+    await openHeadingOptions(SECTION.name);
+    await page.getByRole("menuitem", { name: /^Hide / }).hover();
+    await page.getByRole("menuitemcheckbox", { name: "Visible", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await sidebar.getByText("No threads yet", { exact: true }).waitFor();
+    await openHeadingOptions("Threads");
+    await page.getByRole("menuitem", { name: /^Hide / }).hover();
+    await page.getByRole("menuitemcheckbox", { name: "Visible", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await featured.waitFor();
     await chooseGrouping("Section", "Project");
     const web = sidebar.getByRole("region", { name: "atlas-web group", exact: true });
     const api = sidebar.getByRole("region", { name: "atlas-api group", exact: true });

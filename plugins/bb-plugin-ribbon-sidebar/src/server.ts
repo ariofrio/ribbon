@@ -376,7 +376,7 @@ export default async function plugin(bb: BbPluginApi) {
       type: "boolean",
       label: "Show sidebar controls",
       description:
-        "Show new-section and display-options controls above the sidebar.",
+        "Show New section and display options in heading menus.",
       default: true,
     },
     showMessagePreviews: {

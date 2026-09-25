@@ -13,7 +13,8 @@ bb plugin install ribbon-sidebar@ribbon
 
 ## Grouping and ordering
 
-Choose **Display options → Group by → Section or Project**. The choice persists
+Use a heading’s **⋯ menu → New section** to create a section.
+Choose **⋯ menu → Group by → Section or Project**. The choice persists
 across reloads, and each grouping keeps its own order and collapsed headings.
 Inside each group, Idle, Active, and Blocked share one manually ordered list,
 followed immediately by Deferred and Completed.
@@ -57,7 +58,7 @@ mark stands for. Auto-merge, reviewers, and check counts come from the GitHub
 CLI (`gh`) signed in on the bb server's machine; without it, marks follow bb's
 own pull request status.
 
-Use **Display options → PR number** to place the linked PR number to the Left
+Use a heading’s **⋯ menu → PR number** to place the linked PR number to the Left
 or Right of each thread title, or choose Hidden to also hide its status mark.
 Right is the default, and the choice persists on this client across reloads.
 

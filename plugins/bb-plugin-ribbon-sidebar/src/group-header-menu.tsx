@@ -4,6 +4,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./vendor/components/ui/dropdown-menu";
 import { CompactViewportOverrideProvider } from "./vendor/components/ui/hooks/use-compact-viewport";
@@ -19,13 +20,17 @@ export function GroupHeaderMenu({
   actions,
   label,
   trailing,
+  onNewSection,
+  displayOptions,
 }: {
   actions: HeaderGroupActions | null;
   label: string;
   trailing?: ReactNode;
+  onNewSection?: () => void;
+  displayOptions?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  if (!actions)
+  if (!actions && !onNewSection && !displayOptions)
     return trailing ? <span className="mr-2">{trailing}</span> : null;
   return (
     <span className="relative flex w-7 shrink-0 self-stretch items-center justify-end max-md:pointer-coarse:w-9">
@@ -52,18 +57,35 @@ export function GroupHeaderMenu({
                 <Icon aria-hidden className="size-4" name="MoreHorizontal" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={actions.onRename}>
-                <Icon name="Edit" className="size-4" aria-hidden />
-                Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={actions.onRemove}
-                variant="destructive"
-              >
-                <Icon name="Trash2" className="size-4" aria-hidden />
-                Remove
-              </DropdownMenuItem>
+            <DropdownMenuContent align="end" mobileTitle={`${label} options`}>
+              {onNewSection ? (
+                <DropdownMenuItem onSelect={onNewSection}>
+                  <Icon name="SectionAdd" className="size-4" aria-hidden />
+                  New section
+                </DropdownMenuItem>
+              ) : null}
+              {onNewSection && displayOptions ? (
+                <DropdownMenuSeparator />
+              ) : null}
+              {displayOptions}
+              {actions ? (
+                <>
+                  {onNewSection || displayOptions ? (
+                    <DropdownMenuSeparator />
+                  ) : null}
+                  <DropdownMenuItem onSelect={actions.onRename}>
+                    <Icon name="Edit" className="size-4" aria-hidden />
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={actions.onRemove}
+                    variant="destructive"
+                  >
+                    <Icon name="Trash2" className="size-4" aria-hidden />
+                    Remove
+                  </DropdownMenuItem>
+                </>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         </CompactViewportOverrideProvider>

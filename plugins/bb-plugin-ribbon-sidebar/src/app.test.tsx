@@ -496,6 +496,40 @@ function useManualSort(groupingKey = "plugin:thread-stages:stages") {
 }
 
 describe("Ribbon sidebar app", () => {
+  it.each([
+    ["builtin:sections", "Release"],
+    ["builtin:projects", "Storefront"],
+  ])("creates sections from the %s heading menu", async (groupingKey, label) => {
+    useManualSort(groupingKey);
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+    expect(slot.queryByRole("button", { name: "New section" })).toBeNull();
+    fireEvent.keyDown(slot.getByRole("button", { name: `${label} options` }), {
+      key: "Enter",
+    });
+    expect(await slot.findByRole("menuitem", { name: /^Group by / })).toBeTruthy();
+    fireEvent.click(await slot.findByRole("menuitem", { name: "New section" }));
+    expect(await slot.findByRole("dialog", { name: "New section" })).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps creation and display options accessible with no visible threads", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: { ...options().value.sidebarThreads, threads: [] },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("No threads yet");
+    fireEvent.keyDown(slot.getByRole("button", { name: "Threads options" }), {
+      key: "Enter",
+    });
+    expect(await slot.findByRole("menuitem", { name: "New section" })).toBeTruthy();
+    expect(slot.getByRole("menuitem", { name: /^Hide / })).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
   it("groups by project and creates threads in that project", async () => {
     useManualSort("builtin:projects");
     const app = await loadPluginApp(() => import("./app"));
@@ -591,7 +625,7 @@ describe("Ribbon sidebar app", () => {
     expect(slot.queryByText("Archived planning")).toBeNull();
 
     fireEvent.keyDown(
-      slot.getByRole("button", { name: "Sidebar display options" }),
+      slot.getByRole("button", { name: "Release options" }),
       { key: "Enter" },
     );
     const hide = await slot.findByRole("menuitem", {

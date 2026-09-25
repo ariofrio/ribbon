@@ -44,8 +44,7 @@ import { ProviderIcon } from "./provider-icon";
 import { sectionBands } from "./section-layout";
 import type { rpcContract } from "./server";
 import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
-import { SidebarDisplayOptionsMenu } from "./sidebar-display-options-menu";
-import { SidebarTopControls } from "./sidebar-top-controls";
+import { SidebarDisplayOptionsItems } from "./sidebar-display-options-menu";
 import { SplitPaneMiniMap } from "./split-pane-mini-map";
 import { StagePreview } from "./stage-preview";
 import {
@@ -1606,6 +1605,45 @@ function RibbonSidebarList({
     );
   };
 
+  const onNewSection =
+    settings.values?.showProjectsAndSections !== false
+      ? () => setEntityDialog({ kind: "create-section", name: "" })
+      : undefined;
+  const displayOptions =
+    settings.values?.showProjectsAndSections !== false ? (
+      <SidebarDisplayOptionsItems
+        groupingKey={
+          selectedGroupingKey === "builtin:projects"
+            ? "builtin:projects"
+            : "builtin:sections"
+        }
+        onGroupingChange={(groupingKey) => {
+          clearDrag();
+          changePreferences((current) => ({
+            ...current,
+            view: { ...current.view, groupingKey },
+          }));
+        }}
+        hide={preferences.view.hide}
+        onHideChange={(kind, hidden) =>
+          changePreferences((current) => ({
+            ...current,
+            view: {
+              ...current.view,
+              hide: { ...current.view.hide, [kind]: hidden },
+            },
+          }))
+        }
+        pullRequestNumberPosition={preferences.view.pullRequestNumberPosition}
+        onPullRequestNumberPositionChange={(pullRequestNumberPosition) =>
+          changePreferences((current) => ({
+            ...current,
+            view: { ...current.view, pullRequestNumberPosition },
+          }))
+        }
+      />
+    ) : null;
+
   return (
     <PullRequestDetailsProvider load={loadPullRequestDetails}>
       <ThreadDragProvider
@@ -1683,55 +1721,6 @@ function RibbonSidebarList({
           }
           data-ribbon-sidebar-root=""
         >
-          {settings.values?.showProjectsAndSections !== false ? (
-            <SidebarTopControls>
-              <Button
-                className="h-7 flex-1 justify-start px-2 text-xs text-subtle-foreground hover:bg-sidebar-accent"
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  setEntityDialog({ kind: "create-section", name: "" })
-                }
-              >
-                <Icon aria-hidden name="Plus" className="size-4" /> New section
-              </Button>
-              <SidebarDisplayOptionsMenu
-                groupingKey={
-                  selectedGroupingKey === "builtin:projects"
-                    ? "builtin:projects"
-                    : "builtin:sections"
-                }
-                onGroupingChange={(groupingKey) => {
-                  clearDrag();
-                  changePreferences((current) => ({
-                    ...current,
-                    view: { ...current.view, groupingKey },
-                  }));
-                }}
-                hide={preferences.view.hide}
-                onHideChange={(kind, hidden) =>
-                  changePreferences((current) => ({
-                    ...current,
-                    view: {
-                      ...current.view,
-                      hide: { ...current.view.hide, [kind]: hidden },
-                    },
-                  }))
-                }
-                pullRequestNumberPosition={
-                  preferences.view.pullRequestNumberPosition
-                }
-                onPullRequestNumberPositionChange={(
-                  pullRequestNumberPosition,
-                ) =>
-                  changePreferences((current) => ({
-                    ...current,
-                    view: { ...current.view, pullRequestNumberPosition },
-                  }))
-                }
-              />
-            </SidebarTopControls>
-          ) : null}
           {mutationError ? (
             <div className="rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
               {mutationError}
@@ -1891,9 +1880,25 @@ function RibbonSidebarList({
               Search failed.
             </SidebarMessage>
           ) : !hasDisplayedThreads ? (
-            <SidebarMessage icon="CircleQuestion">
-              {emptyMessage}
-            </SidebarMessage>
+            <>
+              {onNewSection || displayOptions ? (
+                <div
+                  className={`bb-sidebar-hover-actions-row flex h-6 items-center pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} max-md:pointer-coarse:h-9`}
+                  data-sidebar="group-label"
+                >
+                  <span className="min-w-0 flex-1 truncate">Threads</span>
+                  <GroupHeaderMenu
+                    actions={null}
+                    label="Threads"
+                    onNewSection={onNewSection}
+                    displayOptions={displayOptions}
+                  />
+                </div>
+              ) : null}
+              <SidebarMessage icon="CircleQuestion">
+                {emptyMessage}
+              </SidebarMessage>
+            </>
           ) : (
             <div className="space-y-4">
               {pinnedRoots.length > 0 ? (
@@ -1949,6 +1954,12 @@ function RibbonSidebarList({
                         />
                       </Button>
                     </span>
+                    <GroupHeaderMenu
+                      actions={null}
+                      label="Pinned"
+                      onNewSection={onNewSection}
+                      displayOptions={displayOptions}
+                    />
                   </ThreadDragHeader>
                   {dragDestination?.kind === "pinned" &&
                   dragDestination.atStart ? (
@@ -2229,6 +2240,8 @@ function RibbonSidebarList({
                         <Icon aria-hidden name="Plus" className="size-4" />
                       </Button>
                       <GroupHeaderMenu
+                        onNewSection={onNewSection}
+                        displayOptions={displayOptions}
                         actions={headerActions}
                         label={group.label}
                         trailing={

@@ -48,31 +48,11 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
       .locator("[data-missing-keyboard-shortcuts-ready]")
       .waitFor({ state: "attached", timeout: 120_000 });
 
-    // Section controls render with the list, below the host navigation.
-    // Verify their rendered position, then open the menu with a real pointer.
-    const navigation = page.getByRole("navigation", {
-      name: "Sidebar navigation",
-      exact: true,
-    });
-    const controls = page.locator("[data-ribbon-sidebar-root] [data-ribbon-sidebar-top-controls]");
-    const options = controls.getByRole("button", {
-      name: "Sidebar display options",
-    });
-    await options.waitFor();
-    const controlsBox = await controls.boundingBox();
-    const navigationBox = await navigation.boundingBox();
-    assert.ok(controlsBox && navigationBox && controlsBox.y >= navigationBox.y + navigationBox.height);
-    await controls.hover();
-    await page.waitForFunction(() => {
-      const button = document.querySelector(
-        '[data-ribbon-sidebar-top-controls] [aria-label="Sidebar display options"]',
-      );
-      return (
-        button &&
-        getComputedStyle(button).pointerEvents === "auto" &&
-        getComputedStyle(button).opacity === "1"
-      );
-    });
+    // Display options live in the heading menu, matching bb's sidebar.
+    const heading = page.locator('[data-ribbon-sidebar-root] [data-sidebar="group-label"]')
+      .filter({ has: page.getByRole("button", { name: "Atlas options", exact: true }) });
+    const options = heading.getByRole("button", { name: "Atlas options", exact: true });
+    await heading.hover();
     await options.click();
     await page.getByRole("menuitem", { name: /^PR number/ }).waitFor();
     await page.keyboard.press("Escape");
