@@ -93,12 +93,12 @@ describe("Thread stages provider contracts", () => {
     const iconByStage = new Map(groups.map((group) => [group.id, group.icon]));
     const ring = expect.objectContaining({
       tag: "circle",
-      attrs: expect.objectContaining({ cx: 12, cy: 12, r: 7.5 }),
+      attrs: expect.objectContaining({ cx: 12, cy: 12, r: 8 }),
     });
 
     expect(iconByStage.get("Deferred")?.children).toEqual([
       expect.objectContaining({
-        attrs: expect.objectContaining({ r: 7.5, strokeDasharray: expect.any(String) }),
+        attrs: expect.objectContaining({ r: 8, strokeDasharray: expect.any(String) }),
       }),
     ]);
     expect(iconByStage.get("Idle")?.children).toEqual([ring]);
@@ -106,7 +106,7 @@ describe("Thread stages provider contracts", () => {
     expect(iconByStage.get("Active")?.children).toEqual([
       expect.objectContaining({
         tag: "path",
-        attrs: expect.objectContaining({ d: "M19.5 12a7.5 7.5 0 1 1-5.183-7.133" }),
+        attrs: expect.objectContaining({ d: "M20 12a8 8 0 1 1-5.528-7.609" }),
       }),
     ]);
     // Lucide's Ban: the ring crossed by a diagonal.
@@ -114,14 +114,14 @@ describe("Thread stages provider contracts", () => {
       ring,
       expect.objectContaining({
         tag: "path",
-        attrs: expect.objectContaining({ d: "M6.697 6.697 17.303 17.303" }),
+        attrs: expect.objectContaining({ d: "M6.343 6.343 17.657 17.657" }),
       }),
     ]);
     expect(iconByStage.get("Completed")?.children).toEqual([
       ring,
       expect.objectContaining({
         tag: "circle",
-        attrs: { cx: 12, cy: 12, r: 4.5, fill: "currentColor" },
+        attrs: { cx: 12, cy: 12, r: 5, fill: "currentColor" },
       }),
     ]);
   });

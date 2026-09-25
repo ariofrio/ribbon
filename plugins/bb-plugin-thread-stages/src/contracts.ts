@@ -254,7 +254,7 @@ const progressRing: IconDataV1 = {
   attrs: {
     cx: 12,
     cy: 12,
-    r: 7.5,
+    r: 8,
     stroke: "currentColor",
     strokeWidth: 1.5,
   },
@@ -275,7 +275,7 @@ const strokedPath = (d: string): IconDataV1 => ({
   },
 });
 // Six dashes around the ring, one centred every 60 degrees from 30.
-const RING_SIXTH = (2 * Math.PI * 7.5) / 6;
+const RING_SIXTH = (2 * Math.PI * 8) / 6;
 
 const STAGE_ICONS: Record<WorkflowStage, IconDataV1> = {
   Deferred: stageIcon([
@@ -284,24 +284,24 @@ const STAGE_ICONS: Record<WorkflowStage, IconDataV1> = {
       attrs: {
         ...progressRing.attrs,
         strokeLinecap: "round",
-        strokeDasharray: `3.75 ${RING_SIXTH - 3.75}`,
-        strokeDashoffset: 1.875 - RING_SIXTH / 2,
+        strokeDasharray: `4 ${RING_SIXTH - 4}`,
+        strokeDashoffset: 2 - RING_SIXTH / 2,
       },
     },
   ]),
   Idle: stageIcon([progressRing]),
   // Lucide's LoaderCircle, drawn on the same ring; rows spin it.
-  Active: stageIcon([strokedPath("M19.5 12a7.5 7.5 0 1 1-5.183-7.133")]),
+  Active: stageIcon([strokedPath("M20 12a8 8 0 1 1-5.528-7.609")]),
   // Lucide's Ban, drawn on the same ring.
   Blocked: stageIcon([
     progressRing,
-    strokedPath("M6.697 6.697 17.303 17.303"),
+    strokedPath("M6.343 6.343 17.657 17.657"),
   ]),
   Completed: stageIcon([
     progressRing,
     {
       tag: "circle",
-      attrs: { cx: 12, cy: 12, r: 4.5, fill: "currentColor" },
+      attrs: { cx: 12, cy: 12, r: 5, fill: "currentColor" },
     },
   ]),
 };
