@@ -22,7 +22,7 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     await group.getByRole("button", { name: "Show 3 more completed", exact: true }).waitFor();
     assert.equal(await completed.count(), 2);
     const gaps = await group.locator('li[data-thread-id]').evaluateAll(nodes => nodes.slice(1).map((node, index) => node.getBoundingClientRect().top - nodes[index].getBoundingClientRect().bottom));
-    assert.ok(gaps.every(gap => Math.abs(gap) < 1), `Stage lists must be gapless: ${gaps}`);
+    assert.ok(gaps.every(gap => Math.abs(gap - 1) < 0.01), `Stage boundaries must preserve the 1px row spacing: ${gaps}`);
     const more = group.getByRole("button", { name: "Show 3 more completed", exact: true });
     await more.focus();
     await page.keyboard.press("Enter");
