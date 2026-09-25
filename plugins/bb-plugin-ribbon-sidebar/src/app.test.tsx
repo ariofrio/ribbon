@@ -1094,8 +1094,11 @@ describe("Ribbon sidebar app", () => {
     )!;
     const indicatorLane = indicator.parentElement!.parentElement!;
 
+    // The icon spans the item once the row's preview arrives.
+    await waitFor(() =>
+      expect(getComputedStyle(iconSlot).gridRowEnd).toBe("span 2"),
+    );
     expect(getComputedStyle(iconSlot).gridRowStart).toBe("1");
-    expect(getComputedStyle(iconSlot).gridRowEnd).toBe("span 2");
     expect(getComputedStyle(indicatorLane).alignSelf).toBe("stretch");
     slot.lifecycle.unmount();
   });

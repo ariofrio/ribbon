@@ -88,28 +88,42 @@ describe("Thread stages provider contracts", () => {
     });
   });
 
-  it("preserves the released progress-ring stage glyph family", () => {
+  it("draws every stage glyph on one ring size", () => {
     const groups = createGroupingCatalog({}).groupings[0]!.groups;
     const iconByStage = new Map(groups.map((group) => [group.id, group.icon]));
+    const ring = expect.objectContaining({
+      tag: "circle",
+      attrs: expect.objectContaining({ cx: 12, cy: 12, r: 8 }),
+    });
 
-    expect(iconByStage.get("Idle")?.children).toEqual([
+    expect(iconByStage.get("Deferred")?.children).toEqual([
       expect.objectContaining({
-        tag: "circle",
-        attrs: expect.objectContaining({ cx: 12, cy: 12, r: 10 }),
+        attrs: expect.objectContaining({ r: 8, strokeDasharray: expect.any(String) }),
       }),
     ]);
-    expect(iconByStage.get("Active")?.children?.[1]).toMatchObject({
-      tag: "path",
-      attrs: { fill: "currentColor" },
-    });
-    expect(iconByStage.get("Blocked")?.children?.[1]).toMatchObject({
-      tag: "path",
-      attrs: { transform: "rotate(-45 12 12)" },
-    });
-    expect(iconByStage.get("Completed")?.children?.[1]).toMatchObject({
-      tag: "circle",
-      attrs: { cx: 12, cy: 12, r: 7.5, fill: "currentColor" },
-    });
+    expect(iconByStage.get("Idle")?.children).toEqual([ring]);
+    // Lucide's LoaderCircle: an open arc on the ring, no fill.
+    expect(iconByStage.get("Active")?.children).toEqual([
+      expect.objectContaining({
+        tag: "path",
+        attrs: expect.objectContaining({ d: "M20 12a8 8 0 1 1-5.528-7.609" }),
+      }),
+    ]);
+    // Lucide's Ban: the ring crossed by a diagonal.
+    expect(iconByStage.get("Blocked")?.children).toEqual([
+      ring,
+      expect.objectContaining({
+        tag: "path",
+        attrs: expect.objectContaining({ d: "M6.343 6.343 17.657 17.657" }),
+      }),
+    ]);
+    expect(iconByStage.get("Completed")?.children).toEqual([
+      ring,
+      expect.objectContaining({
+        tag: "circle",
+        attrs: { cx: 12, cy: 12, r: 5, fill: "currentColor" },
+      }),
+    ]);
   });
 
   it("rejects duplicate and invalid local IDs", () => {

@@ -12,14 +12,16 @@ function renderNode(node: IconDataV1, key: string): ReactElement {
 export function ProviderIcon({
   icon,
   label,
+  className = "",
 }: {
   icon: IconDataV1;
   label: string;
+  className?: string;
 }) {
   return (
     <span
       aria-label={label}
-      className="inline-flex size-4 shrink-0 items-center justify-center [&_svg]:size-4"
+      className={`inline-flex size-4 shrink-0 items-center justify-center [&_svg]:size-4 ${className}`}
     >
       {renderNode(icon, "icon")}
     </span>
