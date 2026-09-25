@@ -293,7 +293,7 @@ const STAGE_ICONS: Record<WorkflowStage, IconDataV1> = {
   // A slash as long as Completed's dot is wide, round caps included.
   Blocked: stageIcon([
     progressRing,
-    strokedPath("M9 9 15 15"),
+    strokedPath("M9 15 15 9"),
   ]),
   Completed: stageIcon([
     progressRing,

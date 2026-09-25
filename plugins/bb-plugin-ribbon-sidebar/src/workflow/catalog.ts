@@ -52,7 +52,7 @@ const STAGE_MARKS: Record<WorkflowStage, IconDataV1[]> = {
   Deferred: [],
   Idle: [],
   // A slash as long as Completed's dot is wide, round caps included.
-  Blocked: [strokedPath("M9 9 15 15")],
+  Blocked: [strokedPath("M9 15 15 9")],
   Completed: [
     {
       tag: "circle",

@@ -102,7 +102,7 @@ describe("Thread stages provider contracts", () => {
       ring,
       expect.objectContaining({
         tag: "path",
-        attrs: expect.objectContaining({ d: "M9 9 15 15", strokeLinecap: "round" }),
+        attrs: expect.objectContaining({ d: "M9 15 15 9", strokeLinecap: "round" }),
       }),
     ]);
     expect(iconByStage.get("Completed")?.children).toEqual([
