@@ -1,5 +1,28 @@
 # bb-plugin-chatgpt-theme
 
+## 0.2.4
+
+### Patch Changes
+
+- 735d5e3: Update to bb 0.42.1 and Plugin SDK 0.4.47, including the matching UI components and runtime dependencies. This release requires bb 0.42.1 or newer.
+  
+  Icons and keyboard shortcuts now use the public app-overlay slot and SDK RPC/settings hooks. Keyboard shortcuts read the active thread and project from SDK context and open new-thread surfaces through the public sidebar action. The Side chat shortcut waits for bb's rich-text editor to mount before focusing it.
+  
+  Ribbon's top controls use the public sidebar-navigation slot, and its fallback uses the current `Original` API. Its new-thread project selection and archived-thread navigation now use public composer, sidebar-action, and navigation APIs.
+  
+  Thread stages forwards placement changes through the SDK's cross-plugin RPC client, reads the active thread from SDK context, uses SDK navigation for threads and the composer, and accepts pending threads without treating them as active.
+- 5921366: Preserve the selected thread's full foreground color when Ribbon's row background changes by identifying selection from the current-page link.
+- 982bc36: Ribbon sidebar now shows queued-message, draft, and plugin-provided status indicators using bb's live sidebar state. Their priority, colors, animations, and split-pane behavior match the built-in sidebar.
+  
+  Update the shared UI and Plugin SDK to bb 0.43.4 and SDK 0.5.9. These releases require bb 0.43.4 or newer.
+- fd7a755: Update to bb 0.43.3 and Plugin SDK 0.4.104, including the matching UI components and runtime dependencies. This release requires bb 0.43.3 or newer.
+  
+  Missing keyboard shortcuts and Thread stages now register their actions through bb's public command API. Their actions appear in the command palette, and their default shortcuts can be rebound or cleared in Keyboard settings.
+  
+  The side-chat shortcut now opens a host-persisted plugin panel through the public command context and renders the fork through the public `ThreadChat` component.
+  
+  Ribbon sidebar now declares its CLI with bb's public `defineCli` and `cliCommand` APIs, so bb owns parsing, validation, help, suggestions, and structured JSON errors.
+
 ## 0.2.3
 
 ### Patch Changes
