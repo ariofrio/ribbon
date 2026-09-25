@@ -28,7 +28,7 @@ import {
   type ReactNode,
 } from "react";
 import type { z } from "zod";
-import { CHROME_SECTION_LABEL_CLASS } from "./chrome-style-tokens";
+import { CHROME_GROUP_HEADING_CLASS } from "./chrome-style-tokens";
 import type { IconDataV1 } from "./contracts";
 import { GroupHeaderMenu, type HeaderGroupActions } from "./group-header-menu";
 import { orderedGroupings } from "./grouping-order";
@@ -1458,7 +1458,15 @@ function RibbonSidebarList({
   }
   function threadIcon(thread: PluginSidebarThread): ReactNode {
     const stage = threadStage(thread);
-    return <ProviderIcon icon={STAGE_ICONS[stage]} label={`${stage} stage`} />;
+    return (
+      <ProviderIcon
+        icon={STAGE_ICONS[stage]}
+        label={`${stage} stage`}
+        className={
+          stage === "Active" ? "motion-safe:animate-spin" : undefined
+        }
+      />
+    );
   }
 
   const renderRoot = (
@@ -1883,7 +1891,7 @@ function RibbonSidebarList({
             <>
               {onNewSection || displayOptions ? (
                 <div
-                  className={`bb-sidebar-hover-actions-row flex h-6 items-center pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} max-md:pointer-coarse:h-9`}
+                  className={`bb-sidebar-hover-actions-row flex h-6 items-center pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} max-md:pointer-coarse:h-9`}
                   data-sidebar="group-label"
                 >
                   <span className="min-w-0 flex-1 truncate">Threads</span>
@@ -1912,7 +1920,7 @@ function RibbonSidebarList({
                   <ThreadDragHeader
                     target={{ kind: "pinned", roots: pinnedRoots }}
                     disabled={Boolean(normalizedSearch)}
-                    className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} max-md:pointer-coarse:h-9`}
+                    className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} max-md:pointer-coarse:h-9`}
                     data-sidebar="group-label"
                     data-sidebar-sticky-tier="label"
                   >
@@ -2152,7 +2160,7 @@ function RibbonSidebarList({
                     <ThreadDragHeader
                       target={groupTarget}
                       disabled={Boolean(normalizedSearch) || !grouping}
-                      className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} transition-colors max-md:pointer-coarse:h-9`}
+                      className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} transition-colors max-md:pointer-coarse:h-9`}
                       data-sidebar="group-label"
                       data-sidebar-sticky-tier="label"
                     >
