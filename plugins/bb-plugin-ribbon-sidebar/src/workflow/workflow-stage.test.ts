@@ -92,9 +92,24 @@ describe("thread statuses", () => {
       { id: "parent", parentThreadId: null, updatedAt: 1 },
     ];
     const assignments: ThreadAssignment[] = [
-      { threadId: "parent", workflowStage: "Completed", sortKey: "a", updatedAt: 1 },
-      { threadId: "child", workflowStage: "Active", sortKey: "b", updatedAt: 2 },
-      { threadId: "grandchild", workflowStage: "Blocked", sortKey: "c", updatedAt: 3 },
+      {
+        threadId: "parent",
+        workflowStage: "Completed",
+        sortKey: "a",
+        updatedAt: 1,
+      },
+      {
+        threadId: "child",
+        workflowStage: "Active",
+        sortKey: "b",
+        updatedAt: 2,
+      },
+      {
+        threadId: "grandchild",
+        workflowStage: "Blocked",
+        sortKey: "c",
+        updatedAt: 3,
+      },
       { threadId: "other", workflowStage: "Idle", sortKey: "d", updatedAt: 4 },
     ];
 

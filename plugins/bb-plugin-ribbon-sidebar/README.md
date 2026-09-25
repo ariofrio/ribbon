@@ -1,63 +1,52 @@
 # Ribbon sidebar
 
-Ribbon sidebar is the Ribbon suite's single thread-list surface for bb. It
-keeps BB's pinned threads and hierarchy, then lets a client independently
-choose which project, section, or provider group to show and which grouping
-divides the visible root threads.
+Keep every section or project visible, with stable thread order and workflow stage icons.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-dark.png">
-  <img src="assets/screenshot-light.png" alt="Ribbon sidebar grouping a bb thread list by workflow stage">
-</picture>
+![Ribbon sidebar](assets/screenshot.png)
 
-Thread stages is the first grouping provider. Install it alongside Ribbon to
-add workflow stages, automation, shortcuts, and Completed retention. Ribbon is
-the sole owner of provider placement and manual order. On its first mounted
-sync, Ribbon imports and verifies legacy Thread stages placement and retained
-order before acknowledging the handoff. Thread stages keeps that source data
-readable, so installing Ribbon later restores the previous organization.
-
-## Install
-
-Add this repository as a bb marketplace, install both the sidebar and the
-provider, then select **Ribbon sidebar** under **Settings → Appearance →
-Sidebar** (bb 0.43.4 or newer):
+Install Ribbon and select **Ribbon sidebar** under **Settings → Appearance → Sidebar** (bb 0.43.4 or newer):
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon
-bb plugin install thread-stages@ribbon
 bb plugin install ribbon-sidebar@ribbon
 ```
 
-Ribbon sidebar also works without Thread stages. Its grouping picker always
-includes BB Projects and Sections and discovers any compatible plugin exposing
-`getGroupingCatalogV1`.
+## Grouping and ordering
 
-## Placement
+Use a heading’s **⋯ menu → New section** to create a section.
+Choose **⋯ menu → Group by → Section or Project**. The choice persists
+across reloads, and each grouping keeps its own order and collapsed headings.
+Inside each group, Idle, Active, and Blocked share one manually ordered list,
+followed immediately by Deferred and Completed.
+New roots enter at the top. Activity changes leave their positions unchanged.
 
-Only visible, non-hidden root threads have placement. Child threads inherit
-their root and remain attached in the rendered hierarchy. BB owns Project and
-Section membership, pinned membership and order, and lifecycle; Ribbon sidebar
-owns provider assignments and manual within-group order. Sections can be moved
-from this release, while Projects remain read-only because bb's public SDK does
-not yet expose project movement.
+Deferred initially shows two roots in group order; Completed shows the two
+most recent completions. **Show N more deferred/completed** expands the rest,
+and **Show fewer** restores the preview. The open thread's hierarchy remains
+visible even outside that preview. Search reveals every matching result.
 
-Drag a root before another row or onto a group's end target. Group headers can
-be collapsed, while the Groups menu controls filtering and display grouping.
-Filtering and grouping are local to the current client and cannot use the same
-dimension at once; choosing one clears the other when necessary. Opening a
-thread moves an existing Project or Section scope to that thread's root, and a
-collapsed group previews only the opened thread. Search temporarily ignores
-scope and collapse state. The Groups menu retains project and section creation
-plus entity actions. If the Ribbon UI cannot load, it shows an error and a
-Retry action.
+Use a heading's chevron to collapse it; the label keeps bb's existing behavior.
+A collapsed group previews the open thread. Its plus button creates a thread
+in that section or project. Headings, icons, menus, row styles, and focus
+treatments use Ribbon's existing bb components and theme tokens.
 
-Thread status indicators follow bb's priority for errors, input requests,
-active work, queued messages, unread completions, and drafts. Plugin-provided
-statuses use bb's colors and animations. A split-pane map replaces the status
-icon when the thread is open in a split and animates while work is active.
+Drag a root to reorder it within its list, or onto another section's header to
+move it there. Dragging preserves its stage. Change stages through the thread
+menu, CLI, or keyboard shortcuts. Completed stays ordered by completion time.
+Project grouping supports reordering within a project; bb owns project membership.
+Group rank survives stage changes, so returning a deferred or completed root
+to the main list restores its place.
 
-A thread's pull request adds to both. Its icon beside the PR number is green
+bb owns section membership, pins, pinned order, and lifecycle. Ribbon stores
+section and project ranks separately from workflow stage. Children inherit
+their root's stage and remain nested. Forks inherit their source hierarchy's
+section and stage; unparenting copies the former root's placement.
+
+Thread status indicators retain bb's priority for errors, input requests, active
+work, queued messages, unread completions, and drafts. Split-pane maps, previews,
+PR numbers, thread menus, and chosen section icons remain available.
+
+A thread's pull request adds its status. Its icon beside the PR number is green
 while open, amber once auto-merge is on or it is in the merge queue, purple
 when merged, red when closed, and muted while a draft. The status indicator adds
 GitHub's marks: a red ✗ when CI fails, changes are requested, or the branch
@@ -69,83 +58,65 @@ mark stands for. Auto-merge, reviewers, and check counts come from the GitHub
 CLI (`gh`) signed in on the bb server's machine; without it, marks follow bb's
 own pull request status.
 
-bb's New thread UI uses the selected Ribbon scope. Projects and Sections,
-including Unorganized, are selected before creation through bb's composer
-state. Writable provider groups are applied after bb returns the new thread ID.
-Ribbon records the existing thread IDs on submission, so navigation after a
-failed submission cannot place an existing thread.
+Use a heading’s **⋯ menu → PR number** to place the linked PR number to the Left
+or Right of each thread title, or choose Hidden to also hide its status mark.
+Right is the default, and the choice persists on this client across reloads.
 
-Forks inherit the nearest explicit Section and provider placement on the fork
-source's ancestor chain. Non-fork CLI threads use each grouping's default
-group, including Unorganized. Unparenting copies placement from the former
-parent chain. Reparenting writes no placement, so the thread inherits from its
-new parent.
+## Stages and shortcuts
 
-## CLI
+Ribbon owns stage automation, shortcuts, and Completed retention. Idle roots
+become Active while a turn or background command runs anywhere in the hierarchy.
+A pending question or approval takes priority on that thread; work on another
+descendant can still keep the root Active. Automation preserves manual Deferred,
+Blocked, and Completed assignments.
 
-Every group reference has the form `<grouping-key>/<group-id>`:
+Completed hierarchies auto-archive after seven days by default. Ribbon settings
+can select 1 or 30 days, or Never. Completion and subsequent root or descendant
+updates restart the timer. Any pinned member prevents archival.
+
+| macOS | Linux / Windows | Action |
+| --- | --- | --- |
+| ⌘. / ⌥⌘. | Ctrl+. / Ctrl+Alt+. | Complete and select the next main-list thread in this section or project |
+| ⇧⌘. | Ctrl+Shift+. | Return to Idle, or undo the latest filing in this section or project |
+| ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked |
+| ⌃⌘. | Ctrl+Alt+, | Defer |
+| ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list |
+| ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to that list's edge |
+| ⌃⌘↑ / ⌃⌘↓ | Ctrl+↑ / Ctrl+↓ | Move to the adjacent enabled stage |
+
+Shortcuts can be rebound in bb. Enter opens a focused thread; Space starts a
+keyboard drag. Expanding an overflow list from the keyboard focuses its first
+newly revealed thread.
+
+## Upgrades and CLI
+
+Existing assignments and retained ranks remain in Ribbon's placement store.
+Older Thread stages data is imported and verified before acknowledgment. Its
+settings are copied once. The optional [Thread stages compatibility plugin](../bb-plugin-thread-stages#readme)
+provides the old stage RPCs while saved keyboard bindings, including cleared
+bindings, migrate to Ribbon command IDs. New installations need only Ribbon.
+
+The placement CLI remains compatible, including the stored stage key
+`plugin:thread-stages:stages`:
 
 ```sh
 bb sidebar groupings
-bb sidebar groups <grouping>
-bb sidebar list [--scope <group-ref>] [--include-archived] [--include-hidden]
-bb sidebar show [thread] [--self]
-bb sidebar place [thread] [--self] --to <group-ref> [--before <thread>|--after <thread>]
+bb sidebar groups builtin:sections
+bb sidebar list --scope builtin:sections/<section-id>
+bb sidebar show --self
+bb sidebar place --self --to plugin:thread-stages:stages/Completed
+bb sidebar place <thread> --to builtin:sections/<section-id> --before <thread>
 bb sidebar migrate thread-stages
-bb sidebar rekey --from <plugin-key> --to <plugin-key>
 ```
 
-`list` joins each root's title and runtime status with its Section, Project,
-and every plugin-provided group. Human output uses group names. JSON preserves
-the complete thread object returned by bb and adds `project`, `section`, and
-`pluginGroups` with names and IDs. Archived and hidden roots are excluded by
-default; include either set explicitly with
-`--include-archived` or `--include-hidden`. Add `--json` to any data command for
-machine-readable output. `migrate` explicitly retries the same idempotent
-import normally started by mounting the sidebar. `rekey` atomically moves
-placement when a provider intentionally changes a plugin grouping key.
-
-Without `--before` or `--after`, `place` uses the destination group's default
-insertion position: the top for Completed, otherwise the bottom. A thread
-already in the destination keeps its position. These positions apply to manual
-sorting; other sort modes determine the displayed order independently.
-
-## Settings
-
-Use **Display options → Pages → No paging** to show all groups without a page
-switcher. Headings and icons keep their current settings. The choice persists
-across reloads; select a Pages grouping to restore the switcher.
-
-Use **Display options → PR number** to place the linked GitHub PR number to
-the Left or Right of each thread title, or choose Hidden, which also drops its
-status mark. Right is the default. The choice is saved on this client and
-persists across reloads.
-
-Use **Display options → Icons** to choose the grouping that supplies each
-thread's leading icon: Projects (the default), Sections, any available provider
-grouping such as Stages, or No icons. This client-local choice is independent
-of Pages and Headings. Children inherit their root's group icon. Project icons
-keep their existing Icons-plugin integration; section icons also work without
-that plugin. If a selected provider is unavailable, Projects is used until it
-returns.
-
-Ribbon sidebar can hide the Groups control, message previews, group-header
-icons, or experimental activity indicators for collapsed groups. Collapsed
-Stages always show the highest-priority non-unread activity indicator, matching
-Thread stages; collapsed nonempty groups always show their root-thread count.
-Provider catalog, policy, automation, shortcuts, and retention remain in each
-provider's settings.
+Use `bb sidebar` to discover the full command surface. `list --json` joins
+thread metadata, project, section, and stage. Archived and hidden roots are
+excluded unless requested with `--include-archived` or `--include-hidden`.
 
 ## Development
 
 ```sh
 npm run release:check
-bb plugin reload ribbon-sidebar
 ```
-
-The release check runs unit and UI tests, type checking, an SDK build, style
-verification, and packed-artifact validation.
-
-## License
 
 [MIT](LICENSE)

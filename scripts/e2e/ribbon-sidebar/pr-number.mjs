@@ -35,7 +35,7 @@ export async function verifyPrNumber({ stack, fixture }) {
     const sidebar = page.locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]");
     await sidebar.waitFor({ timeout: 120_000 });
     const row = sidebar.locator("li").filter({ has: page.locator(`a[data-sidebar-thread-id="${thread.id}"]`) });
-    const controls = page.locator("[data-ribbon-sidebar-top-controls]");
+    const heading = sidebar.getByRole("region", { name: "Atlas group", exact: true }).locator('[data-sidebar="group-label"]');
 
     async function placement(position) {
       await page.waitForFunction(({ threadId, title, position }) => {
@@ -61,8 +61,8 @@ export async function verifyPrNumber({ stack, fixture }) {
     }
 
     async function choose(current, next, keyboard = false) {
-      await controls.hover();
-      await controls.getByRole("button", { name: "Sidebar display options" }).click();
+      await heading.hover();
+      await heading.getByRole("button", { name: "Atlas options" }).click();
       const submenu = page.getByRole("menuitem", { name: `PR number ${current}`, exact: true });
       if (keyboard) {
         await submenu.focus();

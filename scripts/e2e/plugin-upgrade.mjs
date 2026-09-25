@@ -30,6 +30,10 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
       viewport: { width: 1280, height: 800 },
     });
     await context.tracing.start({ snapshots: true, sources: true });
+    context.setDefaultTimeout(30_000);
+    await context.addInitScript(() => localStorage.setItem(
+      "bb.sidebar.threadListProvider", JSON.stringify("ribbon-sidebar/ribbon-sidebar"),
+    ));
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -44,35 +48,13 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
       .locator("[data-missing-keyboard-shortcuts-ready]")
       .waitFor({ state: "attached", timeout: 120_000 });
 
-    // These controls are now mounted by the public navigation slot. Verify
-    // their rendered position, then use a real pointer to open their menu.
-    const navigation = page.getByRole("navigation", {
-      name: "Sidebar navigation",
-      exact: true,
-    });
-    const options = navigation.getByRole("button", {
-      name: "Sidebar display options",
-    });
-    await options.waitFor();
-    const optionsBox = await options.boundingBox();
-    const newThreadBox = await navigation
-      .getByRole("button", { name: /New thread/ })
-      .first()
-      .boundingBox();
-    assert.ok(optionsBox && newThreadBox && optionsBox.y < newThreadBox.y);
-    await navigation.locator("[data-ribbon-sidebar-top-controls]").hover();
-    await page.waitForFunction(() => {
-      const button = document.querySelector(
-        '[data-ribbon-sidebar-top-controls] [aria-label="Sidebar display options"]',
-      );
-      return (
-        button &&
-        getComputedStyle(button).pointerEvents === "auto" &&
-        getComputedStyle(button).opacity === "1"
-      );
-    });
+    // Display options live in the heading menu, matching bb's sidebar.
+    const heading = page.locator('[data-ribbon-sidebar-root] [data-sidebar="group-label"]')
+      .filter({ has: page.getByRole("button", { name: "Atlas options", exact: true }) });
+    const options = heading.getByRole("button", { name: "Atlas options", exact: true });
+    await heading.hover();
     await options.click();
-    await page.getByRole("menuitem", { name: /^Sort/ }).waitFor();
+    await page.getByRole("menuitem", { name: /^PR number/ }).waitFor();
     await page.keyboard.press("Escape");
 
     const icon = page
@@ -82,17 +64,17 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
     await icon.click();
     await page.getByRole("searchbox", { name: "Search icons" }).waitFor();
     await page.keyboard.press("Escape");
-    await page.waitForFunction((projectId) => {
+    await page.waitForFunction((sectionId) => {
       const element = document.querySelector(
-        `[data-ribbon-sidebar-root] [data-ribbon-icons-project="${CSS.escape(projectId)}"]`,
+        `[data-ribbon-sidebar-root] [data-ribbon-icons-section="${CSS.escape(sectionId)}"]`,
       );
       return (
         element &&
         getComputedStyle(element)
-          .getPropertyValue("--ribbon-icons-project-glyph")
+          .getPropertyValue("--ribbon-icons-section-glyph")
           .includes("url(")
       );
-    }, project.id);
+    }, fixture.section.id);
 
     const sideChatResponse = page.waitForResponse((response) =>
       response.url().endsWith("/plugins/missing-keyboard-shortcuts/rpc/createSideChat"),
@@ -144,7 +126,7 @@ export async function verifyPluginUpgrade({ stack, fixture }) {
     });
     await completeCommand.waitFor();
     const stageResponse = page.waitForResponse((response) =>
-      response.url().endsWith("/plugins/thread-stages/rpc/setWorkflowStage"),
+      response.url().endsWith("/plugins/ribbon-sidebar/rpc/setWorkflowStage"),
     );
     await completeCommand.click();
     const response = await stageResponse;

@@ -45,7 +45,9 @@ export function rootThreadIdByThreadId<Thread extends WorkflowHierarchyThread>(
   return roots;
 }
 
-export function partitionWorkflowThreads<Thread extends WorkflowHierarchyThread>(
+export function partitionWorkflowThreads<
+  Thread extends WorkflowHierarchyThread,
+>(
   threads: readonly Thread[],
 ): { rootThreads: Thread[]; childThreads: Thread[] } {
   const roots = rootThreadIdByThreadId(threads);
@@ -63,7 +65,9 @@ export function withThreadAncestors<Thread extends WorkflowHierarchyThread>(
   matches: readonly Thread[],
   allThreads: readonly Thread[],
 ): Thread[] {
-  const byId = new Map(allThreads.map((thread) => [thread.id, thread] as const));
+  const byId = new Map(
+    allThreads.map((thread) => [thread.id, thread] as const),
+  );
   const included = new Set(matches.map((thread) => thread.id));
 
   for (const match of matches) {

@@ -62,9 +62,7 @@ export function createWorkflowObservationState(
   `);
   return {
     get(threadId) {
-      const row = getWorking.get(threadId) as
-        | { is_working: 0 | 1 }
-        | undefined;
+      const row = getWorking.get(threadId) as { is_working: 0 | 1 } | undefined;
       return row === undefined ? undefined : row.is_working === 1;
     },
     set(threadId, isWorking) {
@@ -99,10 +97,7 @@ class WorkflowActivityIndex {
       if (rootId === null || rootId === undefined || !isThreadWorking(thread)) {
         continue;
       }
-      this.workingCounts.set(
-        rootId,
-        (this.workingCounts.get(rootId) ?? 0) + 1,
-      );
+      this.workingCounts.set(rootId, (this.workingCounts.get(rootId) ?? 0) + 1);
     }
 
     return threads.flatMap((thread) =>
@@ -292,8 +287,7 @@ export function registerThreadWorkflow(
 
     const failedRequest: ThreadRefreshRequest = {
       background: readBackground && !background.ok,
-      pendingInteraction:
-        readPendingInteraction && !pendingInteraction.ok,
+      pendingInteraction: readPendingInteraction && !pendingInteraction.ok,
       status: readStatus && !status.ok,
     };
     if (
@@ -341,11 +335,7 @@ export function registerThreadWorkflow(
   };
 
   const drain = async () => {
-    while (
-      repairRequested ||
-      dirtyThreads.size > 0 ||
-      dirtyRootIds.size > 0
-    ) {
+    while (repairRequested || dirtyThreads.size > 0 || dirtyRootIds.size > 0) {
       if (repairRequested) {
         repairRequested = false;
         dirtyThreads.clear();
@@ -385,10 +375,7 @@ export function registerThreadWorkflow(
     return requestDrain();
   };
 
-  const enqueueThread = (
-    threadId: string,
-    request: ThreadRefreshRequest,
-  ) => {
+  const enqueueThread = (threadId: string, request: ThreadRefreshRequest) => {
     mergeRefreshRequest(dirtyThreads, threadId, request);
     return requestDrain();
   };
@@ -423,10 +410,7 @@ export function registerThreadWorkflow(
             ].includes(change),
           );
           if (topologyChanged || !event.id) {
-            if (
-              event.id &&
-              event.changes.includes("thread-deleted")
-            ) {
+            if (event.id && event.changes.includes("thread-deleted")) {
               observedWorking.delete(event.id);
             }
             return enqueueRepair();
@@ -436,16 +420,14 @@ export function registerThreadWorkflow(
           const pendingInteraction =
             event.changes.includes("interactions-changed") ||
             event.metadata?.hasPendingInteraction !== undefined;
-          const background =
-            event.metadata?.backgroundActivityChanged === true;
+          const background = event.metadata?.backgroundActivityChanged === true;
           if (!status && !pendingInteraction && !background) return;
           return enqueueThread(event.id, {
             background,
             pendingInteraction,
             ...(event.metadata?.hasPendingInteraction !== undefined
               ? {
-                  pendingInteractionValue:
-                    event.metadata.hasPendingInteraction,
+                  pendingInteractionValue: event.metadata.hasPendingInteraction,
                 }
               : {}),
             status,
@@ -464,7 +446,8 @@ export function registerThreadWorkflow(
         void enqueueRepair();
         await new Promise<void>((resolve) => {
           if (signal.aborted) resolve();
-          else signal.addEventListener("abort", () => resolve(), { once: true });
+          else
+            signal.addEventListener("abort", () => resolve(), { once: true });
         });
       } finally {
         unsubscribeConnection();

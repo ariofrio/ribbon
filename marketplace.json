@@ -120,7 +120,7 @@
     {
       "id": "ribbon-sidebar",
       "displayName": "Ribbon sidebar",
-      "description": "Organize threads by projects, sections, and provider-defined groupings in one sidebar.",
+      "description": "Organize every section in one sidebar with stable thread order and workflow stages.",
       "icon": {
         "url": "./plugins/bb-plugin-ribbon-sidebar/assets/icon.svg"
       },
@@ -149,7 +149,7 @@
     {
       "id": "thread-stages",
       "displayName": "Thread stages",
-      "description": "Provide workflow stages, automation, and shortcuts to Ribbon sidebar.",
+      "description": "Preserve existing stage shortcuts and migrate saved state to Ribbon sidebar.",
       "icon": {
         "url": "./plugins/bb-plugin-thread-stages/assets/icon.svg"
       },

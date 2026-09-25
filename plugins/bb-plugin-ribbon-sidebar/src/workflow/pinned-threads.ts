@@ -57,14 +57,18 @@ export function buildPinnedThreadState<Thread extends PinnedThreadLike>(
   );
 
   for (const item of threads) {
-    if (item.parentThreadId === null || item.parentThreadId === item.id) continue;
+    if (item.parentThreadId === null || item.parentThreadId === item.id)
+      continue;
     const children = childrenByParentId.get(item.parentThreadId) ?? [];
     children.push(item);
     childrenByParentId.set(item.parentThreadId, children);
   }
 
   const effectivePinnedThreadIds = new Set(explicitlyPinnedIds);
-  function includeDescendants(threadId: string, path: ReadonlySet<string>): void {
+  function includeDescendants(
+    threadId: string,
+    path: ReadonlySet<string>,
+  ): void {
     if (path.has(threadId)) return;
     const nextPath = new Set(path);
     nextPath.add(threadId);
@@ -109,7 +113,8 @@ export function buildPinnedThreadState<Thread extends PinnedThreadLike>(
   const pinnedThreads: Thread[] = [];
   const visited = new Set<string>();
   function visit(threadId: string): void {
-    if (visited.has(threadId) || !effectivePinnedThreadIds.has(threadId)) return;
+    if (visited.has(threadId) || !effectivePinnedThreadIds.has(threadId))
+      return;
     const item = byId.get(threadId);
     if (!item) return;
     visited.add(threadId);

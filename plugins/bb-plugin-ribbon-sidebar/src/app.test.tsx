@@ -1,22 +1,9 @@
 // @vitest-environment jsdom
-import {
-  loadPluginApp,
-  mountPluginContentScripts,
-  renderSlot,
-} from "@get-bb/plugin-sdk/testing/app";
-import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
-import { createElement } from "react";
+import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { act, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { IconDataV1 } from "./contracts";
-import {
-  ICON_ATTRIBUTE,
-  ICON_LAYOUT_ATTRIBUTE,
-  ICON_OPTIONAL_ATTRIBUTE,
-} from "./icon-styles";
 import type { GroupingKey } from "./placement-store";
-import {
-  RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT,
-} from "./new-thread-section";
 import { SIDEBAR_PREFERENCES_KEY } from "./view-state";
 
 afterEach(async () => {
@@ -37,40 +24,86 @@ afterEach(async () => {
 
 // jsdom has no layout; give the real dnd-kit sensors row and group rectangles.
 async function beginThreadDrag(source: Element) {
-  const groups = Array.from(document.querySelectorAll("[data-ribbon-sidebar-root] section"));
-  const rectFor = (node: Element) => {
+  const groups = Array.from(
+    document.querySelectorAll("[data-ribbon-sidebar-root] section"),
+  );
+  const rectFor = (node: Element): DOMRect => {
+    if (node.matches("[data-ribbon-thread-drop-preview]")) {
+      const next = node.closest("li")?.nextElementSibling;
+      const previous = node.closest("li")?.previousElementSibling;
+      const adjacent = next ?? previous;
+      if (adjacent) {
+        const rect = rectFor(adjacent);
+        const top = next ? rect.top : rect.bottom;
+        return { ...rect, y: top, top, bottom: top + 50, height: 50 };
+      }
+    }
     const group = node.closest("section");
     const groupIndex = groups.indexOf(group!);
     const row = node.closest("li[data-thread-id]");
-    const rows = group ? Array.from(group.querySelectorAll("li[data-thread-id]")) : [];
+    const rows = group
+      ? Array.from(group.querySelectorAll("li[data-thread-id]"))
+      : [];
     const y = groupIndex * 500 + (row ? 40 + rows.indexOf(row) * 50 : 0);
-    const height = row ? 50 : node.matches('[data-sidebar="group-label"]') ? 30 : 400;
-    return { x: 0, y, top: y, left: 0, width: 250, height,
-      right: 250, bottom: y + height, toJSON() {} };
+    const height = row
+      ? 50
+      : node.matches('[data-sidebar="group-label"]')
+        ? 30
+        : 400;
+    return {
+      x: 0,
+      y,
+      top: y,
+      left: 0,
+      width: 250,
+      height,
+      right: 250,
+      bottom: y + height,
+      toJSON() {},
+    };
   };
-  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
-    return rectFor(this);
-  });
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    function (this: HTMLElement) {
+      return rectFor(this);
+    },
+  );
   const anchor = source.querySelector("a")!;
   const box = rectFor(anchor);
   fireEvent.mouseDown(anchor, { button: 0, clientX: 50, clientY: box.y + 25 });
   fireEvent.mouseMove(document, { clientX: 56, clientY: box.y + 25 });
-  await waitFor(() => expect(document.querySelector("[data-ribbon-thread-drag-overlay]")).toBeTruthy());
+  await waitFor(() =>
+    expect(
+      document.querySelector("[data-ribbon-thread-drag-overlay]"),
+    ).toBeTruthy(),
+  );
   return {
     hover(target: Element) {
       const targetBox = rectFor(target);
-      fireEvent.mouseMove(document, { clientX: 60, clientY: targetBox.y + (target.matches("section") ? 390 : 5) });
+      fireEvent.mouseMove(document, {
+        clientX: 60,
+        clientY: targetBox.y + (target.matches("section") ? 390 : 5),
+      });
     },
     hoverBelow(target: Element) {
       const targetBox = rectFor(target);
-      fireEvent.mouseMove(document, { clientX: 60, clientY: targetBox.bottom + 20 });
+      fireEvent.mouseMove(document, {
+        clientX: 60,
+        clientY: targetBox.bottom + 20,
+      });
     },
     hoverJustBelow(target: Element) {
       const targetBox = rectFor(target);
-      fireEvent.mouseMove(document, { clientX: 60, clientY: targetBox.bottom + 2 });
+      fireEvent.mouseMove(document, {
+        clientX: 60,
+        clientY: targetBox.bottom + 2,
+      });
     },
-    drop() { fireEvent.mouseUp(document); },
-    cancel() { fireEvent.keyDown(document, { key: "Escape", code: "Escape" }); },
+    drop() {
+      fireEvent.mouseUp(document);
+    },
+    cancel() {
+      fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
+    },
   };
 }
 
@@ -148,40 +181,40 @@ interface ListedThread {
 const thread = (value: Partial<Record<string, unknown>> & { id: string }) => {
   const { id, ...overrides } = value;
   return {
-  id,
-  projectId: "project-a",
-  title: value.id,
-  titleFallback: null,
-  displayTitle: String(value.title ?? id),
-  lifecycleOwnerThreadId: null,
-  sourceThreadId: null,
-  status: "idle" as const,
-  runtimeStatus: "idle" as const,
-  queuedWork: "none" as const,
-  pinnedAt: null,
-  pinSortKey: null,
-  archivedAt: null,
-  href: `/projects/project-a/threads/${id}`,
-  isHidden: false,
-  parentThreadId: null,
-  sectionId: "section-a",
-  originKind: null,
-  originPluginId: null,
-  providerId: "codex",
-  hasPendingInteraction: false,
-  activity,
-  indicator: "none" as const,
-  indicatorLabel: null,
-  isUnread: false,
-  isPinned: false,
-  isArchived: false,
-  environment: null,
-  host: null,
-  createdAt: 1,
-  updatedAt: 2,
-  lastReadAt: 2,
-  latestAttentionAt: 1,
-  ...overrides,
+    id,
+    projectId: "project-a",
+    title: value.id,
+    titleFallback: null,
+    displayTitle: String(value.title ?? id),
+    lifecycleOwnerThreadId: null,
+    sourceThreadId: null,
+    status: "idle" as const,
+    runtimeStatus: "idle" as const,
+    queuedWork: "none" as const,
+    pinnedAt: null,
+    pinSortKey: null,
+    archivedAt: null,
+    href: `/projects/project-a/threads/${id}`,
+    isHidden: false,
+    parentThreadId: null,
+    sectionId: "section-a",
+    originKind: null,
+    originPluginId: null,
+    providerId: "codex",
+    hasPendingInteraction: false,
+    activity,
+    indicator: "none" as const,
+    indicatorLabel: null,
+    isUnread: false,
+    isPinned: false,
+    isArchived: false,
+    environment: null,
+    host: null,
+    createdAt: 1,
+    updatedAt: 2,
+    lastReadAt: 2,
+    latestAttentionAt: 1,
+    ...overrides,
   };
 };
 
@@ -261,9 +294,7 @@ const snapshot: {
       icon: {
         tag: "svg",
         attrs: { viewBox: "0 0 24 24" },
-        children: [
-          { tag: "path", attrs: { d: "M8 5v14l11-7z" } },
-        ],
+        children: [{ tag: "path", attrs: { d: "M8 5v14l11-7z" } }],
       },
       defaultGroupId: "Idle",
       available: true,
@@ -275,9 +306,7 @@ const snapshot: {
           icon: {
             tag: "svg",
             attrs: { viewBox: "0 0 24 24" },
-            children: [
-              { tag: "circle", attrs: { cx: 12, cy: 12, r: 8 } },
-            ],
+            children: [{ tag: "circle", attrs: { cx: 12, cy: 12, r: 8 } }],
           },
           visibleWhenEmpty: true,
           acceptsAssignments: true,
@@ -289,9 +318,7 @@ const snapshot: {
           icon: {
             tag: "svg",
             attrs: { viewBox: "0 0 24 24" },
-            children: [
-              { tag: "path", attrs: { d: "M8 5v14l11-7z" } },
-            ],
+            children: [{ tag: "path", attrs: { d: "M8 5v14l11-7z" } }],
           },
           visibleWhenEmpty: true,
           acceptsAssignments: true,
@@ -318,29 +345,29 @@ function options(overrides: Record<string, unknown> = {}) {
       threadIds?: string[];
     };
     return {
-    ok: true as const,
-    value: {
-      groupingKey,
-      revision: 1,
-      items: ["thread-a", "thread-b"]
-        .filter((threadId) => threadIds?.includes(threadId) ?? true)
-        .map((threadId, index) => ({
-          groupingKey,
-          groupId:
-            groupingKey === "builtin:projects"
-              ? "project-a"
-              : groupingKey === "builtin:sections"
-                ? threadId === "thread-b"
-                  ? "section-b"
-                  : "section-a"
-                : index === 0
-                  ? "Idle"
-                  : "Active",
-          threadId,
-          enteredAtMs: groupingKey.startsWith("plugin:") ? 1 : null,
-          ...(groupingKey.startsWith("plugin:") ? { origin: "auto" } : {}),
-        })),
-    },
+      ok: true as const,
+      value: {
+        groupingKey,
+        revision: 1,
+        items: ["thread-a", "thread-b"]
+          .filter((threadId) => threadIds?.includes(threadId) ?? true)
+          .map((threadId, index) => ({
+            groupingKey,
+            groupId:
+              groupingKey === "builtin:projects"
+                ? "project-a"
+                : groupingKey === "builtin:sections"
+                  ? threadId === "thread-b"
+                    ? "section-b"
+                    : "section-a"
+                  : index === 0
+                    ? "Idle"
+                    : "Active",
+            threadId,
+            enteredAtMs: groupingKey.startsWith("plugin:") ? 1 : null,
+            ...(groupingKey.startsWith("plugin:") ? { origin: "auto" } : {}),
+          })),
+      },
     };
   });
   const updatePlacementV1 = vi.fn(async (input: unknown) => ({
@@ -403,9 +430,7 @@ function options(overrides: Record<string, unknown> = {}) {
         synchronizeV1,
         listPlacementsV1,
         listPreviewsV1: vi.fn(async (_input: unknown) => ({
-          previews: [
-            { threadId: "thread-a", preview: "A useful preview" },
-          ],
+          previews: [{ threadId: "thread-a", preview: "A useful preview" }],
         })),
         listProjectActionStatesV1,
         listThreadsV1,
@@ -429,7 +454,13 @@ function options(overrides: Record<string, unknown> = {}) {
       },
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
+          {
+            id: "project-a",
+            name: "Storefront",
+            isPersonal: false,
+            href: "/projects/project-a",
+            settingsHref: "/projects/project-a/settings",
+          },
         ],
         threads: [
           thread({ id: "thread-pin", isPinned: true }),
@@ -465,191 +496,104 @@ function useManualSort(groupingKey = "plugin:thread-stages:stages") {
 }
 
 describe("Ribbon sidebar app", () => {
-  it("chooses read-only provider icons independently of headings and inherits them in children", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    fixture.value.rpc.synchronizeV1.mockResolvedValue({
-      ...snapshot,
-      groupings: snapshot.groupings.map((grouping) => ({
-        ...grouping,
-        membershipWritable: false,
-      })),
-    });
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    fireEvent.keyDown(
-      await slot.findByRole("button", { name: "Sidebar display options" }),
-      { key: "Enter" },
-    );
-    const icons = await slot.findByRole("menuitem", { name: "Icons Projects" });
-    icons.focus();
-    fireEvent.keyDown(icons, { key: "ArrowRight" });
-    fireEvent.click(await slot.findByRole("menuitemcheckbox", { name: "Stages" }));
-    for (const name of ["Design migration", "thread-child"]) {
-      const row = (await slot.findByRole("link", {
-        name: new RegExp(`^Open ${name}`),
-      })).parentElement!;
-      await waitFor(() =>
-        expect(within(row).getByLabelText("Idle group icon")).toBeTruthy(),
-      );
-    }
-    const saved = JSON.parse(window.localStorage.getItem(SIDEBAR_PREFERENCES_KEY)!);
-    expect(saved.view.iconGroupingKey).toBe("plugin:thread-stages:stages");
-    expect(saved.view.groupingKey).toBe("plugin:thread-stages:stages");
-    expect(saved.view.filterGroupingKey).toBe("builtin:sections");
-    slot.lifecycle.unmount();
-  });
-
-  it("renders a workspace-style page switcher and the requested display menu", async () => {
+  it.each([
+    ["builtin:sections", "Release"],
+    ["builtin:projects", "Storefront"],
+  ])("creates sections from the %s heading menu", async (groupingKey, label) => {
+    useManualSort(groupingKey);
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-
-    const switcher = await slot.findByRole("button", {
-      name: "All groups, Pages by Section",
-    });
-    expect(within(switcher).getByText("All groups")).toBeTruthy();
-    expect(within(switcher).getByText("Section")).toBeTruthy();
-
-    fireEvent.keyDown(
-      await slot.findByRole("button", { name: "Sidebar display options" }),
-      { key: "Enter" },
-    );
-    expect(await slot.findByText("Organize")).toBeTruthy();
-    expect(slot.getByRole("menuitem", { name: "Pages Sections" })).toBeTruthy();
-    expect(slot.getByRole("menuitem", { name: "Headings Stages" })).toBeTruthy();
-    expect(
-      slot.getByRole("menuitem", { name: "Hide Hidden, Archived" }),
-    ).toBeTruthy();
-    expect(
-      slot.getByRole("menuitem", { name: "Sort Last updated" }),
-    ).toBeTruthy();
-    fireEvent.keyDown(
-      slot.getByRole("menuitem", { name: "Sort Last updated" }),
-      { key: "Escape" },
-    );
-    slot.lifecycle.unmount();
-  });
-
-  it("adds four pixels between the navigator label and chevron", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-
-    const switcher = await slot.findByRole("button", {
-      name: "All groups, Pages by Section",
-    });
-    const chevron = switcher.lastElementChild!;
-
-    expect(getComputedStyle(chevron).marginLeft).toBe("4px");
-    slot.lifecycle.unmount();
-  });
-
-  it("uses the light icon-palette color behind a white scoped icon", async () => {
-    storeSectionScope("section-a");
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-
     await slot.findByText("Design migration");
-    const tile = slot.container.querySelector<HTMLElement>(
-      'button.thread-filter-trigger > [data-ribbon-icons-section="section-a"]',
-    );
-    const icon = tile?.querySelector<HTMLElement>(
-      '[data-ribbon-sidebar-icon="section"]',
-    );
-
-    expect(tile?.style.backgroundColor).toBe(
-      "var(--ribbon-icons-section-color-light, var(--primary))",
-    );
-    expect(icon?.style.backgroundColor).toBe(
-      "var(--ribbon-icons-section-on-color-light, var(--primary-foreground))",
-    );
-    slot.lifecycle.unmount();
-  });
-
-  it("keeps grouping submenu icons decorative", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-
-    fireEvent.keyDown(
-      await slot.findByRole("button", { name: "Sidebar display options" }),
-      { key: "Enter" },
-    );
-    const headings = await slot.findByRole("menuitem", {
-      name: "Headings Stages",
+    expect(slot.queryByRole("button", { name: "New section" })).toBeNull();
+    fireEvent.keyDown(slot.getByRole("button", { name: `${label} options` }), {
+      key: "Enter",
     });
-    headings.focus();
-    fireEvent.keyDown(headings, { key: "ArrowRight" });
-
-    expect(
-      await slot.findByRole("menuitemcheckbox", { name: "Stages" }),
-    ).toBeTruthy();
+    expect(await slot.findByRole("menuitem", { name: /^Group by / })).toBeTruthy();
+    fireEvent.click(await slot.findByRole("menuitem", { name: "New section" }));
+    expect(await slot.findByRole("dialog", { name: "New section" })).toBeTruthy();
     slot.lifecycle.unmount();
   });
 
-  it("changes sort order from the display menu", async () => {
-    window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
-      JSON.stringify({
-        view: {
-          scope: { kind: "all" },
-          groupingKey: null,
-          filterGroupingKey: "builtin:sections",
-          hide: {
-            notArchived: false,
-            archived: true,
-            visible: false,
-            hidden: true,
-          },
-          sort: "updated",
-        },
-        collapsed: [],
-      }),
-    );
+  it("keeps creation and display options accessible with no visible threads", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({
-      sidebarThreads: {
-        projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
-        ],
-        threads: [
-          thread({ id: "thread-a", title: "Zebra", updatedAt: 20 }),
-          thread({ id: "thread-b", title: "Alpha", updatedAt: 10 }),
-        ],
-      },
+      sidebarThreads: { ...options().value.sidebarThreads, threads: [] },
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Zebra");
-
-    const displayedIds = () =>
-      Array.from(
-        slot.container.querySelectorAll<HTMLElement>("[data-thread-id]"),
-      )
-        .map((row) => row.dataset.threadId)
-        .filter((id) => id === "thread-a" || id === "thread-b");
-    expect(displayedIds()).toEqual(["thread-a", "thread-b"]);
-
-    fireEvent.keyDown(
-      slot.getByRole("button", { name: "Sidebar display options" }),
-      { key: "Enter" },
-    );
-    const sort = await slot.findByRole("menuitem", {
-      name: "Sort Last updated",
+    await slot.findByText("No threads yet");
+    fireEvent.keyDown(slot.getByRole("button", { name: "Threads options" }), {
+      key: "Enter",
     });
-    sort.focus();
-    fireEvent.keyDown(sort, { key: "ArrowRight" });
-    fireEvent.click(
-      await slot.findByRole("menuitemcheckbox", {
-        name: "Alphabetically",
-      }),
-    );
-
-    await waitFor(() =>
-      expect(displayedIds()).toEqual(["thread-b", "thread-a"]),
-    );
+    expect(await slot.findByRole("menuitem", { name: "New section" })).toBeTruthy();
+    expect(slot.getByRole("menuitem", { name: /^Hide / })).toBeTruthy();
     slot.lifecycle.unmount();
   });
+
+  it("groups by project and creates threads in that project", async () => {
+    useManualSort("builtin:projects");
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const group = await slot.findByRole("region", { name: "Storefront group" });
+    expect(within(group).getByText("Design migration")).toBeTruthy();
+    expect(within(group).getByText("Ship UI")).toBeTruthy();
+    fireEvent.click(
+      within(group).getByRole("button", { name: "New thread in Storefront" }),
+    );
+    expect(slot.inspection.sidebarActionCalls).toContainEqual({
+      method: "openNewThread",
+      options: { projectId: "project-a", focusPrompt: true },
+    });
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps the latest section order when an older placement read finishes last", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const response = (revision: number, ids: string[]) => ({
+      ok: true as const,
+      value: {
+        groupingKey: "builtin:sections",
+        revision,
+        items: ids.map((threadId) => ({
+          groupingKey: "builtin:sections",
+          groupId: "section-a",
+          threadId,
+          enteredAtMs: null,
+        })),
+      },
+    });
+    let reads = 0;
+    let resolveOld!: (result: ReturnType<typeof response>) => void;
+    const old = new Promise<ReturnType<typeof response>>((resolve) => {
+      resolveOld = resolve;
+    });
+    const original = fixture.listPlacementsV1.getMockImplementation()!;
+    fixture.listPlacementsV1.mockImplementation(async (raw) => {
+      if ((raw as { groupingKey: string }).groupingKey !== "builtin:sections")
+        return original(raw);
+      reads++;
+      if (reads === 2) return old;
+      return response(
+        reads === 1 ? 1 : 2,
+        reads === 1 ? ["thread-a", "thread-b"] : ["thread-b", "thread-a"],
+      );
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Design migration");
+    const group = slot.getByRole("region", { name: "Release group" });
+    const titles = () =>
+      within(group)
+        .getAllByRole("link")
+        .map((node) => node.textContent || node.getAttribute("aria-label"));
+    await slot.emitRealtime("placements-changed", null);
+    await slot.emitRealtime("placements-changed", null);
+    await waitFor(() => expect(titles()[0]).toContain("Ship UI"));
+    await act(async () => resolveOld(response(1, ["thread-a", "thread-b"])));
+    expect(titles()[0]).toContain("Ship UI");
+    slot.lifecycle.unmount();
+  }, 15_000);
 
   it("shows archived threads when Archived is removed from Hide", async () => {
     const app = await loadPluginApp(() => import("./app"));
@@ -681,7 +625,7 @@ describe("Ribbon sidebar app", () => {
     expect(slot.queryByText("Archived planning")).toBeNull();
 
     fireEvent.keyDown(
-      slot.getByRole("button", { name: "Sidebar display options" }),
+      slot.getByRole("button", { name: "Release options" }),
       { key: "Enter" },
     );
     const hide = await slot.findByRole("menuitem", {
@@ -716,220 +660,6 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
-  it("selects the scoped section when a New thread composer appears", async () => {
-    storeSectionScope("section-a");
-    window.history.replaceState(
-      { idx: 1, key: "compose", usr: { focusPrompt: true } },
-      "",
-      "/",
-    );
-    const originalPushState = window.history.pushState;
-    const originalReplaceState = window.history.replaceState;
-    const app = await loadPluginApp(() => import("./app"));
-    const scripts = await mountPluginContentScripts(app, {
-      pluginId: "ribbon-sidebar",
-      generation: 1,
-    });
-
-    appendNewThreadComposer();
-
-    await waitFor(() =>
-      expect(window.history.state.usr?.sectionId).toBe("section-a"),
-    );
-    expect(window.history.pushState).toBe(originalPushState);
-    expect(window.history.replaceState).toBe(originalReplaceState);
-    await scripts.lifecycle.dispose();
-  });
-
-  it("updates an open composer when its Section scope changes", async () => {
-    storeSectionScope("section-a");
-    window.history.replaceState(
-      { idx: 1, key: "compose", usr: { focusPrompt: true } },
-      "",
-      "/",
-    );
-    appendNewThreadComposer();
-    const app = await loadPluginApp(() => import("./app"));
-    const scripts = await mountPluginContentScripts(app, {
-      pluginId: "ribbon-sidebar",
-      generation: 1,
-    });
-    await waitFor(() =>
-      expect(window.history.state.usr?.sectionId).toBe("section-a"),
-    );
-
-    storeSectionScope("unsectioned");
-    window.dispatchEvent(
-      new Event(RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT),
-    );
-
-    await waitFor(() => expect(window.history.state.usr.sectionId).toBe(""));
-    await scripts.lifecycle.dispose();
-  });
-
-  it("clears an injected Section when an open composer switches to a provider group", async () => {
-    storeSectionScope("section-a");
-    window.history.replaceState(
-      { idx: 1, key: "compose", usr: { focusPrompt: true } },
-      "",
-      "/",
-    );
-    appendNewThreadComposer();
-    const app = await loadPluginApp(() => import("./app"));
-    const scripts = await mountPluginContentScripts(app, {
-      pluginId: "ribbon-sidebar",
-      generation: 1,
-    });
-    await waitFor(() =>
-      expect(window.history.state.usr?.sectionId).toBe("section-a"),
-    );
-
-    storeGroupScope("plugin:thread-stages:stages", "Active");
-    window.dispatchEvent(
-      new Event(RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT),
-    );
-
-    await waitFor(() =>
-      expect(window.history.state.usr).not.toHaveProperty("sectionId"),
-    );
-    await scripts.lifecycle.dispose();
-  });
-
-  it("captures a selected provider group when the New thread form is submitted", async () => {
-    storeGroupScope("plugin:thread-stages:stages", "Active");
-    const { form } = appendNewThreadComposer();
-    const requested: unknown[] = [];
-    window.addEventListener("bb.ribbon-sidebar.new-thread-group-requested", (event) => {
-      requested.push((event as CustomEvent).detail);
-    });
-    const app = await loadPluginApp(() => import("./app"));
-    const scripts = await mountPluginContentScripts(app, {
-      pluginId: "ribbon-sidebar",
-      generation: 1,
-    });
-
-    fireEvent.submit(form);
-
-    expect(requested).toEqual([
-      {
-        groupingKey: "plugin:thread-stages:stages",
-        groupId: "Active",
-      },
-    ]);
-    await scripts.lifecycle.dispose();
-  });
-
-  it("selects the scoped Project through the public New thread action", async () => {
-    storeGroupScope("builtin:projects", "project-a");
-    const app = await loadPluginApp(() => import("./app"));
-    const slot = renderSlot(
-      app.composerCustomizations[0]!.banners![0]!,
-      {},
-      {
-        composer: {
-          scope: { kind: "new-thread", projectId: "project-b" },
-        },
-        sidebarThreads: {
-          projects: [
-            { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
-          ],
-        },
-      },
-    );
-
-    await waitFor(() =>
-      expect(slot.inspection.sidebarActionCalls).toContainEqual({
-        method: "openNewThread",
-        options: { projectId: "project-a", focusPrompt: true },
-      }),
-    );
-    slot.lifecycle.unmount();
-  });
-
-  it("does not rescan the document for unrelated DOM mutations", async () => {
-    storeSectionScope("section-a");
-    const querySelectorAll = vi.spyOn(document, "querySelectorAll");
-    const app = await loadPluginApp(() => import("./app"));
-    const scripts = await mountPluginContentScripts(app, {
-      pluginId: "ribbon-sidebar",
-      generation: 1,
-    });
-    querySelectorAll.mockClear();
-
-    document.body.append(document.createElement("span"));
-    await waitFor(() => expect(document.body.lastElementChild).toBeTruthy());
-
-    expect(querySelectorAll).not.toHaveBeenCalled();
-    querySelectorAll.mockRestore();
-    await scripts.lifecycle.dispose();
-  });
-
-  it("places the newly active thread in the provider group captured at submission", async () => {
-    storeGroupScope("plugin:thread-stages:stages", "Active");
-    const app = await loadPluginApp(() => import("./app"));
-    const sidebarThreads = {
-      projects: [{ id: "project-a", name: "Storefront", isPersonal: false }],
-      threads: [] as ReturnType<typeof thread>[],
-    };
-    const fixture = options({
-      sidebarThreads,
-    });
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    expect(await slot.findByRole("button", { name: "Active, filtered" })).toBeTruthy();
-
-    window.dispatchEvent(
-      new CustomEvent("bb.ribbon-sidebar.new-thread-group-requested", {
-        detail: {
-          groupingKey: "plugin:thread-stages:stages",
-          groupId: "Active",
-        },
-      }),
-    );
-    sidebarThreads.threads.push(thread({ id: "thread-new" }));
-    slot.lifecycle.rerender(
-      createElement(app.threadLists[0]!.component, {
-        ...props,
-        activeThreadId: "thread-new",
-      }),
-    );
-
-    await waitFor(() =>
-      expect(fixture.placeNewThreadV1).toHaveBeenCalledWith({
-        groupingKey: "plugin:thread-stages:stages",
-        groupId: "Active",
-        threadId: "thread-new",
-      }),
-    );
-    slot.lifecycle.unmount();
-  });
-
-  it("does not place a known thread after a New thread submission fails", async () => {
-    storeGroupScope("plugin:thread-stages:stages", "Active");
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    expect(await slot.findByRole("button", { name: "Active, filtered" })).toBeTruthy();
-
-    window.dispatchEvent(
-      new CustomEvent("bb.ribbon-sidebar.new-thread-group-requested", {
-        detail: {
-          groupingKey: "plugin:thread-stages:stages",
-          groupId: "Active",
-        },
-      }),
-    );
-    slot.lifecycle.rerender(
-      createElement(app.threadLists[0]!.component, {
-        ...props,
-        activeThreadId: "thread-a",
-      }),
-    );
-
-    await waitFor(() => expect(fixture.synchronizeV1).toHaveBeenCalled());
-    expect(fixture.placeNewThreadV1).not.toHaveBeenCalled();
-    slot.lifecycle.unmount();
-  });
-
   it.each([
     ["queued-waiting", "Thread has a message waiting to send"],
     ["queued-failed", "Queued message failed to send"],
@@ -942,8 +672,12 @@ describe("Ribbon sidebar app", () => {
       },
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    const link = await slot.findByRole("link", { name: "Open thread-a — A useful preview" });
-    expect(within(link.closest("li")!).getByLabelText(indicatorLabel)).toBeTruthy();
+    const link = await slot.findByRole("link", {
+      name: "Open thread-a — A useful preview",
+    });
+    expect(
+      within(link.closest("li")!).getByLabelText(indicatorLabel),
+    ).toBeTruthy();
     slot.lifecycle.unmount();
   });
 
@@ -953,24 +687,40 @@ describe("Ribbon sidebar app", () => {
     ["queued-waiting", "Thread has a message waiting to send"],
     ["queued-failed", "Queued message failed to send"],
     ["waiting-for-input", "Thread needs user input"],
-  ])("combines a draft with %s using bb's priority", async (indicator, expected) => {
-    const labels: Record<string, string> = {
-      runtime: "Thread working", "queued-waiting": "Thread has a message waiting to send",
-      "queued-failed": "Queued message failed to send", "waiting-for-input": "Thread needs user input",
-    };
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options({
-      sidebarDraftThreadIds: ["thread-a"],
-      sidebarThreads: {
-        ...options().value.sidebarThreads,
-        threads: [thread({ id: "thread-a", indicator, indicatorLabel: labels[indicator] ?? null })],
-      },
-    });
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    const link = await slot.findByRole("link", { name: "Open thread-a — A useful preview (unsubmitted draft)" });
-    if (indicator !== "none") expect(within(link.closest("li")!).getByLabelText(expected)).toBeTruthy();
-    slot.lifecycle.unmount();
-  });
+  ])(
+    "combines a draft with %s using bb's priority",
+    async (indicator, expected) => {
+      const labels: Record<string, string> = {
+        runtime: "Thread working",
+        "queued-waiting": "Thread has a message waiting to send",
+        "queued-failed": "Queued message failed to send",
+        "waiting-for-input": "Thread needs user input",
+      };
+      const app = await loadPluginApp(() => import("./app"));
+      const fixture = options({
+        sidebarDraftThreadIds: ["thread-a"],
+        sidebarThreads: {
+          ...options().value.sidebarThreads,
+          threads: [
+            thread({
+              id: "thread-a",
+              indicator,
+              indicatorLabel: labels[indicator] ?? null,
+            }),
+          ],
+        },
+      });
+      const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+      const link = await slot.findByRole("link", {
+        name: "Open thread-a — A useful preview (unsubmitted draft)",
+      });
+      if (indicator !== "none")
+        expect(
+          within(link.closest("li")!).getByLabelText(expected),
+        ).toBeTruthy();
+      slot.lifecycle.unmount();
+    },
+  );
 
   it.each([
     ["none", false, "Saving draft"],
@@ -978,63 +728,110 @@ describe("Ribbon sidebar app", () => {
     ["runtime", true, "Saving draft"],
     ["unread-error", true, "Unread thread failed"],
     ["waiting-for-input", true, "Thread needs user input"],
-  ])("resolves a plugin status with %s and draft=%s", async (indicator, draft, expected) => {
-    const labels: Record<string, string> = { runtime: "Thread working", "unread-error": "Unread thread failed", "waiting-for-input": "Thread needs user input" };
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options({
-      sidebarDraftThreadIds: draft ? ["thread-a"] : [],
-      sidebarRowStatuses: { "thread-a": { icon: "Save", label: "Saving draft", tone: "running" } },
-      sidebarThreads: {
-        ...options().value.sidebarThreads,
-        threads: [thread({ id: "thread-a", indicator, indicatorLabel: labels[indicator] ?? null })],
-      },
-    });
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("thread-a");
-    expect(slot.getByLabelText(expected)).toBeTruthy();
-    if (expected !== "Saving draft") expect(slot.queryByLabelText("Saving draft")).toBeNull();
-    slot.lifecycle.unmount();
-  });
+  ])(
+    "resolves a plugin status with %s and draft=%s",
+    async (indicator, draft, expected) => {
+      const labels: Record<string, string> = {
+        runtime: "Thread working",
+        "unread-error": "Unread thread failed",
+        "waiting-for-input": "Thread needs user input",
+      };
+      const app = await loadPluginApp(() => import("./app"));
+      const fixture = options({
+        sidebarDraftThreadIds: draft ? ["thread-a"] : [],
+        sidebarRowStatuses: {
+          "thread-a": { icon: "Save", label: "Saving draft", tone: "running" },
+        },
+        sidebarThreads: {
+          ...options().value.sidebarThreads,
+          threads: [
+            thread({
+              id: "thread-a",
+              indicator,
+              indicatorLabel: labels[indicator] ?? null,
+            }),
+          ],
+        },
+      });
+      const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+      await slot.findByText("thread-a");
+      expect(slot.getByLabelText(expected)).toBeTruthy();
+      if (expected !== "Saving draft")
+        expect(slot.queryByLabelText("Saving draft")).toBeNull();
+      slot.lifecycle.unmount();
+    },
+  );
 
   it("combines a hidden child's draft with its parent's work", async () => {
     const app = await loadPluginApp(() => import("./app"));
-    window.localStorage.setItem("bb.sidebar.collapsedThreads", JSON.stringify(["thread-a"]));
+    window.localStorage.setItem(
+      "bb.sidebar.collapsedThreads",
+      JSON.stringify(["thread-a"]),
+    );
     const fixture = options({
       sidebarDraftThreadIds: ["child"],
       sidebarThreads: {
         ...options().value.sidebarThreads,
         threads: [
-          thread({ id: "thread-a", indicator: "runtime", indicatorLabel: "Thread working" }),
+          thread({
+            id: "thread-a",
+            indicator: "runtime",
+            indicatorLabel: "Thread working",
+          }),
           thread({ id: "child", parentThreadId: "thread-a" }),
         ],
       },
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("thread-a");
-    expect(slot.getByLabelText("Thread working with unsubmitted draft")).toBeTruthy();
-    fireEvent.click(slot.getByRole("button", { name: "Expand thread-a threads" }));
+    expect(
+      slot.getByLabelText("Thread working with unsubmitted draft"),
+    ).toBeTruthy();
+    fireEvent.click(
+      slot.getByRole("button", { name: "Expand thread-a threads" }),
+    );
     expect(slot.getByLabelText("Thread working")).toBeTruthy();
-    expect(slot.getByRole("link", { name: "Open child (unsubmitted draft)" })).toBeTruthy();
+    expect(
+      slot.getByRole("link", { name: "Open child (unsubmitted draft)" }),
+    ).toBeTruthy();
     slot.lifecycle.unmount();
   });
 
   it("keeps a hidden child's queue off the parent indicator like bb", async () => {
     const app = await loadPluginApp(() => import("./app"));
-    window.localStorage.setItem("bb.sidebar.collapsedThreads", JSON.stringify(["thread-a"]));
+    window.localStorage.setItem(
+      "bb.sidebar.collapsedThreads",
+      JSON.stringify(["thread-a"]),
+    );
     const fixture = options({
       sidebarThreads: {
         ...options().value.sidebarThreads,
         threads: [
-          thread({ id: "thread-a", indicator: "queued-waiting", indicatorLabel: "Thread has a message waiting to send", queuedWork: "waiting" }),
-          thread({ id: "child", parentThreadId: "thread-a", indicator: "queued-failed", indicatorLabel: "Queued message failed to send", queuedWork: "failed" }),
+          thread({
+            id: "thread-a",
+            indicator: "queued-waiting",
+            indicatorLabel: "Thread has a message waiting to send",
+            queuedWork: "waiting",
+          }),
+          thread({
+            id: "child",
+            parentThreadId: "thread-a",
+            indicator: "queued-failed",
+            indicatorLabel: "Queued message failed to send",
+            queuedWork: "failed",
+          }),
         ],
       },
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("thread-a");
-    expect(slot.getByLabelText("Thread has a message waiting to send")).toBeTruthy();
+    expect(
+      slot.getByLabelText("Thread has a message waiting to send"),
+    ).toBeTruthy();
     expect(slot.queryByLabelText("Queued message failed to send")).toBeNull();
-    fireEvent.click(slot.getByRole("button", { name: "Expand thread-a threads" }));
+    fireEvent.click(
+      slot.getByRole("button", { name: "Expand thread-a threads" }),
+    );
     expect(slot.getByLabelText("Queued message failed to send")).toBeTruthy();
     slot.lifecycle.unmount();
   });
@@ -1154,7 +951,10 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         ...options().value.sidebarThreads,
-        threads: [thread({ id: "thread-a", title: "Visible thread" }), thread({ id: "thread-b", title: "Internal thread", isHidden: true })],
+        threads: [
+          thread({ id: "thread-a", title: "Visible thread" }),
+          thread({ id: "thread-b", title: "Internal thread", isHidden: true }),
+        ],
       },
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
@@ -1168,7 +968,13 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
+          {
+            id: "project-a",
+            name: "Storefront",
+            isPersonal: false,
+            href: "/projects/project-a",
+            settingsHref: "/projects/project-a/settings",
+          },
         ],
         threads: [
           thread({
@@ -1185,7 +991,7 @@ describe("Ribbon sidebar app", () => {
     const title = await slot.findByText("Design migration");
     const row = title.closest("[data-thread-id]")!;
     const icon = row.querySelector<HTMLElement>(
-      '[data-ribbon-icons-project="project-a"]',
+      "[data-ribbon-sidebar-icon-slot] svg",
     )!;
     const iconSlot = icon.closest<HTMLElement>(
       "[data-ribbon-sidebar-icon-slot]",
@@ -1206,7 +1012,13 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
+          {
+            id: "project-a",
+            name: "Storefront",
+            isPersonal: false,
+            href: "/projects/project-a",
+            settingsHref: "/projects/project-a/settings",
+          },
         ],
         threads: [
           thread({
@@ -1249,7 +1061,13 @@ describe("Ribbon sidebar app", () => {
       settings: { threadAdornmentAlignment: "Entire item" },
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
+          {
+            id: "project-a",
+            name: "Storefront",
+            isPersonal: false,
+            href: "/projects/project-a",
+            settingsHref: "/projects/project-a/settings",
+          },
         ],
         threads: [
           thread({
@@ -1266,7 +1084,7 @@ describe("Ribbon sidebar app", () => {
     const title = await slot.findByText("Design migration");
     const row = title.closest("[data-thread-id]")!;
     const icon = row.querySelector<HTMLElement>(
-      '[data-ribbon-icons-project="project-a"]',
+      "[data-ribbon-sidebar-icon-slot] svg",
     )!;
     const iconSlot = icon.closest<HTMLElement>(
       "[data-ribbon-sidebar-icon-slot]",
@@ -1305,7 +1123,13 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
+          {
+            id: "project-a",
+            name: "Storefront",
+            isPersonal: false,
+            href: "/projects/project-a",
+            settingsHref: "/projects/project-a/settings",
+          },
         ],
         threads: [
           thread({
@@ -1342,7 +1166,7 @@ describe("Ribbon sidebar app", () => {
     expect(open).toBeTruthy();
     expect(slot.getByLabelText("Thread working")).toBeTruthy();
     expect(
-      open.parentElement?.querySelector('[data-ribbon-icons-project="project-a"]'),
+      open.parentElement?.querySelector("[data-ribbon-sidebar-icon-slot] svg"),
     ).not.toBeNull();
 
     const collapseChildren = slot.getByRole("button", {
@@ -1354,7 +1178,7 @@ describe("Ribbon sidebar app", () => {
     expect(slot.queryByLabelText("Thread working")).toBeNull();
     expect(
       JSON.parse(
-        window.localStorage.getItem("bb.sidebar.collapsedThreads") ?? "[]",
+        window.localStorage.getItem("bb.plugin.ribbon-sidebar.collapsedThreads") ?? "[]",
       ),
     ).toEqual(["thread-a"]);
     fireEvent.click(
@@ -1368,13 +1192,13 @@ describe("Ribbon sidebar app", () => {
     });
     expect(
       JSON.parse(
-        window.localStorage.getItem("bb.sidebar.collapsedThreads") ?? "[]",
+        window.localStorage.getItem("bb.plugin.ribbon-sidebar.collapsedThreads") ?? "[]",
       ),
     ).toEqual([]);
 
-    expect(slot.getByLabelText("Idle group icon")).toBeTruthy();
+    expect(slot.getAllByLabelText("Idle stage").length).toBeGreaterThan(0);
     expect(
-      slot.getByRole("button", { name: "Collapse Idle section" }),
+      slot.getByRole("button", { name: "Collapse Release section" }),
     ).toBeTruthy();
     expect(slot.queryByText("Stage: Idle")).toBeNull();
 
@@ -1397,62 +1221,6 @@ describe("Ribbon sidebar app", () => {
     expect(slot.getByText("Move to section")).toBeTruthy();
     expect(slot.getByText("Archive")).toBeTruthy();
     expect(slot.getByText("Delete")).toBeTruthy();
-    slot.lifecycle.unmount();
-  });
-
-  it("names each row's owner for the Icons plugin to paint", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-
-    const box = slot.container.querySelector(
-      '[data-ribbon-icons-project="project-a"]',
-    );
-    expect(box).not.toBeNull();
-
-    // The rules and the boxes are written apart, in CSS and in JSX; a rename
-    // on one side would render an empty span forever.
-    const sheet = document.head.querySelector(
-      "style[data-ribbon-sidebar-icons]",
-    )?.textContent;
-    expect(sheet).toContain(`[${ICON_ATTRIBUTE}="project"]`);
-    expect(box?.getAttribute(ICON_ATTRIBUTE)).toBe("project");
-    expect(box?.closest(`[${ICON_LAYOUT_ATTRIBUTE}]`)).not.toBeNull();
-    expect(sheet).toContain(`[${ICON_OPTIONAL_ATTRIBUTE}]{display:none}`);
-    expect(box?.hasAttribute(ICON_OPTIONAL_ATTRIBUTE)).toBe(true);
-
-    slot.lifecycle.unmount();
-    expect(
-      document.head.querySelector("style[data-ribbon-sidebar-icons]"),
-    ).toBeNull();
-  });
-
-  it("applies provider collapse defaults for a fresh client", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    fixture.synchronizeV1.mockResolvedValue({
-      ...snapshot,
-      groupings: snapshot.groupings.map((grouping) => ({
-        ...grouping,
-        groups: grouping.groups.map((group) => ({
-          ...group,
-          defaultCollapsed:
-            grouping.groupingKey === "plugin:thread-stages:stages" &&
-            group.id === "Active",
-        })),
-      })),
-    });
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-
-    await waitFor(() =>
-      expect(
-        slot
-          .getByRole("button", { name: "Expand Active section" })
-          .getAttribute("aria-expanded"),
-      ).toBe("false"),
-    );
-    expect(slot.queryByText("Ship UI")).toBeNull();
     slot.lifecycle.unmount();
   });
 
@@ -1482,15 +1250,6 @@ describe("Ribbon sidebar app", () => {
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
 
     await slot.findByRole("button", { name: "Expand Pinned section" });
-    fireEvent.keyDown(
-      slot.getByRole("button", { name: "Pinned options" }),
-      { key: "Enter" },
-    );
-    expect(await slot.findByRole("menuitem", { name: "Group by" })).toBeTruthy();
-    expect(slot.queryByRole("separator")).toBeNull();
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Group by" }), {
-      key: "Escape",
-    });
     expect(slot.queryByText("thread-pin")).toBeNull();
     fireEvent.click(
       slot.getByRole("button", { name: "Expand Pinned section" }),
@@ -1514,9 +1273,7 @@ describe("Ribbon sidebar app", () => {
 
     expect(await slot.findByText("Ship UI")).toBeTruthy();
     expect(slot.queryByText("Design migration")).toBeNull();
-    expect(
-      slot.queryByRole("button", { name: "Move Ship UI" }),
-    ).toBeNull();
+    expect(slot.queryByRole("button", { name: "Move Ship UI" })).toBeNull();
     slot.lifecycle.unmount();
   });
 
@@ -1545,10 +1302,10 @@ describe("Ribbon sidebar app", () => {
     );
 
     expect(await slot.findByText("Archived migration")).toBeTruthy();
-    expect(
-      slot.queryByRole("button", { name: "Thread actions" }),
-    ).toBeNull();
-    fireEvent.click(slot.getByRole("link", { name: "Open Archived migration" }));
+    expect(slot.queryByRole("button", { name: "Thread actions" })).toBeNull();
+    fireEvent.click(
+      slot.getByRole("link", { name: "Open Archived migration" }),
+    );
     expect(slot.inspection.sidebarActionCalls).not.toContainEqual(
       expect.objectContaining({ method: "open", threadId: "thread-archived" }),
     );
@@ -1560,216 +1317,15 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
-  it("moves an existing project scope to a newly opened thread", async () => {
-    window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
-      JSON.stringify({
-        view: {
-          scope: {
-            kind: "group",
-            group: {
-              groupingKey: "builtin:projects",
-              groupId: "project-a",
-            },
-          },
-          groupingKey: "plugin:thread-stages:stages",
-        },
-        collapsed: [],
-      }),
-    );
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options({
-      sidebarThreads: {
-        projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
-          { id: "project-b", name: "Analytics", isPersonal: false },
-        ],
-        threads: [
-          thread({ id: "thread-a", title: "Design migration" }),
-          thread({
-            id: "thread-b",
-            projectId: "project-b",
-            title: "Ship analytics",
-          }),
-        ],
-      },
-    });
-    fixture.synchronizeV1.mockResolvedValue({
-      ...snapshot,
-      groupings: snapshot.groupings.map((grouping) =>
-        grouping.groupingKey === "builtin:projects"
-          ? {
-              ...grouping,
-              groups: [
-                ...grouping.groups,
-                {
-                  id: "project-b",
-                  label: "Analytics",
-                  visibleWhenEmpty: true,
-                  acceptsAssignments: true,
-                  defaultCollapsed: false,
-                },
-              ],
-            }
-          : grouping,
-      ),
-    });
-    fixture.value.rpc.listPlacementsV1 = vi.fn(async (raw: unknown) => {
-      const { groupingKey, threadIds } = raw as {
-        groupingKey: string;
-        threadIds?: string[];
-      };
-      const ids = (threadIds ?? ["thread-a", "thread-b"]).filter((id) =>
-        ["thread-a", "thread-b"].includes(id),
-      );
-      return {
-        ok: true as const,
-        value: {
-          groupingKey,
-          revision: 1,
-          items: ids.map((threadId) => ({
-            groupingKey,
-            groupId:
-              groupingKey === "builtin:projects"
-                ? threadId === "thread-b"
-                  ? "project-b"
-                  : "project-a"
-                : "Idle",
-            threadId,
-            enteredAtMs: groupingKey.startsWith("plugin:") ? 1 : null,
-            ...(groupingKey.startsWith("plugin:")
-              ? { origin: "auto" as const }
-              : {}),
-          })),
-        },
-      };
-    });
-    const slot = renderSlot(
-      app.threadLists[0]!,
-      { ...props, activeThreadId: "thread-b" },
-      fixture.value,
-    );
-
-    expect(
-      await slot.findByRole("button", { name: "Analytics, filtered" }),
-    ).toBeTruthy();
-    expect(await slot.findByText("Ship analytics")).toBeTruthy();
-    expect(slot.queryByText("Design migration")).toBeNull();
-    slot.lifecycle.unmount();
-  });
-
-  it("moves an existing section scope to the root of a newly opened thread", async () => {
-    window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
-      JSON.stringify({
-        view: {
-          scope: {
-            kind: "group",
-            group: {
-              groupingKey: "builtin:sections",
-              groupId: "section-a",
-            },
-          },
-          groupingKey: "plugin:thread-stages:stages",
-        },
-        collapsed: [],
-      }),
-    );
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options({
-      sidebarThreads: {
-        projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
-        ],
-        threads: [
-          thread({ id: "thread-a", title: "Design migration" }),
-          thread({
-            id: "thread-b",
-            title: "Ship UI",
-            sectionId: "section-b",
-          }),
-          thread({
-            id: "thread-b-child",
-            title: "Opened child",
-            parentThreadId: "thread-b",
-            sectionId: null,
-          }),
-        ],
-      },
-    });
-    fixture.value.rpc.listPlacementsV1 = vi.fn(async (raw: unknown) => {
-      const { groupingKey, threadIds } = raw as {
-        groupingKey: string;
-        threadIds?: string[];
-      };
-      const ids = (threadIds ?? ["thread-a", "thread-b"]).filter((id) =>
-        ["thread-a", "thread-b"].includes(id),
-      );
-      return {
-        ok: true as const,
-        value: {
-          groupingKey,
-          revision: 1,
-          items: ids.map((threadId) => ({
-            groupingKey,
-            groupId:
-              groupingKey === "builtin:sections"
-                ? threadId === "thread-b"
-                  ? "section-b"
-                  : "section-a"
-                : "Idle",
-            threadId,
-            enteredAtMs: groupingKey.startsWith("plugin:") ? 1 : null,
-            ...(groupingKey.startsWith("plugin:")
-              ? { origin: "auto" as const }
-              : {}),
-          })),
-        },
-      };
-    });
-    const slot = renderSlot(
-      app.threadLists[0]!,
-      { ...props, activeThreadId: "thread-b-child" },
-      fixture.value,
-    );
-
-    expect(await slot.findByRole("button", { name: "Roadmap, filtered" })).toBeTruthy();
-    expect(await slot.findByText("Ship UI")).toBeTruthy();
-    expect(await slot.findByText("Opened child")).toBeTruthy();
-    expect(
-      slot.container.querySelector<HTMLElement>("[data-ribbon-sidebar-root]")
-        ?.dataset,
-    ).toMatchObject({
-      ribbonSidebarScopeGroupingKey: "builtin:sections",
-      ribbonSidebarScopeGroupId: "section-b",
-    });
-
-    fireEvent.keyDown(
-      slot.getByRole("button", { name: "Roadmap, filtered" }),
-      { key: "Enter" },
-    );
-    fireEvent.click(await slot.findByText("Release"));
-    expect(await slot.findByRole("button", { name: "Release, filtered" })).toBeTruthy();
-    expect(await slot.findByText("Design migration")).toBeTruthy();
-    expect(
-      slot.container.querySelector<HTMLElement>("[data-ribbon-sidebar-root]")
-        ?.dataset,
-    ).toMatchObject({
-      ribbonSidebarScopeGroupingKey: "builtin:sections",
-      ribbonSidebarScopeGroupId: "section-a",
-    });
-    slot.lifecycle.unmount();
-  });
-
   it("previews only the opened thread inside a collapsed stage", async () => {
     window.localStorage.setItem(
       "bb.plugin.ribbon-sidebar.preferences.v1",
       JSON.stringify({
         view: {
           scope: { kind: "all" },
-          groupingKey: "plugin:thread-stages:stages",
+          groupingKey: "builtin:sections",
         },
-        collapsed: ["plugin:thread-stages:stages/Idle"],
+        collapsed: ["builtin:sections/section-a"],
       }),
     );
     const app = await loadPluginApp(() => import("./app"));
@@ -1777,11 +1333,11 @@ describe("Ribbon sidebar app", () => {
     fixture.value.rpc.listPlacementsV1 = vi.fn(async () => ({
       ok: true as const,
       value: {
-        groupingKey: "plugin:thread-stages:stages",
+        groupingKey: "builtin:sections",
         revision: 1,
         items: ["thread-a", "thread-b"].map((threadId) => ({
-          groupingKey: "plugin:thread-stages:stages",
-          groupId: "Idle",
+          groupingKey: "builtin:sections",
+          groupId: "section-a",
           threadId,
           enteredAtMs: 1,
           origin: "auto" as const,
@@ -1798,9 +1354,9 @@ describe("Ribbon sidebar app", () => {
     expect(slot.queryByText("thread-child")).toBeNull();
     expect(slot.queryByText("Ship UI")).toBeNull();
     expect(
-      slot.getByRole("button", { name: "Expand Idle section" }).getAttribute(
-        "aria-expanded",
-      ),
+      slot
+        .getByRole("button", { name: "Expand Release section" })
+        .getAttribute("aria-expanded"),
     ).toBe("false");
     slot.lifecycle.unmount();
   });
@@ -1820,7 +1376,13 @@ describe("Ribbon sidebar app", () => {
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
+          {
+            id: "project-a",
+            name: "Storefront",
+            isPersonal: false,
+            href: "/projects/project-a",
+            settingsHref: "/projects/project-a/settings",
+          },
         ],
         threads: [
           thread({
@@ -1846,9 +1408,9 @@ describe("Ribbon sidebar app", () => {
     expect(await slot.findByText("Opened pinned thread")).toBeTruthy();
     expect(slot.queryByText("Other pinned thread")).toBeNull();
     expect(
-      slot.getByRole("button", { name: "Expand Pinned section" }).getAttribute(
-        "aria-expanded",
-      ),
+      slot
+        .getByRole("button", { name: "Expand Pinned section" })
+        .getAttribute("aria-expanded"),
     ).toBe("false");
     slot.lifecycle.unmount();
   });
@@ -1867,7 +1429,7 @@ describe("Ribbon sidebar app", () => {
           },
           groupingKey: "plugin:thread-stages:stages",
         },
-        collapsed: ["plugin:thread-stages:stages/Active"],
+        collapsed: ["builtin:sections/section-b"],
       }),
     );
     const app = await loadPluginApp(() => import("./app"));
@@ -1914,9 +1476,9 @@ describe("Ribbon sidebar app", () => {
 
     expect(await slot.findByText("Ship UI")).toBeTruthy();
     expect(
-      slot.getByRole("button", { name: "Collapse Active section" }).getAttribute(
-        "aria-expanded",
-      ),
+      slot
+        .getByRole("button", { name: "Collapse Roadmap section" })
+        .getAttribute("aria-expanded"),
     ).toBe("true");
     expect(slot.queryByText("Design migration")).toBeNull();
     slot.lifecycle.unmount();
@@ -1929,19 +1491,19 @@ describe("Ribbon sidebar app", () => {
     fixture.value.rpc.listPlacementsV1 = vi.fn(async () => ({
       ok: true as const,
       value: {
-        groupingKey: "plugin:thread-stages:stages",
+        groupingKey: "builtin:sections",
         revision: 1,
         items: [
           {
-            groupingKey: "plugin:thread-stages:stages",
-            groupId: "Idle",
+            groupingKey: "builtin:sections",
+            groupId: "section-a",
             threadId: "thread-b",
             enteredAtMs: 1,
             origin: "ui" as const,
           },
           {
-            groupingKey: "plugin:thread-stages:stages",
-            groupId: "Idle",
+            groupingKey: "builtin:sections",
+            groupId: "section-a",
             threadId: "thread-a",
             enteredAtMs: 1,
             origin: "ui" as const,
@@ -1952,7 +1514,7 @@ describe("Ribbon sidebar app", () => {
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
 
     await slot.findByText("Design migration");
-    const idleGroup = slot.getByRole("region", { name: "Idle group" });
+    const idleGroup = slot.getByRole("region", { name: "Release group" });
     const renderedRoots = Array.from(
       idleGroup.querySelectorAll<HTMLElement>("[data-thread-id]"),
     )
@@ -1999,659 +1561,6 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
-  it("expands the filtered grouping in the Groups menu", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-
-    fireEvent.keyDown(
-      slot.getByRole("button", { name: /^All groups, Pages by/u }),
-      { key: "Enter" },
-    );
-    expect(await slot.findByRole("menuitemradio", {
-      name: "All groups",
-    })).toBeTruthy();
-    fireEvent.click(await slot.findByRole("menuitemradio", { name: /Release/u }));
-    expect(await slot.findByRole("button", { name: "Release, filtered" }))
-      .toBeTruthy();
-
-    fireEvent.keyDown(slot.getByRole("button", { name: "Release, filtered" }), {
-      key: "Enter",
-    });
-    const allGroups = await slot.findByRole("menuitemradio", {
-      name: "All groups",
-    });
-    expect(allGroups).toBeTruthy();
-    expect(slot.queryByRole("menuitem", { name: "Group by section" })).toBeNull();
-    const projects = slot.getByRole("menuitem", { name: "Projects" });
-    const stages = slot.getByRole("menuitem", { name: "Stages" });
-    const release = slot.getByRole("menuitemradio", { name: /Release/u });
-    const newSection = slot.getByRole("menuitem", { name: "New section" });
-    expect(
-      release.compareDocumentPosition(allGroups) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      allGroups.compareDocumentPosition(projects) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      projects.compareDocumentPosition(stages) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(newSection.parentElement?.nextElementSibling?.getAttribute("role"))
-      .toBe("separator");
-    expect(slot.getByRole("menuitemradio", { name: /Release/u })).toBeTruthy();
-    slot.lifecycle.unmount();
-  });
-
-  it("expands the remembered filter grouping when All groups is selected", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-
-    fireEvent.keyDown(slot.getByRole("button", { name: /^All groups, Pages by/u }), {
-      key: "Enter",
-    });
-
-    const allGroups = await slot.findByRole("menuitemradio", {
-      name: "All groups",
-    });
-    const release = slot.getByRole("menuitemradio", { name: /Release/u });
-    const unorganized = slot.getByRole("menuitemradio", {
-      name: "Unorganized",
-    });
-    const newSection = slot.getByRole("menuitem", { name: "New section" });
-    const projects = slot.getByRole("menuitem", { name: "Projects" });
-    const stages = slot.getByRole("menuitem", { name: "Stages" });
-    expect(allGroups.getAttribute("aria-checked")).toBe("true");
-    expect(release.parentElement).toBe(unorganized.parentElement);
-    expect(release.parentElement?.nextElementSibling).toBe(newSection);
-    expect(
-      newSection.compareDocumentPosition(projects) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      projects.compareDocumentPosition(stages) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(slot.queryByText(/Group by/u)).toBeNull();
-    slot.lifecycle.unmount();
-  });
-
-  it("remembers a different filter grouping after returning to All groups", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-
-    fireEvent.keyDown(slot.getByRole("button", { name: /^All groups, Pages by/u }), {
-      key: "Enter",
-    });
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Projects" }), {
-      key: "ArrowRight",
-    });
-    fireEvent.click(
-      await slot.findByRole("menuitemradio", { name: /Storefront/u }),
-    );
-    fireEvent.keyDown(
-      await slot.findByRole("button", { name: "Storefront, filtered" }),
-      { key: "Enter" },
-    );
-    fireEvent.click(
-      await slot.findByRole("menuitemradio", { name: "All groups" }),
-    );
-    fireEvent.keyDown(await slot.findByRole("button", { name: /^All groups, Pages by/u }), {
-      key: "Enter",
-    });
-
-    const storefront = await slot.findByRole("menuitemradio", {
-      name: /Storefront/u,
-    });
-    const newProject = slot.getByRole("menuitem", { name: "New project" });
-    expect(storefront.parentElement?.nextElementSibling).toBe(newProject);
-    expect(slot.getByRole("menuitem", { name: "Sections" })).toBeTruthy();
-    expect(slot.getByRole("menuitem", { name: "Stages" })).toBeTruthy();
-    slot.lifecycle.unmount();
-  });
-
-  it("keeps the selected display grouping until No grouping is chosen", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-
-    const idle = slot.getByRole("region", { name: "Idle group" });
-    fireEvent.keyDown(within(idle).getByRole("button", { name: "Idle options" }), {
-      key: "Enter",
-    });
-    const groupBy = slot.getByRole("menuitem", { name: "Group by" });
-    expect(slot.queryByRole("separator")).toBeNull();
-    groupBy.focus();
-    fireEvent.pointerMove(groupBy);
-    fireEvent.keyDown(groupBy, {
-      key: "ArrowRight",
-    });
-    const checked = await slot.findByRole("menuitemcheckbox", {
-      name: "Stages",
-    });
-    expect(checked.getAttribute("aria-checked")).toBe("true");
-    fireEvent.click(checked);
-
-    expect(
-      await slot.findByRole("region", { name: "Idle group" }),
-    ).toBeTruthy();
-    expect(
-      slot.queryByRole("region", { name: "Threads group" }),
-    ).toBeNull();
-
-    fireEvent.keyDown(within(idle).getByRole("button", { name: "Idle options" }), {
-      key: "Enter",
-    });
-    const reopenedGroupBy = slot.getByRole("menuitem", { name: "Group by" });
-    reopenedGroupBy.focus();
-    fireEvent.keyDown(reopenedGroupBy, { key: "ArrowRight" });
-    const noGrouping = await slot.findByRole("menuitemcheckbox", {
-      name: "No grouping",
-    });
-    expect(noGrouping.getAttribute("aria-checked")).toBe("false");
-    fireEvent.click(noGrouping);
-
-    const threads = await slot.findByRole("region", {
-      name: "Threads group",
-    });
-    expect(slot.getByText("Design migration")).toBeTruthy();
-    expect(
-      (
-        slot
-          .getByText("Design migration")
-          .closest("[data-thread-id]") as HTMLElement
-      ).draggable,
-    ).toBe(false);
-    fireEvent.keyDown(
-      within(threads).getByRole("button", { name: "Threads options" }),
-      { key: "Enter" },
-    );
-    const flatGroupBy = slot.getByRole("menuitem", { name: "Group by" });
-    flatGroupBy.focus();
-    fireEvent.keyDown(flatGroupBy, {
-      key: "ArrowRight",
-    });
-    expect(
-      (await slot.findByRole("menuitemcheckbox", { name: "Stages" }))
-        .getAttribute("aria-checked"),
-    ).toBe("false");
-    expect(
-      (await slot.findByRole("menuitemcheckbox", { name: "No grouping" }))
-        .getAttribute("aria-checked"),
-    ).toBe("true");
-    slot.lifecycle.unmount();
-  });
-
-  it("shows Threads and changes grouping from the group header menu", async () => {
-    window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
-      JSON.stringify({
-        view: {
-          scope: { kind: "all" },
-          groupingKey: null,
-          filterGroupingKey: "builtin:sections",
-        },
-        collapsed: [],
-      }),
-    );
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-
-    const threads = await slot.findByRole("region", {
-      name: "Threads group",
-    });
-    fireEvent.keyDown(
-      within(threads).getByRole("button", { name: "Threads options" }),
-      { key: "Enter" },
-    );
-    const groupBy = await slot.findByRole("menuitem", { name: "Group by" });
-    groupBy.focus();
-    fireEvent.keyDown(groupBy, {
-      key: "ArrowRight",
-    });
-    const sections = await slot.findByRole("menuitemcheckbox", {
-      name: "Sections",
-    });
-    expect(sections.getAttribute("aria-checked")).toBe("false");
-    fireEvent.click(sections);
-
-    expect(
-      await slot.findByRole("region", { name: "Release group" }),
-    ).toBeTruthy();
-    slot.lifecycle.unmount();
-  });
-
-  it("inlines entity actions after Group by only for actionable groups", async () => {
-    window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
-      JSON.stringify({
-        view: {
-          scope: { kind: "all" },
-          groupingKey: "builtin:sections",
-          filterGroupingKey: "builtin:sections",
-        },
-        collapsed: [],
-      }),
-    );
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-
-    const release = await slot.findByRole("region", { name: "Release group" });
-    fireEvent.keyDown(
-      within(release).getByRole("button", { name: "Release options" }),
-      { key: "Enter" },
-    );
-    const groupBy = await slot.findByRole("menuitem", { name: "Group by" });
-    const rename = slot.getByRole("menuitem", { name: "Rename" });
-    const remove = slot.getByRole("menuitem", { name: "Remove" });
-    expect(groupBy.nextElementSibling?.getAttribute("role")).toBe("separator");
-    expect(groupBy.nextElementSibling?.nextElementSibling).toBe(rename);
-    expect(rename.nextElementSibling).toBe(remove);
-    fireEvent.keyDown(groupBy, { key: "Escape" });
-
-    const unorganized = slot.getByRole("region", {
-      name: "Unorganized group",
-    });
-    fireEvent.keyDown(
-      within(unorganized).getByRole("button", { name: "Unorganized options" }),
-      { key: "Enter" },
-    );
-    expect(await slot.findByRole("menuitem", { name: "Group by" })).toBeTruthy();
-    expect(slot.queryByRole("menuitem", { name: "Rename" })).toBeNull();
-    expect(slot.queryByRole("separator")).toBeNull();
-    slot.lifecycle.unmount();
-  });
-
-  it("keeps Group by out of Groups and places New directly after its rows", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-
-    fireEvent.keyDown(slot.getByRole("button", { name: /^All groups, Pages by/u }), {
-      key: "Enter",
-    });
-    const sectionRows = slot.getByRole("menuitemradio", { name: /Release/u })
-      .parentElement;
-    expect(sectionRows?.nextElementSibling).toBe(
-      slot.getByRole("menuitem", { name: "New section" }),
-    );
-    expect(slot.queryByText("Group by")).toBeNull();
-
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Projects" }), {
-      key: "ArrowRight",
-    });
-    const projectRows = (await slot.findByRole("menuitemradio", {
-      name: /Storefront/u,
-    })).parentElement;
-    expect(projectRows?.nextElementSibling).toBe(
-      slot.getByRole("menuitem", { name: "New project" }),
-    );
-    expect(slot.queryByText("Group by")).toBeNull();
-    slot.lifecycle.unmount();
-  });
-
-  it("clears grouping when a filter selects the same dimension", async () => {
-    window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
-      JSON.stringify({
-        view: { scope: { kind: "all" }, groupingKey: "builtin:sections" },
-        collapsed: [],
-      }),
-    );
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    fixture.synchronizeV1.mockResolvedValue({
-      groupings: [
-        snapshot.groupings[1]!,
-        snapshot.groupings[0]!,
-        snapshot.groupings[2]!,
-      ],
-    });
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-
-    fireEvent.keyDown(slot.getByRole("button", { name: /^All groups, Pages by/u }), {
-      key: "Enter",
-    });
-    fireEvent.click(slot.getByRole("menuitemradio", { name: /Release/u }));
-
-    await waitFor(() =>
-      expect(slot.queryByRole("region", { name: "Release group" })).toBeNull(),
-    );
-    expect(slot.getByText("Design migration")).toBeTruthy();
-    expect(slot.queryByText("Ship UI")).toBeNull();
-    expect(
-      JSON.parse(
-        window.localStorage.getItem(
-          "bb.plugin.ribbon-sidebar.preferences.v1",
-        ) ?? "null",
-      ).view,
-    ).toEqual({
-      scope: {
-        kind: "group",
-        group: { groupingKey: "builtin:sections", groupId: "section-a" },
-      },
-      groupingKey: null,
-      filterGroupingKey: "builtin:sections",
-      iconGroupingKey: "builtin:projects",
-      pullRequestNumberPosition: "right",
-      hide: {
-        notArchived: false,
-        archived: true,
-        visible: false,
-        hidden: true,
-      },
-      sort: "updated",
-    });
-    fireEvent.keyDown(
-      slot.getByRole("button", { name: "Release, filtered" }),
-      { key: "Enter" },
-    );
-    expect(slot.queryByText("Group by")).toBeNull();
-    const newSection = slot.getByRole("menuitem", { name: "New section" });
-    expect(newSection.previousElementSibling?.getAttribute("role")).toBe(
-      "group",
-    );
-    slot.lifecycle.unmount();
-  });
-
-  it("hides pinned threads outside the active group filter", async () => {
-    window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
-      JSON.stringify({
-        view: {
-          scope: {
-            kind: "group",
-            group: {
-              groupingKey: "builtin:sections",
-              groupId: "section-a",
-            },
-          },
-          groupingKey: null,
-          filterGroupingKey: "builtin:sections",
-        },
-        collapsed: [],
-      }),
-    );
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options({
-      sidebarThreads: {
-        projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
-        ],
-        threads: [
-          thread({ id: "thread-a", title: "Release thread" }),
-          thread({ id: "thread-b", title: "Roadmap pin", isPinned: true }),
-        ],
-      },
-    });
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-
-    expect(await slot.findByText("Release thread")).toBeTruthy();
-    expect(slot.queryByText("Roadmap pin")).toBeNull();
-    slot.lifecycle.unmount();
-  });
-
-  it("puts Chats last in project groups directly before New project", async () => {
-    window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
-      JSON.stringify({
-        view: { scope: { kind: "all" }, groupingKey: "builtin:projects" },
-        collapsed: [],
-      }),
-    );
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options({
-      sidebarThreads: {
-        projects: [
-          { id: "project-personal", name: "Personal", isPersonal: true },
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
-        ],
-        threads: [
-          thread({ id: "thread-a", title: "Store thread" }),
-          thread({
-            id: "thread-b",
-            projectId: "project-personal",
-            title: "Personal thread",
-          }),
-        ],
-      },
-    });
-    fixture.synchronizeV1.mockResolvedValue({
-      ...snapshot,
-      groupings: snapshot.groupings.map((grouping) =>
-        grouping.groupingKey === "builtin:projects"
-          ? {
-              ...grouping,
-              groups: [
-                ...grouping.groups,
-                {
-                  id: "project-personal",
-                  label: "Chats",
-                  visibleWhenEmpty: true,
-                  acceptsAssignments: true,
-                  defaultCollapsed: false,
-                },
-              ],
-            }
-          : grouping,
-      ),
-    });
-    fixture.listPlacementsV1.mockImplementation(async (raw: unknown) => {
-      const { groupingKey } = raw as { groupingKey: string };
-      return {
-        ok: true as const,
-        value: {
-          groupingKey,
-          revision: 1,
-          items: [
-            { groupingKey, groupId: "project-a", threadId: "thread-a", enteredAtMs: null },
-            { groupingKey, groupId: "project-personal", threadId: "thread-b", enteredAtMs: null },
-          ],
-        },
-      };
-    });
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Personal thread");
-
-    const regions = slot.getAllByRole("region").filter((region) =>
-      /group$/u.test(region.getAttribute("aria-label") ?? ""),
-    );
-    expect(regions.map((region) => region.getAttribute("aria-label"))).toEqual([
-      "Storefront group",
-      "Chats group",
-    ]);
-
-    fireEvent.keyDown(
-      within(regions[0]!).getByRole("button", { name: "Storefront options" }),
-      { key: "Enter" },
-    );
-    const projectGroupBy = await slot.findByRole("menuitem", {
-      name: "Group by",
-    });
-    expect(slot.getByRole("menuitem", { name: "Project settings" })).toBeTruthy();
-    expect(slot.getByRole("menuitem", { name: "Rename" })).toBeTruthy();
-    expect(slot.getByRole("menuitem", { name: "Remove" })).toBeTruthy();
-    expect(projectGroupBy.nextElementSibling?.getAttribute("role")).toBe(
-      "separator",
-    );
-    fireEvent.keyDown(projectGroupBy, { key: "Escape" });
-    await waitFor(() =>
-      expect(slot.queryByRole("menuitem", { name: "Group by" })).toBeNull(),
-    );
-
-    fireEvent.keyDown(
-      within(regions[1]!).getByRole("button", { name: "Chats options" }),
-      { key: "Enter" },
-    );
-    const threadsGroupBy = await slot.findByRole("menuitem", {
-      name: "Group by",
-    });
-    expect(slot.queryByRole("menuitem", { name: "Project settings" })).toBeNull();
-    expect(slot.queryByRole("menuitem", { name: "Rename" })).toBeNull();
-    expect(slot.queryByRole("separator")).toBeNull();
-    fireEvent.keyDown(threadsGroupBy, { key: "Escape" });
-    await waitFor(() =>
-      expect(slot.queryByRole("menuitem", { name: "Group by" })).toBeNull(),
-    );
-
-    fireEvent.keyDown(slot.getByRole("button", { name: /^All groups, Pages by/u }), {
-      key: "Enter",
-    });
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Projects" }), {
-      key: "ArrowRight",
-    });
-    const chats = await slot.findByRole("menuitemradio", { name: "Chats" });
-    const newProject = await slot.findByRole("menuitem", {
-      name: "New project",
-    });
-    expect(chats.parentElement?.lastElementChild).toBe(chats);
-    expect(chats.parentElement?.nextElementSibling).toBe(newProject);
-    slot.lifecycle.unmount();
-  });
-
-  it("filters from Groups and changes grouping from a group header", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-
-    fireEvent.click(slot.getByText("Idle"));
-    expect(
-      slot.getByRole("button", { name: /^All groups, Pages by/u }),
-    ).toBeTruthy();
-    expect(slot.queryByRole("button", { name: /Group by/u })).toBeNull();
-
-    fireEvent.keyDown(slot.getByRole("button", { name: /^All groups, Pages by/u }), {
-      key: "Enter",
-    });
-    expect(await slot.findByRole("menuitemradio", { name: "All groups" }))
-      .toBeTruthy();
-    expect(
-      slot.getByRole("menuitem", { name: "Projects" }).querySelectorAll("svg"),
-    ).toHaveLength(2);
-    expect(
-      slot
-        .getByRole("menuitem", { name: "Stages" })
-        .querySelector('path[d="M8 5v14l11-7z"]'),
-    ).toBeTruthy();
-    expect(
-      (await slot.findByRole("menuitemradio", { name: "Unorganized" }))
-        .querySelector('[data-icon="ListViewOff"]'),
-    ).toBeTruthy();
-    expect(slot.queryByText("Group by")).toBeNull();
-    fireEvent.keyDown(slot.getByRole("menuitemradio", { name: "All groups" }), {
-      key: "Escape",
-    });
-
-    const idle = slot.getByRole("region", { name: "Idle group" });
-    fireEvent.keyDown(within(idle).getByRole("button", { name: "Idle options" }), {
-      key: "Enter",
-    });
-    const groupBy = await slot.findByRole("menuitem", { name: "Group by" });
-    groupBy.focus();
-    fireEvent.keyDown(groupBy, {
-      key: "ArrowRight",
-    });
-    fireEvent.click(await slot.findByRole("menuitemcheckbox", { name: "Sections" }));
-
-    expect(
-      await slot.findByRole("region", { name: "Release group" }),
-    ).toBeTruthy();
-    expect(slot.getByRole("button", { name: /^All groups, Pages by/u })).toBeTruthy();
-    slot.lifecycle.unmount();
-  });
-
-  it("preserves hidden group management UI", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-
-    const management = slot.getByRole("button", {
-      name: /^All groups, Pages by/u,
-    });
-    expect(slot.getByRole("button", {
-      name: "Sidebar display options",
-    })).toBeTruthy();
-    expect(slot.queryByRole("button", { name: "New section" })).toBeNull();
-    expect(slot.queryByRole("button", { name: "New project" })).toBeNull();
-
-    fireEvent.keyDown(management, { key: "Enter" });
-    expect(
-      await slot.findByRole("menuitemradio", {
-        name: "All groups",
-      }),
-    ).toBeTruthy();
-    expect(slot.getByRole("menuitem", { name: "New section" })).toBeTruthy();
-    const section = await slot.findByRole("menuitemradio", { name: /Release/u });
-    expect(section.querySelector("svg")).toBeTruthy();
-    fireEvent.click(section);
-    fireEvent.keyDown(
-      slot.getByRole("button", { name: "Release, filtered" }),
-      { key: "Enter" },
-    );
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Projects" }), {
-      key: "ArrowRight",
-    });
-    const project = await slot.findByRole("menuitemradio", { name: /Storefront/u });
-    expect(project.querySelector("svg")).toBeTruthy();
-    slot.lifecycle.unmount();
-  });
-
-  it("honors Ribbon settings without hiding nonempty orphan groups", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options({
-      settings: {
-        showProjectsAndSections: false,
-        showMessagePreviews: false,
-        showCollapsedGroupIndicators: true,
-        showGroupHeaderIcons: true,
-      },
-    });
-    fixture.value.rpc.listPlacementsV1 = vi.fn(async () => ({
-      ok: true as const,
-      value: {
-        groupingKey: "plugin:thread-stages:stages",
-        revision: 1,
-        items: [
-          {
-            groupingKey: "plugin:thread-stages:stages",
-            groupId: "Removed",
-            threadId: "thread-a",
-            enteredAtMs: 1,
-            origin: "auto" as const,
-          },
-        ],
-      },
-    }));
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-    expect(slot.getByText("Removed (unavailable)")).toBeTruthy();
-    expect(
-      slot.getByRole("button", { name: "Collapse Idle section" }),
-    ).toBeTruthy();
-    expect(
-      slot.queryByRole("button", { name: /^All groups, Pages by/u }),
-    ).toBeNull();
-    expect(slot.queryByRole("button", { name: /Group by/u })).toBeNull();
-    expect(slot.queryByText("A useful preview")).toBeNull();
-    slot.lifecycle.unmount();
-  });
-
   it("retains Thread stages activity in a collapsed stage", async () => {
     window.localStorage.setItem(
       "bb.plugin.ribbon-sidebar.preferences.v1",
@@ -2660,14 +1569,21 @@ describe("Ribbon sidebar app", () => {
           scope: { kind: "all" },
           groupingKey: "plugin:thread-stages:stages",
         },
-        collapsed: ["plugin:thread-stages:stages/Idle"],
+        collapsed: ["builtin:sections/section-a"],
       }),
     );
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({
+      settings: { showCollapsedGroupIndicators: true },
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
+          {
+            id: "project-a",
+            name: "Storefront",
+            isPersonal: false,
+            href: "/projects/project-a",
+            settingsHref: "/projects/project-a/settings",
+          },
         ],
         threads: [
           thread({
@@ -2702,14 +1618,20 @@ describe("Ribbon sidebar app", () => {
           scope: { kind: "all" },
           groupingKey: "plugin:thread-stages:stages",
         },
-        collapsed: ["plugin:thread-stages:stages/Idle"],
+        collapsed: ["builtin:sections/section-a"],
       }),
     );
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({
       sidebarThreads: {
         projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
+          {
+            id: "project-a",
+            name: "Storefront",
+            isPersonal: false,
+            href: "/projects/project-a",
+            settingsHref: "/projects/project-a/settings",
+          },
         ],
         threads: [
           thread({
@@ -2746,13 +1668,13 @@ describe("Ribbon sidebar app", () => {
     // jsdom paints nothing, so only the name a row writes is readable here.
     expect(
       slot
-        .getByText("Release")
+        .getByRole("menuitem", { name: "Release" })
         .closest('[role="menuitem"]')
         ?.querySelector('[data-ribbon-icons-section="section-a"]'),
     ).not.toBeNull();
     expect(
       slot
-        .getByText("Unorganized")
+        .getByRole("menuitem", { name: "Unorganized" })
         .closest('[role="menuitem"]')
         ?.querySelector('[data-icon="ListViewOff"]'),
     ).toBeTruthy();
@@ -2765,20 +1687,11 @@ describe("Ribbon sidebar app", () => {
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Design migration");
 
-    const idle = slot.getByRole("region", { name: "Idle group" });
-    fireEvent.keyDown(within(idle).getByRole("button", { name: "Idle options" }), {
-      key: "Enter",
-    });
-    fireEvent.keyDown(await slot.findByRole("menuitem", { name: "Group by" }), {
-      key: "ArrowRight",
-    });
-    fireEvent.click(
-      await slot.findByRole("menuitemcheckbox", { name: "Sections" }),
-    );
-
-    const releaseHeader = (await slot.findByRole("region", {
-      name: "Release group",
-    })).querySelector('[data-sidebar="group-label"]')!;
+    const releaseHeader = (
+      await slot.findByRole("region", {
+        name: "Release group",
+      })
+    ).querySelector('[data-sidebar="group-label"]')!;
     await waitFor(() =>
       expect(
         releaseHeader.querySelector('[data-ribbon-icons-section="section-a"]'),
@@ -2812,9 +1725,11 @@ describe("Ribbon sidebar app", () => {
       props,
       hiddenFixture.value,
     );
-    const hiddenHeader = (await hiddenSlot.findByRole("region", {
-      name: "Release group",
-    })).querySelector('[data-sidebar="group-label"]')!;
+    const hiddenHeader = (
+      await hiddenSlot.findByRole("region", {
+        name: "Release group",
+      })
+    ).querySelector('[data-sidebar="group-label"]')!;
     expect(
       hiddenHeader.querySelector('[data-ribbon-icons-section="section-a"]'),
     ).toBeNull();
@@ -2835,7 +1750,7 @@ describe("Ribbon sidebar app", () => {
       { key: "Enter" },
     );
     fireEvent.click(await slot.findByText("Move to section"));
-    fireEvent.click(slot.getByText("Roadmap"));
+    fireEvent.click(slot.getByRole("menuitem", { name: "Roadmap" }));
 
     await waitFor(() =>
       expect(fixture.updatePlacementV1).toHaveBeenCalledWith({
@@ -2852,237 +1767,60 @@ describe("Ribbon sidebar app", () => {
   it.each([
     ["Active", "preserve"],
     ["Completed", "start"],
-  ])("moves to %s from any thread menu with the group's placement policy", async (stage, anchor) => {
-    window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
-      JSON.stringify({
-        view: { scope: { kind: "all" }, groupingKey: "builtin:projects" },
-        collapsed: [],
-      }),
-    );
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const menuSnapshot = structuredClone(snapshot);
-    menuSnapshot.groupings.find(({ groupingKey }) => groupingKey === "plugin:thread-stages:stages")!.groups.push({
-      id: "Completed",
-      label: "Completed",
-      visibleWhenEmpty: true,
-      acceptsAssignments: true,
-      defaultCollapsed: true,
-      defaultPlacement: "start",
-    });
-    fixture.synchronizeV1.mockResolvedValue(menuSnapshot);
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
+  ])(
+    "moves to %s from any thread menu with the group's placement policy",
+    async (stage, anchor) => {
+      window.localStorage.setItem(
+        "bb.plugin.ribbon-sidebar.preferences.v1",
+        JSON.stringify({
+          view: { scope: { kind: "all" }, groupingKey: "builtin:projects" },
+          collapsed: [],
+        }),
+      );
+      const app = await loadPluginApp(() => import("./app"));
+      const fixture = options();
+      const menuSnapshot = structuredClone(snapshot);
+      menuSnapshot.groupings
+        .find(
+          ({ groupingKey }) => groupingKey === "plugin:thread-stages:stages",
+        )!
+        .groups.push({
+          id: "Completed",
+          label: "Completed",
+          visibleWhenEmpty: true,
+          acceptsAssignments: true,
+          defaultCollapsed: true,
+          defaultPlacement: "start",
+        });
+      fixture.synchronizeV1.mockResolvedValue(menuSnapshot);
+      const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+      await slot.findByText("Design migration");
 
-    fireEvent.keyDown(
-      slot
-        .getByText("Design migration")
-        .closest("[data-thread-id]")!
-        .querySelector('[aria-label="Thread actions"]')!,
-      { key: "Enter" },
-    );
-    expect(await slot.findByText("Move to section")).toBeTruthy();
-    expect(slot.getByText("Move to stage")).toBeTruthy();
-    expect(slot.queryByText("Move to project")).toBeNull();
-    fireEvent.click(slot.getByText("Move to stage"));
-    fireEvent.click(await slot.findByText(stage));
+      fireEvent.keyDown(
+        slot
+          .getByText("Design migration")
+          .closest("[data-thread-id]")!
+          .querySelector('[aria-label="Thread actions"]')!,
+        { key: "Enter" },
+      );
+      expect(await slot.findByText("Move to section")).toBeTruthy();
+      expect(slot.getByText("Move to stage")).toBeTruthy();
+      expect(slot.queryByText("Move to project")).toBeNull();
+      fireEvent.click(slot.getByText("Move to stage"));
+      fireEvent.click(await slot.findByText(stage));
 
-    await waitFor(() =>
-      expect(fixture.updatePlacementV1).toHaveBeenCalledWith({
-        groupingKey: "plugin:thread-stages:stages",
-        groupId: stage,
-        threadId: "thread-a",
-        anchor: { kind: anchor },
-        origin: "ui",
-      }),
-    );
-    slot.lifecycle.unmount();
-  });
-
-  it("keeps project and section creation plus scoped entity actions", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-
-    const management = slot.getByRole("button", {
-      name: /^All groups, Pages by/u,
-    });
-    fireEvent.keyDown(management, { key: "Enter" });
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Projects" }), {
-      key: "ArrowRight",
-    });
-    fireEvent.click(await slot.findByRole("menuitem", { name: "New project" }));
-    await waitFor(() => expect(fixture.createProjectV1).toHaveBeenCalled());
-
-    fireEvent.keyDown(management, { key: "Enter" });
-    fireEvent.click(await slot.findByRole("menuitem", { name: "New section" }));
-    expect(await slot.findByText("Create a section for threads.")).toBeTruthy();
-    const createName = await slot.findByRole("textbox", {
-      name: "Section name",
-    });
-    expect(document.activeElement).toBe(createName);
-    fireEvent.change(createName, { target: { value: "Roadmap" } });
-    fireEvent.click(slot.getByRole("button", { name: "Create section" }));
-    await waitFor(() =>
-      expect(fixture.createSectionV1).toHaveBeenCalledWith({ name: "Roadmap" }),
-    );
-
-    fireEvent.keyDown(management, { key: "Enter" });
-    fireEvent.contextMenu(
-      await slot.findByRole("menuitemradio", { name: /Release/u }),
-    );
-    fireEvent.click(await slot.findByText("Rename"));
-    const renameName = await slot.findByRole("textbox", { name: "New name" });
-    fireEvent.change(renameName, { target: { value: "Roadmap" } });
-    fireEvent.click(slot.getByRole("button", { name: "Rename" }));
-    await waitFor(() =>
-      expect(fixture.renameEntityV1).toHaveBeenCalledWith({
-        groupingKey: "builtin:sections",
-        id: "section-a",
-        name: "Roadmap",
-      }),
-    );
-
-    fireEvent.keyDown(management, { key: "Enter" });
-    fireEvent.contextMenu(
-      await slot.findByRole("menuitemradio", { name: /Release/u }),
-    );
-    fireEvent.click(await slot.findByText("Remove"));
-    expect(await slot.findByText("Delete Release?")).toBeTruthy();
-    fireEvent.click(slot.getByRole("button", { name: "Delete" }));
-    await waitFor(() =>
-      expect(fixture.deleteEntityV1).toHaveBeenCalledWith({
-        groupingKey: "builtin:sections",
-        id: "section-a",
-      }),
-    );
-    slot.lifecycle.unmount();
-  });
-
-  it("retains project settings and local-path actions for a scoped project", async () => {
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-
-    const management = slot.getByRole("button", {
-      name: /^All groups, Pages by/u,
-    });
-    fireEvent.keyDown(management, { key: "Enter" });
-    fireEvent.keyDown(slot.getByRole("menuitem", { name: "Projects" }), {
-      key: "ArrowRight",
-    });
-    fireEvent.contextMenu(
-      await slot.findByRole("menuitemradio", { name: /Storefront/u }),
-    );
-    expect(await slot.findByText("Project settings")).toBeTruthy();
-    fireEvent.click(slot.getByText("Add local path"));
-    await waitFor(() =>
-      expect(fixture.addProjectLocalPathV1).toHaveBeenCalledWith({
-        projectId: "project-a",
-      }),
-    );
-    slot.lifecycle.unmount();
-  });
-
-  it("keeps a cached unavailable provider selected for recovery", async () => {
-    window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
-      JSON.stringify({
-        view: {
-          scope: { kind: "all" },
+      await waitFor(() =>
+        expect(fixture.updatePlacementV1).toHaveBeenCalledWith({
           groupingKey: "plugin:thread-stages:stages",
-        },
-        collapsed: [],
-      }),
-    );
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const unavailable = {
-      ...snapshot,
-      groupings: snapshot.groupings.map((grouping) =>
-        grouping.groupingKey === "plugin:thread-stages:stages"
-          ? { ...grouping, available: false }
-          : grouping,
-      ),
-    };
-    fixture.value.rpc.synchronizeV1 = vi.fn(async () => unavailable);
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-
-    expect(
-      await slot.findByRole("region", { name: "Idle group" }),
-    ).toBeTruthy();
-    expect(fixture.listPlacementsV1).toHaveBeenCalledWith(
-      expect.objectContaining({
-        groupingKey: "plugin:thread-stages:stages",
-      }),
-    );
-    slot.lifecycle.unmount();
-  });
-
-  it("keeps an orphaned scoped group recoverable instead of falling back", async () => {
-    window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
-      JSON.stringify({
-        view: {
-          scope: {
-            kind: "group",
-            group: {
-              groupingKey: "plugin:thread-stages:stages",
-              groupId: "Removed",
-            },
-          },
-          groupingKey: "plugin:thread-stages:stages",
-        },
-        collapsed: [],
-      }),
-    );
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    fixture.value.rpc.listPlacementsV1 = vi.fn(async (raw: unknown) => {
-      const input = raw as { groupingKey: string; groupIds?: string[] };
-      if (input.groupIds !== undefined) {
-        return {
-          ok: false as const,
-          error: {
-            code: "GROUP_NOT_FOUND" as const,
-            message: "Group not found",
-          },
-        };
-      }
-      return {
-        ok: true as const,
-        value: {
-          groupingKey: input.groupingKey,
-          revision: 1,
-          items: [
-            {
-              groupingKey: input.groupingKey,
-              groupId: "Removed",
-              threadId: "thread-a",
-              enteredAtMs: 1,
-              origin: "auto" as const,
-            },
-          ],
-        },
-      };
-    }) as never;
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-
-    expect(
-      await slot.findByRole("button", {
-        name: "Removed (unavailable), filtered",
-      }),
-    ).toBeTruthy();
-    expect(await slot.findByText("Design migration")).toBeTruthy();
-    expect(slot.queryByText("BB original list")).toBeNull();
-    expect(fixture.value.rpc.listPlacementsV1).toHaveBeenCalledWith({
-      groupingKey: "plugin:thread-stages:stages",
-    });
-    slot.lifecycle.unmount();
-  });
+          groupId: stage,
+          threadId: "thread-a",
+          anchor: { kind: anchor },
+          origin: "ui",
+        }),
+      );
+      slot.lifecycle.unmount();
+    },
+  );
 
   it("moves a thread through the group surface without separate drag handles", async () => {
     useManualSort();
@@ -3092,28 +1830,28 @@ describe("Ribbon sidebar app", () => {
     await slot.findByText("Design migration");
 
     fireEvent.click(
-      slot.getByRole("button", { name: "Collapse Idle section" }),
+      slot.getByRole("button", { name: "Collapse Release section" }),
     );
     expect(slot.queryByText("Design migration")).toBeNull();
     fireEvent.click(
-      slot.getByRole("button", { name: "Expand Idle section" }),
+      slot.getByRole("button", { name: "Expand Release section" }),
     );
     expect(slot.getByText("Design migration")).toBeTruthy();
 
-    const drag = await beginThreadDrag(slot.getByText("Ship UI").closest("[data-thread-id]")!);
-    expect(
-      slot.queryByRole("button", { name: "Move Ship UI" }),
-    ).toBeNull();
+    const drag = await beginThreadDrag(
+      slot.getByText("Ship UI").closest("[data-thread-id]")!,
+    );
+    expect(slot.queryByRole("button", { name: "Move Ship UI" })).toBeNull();
     expect(
       slot.queryByRole("button", { name: "Move to end of Idle" }),
     ).toBeNull();
-    const idleGroup = slot.getByRole("region", { name: "Idle group" });
+    const idleGroup = slot.getByRole("region", { name: "Release group" });
     drag.hover(idleGroup);
-    drag.drop();
+    await act(async () => drag.drop());
     expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
       expect.objectContaining({
         threadId: "thread-b",
-        groupId: "Idle",
+        groupId: "section-a",
         anchor: { kind: "end" },
         origin: "ui",
       }),
@@ -3129,12 +1867,16 @@ describe("Ribbon sidebar app", () => {
     await slot.findByText("Ship UI");
     const source = slot.getByText("Ship UI").closest("li")!;
     const drag = await beginThreadDrag(source);
-    const activeGroup = slot.getByRole("region", { name: "Active group" });
-    expect(activeGroup.querySelector("[data-ribbon-thread-drop-preview]")).toBeTruthy();
-    drag.hover(slot.getByRole("region", { name: "Idle group" }));
+    const activeGroup = slot.getByRole("region", { name: "Roadmap group" });
+    expect(
+      activeGroup.querySelector("[data-ribbon-thread-drop-preview]"),
+    ).toBeTruthy();
+    drag.hover(slot.getByRole("region", { name: "Release group" }));
     drag.hover(source);
-    expect(activeGroup.querySelector("[data-ribbon-thread-drop-preview]")).toBeTruthy();
-    drag.drop();
+    expect(
+      activeGroup.querySelector("[data-ribbon-thread-drop-preview]"),
+    ).toBeTruthy();
+    await act(async () => drag.drop());
     expect(fixture.updatePlacementV1).not.toHaveBeenCalled();
     expect(within(activeGroup).getByText("Ship UI")).toBeTruthy();
     slot.lifecycle.unmount();
@@ -3146,14 +1888,22 @@ describe("Ribbon sidebar app", () => {
     const fixture = options();
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Ship UI");
-    const drag = await beginThreadDrag(slot.getByText("Ship UI").closest("li")!);
-    const idleGroup = slot.getByRole("region", { name: "Idle group" });
+    const drag = await beginThreadDrag(
+      slot.getByText("Ship UI").closest("li")!,
+    );
+    const idleGroup = slot.getByRole("region", { name: "Release group" });
     drag.hoverBelow(idleGroup);
-    expect(idleGroup.querySelector("[data-ribbon-thread-drop-preview]")).toBeTruthy();
-    drag.drop();
-    expect(fixture.updatePlacementV1).toHaveBeenCalledWith(expect.objectContaining({
-      threadId: "thread-b", groupId: "Idle", anchor: { kind: "end" },
-    }));
+    expect(
+      idleGroup.querySelector("[data-ribbon-thread-drop-preview]"),
+    ).toBeTruthy();
+    await act(async () => drag.drop());
+    expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: "thread-b",
+        groupId: "section-a",
+        anchor: { kind: "end" },
+      }),
+    );
     slot.lifecycle.unmount();
   });
 
@@ -3163,172 +1913,146 @@ describe("Ribbon sidebar app", () => {
     const fixture = options();
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Design migration");
-    const group = slot.getByRole("region", { name: "Idle group" });
-    const drag = await beginThreadDrag(slot.getByText("Ship UI").closest("li")!);
+    const group = slot.getByRole("region", { name: "Release group" });
+    const drag = await beginThreadDrag(
+      slot.getByText("Ship UI").closest("li")!,
+    );
     drag.hoverJustBelow(group.querySelector('[data-sidebar="group-label"]')!);
-    drag.drop();
-    expect(fixture.updatePlacementV1).toHaveBeenCalledWith(expect.objectContaining({
-      threadId: "thread-b", groupId: "Idle", anchor: { kind: "before", threadId: "thread-a" },
-    }));
+    await act(async () => drag.drop());
+    expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: "thread-b",
+        groupId: "section-a",
+        anchor: { kind: "before", threadId: "thread-a" },
+      }),
+    );
     slot.lifecycle.unmount();
   });
 
-  it.each([false, true])("drops on group titles insert first (collapsed: %s)", async (collapsed) => {
-    useManualSort();
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-    if (collapsed) fireEvent.click(slot.getByRole("button", { name: "Collapse Idle section" }));
-    const group = slot.getByRole("region", { name: "Idle group" });
-    const drag = await beginThreadDrag(slot.getByText("Ship UI").closest("li")!);
-    drag.hover(group.querySelector('[data-sidebar="group-label"]')!);
-    drag.drop();
-    expect(fixture.updatePlacementV1).toHaveBeenCalledWith(expect.objectContaining({
-      threadId: "thread-b",
-      groupId: "Idle",
-      anchor: { kind: "before", threadId: "thread-a" },
-    }));
-    slot.lifecycle.unmount();
-  });
-
-  it("allows order within Projects but rejects cross-project drag targets", async () => {
-    useManualSort("builtin:projects");
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options({
-      sidebarThreads: {
-        projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
-          { id: "project-b", name: "Back office", isPersonal: false },
-        ],
-        threads: [
-          thread({ id: "thread-a", title: "Project A first" }),
-          thread({ id: "thread-c", title: "Project A second" }),
-          thread({ id: "thread-b", projectId: "project-b", title: "Project B" }),
-        ],
-      },
-    });
-    fixture.synchronizeV1.mockResolvedValue({
-      ...snapshot,
-      groupings: snapshot.groupings.map((grouping) =>
-        grouping.groupingKey === "builtin:projects"
-          ? {
-              ...grouping,
-              groups: [
-                ...grouping.groups,
-                {
-                  id: "project-b",
-                  label: "Back office",
-                  visibleWhenEmpty: true,
-                  acceptsAssignments: true,
-                  defaultCollapsed: false,
-                },
-              ],
-            }
-          : grouping,
-      ),
-    });
-    fixture.listPlacementsV1.mockImplementation(async (raw: unknown) => {
-      const { groupingKey } = raw as { groupingKey: string };
-      return {
-        ok: true as const,
-        value: {
-          groupingKey,
-          revision: 1,
-          items: [
-            { groupingKey, groupId: "project-a", threadId: "thread-a", enteredAtMs: null },
-            { groupingKey, groupId: "project-a", threadId: "thread-c", enteredAtMs: null },
-            { groupingKey, groupId: "project-b", threadId: "thread-b", enteredAtMs: null },
-          ],
-        },
-      };
-    });
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Project A first");
-
-    const source = slot.getByText("Project A first").closest("[data-thread-id]")!;
-    const sameProject = slot.getByText("Project A second").closest("[data-thread-id]")!;
-    const otherProject = slot.getByText("Project B").closest("[data-thread-id]")!;
-    const drag = await beginThreadDrag(source);
-    drag.hover(sameProject);
-    expect(slot.container.querySelector("[data-ribbon-thread-drop-preview]")).toBeTruthy();
-    drag.hover(otherProject);
-    expect(slot.container.querySelector("[data-ribbon-thread-drop-preview]")).toBeNull();
-    drag.drop();
-    expect(fixture.updatePlacementV1).not.toHaveBeenCalled();
-    slot.lifecycle.unmount();
-  });
+  it.each([false, true])(
+    "drops on group titles insert first (collapsed: %s)",
+    async (collapsed) => {
+      useManualSort();
+      const app = await loadPluginApp(() => import("./app"));
+      const fixture = options();
+      const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+      await slot.findByText("Design migration");
+      if (collapsed)
+        fireEvent.click(
+          slot.getByRole("button", { name: "Collapse Release section" }),
+        );
+      const group = slot.getByRole("region", { name: "Release group" });
+      const drag = await beginThreadDrag(
+        slot.getByText("Ship UI").closest("li")!,
+      );
+      drag.hover(group.querySelector('[data-sidebar="group-label"]')!);
+      await act(async () => drag.drop());
+      expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
+        expect.objectContaining({
+          threadId: "thread-b",
+          groupId: "section-a",
+          anchor: { kind: "before", threadId: "thread-a" },
+        }),
+      );
+      slot.lifecycle.unmount();
+    },
+  );
 
   it.each([
     { header: false, empty: false },
     { header: true, empty: false },
     { header: true, empty: true },
-  ])("allows writable group drops (header: $header, empty: $empty)", async ({ header, empty }) => {
-    useManualSort("builtin:sections");
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    if (empty) fixture.value.sidebarThreads.threads = fixture.value.sidebarThreads.threads.filter(
-      ({ id }) => id !== "thread-b",
-    );
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
+  ])(
+    "allows writable group drops (header: $header, empty: $empty)",
+    async ({ header, empty }) => {
+      useManualSort("builtin:sections");
+      const app = await loadPluginApp(() => import("./app"));
+      const fixture = options();
+      if (empty)
+        fixture.value.sidebarThreads.threads =
+          fixture.value.sidebarThreads.threads.filter(
+            ({ id }) => id !== "thread-b",
+          );
+      const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+      await slot.findByText("Design migration");
 
-    const source = slot
-      .getByText("Design migration")
-      .closest("[data-thread-id]")!;
-    const target = slot.getByRole("region", { name: "Roadmap group" });
-    const drag = await beginThreadDrag(source);
-    drag.hover(header ? target.querySelector('[data-sidebar="group-label"]')! : target);
-    drag.drop();
+      const source = slot
+        .getByText("Design migration")
+        .closest("[data-thread-id]")!;
+      const target = slot.getByRole("region", { name: "Roadmap group" });
+      const drag = await beginThreadDrag(source);
+      drag.hover(
+        header ? target.querySelector('[data-sidebar="group-label"]')! : target,
+      );
+      await act(async () => drag.drop());
 
-    expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
-      expect.objectContaining({
-        groupingKey: "builtin:sections",
-        groupId: "section-b",
-        threadId: "thread-a",
-        anchor: header && !empty ? { kind: "before", threadId: "thread-b" } : { kind: "end" },
-        origin: "ui",
-      }),
-    );
-    slot.lifecycle.unmount();
-  });
+      expect(fixture.updatePlacementV1).toHaveBeenCalledWith(
+        expect.objectContaining({
+          groupingKey: "builtin:sections",
+          groupId: "section-b",
+          threadId: "thread-a",
+          anchor:
+            header && !empty
+              ? { kind: "before", threadId: "thread-b" }
+              : { kind: "end" },
+          origin: "ui",
+        }),
+      );
+      slot.lifecycle.unmount();
+    },
+  );
 
-  it.each([false, true])("keeps pinned reorder bb-owned (header: %s)", async (header) => {
-    useManualSort();
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options({
-      sidebarThreads: {
-        projects: [
-          { id: "project-a", name: "Storefront", isPersonal: false, href: "/projects/project-a", settingsHref: "/projects/project-a/settings" },
-        ],
-        threads: [
-          thread({ id: "thread-pin-a", title: "Pinned A", isPinned: true }),
-          thread({ id: "thread-pin-b", title: "Pinned B", isPinned: true }),
-          thread({ id: "thread-a", title: "Design migration" }),
-          thread({ id: "thread-b", title: "Ship UI" }),
-        ],
-      },
-    });
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Pinned A");
+  it.each([false, true])(
+    "keeps pinned reorder bb-owned (header: %s)",
+    async (header) => {
+      useManualSort();
+      const app = await loadPluginApp(() => import("./app"));
+      const fixture = options({
+        sidebarThreads: {
+          projects: [
+            {
+              id: "project-a",
+              name: "Storefront",
+              isPersonal: false,
+              href: "/projects/project-a",
+              settingsHref: "/projects/project-a/settings",
+            },
+          ],
+          threads: [
+            thread({ id: "thread-pin-a", title: "Pinned A", isPinned: true }),
+            thread({ id: "thread-pin-b", title: "Pinned B", isPinned: true }),
+            thread({ id: "thread-a", title: "Design migration" }),
+            thread({ id: "thread-b", title: "Ship UI" }),
+          ],
+        },
+      });
+      const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+      await slot.findByText("Pinned A");
 
-    const source = slot.getByText("Pinned B").closest("[data-thread-id]")!;
-    const target = slot.getByText("Pinned A").closest("[data-thread-id]")!;
-    const drag = await beginThreadDrag(source);
-    drag.hover(header ? target.closest("section")!.querySelector('[data-sidebar="group-label"]')! : target);
-    drag.drop();
-    await waitFor(() =>
-      expect(fixture.reorderPinnedV1).toHaveBeenCalledWith({
-        threadId: "thread-pin-b",
-        previousThreadId: null,
-        nextThreadId: "thread-pin-a",
-      }),
-    );
-    expect(fixture.updatePlacementV1).not.toHaveBeenCalledWith(
-      expect.objectContaining({ threadId: "thread-pin-b" }),
-    );
-    slot.lifecycle.unmount();
-  });
+      const source = slot.getByText("Pinned B").closest("[data-thread-id]")!;
+      const target = slot.getByText("Pinned A").closest("[data-thread-id]")!;
+      const drag = await beginThreadDrag(source);
+      drag.hover(
+        header
+          ? target
+              .closest("section")!
+              .querySelector('[data-sidebar="group-label"]')!
+          : target,
+      );
+      await act(async () => drag.drop());
+      await waitFor(() =>
+        expect(fixture.reorderPinnedV1).toHaveBeenCalledWith({
+          threadId: "thread-pin-b",
+          previousThreadId: null,
+          nextThreadId: "thread-pin-a",
+        }),
+      );
+      expect(fixture.updatePlacementV1).not.toHaveBeenCalledWith(
+        expect.objectContaining({ threadId: "thread-pin-b" }),
+      );
+      slot.lifecycle.unmount();
+    },
+  );
 
   it("restores the original group when saving a drop fails", async () => {
     useManualSort();
@@ -3337,12 +2061,24 @@ describe("Ribbon sidebar app", () => {
     fixture.updatePlacementV1.mockRejectedValueOnce(new Error("Move failed"));
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("Ship UI");
-    const drag = await beginThreadDrag(slot.getByText("Ship UI").closest("li")!);
-    drag.hover(slot.getByRole("region", { name: "Idle group" }));
-    drag.drop();
+    const drag = await beginThreadDrag(
+      slot.getByText("Ship UI").closest("li")!,
+    );
+    drag.hover(slot.getByRole("region", { name: "Release group" }));
+    await act(async () => drag.drop());
     await slot.findByText("Move failed");
-    await waitFor(() => expect(within(slot.getByRole("region", { name: "Active group" })).getByText("Ship UI")).toBeTruthy());
-    expect(within(slot.getByRole("region", { name: "Idle group" })).queryByText("Ship UI")).toBeNull();
+    await waitFor(() =>
+      expect(
+        within(slot.getByRole("region", { name: "Roadmap group" })).getByText(
+          "Ship UI",
+        ),
+      ).toBeTruthy(),
+    );
+    expect(
+      within(slot.getByRole("region", { name: "Release group" })).queryByText(
+        "Ship UI",
+      ),
+    ).toBeNull();
     slot.lifecycle.unmount();
   });
 
@@ -3370,45 +2106,7 @@ describe("Ribbon sidebar app", () => {
     expect(await slot.findByText("Search failed.")).toBeTruthy();
     fireEvent.click(slot.getByRole("button", { name: "Retry" }));
     expect(await slot.findByText("No matching threads")).toBeTruthy();
-    expect(slot.queryByRole("region", { name: "Idle group" })).toBeNull();
-    slot.lifecycle.unmount();
-  });
-
-  it("normalizes a same-key saved scope to a flat list", async () => {
-    window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
-      JSON.stringify({
-        view: {
-          scope: {
-            kind: "group",
-            group: {
-              groupingKey: "plugin:thread-stages:stages",
-              groupId: "Idle",
-            },
-          },
-          groupingKey: "plugin:thread-stages:stages",
-        },
-        collapsed: [],
-      }),
-    );
-    const app = await loadPluginApp(() => import("./app"));
-    const fixture = options();
-    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    await slot.findByText("Design migration");
-
-    expect(slot.queryByRole("button", { name: "Collapse Idle section" }))
-      .toBeNull();
-    expect(slot.queryByTestId("scope-end-drop-target")).toBeNull();
-    for (const item of Array.from(slot.container.querySelectorAll("li"))) {
-      expect(item.closest("ul")).toBeTruthy();
-    }
-    fireEvent.keyDown(
-      slot.getByRole("button", { name: "Idle, filtered" }),
-      { key: "Enter" },
-    );
-    fireEvent.click(await slot.findByRole("menuitemradio", { name: "All groups" }));
-    expect(slot.queryByRole("button", { name: "Collapse Idle section" }))
-      .toBeNull();
+    expect(slot.queryByRole("region", { name: "Release group" })).toBeNull();
     slot.lifecycle.unmount();
   });
 
@@ -3433,10 +2131,12 @@ describe("Ribbon sidebar app", () => {
     expect(fixture.updatePlacementV1).not.toHaveBeenCalled();
 
     const drag = await beginThreadDrag(row);
-    const idleGroup = slot.getByRole("region", { name: "Idle group" });
+    const idleGroup = slot.getByRole("region", { name: "Release group" });
     drag.hover(idleGroup);
-    drag.drop();
-    await waitFor(() => expect(fixture.updatePlacementV1).toHaveBeenCalledTimes(2));
+    await act(async () => drag.drop());
+    await waitFor(() =>
+      expect(fixture.updatePlacementV1).toHaveBeenCalledTimes(2),
+    );
     expect(fixture.updatePlacementV1.mock.calls[1]?.[0]).toMatchObject({
       expectedRevision: 2,
     });
@@ -3500,8 +2200,15 @@ describe("Ribbon sidebar app", () => {
     const refreshed = {
       ...snapshot,
       groupings: snapshot.groupings.map((grouping) =>
-        grouping.groupingKey === "plugin:thread-stages:stages"
-          ? { ...grouping, pluralLabel: "Workflow stages" }
+        grouping.groupingKey === "builtin:sections"
+          ? {
+              ...grouping,
+              groups: grouping.groups.map((group) =>
+                group.id === "section-a"
+                  ? { ...group, label: "Renamed section" }
+                  : group,
+              ),
+            }
           : grouping,
       ),
     };
@@ -3513,11 +2220,8 @@ describe("Ribbon sidebar app", () => {
     await slot.findByText("Design migration");
 
     await slot.behavior.emitRealtime("catalog-changed", null);
-    fireEvent.keyDown(slot.getByRole("button", { name: /^All groups, Pages by/u }), {
-      key: "Enter",
-    });
     expect(
-      await slot.findByRole("menuitem", { name: "Workflow stages" }),
+      await slot.findByRole("region", { name: "Renamed section group" }),
     ).toBeTruthy();
     slot.lifecycle.unmount();
   });

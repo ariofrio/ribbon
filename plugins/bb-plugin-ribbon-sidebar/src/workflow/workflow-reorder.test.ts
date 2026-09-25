@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveWorkflowReorder, type ReorderThreadLike } from "./workflow-reorder";
+import {
+  resolveWorkflowReorder,
+  type ReorderThreadLike,
+} from "./workflow-reorder";
 import type { ThreadAssignment } from "./workflow-stage";
 
 function thread(

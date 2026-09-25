@@ -21,10 +21,21 @@ export function parseStoredStringSet(raw: string | null): Set<string> {
 
 export function usePersistentStringSet(
   key: string,
+  legacyKey?: string,
 ): [Set<string>, Dispatch<SetStateAction<Set<string>>>] {
   const [values, setValues] = useState(() => {
     try {
-      return parseStoredStringSet(window.localStorage.getItem(key));
+      const stored = window.localStorage.getItem(key);
+      if (stored !== null || legacyKey === undefined) {
+        return parseStoredStringSet(stored);
+      }
+      const migrated = parseStoredStringSet(window.localStorage.getItem(legacyKey));
+      try {
+        window.localStorage.setItem(key, JSON.stringify([...migrated]));
+      } catch {
+        // Retain the migrated value in memory if storage cannot be written.
+      }
+      return migrated;
     } catch {
       return new Set<string>();
     }

@@ -3,6 +3,7 @@ import type { GroupingKey } from "./placement-store";
 export type GroupRef = { groupingKey: GroupingKey; groupId: string };
 export type Scope = { kind: "all" } | { kind: "group"; group: GroupRef };
 export type SidebarSort = "updated" | "created" | "alphabetical" | "manual";
+export type SidebarGroupingKey = "builtin:sections" | "builtin:projects";
 export type PullRequestNumberPosition = "left" | "right" | "hidden";
 export interface HiddenThreadKinds {
   notArchived: boolean;
@@ -36,18 +37,14 @@ export const DEFAULT_HIDDEN_THREAD_KINDS: HiddenThreadKinds = {
   visible: false,
   hidden: true,
 };
-export const DEFAULT_SIDEBAR_SORT: SidebarSort = "updated";
+export const DEFAULT_SIDEBAR_SORT: SidebarSort = "manual";
 
 export const SIDEBAR_PREFERENCES_KEY =
   "bb.plugin.ribbon-sidebar.preferences.v1";
-const THREAD_STAGES_FILTER_KEYS = [
-  "bb.plugin.thread-stages.threadFilter",
-  "bb.plugin.thread-stages.projectFilter",
-  "bb.plugin.thread-workflow.projectFilter",
-] as const;
 const THREAD_STAGES_COLLAPSED_KEY =
   "bb.plugin.workflow-stage.collapsedStatuses";
-const GROUPING_KEY = /^(?:builtin:(?:projects|sections)|plugin:[^:/]+:[^:/]+)$/u;
+const GROUPING_KEY =
+  /^(?:builtin:(?:projects|sections)|plugin:[^:/]+:[^:/]+)$/u;
 
 function isGroupingKey(value: unknown): value is GroupingKey {
   return typeof value === "string" && GROUPING_KEY.test(value);
@@ -87,14 +84,19 @@ function storedSort(value: unknown): SidebarSort {
     : DEFAULT_SIDEBAR_SORT;
 }
 
-function storedPreferences(raw: string | null): StoredSidebarPreferences | null {
+function storedPreferences(
+  raw: string | null,
+): StoredSidebarPreferences | null {
   if (raw === null) return null;
   try {
     const value: unknown = JSON.parse(raw);
     if (typeof value !== "object" || value === null) return null;
     const record = value as Record<string, unknown>;
     const view = record.view as Record<string, unknown> | undefined;
-    if (!view || (view.groupingKey !== null && !isGroupingKey(view.groupingKey))) {
+    if (
+      !view ||
+      (view.groupingKey !== null && !isGroupingKey(view.groupingKey))
+    ) {
       return null;
     }
     const rawScope = view.scope as Record<string, unknown> | undefined;
@@ -129,7 +131,8 @@ function storedPreferences(raw: string | null): StoredSidebarPreferences | null 
         scope,
         groupingKey: view.groupingKey,
         filterGroupingKey:
-          view.filterGroupingKey === null || isGroupingKey(view.filterGroupingKey)
+          view.filterGroupingKey === null ||
+          isGroupingKey(view.filterGroupingKey)
             ? view.filterGroupingKey
             : undefined,
         iconGroupingKey:
@@ -149,88 +152,6 @@ function storedPreferences(raw: string | null): StoredSidebarPreferences | null 
   } catch {
     return null;
   }
-}
-
-export function normalizeSidebarView(view: SidebarView): SidebarView {
-  if (
-    view.groupingKey !== null &&
-    view.scope.kind === "group" &&
-    view.scope.group.groupingKey === view.groupingKey
-  ) {
-    return { ...view, groupingKey: null };
-  }
-  return view;
-}
-
-export function changeSidebarScope(
-  view: SidebarView,
-  scope: Scope,
-): SidebarView {
-  return normalizeSidebarView({
-    ...view,
-    scope,
-    filterGroupingKey:
-      scope.kind === "group" ? scope.group.groupingKey : view.filterGroupingKey,
-  });
-}
-
-export function changeSidebarGrouping(
-  view: SidebarView,
-  groupingKey: GroupingKey | null,
-): SidebarView {
-  const nextGroupingKey =
-    groupingKey !== null && view.groupingKey === groupingKey
-      ? null
-      : groupingKey;
-  return {
-    ...view,
-    groupingKey: nextGroupingKey,
-    scope:
-      nextGroupingKey !== null &&
-      view.scope.kind === "group" &&
-      view.scope.group.groupingKey === nextGroupingKey
-        ? { kind: "all" }
-        : view.scope,
-  };
-}
-
-export function changeSidebarPagesGrouping(
-  view: SidebarView,
-  filterGroupingKey: GroupingKey | null,
-): SidebarView {
-  if (view.filterGroupingKey === filterGroupingKey) return view;
-  return {
-    ...view,
-    filterGroupingKey,
-    scope: { kind: "all" },
-  };
-}
-
-function legacyScope(storage: Storage): Scope {
-  const filter = THREAD_STAGES_FILTER_KEYS.map((key) => storage.getItem(key)).find(
-    (value) => value !== null,
-  );
-  if (!filter) return { kind: "all" };
-  if (filter === "uncategorized") {
-    return {
-      kind: "group",
-      group: { groupingKey: "builtin:sections", groupId: "unsectioned" },
-    };
-  }
-  const separator = filter.indexOf(":");
-  const kind = separator < 0 ? "project" : filter.slice(0, separator);
-  const groupId = separator < 0 ? filter : filter.slice(separator + 1);
-  if (!groupId || (kind !== "project" && kind !== "section")) {
-    return { kind: "all" };
-  }
-  return {
-    kind: "group",
-    group: {
-      groupingKey:
-        kind === "project" ? "builtin:projects" : "builtin:sections",
-      groupId,
-    },
-  };
 }
 
 function legacyCollapsed(
@@ -278,79 +199,28 @@ export function loadSidebarPreferences(
   availableGroupingKeys: readonly GroupingKey[],
   defaultCollapsed: readonly string[] = [],
 ): SidebarPreferences {
-  const filterFallback =
-    availableGroupingKeys.find((key) => key === "builtin:sections") ??
-    availableGroupingKeys[0] ??
-    "builtin:sections";
-  const fallback =
-    availableGroupingKeys.find(
-      (key) => key === "plugin:thread-stages:stages",
-    ) ??
-    availableGroupingKeys[0] ??
-    "builtin:projects";
   let stored: StoredSidebarPreferences | null = null;
   try {
     stored = storedPreferences(storage.getItem(SIDEBAR_PREFERENCES_KEY));
   } catch {
-    return {
-      view: {
-        scope: { kind: "all" },
-        groupingKey: fallback,
-        filterGroupingKey: filterFallback,
-        iconGroupingKey: "builtin:projects",
-        pullRequestNumberPosition: "right",
-        hide: { ...DEFAULT_HIDDEN_THREAD_KINDS },
-        sort: DEFAULT_SIDEBAR_SORT,
-      },
-      collapsed: new Set(),
-    };
+    /* Use defaults when storage is unavailable. */
   }
-  if (stored !== null) {
-    const groupingKey =
-      stored.view.groupingKey === null ||
-      availableGroupingKeys.includes(stored.view.groupingKey)
-        ? stored.view.groupingKey
-        : fallback;
-    return {
-      ...stored,
-      view: normalizeSidebarView({
-        ...stored.view,
-        groupingKey,
-        filterGroupingKey:
-          stored.view.filterGroupingKey === undefined
-            ? filterFallback
-            : stored.view.filterGroupingKey,
-      }),
-    };
-  }
-  let migrated: SidebarPreferences;
-  try {
-    migrated = {
-      view: {
-        scope: legacyScope(storage),
-        groupingKey: fallback,
-        filterGroupingKey: filterFallback,
-        iconGroupingKey: "builtin:projects",
-        pullRequestNumberPosition: "right",
-        hide: { ...DEFAULT_HIDDEN_THREAD_KINDS },
-        sort: DEFAULT_SIDEBAR_SORT,
-      },
-      collapsed: legacyCollapsed(storage, defaultCollapsed),
-    };
-  } catch {
-    migrated = {
-      view: {
-        scope: { kind: "all" },
-        groupingKey: fallback,
-        filterGroupingKey: filterFallback,
-        iconGroupingKey: "builtin:projects",
-        pullRequestNumberPosition: "right",
-        hide: { ...DEFAULT_HIDDEN_THREAD_KINDS },
-        sort: DEFAULT_SIDEBAR_SORT,
-      },
-      collapsed: new Set(),
-    };
-  }
-  saveSidebarPreferences(storage, migrated);
-  return migrated;
+  const preferences: SidebarPreferences = {
+    view: {
+      scope: { kind: "all" },
+      groupingKey:
+        stored?.view.groupingKey === "builtin:projects"
+          ? "builtin:projects"
+          : "builtin:sections",
+      filterGroupingKey: null,
+      iconGroupingKey: "plugin:thread-stages:stages",
+      sort: "manual",
+      hide: stored?.view.hide ?? { ...DEFAULT_HIDDEN_THREAD_KINDS },
+      pullRequestNumberPosition:
+        stored?.view.pullRequestNumberPosition ?? "right",
+    },
+    collapsed: stored?.collapsed ?? legacyCollapsed(storage, []),
+  };
+  saveSidebarPreferences(storage, preferences);
+  return preferences;
 }

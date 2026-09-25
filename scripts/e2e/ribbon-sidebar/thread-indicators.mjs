@@ -82,6 +82,13 @@ export async function verifyThreadIndicators({ stack, fixture }) {
         await editor.waitFor({ timeout: 120_000 });
         await page.mouse.move(1200, 850);
       }
+      async function clearDraft() {
+        // ProseMirror handles select-all synchronously. fill("") instead changes
+        // DOM selection and sends Delete before selectionchange may reach it.
+        await editor.press("ControlOrMeta+a");
+        await editor.press("Backspace");
+        await page.waitForFunction(node => node.textContent === "", await editor.elementHandle());
+      }
       async function observe(label) {
         console.log(`Checking ${provider}: ${label ?? "idle draft"}`);
         if (label) await row.getByLabel(label, { exact: true }).waitFor().catch(async (error) => {
@@ -127,15 +134,27 @@ export async function verifyThreadIndicators({ stack, fixture }) {
       await editor.fill("An unsent draft");
       await observe(null); // bb places the idle draft label on the row's link.
       assert.match(await link.getAttribute("aria-label"), /unsubmitted draft/);
-      await editor.fill("");
-      await glyph.waitFor({ state: "detached" });
+      // Make the CI race deterministic: the editor must clear even before the
+      // browser delivers its asynchronous selectionchange notification.
+      const resumeSelection = await page.evaluateHandle(() => {
+        const hold = event => event.stopImmediatePropagation();
+        document.addEventListener("selectionchange", hold, true);
+        return () => document.removeEventListener("selectionchange", hold, true);
+      });
+      try {
+        await clearDraft();
+        await glyph.waitFor({ state: "detached" });
+      } finally {
+        await resumeSelection.evaluate(resume => resume());
+        await resumeSelection.dispose();
+      }
       runtime = "active";
       await page.reload();
       await ready();
       await editor.fill("A draft while working");
       await observe("Thread working with unsubmitted draft");
       runtime = "idle";
-      await editor.fill("");
+      await clearDraft();
       await page.reload();
       await ready();
       for (const tone of ["default", "running", "success", "error"]) {

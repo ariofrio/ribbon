@@ -1,11 +1,11 @@
+import { migrateWorkflowShortcuts } from "./workflow/shortcut-migration";
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { sidebarThreadsFromSearchResult } from "./search-results";
+import { defineRibbonSidebarCli } from "./cli";
 import {
   acknowledgePlacementMigrationOutputSchema,
   getPlacementInputSchema,
   getPlacementOutputSchema,
-  groupingCatalogSchema,
   iconDataSchema,
   invalidateGroupingCatalogInputSchema,
   invalidateGroupingCatalogOutputSchema,
@@ -16,19 +16,25 @@ import {
   updatePlacementInputSchema,
   updatePlacementOutputSchema,
 } from "./contracts";
+import { registerThreadGroupInheritance } from "./group-inheritance";
+import { orderedGroupings } from "./grouping-order";
 import { migrateThreadStages } from "./migration";
 import {
-  RIBBON_SIDEBAR_MIGRATIONS,
   createPlacementStore,
+  RIBBON_SIDEBAR_MIGRATIONS,
   type GroupingDescriptor,
   type GroupingKey,
 } from "./placement-store";
-import { createProviderCatalog } from "./provider-catalog";
-import { defineRibbonSidebarCli } from "./cli";
-import { orderedGroupings } from "./grouping-order";
 import { createPreviewStore } from "./preview-store";
+import { sidebarThreadsFromSearchResult } from "./search-results";
 import { registerThreadPreviews } from "./thread-previews";
-import { registerThreadGroupInheritance } from "./group-inheritance";
+import { AUTO_ARCHIVE_OPTIONS } from "./workflow/auto-archive";
+import {
+  createGroupingCatalog,
+  THREAD_STAGES_GROUPING_KEY,
+} from "./workflow/catalog";
+import { workflowRpcMethods } from "./workflow/contract";
+import { createWorkflowRuntime } from "./workflow/runtime";
 import {
   createGhGraphqlRunner,
   createPullRequestDetailsService,
@@ -86,6 +92,7 @@ const ribbonThreadSchema = z
   .strict();
 
 export const rpcContract = defineRpcContract({
+  ...workflowRpcMethods,
   addProjectLocalPathV1: {
     input: z.object({ projectId: z.string().min(1).max(256) }).strict(),
     output: z.object({ added: z.boolean() }).strict(),
@@ -104,7 +111,9 @@ export const rpcContract = defineRpcContract({
   createSectionV1: {
     input: z.object({ name: z.string().trim().min(1).max(256) }).strict(),
     output: z
-      .object({ section: z.object({ id: z.string(), name: z.string() }).strict() })
+      .object({
+        section: z.object({ id: z.string(), name: z.string() }).strict(),
+      })
       .strict(),
   },
   deleteEntityV1: {
@@ -129,7 +138,9 @@ export const rpcContract = defineRpcContract({
     output: listPlacementsOutputSchema,
   },
   listPreviewsV1: {
-    input: z.object({ threadIds: z.array(z.string().min(1).max(256)) }).strict(),
+    input: z
+      .object({ threadIds: z.array(z.string().min(1).max(256)) })
+      .strict(),
     output: z
       .object({
         previews: z.array(
@@ -345,10 +356,27 @@ function fullGroup(group: GroupingDescriptor["groups"][number]) {
 
 export default async function plugin(bb: BbPluginApi) {
   const settings = bb.settings.define({
+    showDeferredStage: {
+      type: "boolean",
+      label: "Enable Deferred stage",
+      default: true,
+    },
+    showBlockedStage: {
+      type: "boolean",
+      label: "Enable Blocked stage",
+      default: true,
+    },
+    autoArchiveCompletedAfter: {
+      type: "select",
+      label: "Auto-archive completed threads",
+      options: [...AUTO_ARCHIVE_OPTIONS],
+      default: "7 days",
+    },
     showProjectsAndSections: {
       type: "boolean",
-      label: "Show groups",
-      description: "Show grouping, filtering, and group management controls in the sidebar.",
+      label: "Show sidebar controls",
+      description:
+        "Show New section and display options in heading menus.",
       default: true,
     },
     showMessagePreviews: {
@@ -368,8 +396,7 @@ export default async function plugin(bb: BbPluginApi) {
     showCollapsedGroupIndicators: {
       type: "boolean",
       label: "Show collapsed-group indicators (experimental)",
-      description:
-        "Show live activity indicators on collapsed groups outside Thread stages.",
+      description: "Show live activity indicators on collapsed sections.",
       default: false,
     },
     showGroupHeaderIcons: {
@@ -417,26 +444,19 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
-  const providers = createProviderCatalog(database, {
-    call: (providerPluginId) =>
-      bb.sdk.plugins.callRpc({
-        pluginId: providerPluginId,
-        method: "getGroupingCatalogV1",
-        input: null,
-        outputSchema: groupingCatalogSchema,
-      }),
+  let stageSettings = await settings.get();
+  const stageGrouping = (): GroupingDescriptor => ({
+    ...createGroupingCatalog(stageSettings).groupings[0]!,
+    groupingKey: THREAD_STAGES_GROUPING_KEY,
+    membership: { kind: "ribbon" },
   });
   const grouping = (groupingKey: GroupingKey): GroupingDescriptor | null => {
     if (groupingKey === "builtin:projects") return projectGrouping();
     if (groupingKey === "builtin:sections") return sectionGrouping();
-    return providers.getGrouping(groupingKey);
+    return groupingKey === THREAD_STAGES_GROUPING_KEY ? stageGrouping() : null;
   };
   const groupings = (): GroupingDescriptor[] =>
-    orderedGroupings([
-      projectGrouping(),
-      sectionGrouping(),
-      ...providers.allGroupings(),
-    ]);
+    orderedGroupings([projectGrouping(), sectionGrouping(), stageGrouping()]);
   const store = createPlacementStore(database, { grouping, groupings });
   let sidebarThreads: ThreadSummary[] = [];
   let threadStagesInstalled = false;
@@ -460,40 +480,48 @@ export default async function plugin(bb: BbPluginApi) {
     };
   }
 
-  function providerCatalogFingerprint() {
-    return JSON.stringify(
-      providers.allGroupings().map((descriptor) => ({
-        providerPluginId: descriptor.providerPluginId,
-        groupingId: descriptor.groupingId,
-        singularLabel: descriptor.singularLabel,
-        pluralLabel: descriptor.pluralLabel,
-        icon: descriptor.icon,
-        defaultGroupId: descriptor.defaultGroupId,
-        groups: descriptor.groups,
-        available: descriptor.available,
-      })),
-    );
-  }
-
   async function refreshCatalogsAndRoots() {
-    const catalogBefore = providerCatalogFingerprint();
+    const catalogBefore = JSON.stringify([
+      threadStagesInstalled,
+      sidebarSnapshot(),
+    ]);
+    stageSettings = await settings.get();
     const [installed, projects, sections, threads] = await Promise.all([
       bb.sdk.plugins.list(),
       bb.sdk.projects.list({ includePersonal: true }),
       bb.sdk.threadSections.list(),
       listAllThreads(bb),
     ]);
-    const providerPluginIds = installed.plugins
-      .filter(
-        (candidate) =>
-          candidate.id !== bb.pluginId && candidate.status === "running",
-      )
-      .map(({ id }) => id);
     threadStagesInstalled = installed.plugins.some(
       ({ id, status }) => id === "thread-stages" && status === "running",
     );
-    await providers.refresh(providerPluginIds);
 
+    if (
+      threadStagesInstalled &&
+      !database
+        .prepare("SELECT key FROM ribbon_upgrade WHERE key = 'stage-settings'")
+        .get()
+    ) {
+      const legacy = await bb.sdk.plugins.getSettings({
+        pluginId: "thread-stages",
+      });
+      const values = Object.fromEntries(
+        [
+          "showDeferredStage",
+          "showBlockedStage",
+          "autoArchiveCompletedAfter",
+        ].flatMap((key) =>
+          legacy.values[key] === undefined ? [] : [[key, legacy.values[key]]],
+        ),
+      );
+      await settings.experimental_set(values);
+      stageSettings = await settings.get();
+      database
+        .prepare(
+          "INSERT OR IGNORE INTO ribbon_upgrade(key) VALUES ('stage-settings')",
+        )
+        .run();
+    }
     personalProjectId =
       projects.find(({ kind }) => kind === "personal")?.id ?? null;
     projectGroups = [...projects]
@@ -538,7 +566,8 @@ export default async function plugin(bb: BbPluginApi) {
         )
         .map(({ id }) => id),
     );
-    const eligibleRoots = threads
+    const eligibleRoots = [...threads]
+      .sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id))
       .filter(
         (thread) =>
           thread.archivedAt === null &&
@@ -562,7 +591,10 @@ export default async function plugin(bb: BbPluginApi) {
         groupingKeys: result.changedGroupingKeys,
       });
     }
-    return catalogBefore !== providerCatalogFingerprint();
+    return (
+      catalogBefore !==
+      JSON.stringify([threadStagesInstalled, sidebarSnapshot()])
+    );
   }
 
   function reconcileRoot(
@@ -655,7 +687,9 @@ export default async function plugin(bb: BbPluginApi) {
       return result;
     }
 
-    const destination = descriptor.groups.find(({ id }) => id === input.groupId);
+    const destination = descriptor.groups.find(
+      ({ id }) => id === input.groupId,
+    );
     if (destination === undefined) {
       return {
         ok: false as const,
@@ -713,7 +747,8 @@ export default async function plugin(bb: BbPluginApi) {
       before.value.placement.groupId === "unsectioned"
         ? null
         : before.value.placement.groupId;
-    const nextSectionId = input.groupId === "unsectioned" ? null : input.groupId;
+    const nextSectionId =
+      input.groupId === "unsectioned" ? null : input.groupId;
     await bb.sdk.threads.update({
       threadId: input.threadId,
       sectionId: nextSectionId,
@@ -739,6 +774,11 @@ export default async function plugin(bb: BbPluginApi) {
     return result;
   }
 
+  await refreshCatalogsAndRoots();
+  mountedMigrationPending = true;
+  await attemptMountedMigration();
+  await migrateWorkflowShortcuts(bb, database, threadStagesInstalled);
+  const workflow = createWorkflowRuntime(bb, store, updatePlacement, settings);
   const pullRequestDetails = createPullRequestDetailsService({
     run: createGhGraphqlRunner(),
     onError(error) {
@@ -747,6 +787,8 @@ export default async function plugin(bb: BbPluginApi) {
   });
 
   bb.rpc.register(rpcContract, {
+    ...workflow,
+
     async addProjectLocalPathV1({ projectId }) {
       const { primaryHostId } = await bb.sdk.system.config();
       if (!primaryHostId) throw new Error("No primary host is available.");
@@ -817,8 +859,8 @@ export default async function plugin(bb: BbPluginApi) {
         groupingKey: input.groupingKey as GroupingKey,
       });
     },
-    async invalidateGroupingCatalogV1({ providerPluginId }) {
-      await providers.refreshProvider(providerPluginId);
+    async invalidateGroupingCatalogV1() {
+      stageSettings = await settings.get();
       bb.realtime.publish("catalog-changed", null);
       return null;
     },
@@ -891,11 +933,13 @@ export default async function plugin(bb: BbPluginApi) {
       });
       const seen = new Set<string>();
       const threads = sidebarThreadsFromSearchResult(result);
-      const threadIds = threads.map(({ id }) => id).filter((threadId) => {
-        if (seen.has(threadId)) return false;
-        seen.add(threadId);
-        return true;
-      });
+      const threadIds = threads
+        .map(({ id }) => id)
+        .filter((threadId) => {
+          if (seen.has(threadId)) return false;
+          seen.add(threadId);
+          return true;
+        });
       return { threadIds, threads };
     },
     sidebarSnapshotV1() {
@@ -921,12 +965,13 @@ export default async function plugin(bb: BbPluginApi) {
     store,
     groupings,
     threads: async ({ includeArchived, includeHidden }) => {
-      const threads = includeArchived || includeHidden
-        ? await listThreadsForSidebar(bb, {
-            includeArchived,
-            includeHidden,
-          })
-        : sidebarThreads;
+      const threads =
+        includeArchived || includeHidden
+          ? await listThreadsForSidebar(bb, {
+              includeArchived,
+              includeHidden,
+            })
+          : sidebarThreads;
       for (const thread of threads) {
         projectByThread.set(thread.id, thread.projectId);
         sectionByThread.set(thread.id, thread.sectionId ?? "unsectioned");
@@ -989,7 +1034,9 @@ export default async function plugin(bb: BbPluginApi) {
       });
     }
   });
-  settings.onChange(() => {
+  settings.onChange(async () => {
+    stageSettings = await settings.get();
+    bb.realtime.publish("catalog-changed", null);
     bb.realtime.publish("settings-changed", null);
   });
   await refreshCatalogsAndRoots();

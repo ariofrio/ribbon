@@ -5,9 +5,11 @@ import { chromium } from "playwright";
 import {
   FEATURED_PROJECT,
   FEATURED_THREAD,
+  THREADS,
 } from "../../screenshots/fixture.mjs";
 
 export async function verifyThreadReordering({ stack, fixture }) {
+  for (const thread of fixture.threads.values()) fixture.run(["sidebar", "place", thread.id, "--to", "plugin:thread-stages:stages/Idle"]);
   const browser = await chromium.launch({ args: ["--mute-audio"] });
   let releaseSave = () => {};
   let context;
@@ -45,7 +47,7 @@ export async function verifyThreadReordering({ stack, fixture }) {
         JSON.stringify({
           view: {
             scope: { kind: "all" },
-            groupingKey: "builtin:projects",
+            groupingKey: "builtin:sections",
             sort: "manual",
           },
           collapsed: [],
@@ -65,7 +67,7 @@ export async function verifyThreadReordering({ stack, fixture }) {
     );
     await sidebar.waitFor({ timeout: 120_000 });
     const group = sidebar.getByRole("region", {
-      name: `${FEATURED_PROJECT} group`,
+      name: "Atlas group",
       exact: true,
     });
     const rows = group.locator("li[data-thread-id]");
@@ -316,7 +318,7 @@ export async function verifyThreadReordering({ stack, fixture }) {
           markerBox.top >= heading.getBoundingClientRect().bottom &&
           markerBox.bottom <= firstRow.getBoundingClientRect().top
         );
-      }, `${FEATURED_PROJECT} group`);
+      }, "Atlas group");
     await expectHeaderPreview();
     await page.mouse.move(headerBox.x + 60, headerBox.y + headerBox.height / 2);
     await expectHeaderPreview();
@@ -425,6 +427,7 @@ export async function verifyThreadReordering({ stack, fixture }) {
       .catch((diagnosticError) => console.error("Could not save the thread-reordering trace:", diagnosticError));
     throw error;
   } finally {
+    for (const spec of THREADS) if (spec.stage) fixture.run(["sidebar", "place", fixture.threads.get(spec.title).id, "--to", `plugin:thread-stages:stages/${spec.stage}`]);
     releaseSave();
     await browser.close();
   }
@@ -558,6 +561,11 @@ export async function verifyHeadingBoundary({ stack, fixture }) {
               };
             }),
           );
+        }
+        const finalHeader = await following.locator('[data-sidebar="group-label"]').boundingBox();
+        if (offset === 4 && pointerY >= finalHeader.y && pointerY < finalHeader.y + finalHeader.height) {
+          assert.ok(placements.at(-1).placement.startsWith("Boundary group:"),
+            `The visible section heading must receive the drop (${scenario}): ${JSON.stringify(placements.at(-1))}`);
         }
         const transitions = placements.filter(
           (value, index) =>

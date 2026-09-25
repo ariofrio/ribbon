@@ -1,6 +1,6 @@
 ---
 name: ribbon-sidebar
-description: Inspect and organize bb root threads across Sections, Projects, and plugin-provided Ribbon sidebar groups. Use when selecting threads by sidebar organization, checking group membership before bulk work or messaging, or moving and ordering root threads. Discover the installed CLI rather than assuming its commands.
+description: Inspect and organize bb root threads across Sections, Projects, and Ribbon workflow stages. Use when selecting threads by sidebar organization, checking group membership before bulk work or messaging, or moving and ordering root threads. Discover the installed CLI rather than assuming its commands.
 ---
 
 # Ribbon sidebar
@@ -14,8 +14,7 @@ Discover the available operations and arguments from the CLI's own help as
 needed. Do not rely on a memorized command surface.
 
 Use Ribbon's joined thread view before selecting roots for bulk work or
-messaging. It combines bb thread metadata with Section, Project, and every
-plugin-provided group, so selection rules based on organization should be
+messaging. It combines bb thread metadata with Section, Project, and workflow stage, so selection rules based on organization should be
 applied to that complete view rather than reconstructed from separate partial
 lists.
 

@@ -1,20 +1,11 @@
 import { useSortable } from "@dnd-kit/sortable";
 import {
-  ThreadDragProvider,
-  ThreadDragGroup,
-  ThreadDragHeader,
-  ThreadDropPreview,
-  type ThreadDragTarget,
-  type ThreadDragDestination,
-} from "./thread-drag";
-import {
   definePluginApp,
   experimental_useSidebarThreadActions,
   experimental_useSidebarThreadPullRequest,
-  experimental_useSidebarThreadSplit,
   experimental_useSidebarThreads,
+  experimental_useSidebarThreadSplit,
   useBbNavigate,
-  useComposerView,
   useRealtime,
   useRealtimeConnectionState,
   useRpc,
@@ -25,31 +16,58 @@ import {
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  Fragment,
+  type CSSProperties,
   type FormEvent,
   type MouseEvent,
   type ReactNode,
 } from "react";
 import type { z } from "zod";
+import { CHROME_SECTION_LABEL_CLASS } from "./chrome-style-tokens";
 import type { IconDataV1 } from "./contracts";
-import type { rpcContract } from "./server";
-import type { GroupingKey, PlacementRecordV1 } from "./placement-store";
+import { GroupHeaderMenu, type HeaderGroupActions } from "./group-header-menu";
+import { orderedGroupings } from "./grouping-order";
 import {
-  changeSidebarGrouping,
-  changeSidebarPagesGrouping,
-  changeSidebarScope,
-  loadSidebarPreferences,
-  saveSidebarPreferences,
-  type GroupRef,
-  type PullRequestNumberPosition,
-  type SidebarPreferences,
-  type SidebarSort,
-} from "./view-state";
+  ICON_INDICATOR_SPACE_ATTRIBUTE,
+  ICON_LAYOUT_ATTRIBUTE,
+  publishIconStyles,
+  type IconFallback,
+} from "./icon-styles";
+import { usePersistentStringSet } from "./persistent-string-set";
+import type { GroupingKey, PlacementRecordV1 } from "./placement-store";
+import { ProviderIcon } from "./provider-icon";
+import { sectionBands } from "./section-layout";
+import type { rpcContract } from "./server";
+import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
+import { SidebarDisplayOptionsItems } from "./sidebar-display-options-menu";
+import { SplitPaneMiniMap } from "./split-pane-mini-map";
+import { StagePreview } from "./stage-preview";
+import {
+  ThreadActionsContextMenu,
+  ThreadActionsDropdown,
+  type AssignmentGroupOption,
+} from "./thread-actions-menu";
+import {
+  ThreadDragGroup,
+  ThreadDragHeader,
+  ThreadDragProvider,
+  ThreadDropPreview,
+  type ThreadDragDestination,
+  type ThreadDragTarget,
+} from "./thread-drag";
+import { groupIndicator, ThreadIndicator } from "./thread-indicator";
+import {
+  resolveThreadStatus,
+  withPullRequestSignal,
+  type ThreadStatus,
+} from "./thread-status";
+import { ThreadTitle } from "./thread-title";
+import { UnorganizedIcon } from "./unorganized-icon";
 import { Button } from "./vendor/components/ui/button";
 import {
   Dialog,
@@ -59,55 +77,29 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./vendor/components/ui/dialog";
-import { Input } from "./vendor/components/ui/input";
-import { groupIndicator, ThreadIndicator } from "./thread-indicator";
-import {
-  resolveThreadStatus,
-  withPullRequestSignal,
-  type ThreadStatus,
-} from "./thread-status";
 import { pullRequestSignal } from "./pull-request-status";
 import {
   PullRequestDetailsProvider,
   usePullRequestDetails,
   type PullRequestDetailsRequest,
 } from "./pull-request-details-store";
-import { ThreadTitle } from "./thread-title";
-import {
-  ICON_INDICATOR_SPACE_ATTRIBUTE,
-  ICON_LAYOUT_ATTRIBUTE,
-  publishIconStyles,
-  type IconFallback,
-} from "./icon-styles";
-import {
-  ThreadActionsContextMenu,
-  ThreadActionsDropdown,
-  type AssignmentGroupOption,
-} from "./thread-actions-menu";
-import { ProviderIcon } from "./provider-icon";
 import { Icon } from "./vendor/components/ui/icon";
-import { usePersistentStringSet } from "./persistent-string-set";
-import { SplitPaneMiniMap } from "./split-pane-mini-map";
-import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
-import { ScopeFilter } from "./scope-filter";
-import { SidebarDisplayOptionsMenu } from "./sidebar-display-options-menu";
-import { SidebarNavigation, SidebarTopControls } from "./sidebar-top-controls";
-import type { ScopeFilterValue } from "./scope-filter-value";
-import { orderedGroupings } from "./grouping-order";
-import { UnorganizedIcon } from "./unorganized-icon";
-import { CHROME_SECTION_LABEL_CLASS } from "./chrome-style-tokens";
+import { Input } from "./vendor/components/ui/input";
 import {
-  GroupHeaderMenu,
-  type HeaderGroupActions,
-} from "./group-header-menu";
-import {
-  mountGroupAwareThreadCreation,
-  RIBBON_SIDEBAR_NEW_THREAD_GROUP_REQUESTED_EVENT,
-  RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT,
-  selectedGroup,
-} from "./new-thread-section";
+  loadSidebarPreferences,
+  saveSidebarPreferences,
+  type PullRequestNumberPosition,
+  type SidebarPreferences,
+  type SidebarSort,
+} from "./view-state";
+import { STAGE_ICONS, THREAD_STAGES_GROUPING_KEY } from "./workflow/catalog";
+import { registerWorkflowCommands } from "./workflow/commands";
+import { parseWorkflowStage } from "./workflow/workflow-stage";
 
-const COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
+// bb clears its legacy key during preference hydration; Ribbon owns this key.
+const COLLAPSED_THREADS_STORAGE_KEY =
+  "bb.plugin.ribbon-sidebar.collapsedThreads";
+const LEGACY_COLLAPSED_THREADS_STORAGE_KEY = "bb.sidebar.collapsedThreads";
 /** bb keeps project-less threads in the personal project, under a reserved id. */
 const PERSONAL_PROJECT_ID = "proj_personal";
 
@@ -121,9 +113,7 @@ const PR_LIFECYCLE_ICONS = {
   draft: { name: "GitPullRequestDraft", className: "text-muted-foreground" },
 } as const;
 
-type SidebarSnapshot = z.output<
-  typeof rpcContract.sidebarSnapshotV1.output
->;
+type SidebarSnapshot = z.output<typeof rpcContract.sidebarSnapshotV1.output>;
 type SearchThread = z.output<
   typeof rpcContract.searchThreadIdsV1.output
 >["threads"][number];
@@ -141,22 +131,6 @@ type EntityDialog =
 
 function title(thread: Pick<PluginSidebarThread, "title" | "titleFallback">) {
   return thread.title ?? thread.titleFallback ?? "Untitled thread";
-}
-
-function compareSidebarThreads(
-  sort: SidebarSort,
-  left: PluginSidebarThread,
-  right: PluginSidebarThread,
-) {
-  if (sort === "updated") return right.updatedAt - left.updatedAt;
-  if (sort === "created") return right.createdAt - left.createdAt;
-  if (sort === "alphabetical") {
-    return title(left).localeCompare(title(right), undefined, {
-      sensitivity: "base",
-      numeric: true,
-    });
-  }
-  return 0;
 }
 
 function descendants(
@@ -273,6 +247,7 @@ function ThreadRow({
   preview,
   pullRequestNumberPosition,
   reorderable,
+  rootThreadId,
   sections,
   thread,
 }: {
@@ -306,13 +281,18 @@ function ThreadRow({
   preview: string | null;
   pullRequestNumberPosition: PullRequestNumberPosition;
   reorderable: boolean;
+  rootThreadId: string;
   sections: readonly { id: string; label: string }[];
   thread: PluginSidebarThread;
 }) {
-  const { splitProps, isAvailable: splitAvailable, layout } =
-    experimental_useSidebarThreadSplit(thread.id);
+  const {
+    splitProps,
+    isAvailable: splitAvailable,
+    layout,
+  } = experimental_useSidebarThreadSplit(thread.id);
   const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
-  const visiblePullRequest = pullRequestNumberPosition === "hidden" ? null : pullRequest;
+  const visiblePullRequest =
+    pullRequestNumberPosition === "hidden" ? null : pullRequest;
   const pullRequestDetails = usePullRequestDetails(visiblePullRequest);
   const pullRequestStatus = visiblePullRequest
     ? pullRequestSignal(visiblePullRequest, pullRequestDetails)
@@ -327,27 +307,31 @@ function ThreadRow({
     data: { target: dragTarget, label: rowTitle },
   });
   const accessibleTitle = preview ? `${rowTitle} — ${preview}` : rowTitle;
-  const showPullRequest = visiblePullRequest !== null && pullRequestStatus !== null;
-  const pullRequestIcon = pullRequestStatus ? PR_LIFECYCLE_ICONS[pullRequestStatus.lifecycle] : null;
-  const pullRequestNumber = showPullRequest && pullRequestIcon ? (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ${
-        pullRequestNumberPosition === "right" ? "ml-auto" : ""
-      }`}
-      title={
-        pullRequestStatus.label
-          ? `${visiblePullRequest.title} — ${pullRequestStatus.label}`
-          : visiblePullRequest.title
-      }
-    >
-      <Icon
-        name={pullRequestIcon.name}
-        className={`size-4 shrink-0 ${pullRequestIcon.className}`}
-        aria-hidden
-      />
-      #{visiblePullRequest.number}
-    </span>
-  ) : null;
+  const showPullRequest =
+    visiblePullRequest !== null && pullRequestStatus !== null;
+  const pullRequestIcon = pullRequestStatus
+    ? PR_LIFECYCLE_ICONS[pullRequestStatus.lifecycle]
+    : null;
+  const pullRequestNumber =
+    showPullRequest && pullRequestIcon ? (
+      <span
+        className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ${
+          pullRequestNumberPosition === "right" ? "ml-auto" : ""
+        }`}
+        title={
+          pullRequestStatus.label
+            ? `${visiblePullRequest.title} — ${pullRequestStatus.label}`
+            : visiblePullRequest.title
+        }
+      >
+        <Icon
+          name={pullRequestIcon.name}
+          className={`size-4 shrink-0 ${pullRequestIcon.className}`}
+          aria-hidden
+        />
+        #{visiblePullRequest.number}
+      </span>
+    ) : null;
   const actionsOpen = dropdownOpen || contextOpen;
   const showChildToggleAtRest = hasChildren && childrenCollapsed;
   const hasIcon = icon !== null;
@@ -382,12 +366,17 @@ function ThreadRow({
     <li
       className="relative list-none"
       data-thread-id={thread.id}
-      style={dragging ? {
-        opacity: 0,
-        pointerEvents: "none",
-        position: projected ? "absolute" : undefined,
-        width: "100%",
-      } : undefined}
+      data-ribbon-root-id={rootThreadId}
+      style={
+        dragging
+          ? {
+              opacity: 0,
+              pointerEvents: "none",
+              position: projected ? "absolute" : undefined,
+              width: "100%",
+            }
+          : undefined
+      }
     >
       <div
         className={`bb-sidebar-hover-actions-row group/thread-row relative grid w-full items-start rounded-md pr-0 text-sm transition-colors ${
@@ -395,7 +384,9 @@ function ThreadRow({
             ? "grid-cols-[minmax(0,1fr)_auto] gap-x-1"
             : "grid-cols-1"
         } ${
-          active ? "bg-sidebar-accent" : "cursor-pointer hover:bg-sidebar-accent"
+          active
+            ? "bg-sidebar-accent"
+            : "cursor-pointer hover:bg-sidebar-accent"
         } ${
           muted
             ? "text-subtle-foreground/75"
@@ -463,7 +454,8 @@ function ThreadRow({
             }`}
             style={{
               gridColumnStart: hasIcon ? 2 : 1,
-              paddingRight: !hasTrailingIndicator && thread.isArchived ? 8 : undefined,
+              paddingRight:
+                !hasTrailingIndicator && thread.isArchived ? 8 : undefined,
             }}
           >
             <span
@@ -477,7 +469,11 @@ function ThreadRow({
             {hasChildren ? (
               <Button
                 aria-expanded={!childrenCollapsed}
-                aria-label={childrenCollapsed ? `Expand ${rowTitle} threads` : `Collapse ${rowTitle} threads`}
+                aria-label={
+                  childrenCollapsed
+                    ? `Expand ${rowTitle} threads`
+                    : `Collapse ${rowTitle} threads`
+                }
                 variant="ghost"
                 size="icon"
                 className={`relative z-20 size-5 shrink-0 overflow-hidden p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3 ${
@@ -498,7 +494,11 @@ function ThreadRow({
                 }}
                 type="button"
               >
-                <Icon name="ChevronRight" className={`size-3 transition-transform duration-150 ${childrenCollapsed ? "" : "rotate-90"}`} aria-hidden />
+                <Icon
+                  name="ChevronRight"
+                  className={`size-3 transition-transform duration-150 ${childrenCollapsed ? "" : "rotate-90"}`}
+                  aria-hidden
+                />
               </Button>
             ) : null}
           </span>
@@ -579,7 +579,9 @@ function ThreadRow({
             {!thread.isArchived ? (
               <span
                 className="bb-sidebar-hover-actions absolute inset-y-0 right-0 z-10 flex w-7 items-center justify-end max-md:pointer-coarse:hidden"
-                data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
+                data-sidebar-hover-actions-open={
+                  actionsOpen ? "true" : undefined
+                }
               >
                 <ThreadActionsDropdown
                   {...commonMenuProps}
@@ -605,7 +607,10 @@ function ThreadRow({
 
   if (thread.isArchived) return row;
   return (
-    <ThreadActionsContextMenu {...commonMenuProps} onOpenChange={setContextOpen}>
+    <ThreadActionsContextMenu
+      {...commonMenuProps}
+      onOpenChange={setContextOpen}
+    >
       {row}
     </ThreadActionsContextMenu>
   );
@@ -632,53 +637,18 @@ function SidebarMessage({
         />
         <span>{children}</span>
         {action ? (
-          <Button onClick={action.onClick} size="sm" type="button" variant="outline">
+          <Button
+            onClick={action.onClick}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
             {action.label}
           </Button>
         ) : null}
       </div>
     </div>
   );
-}
-
-function NewThreadProjectSync() {
-  const view = useComposerView();
-  const actions = experimental_useSidebarThreadActions();
-  const sidebar = experimental_useSidebarThreads();
-  const [preferenceVersion, setPreferenceVersion] = useState(0);
-  const requestedProjectId = useRef<string | null>(null);
-
-  useEffect(() => {
-    const refresh = () => setPreferenceVersion((version) => version + 1);
-    window.addEventListener(RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT, refresh);
-    return () => {
-      window.removeEventListener(
-        RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT,
-        refresh,
-      );
-    };
-  }, []);
-
-  const currentProjectId =
-    view.scope.kind === "new-thread" ? view.scope.projectId : null;
-  useEffect(() => {
-    const group = selectedGroup(window.localStorage);
-    const projectId =
-      group?.groupingKey === "builtin:projects" ? group.groupId : null;
-    if (
-      projectId === null ||
-      projectId === currentProjectId ||
-      !sidebar.projects.some(({ id }) => id === projectId)
-    ) {
-      requestedProjectId.current = null;
-      return;
-    }
-    if (requestedProjectId.current === projectId) return;
-    requestedProjectId.current = projectId;
-    actions.openNewThread({ projectId, focusPrompt: true });
-  }, [actions, currentProjectId, preferenceVersion, sidebar.projects]);
-
-  return null;
 }
 
 function RibbonSidebarList({
@@ -707,46 +677,53 @@ function RibbonSidebarList({
   const [preferences, setPreferences] = useState<SidebarPreferences | null>(
     null,
   );
-  const [placements, setPlacements] = useState<readonly PlacementRecordV1[]>(
-    [],
+  const [placementLists, setPlacementLists] = useState<
+    ReadonlyMap<GroupingKey, readonly PlacementRecordV1[]>
+  >(new Map());
+  const selectedGroupingKey =
+    preferences?.view.groupingKey ?? "builtin:sections";
+  const placements = useMemo(
+    () => placementLists.get(selectedGroupingKey) ?? [],
+    [placementLists, selectedGroupingKey],
   );
   const [assignmentPlacements, setAssignmentPlacements] = useState<
     ReadonlyMap<string, ReadonlyMap<string, PlacementRecordV1>>
   >(new Map());
   const assignmentRequest = useRef(0);
-  const [revision, setRevision] = useState(0);
+  const latestPlacementRevisions = useRef(new Map<GroupingKey, number>());
   const [previews, setPreviews] = useState<ReadonlyMap<string, string | null>>(
     new Map(),
   );
-  const [projectActionStates, setProjectActionStates] = useState<
-    ReadonlyMap<string, { canAddLocalPath: boolean }>
-  >(new Map());
   const [supplementalThreads, setSupplementalThreads] = useState<
     readonly SupplementalThread[]
   >([]);
-  const [collapsedThreadIds, setCollapsedThreadIds] =
-    usePersistentStringSet(COLLAPSED_THREADS_STORAGE_KEY);
+  const [collapsedThreadIds, setCollapsedThreadIds] = usePersistentStringSet(
+    COLLAPSED_THREADS_STORAGE_KEY,
+    LEGACY_COLLAPSED_THREADS_STORAGE_KEY,
+  );
   const [threadRename, setThreadRename] = useState<{
     id: string;
     name: string;
   } | null>(null);
   const [threadRenamePending, setThreadRenamePending] = useState(false);
   const [placementsLoaded, setPlacementsLoaded] = useState(false);
+  const [stagesLoaded, setStagesLoaded] = useState(false);
   const [previewsLoaded, setPreviewsLoaded] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
-  const [pendingNewThreadGroup, setPendingNewThreadGroup] = useState<{
-    group: GroupRef;
-    activeThreadIdAtSubmission: string | null;
-    knownThreadIds: ReadonlySet<string>;
-  } | null>(null);
   const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
   const [dragDestination, setDragDestination] =
     useState<ThreadDragDestination | null>(null);
-  const [optimisticMove, setOptimisticMove] = useState<{
-    threadId: string;
-    destination: ThreadDragDestination;
-  } | null>(null);
+  const [optimisticMoves, setOptimisticMoves] = useState<
+    {
+      id: number;
+      groupingKey: GroupingKey;
+      threadId: string;
+      destination: ThreadDragDestination;
+    }[]
+  >([]);
+  const moveSequence = useRef(0);
+  const moveQueue = useRef(Promise.resolve());
   const [entityDialog, setEntityDialog] = useState<EntityDialog | null>(null);
   const [entityPending, setEntityPending] = useState(false);
   const [searchResult, setSearchResult] = useState<{
@@ -759,21 +736,14 @@ function RibbonSidebarList({
   const reconnectPending = useRef(false);
   const mounted = useRef(false);
   const previewRequest = useRef(0);
-  const scopeSyncedForThreadId = useRef<string | null>(null);
   const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
 
   const synchronize = useCallback(async () => {
-    const [next, actionStates] = await Promise.all([
-      rpc.call("synchronizeV1", {
-        migrateThreadStages: !mounted.current,
-      }),
-      rpc.call("listProjectActionStatesV1", null).catch(() => ({ projects: [] })),
-    ]);
+    const next = await rpc.call("synchronizeV1", {
+      migrateThreadStages: !mounted.current,
+    });
     mounted.current = true;
     setSnapshot(next);
-    setProjectActionStates(
-      new Map(actionStates.projects.map((project) => [project.id, project])),
-    );
     setFatalError(null);
     setPreferences((current) => {
       if (current !== null) return current;
@@ -815,90 +785,56 @@ function RibbonSidebarList({
   }, [connection, synchronize]);
 
   const loadPlacements = useCallback(async () => {
-    if (!preferences) return;
-    const placementGroupingKey =
-      preferences.view.groupingKey ??
-      snapshot?.groupings.find(({ available }) => available)?.groupingKey;
-    if (!placementGroupingKey) return;
-    setPlacementsLoaded(false);
-    let threadIds: string[] | undefined;
-    const sameGroupingScope =
-      !normalizedSearch &&
-      preferences.view.scope.kind === "group" &&
-      preferences.view.scope.group.groupingKey === placementGroupingKey
-        ? preferences.view.scope.group
-        : null;
-    if (
-      !normalizedSearch &&
-      preferences.view.scope.kind === "group" &&
-      preferences.view.scope.group.groupingKey !==
-        placementGroupingKey
-    ) {
-      const scope = preferences.view.scope.group;
-      const scoped = await rpc.call("listPlacementsV1", {
-        groupingKey: scope.groupingKey,
-      });
-      if (!scoped.ok) throw new Error(scoped.error.message);
-      threadIds = scoped.value.items
-        .filter(({ groupId }) => groupId === scope.groupId)
-        .map(({ threadId }) => threadId);
-    }
-    const result = await rpc.call("listPlacementsV1", {
-      groupingKey: placementGroupingKey,
-      ...(threadIds === undefined ? {} : { threadIds }),
-    });
-    if (!result.ok) throw new Error(result.error.message);
-    setPlacements(
-      result.value.items.filter(
-        ({ groupId }) =>
-          sameGroupingScope === null || groupId === sameGroupingScope.groupId,
-      ) as PlacementRecordV1[],
-    );
-    setRevision(result.value.revision);
-    setPlacementsLoaded(true);
-  }, [normalizedSearch, preferences, rpc, snapshot]);
-
-  const loadAssignmentPlacements = useCallback(async () => {
-    if (!snapshot) return;
-    const request = ++assignmentRequest.current;
-    const needed = snapshot.groupings.filter(
-      ({ available, groupingKey, membershipWritable }) =>
-        available &&
-        ((membershipWritable && groupingKey !== "builtin:sections") ||
-          (groupingKey.startsWith("plugin:") &&
-            groupingKey === preferences?.view.iconGroupingKey)),
-    );
-    const results = await Promise.all(
-      needed.map(async (candidate) => {
-        const result = await rpc
-          .call("listPlacementsV1", {
-            groupingKey: candidate.groupingKey,
-          })
-          .catch(() => null);
-        return [candidate.groupingKey, result] as const;
-      }),
-    );
-    if (request !== assignmentRequest.current) return;
-    setAssignmentPlacements(
-      new Map(
-        results.flatMap(([groupingKey, result]) =>
-          result?.ok
-            ? [
-                [
-                  groupingKey,
-                  new Map(
-                    result.value.items.map((placement) => [
-                      placement.threadId,
-                      placement as PlacementRecordV1,
-                    ]),
-                  ),
-                ] as const,
-              ]
-            : [],
-        ),
+    await Promise.all(
+      (["builtin:sections", "builtin:projects"] as const).map(
+        async (groupingKey) => {
+          const result = await rpc.call("listPlacementsV1", { groupingKey });
+          if (!result.ok) throw new Error(result.error.message);
+          // Each grouping keeps its own snapshot; switching views cannot apply a
+          // late section response to projects, or undo a newer saved order.
+          if (
+            result.value.revision <
+            (latestPlacementRevisions.current.get(groupingKey) ?? -1)
+          )
+            return;
+          latestPlacementRevisions.current.set(
+            groupingKey,
+            result.value.revision,
+          );
+          setPlacementLists((current) =>
+            new Map(current).set(
+              groupingKey,
+              result.value.items as PlacementRecordV1[],
+            ),
+          );
+        },
       ),
     );
-  }, [rpc, snapshot, preferences?.view.iconGroupingKey]);
+    setPlacementsLoaded(true);
+  }, [rpc]);
+
+  const loadAssignmentPlacements = useCallback(async () => {
+    const request = ++assignmentRequest.current;
+    const result = await rpc.call("listPlacementsV1", {
+      groupingKey: THREAD_STAGES_GROUPING_KEY,
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    if (request !== assignmentRequest.current) return;
+    setAssignmentPlacements(
+      new Map([
+        [
+          THREAD_STAGES_GROUPING_KEY,
+          new Map(
+            result.value.items.map((item) => [
+              item.threadId,
+              item as PlacementRecordV1,
+            ]),
+          ),
+        ],
+      ]),
+    );
+    setStagesLoaded(true);
+  }, [rpc]);
 
   useEffect(() => {
     void loadPlacements().catch((error: unknown) => {
@@ -908,12 +844,20 @@ function RibbonSidebarList({
     });
   }, [loadPlacements]);
   useEffect(() => {
-    void loadAssignmentPlacements();
+    void loadAssignmentPlacements().catch((error) =>
+      setFatalError(
+        error instanceof Error ? error.message : "Could not load stages",
+      ),
+    );
   }, [loadAssignmentPlacements]);
 
   useRealtime("placements-changed", () => {
     void loadPlacements();
-    void loadAssignmentPlacements();
+    void loadAssignmentPlacements().catch((error) =>
+      setFatalError(
+        error instanceof Error ? error.message : "Could not load stages",
+      ),
+    );
   });
   useRealtime("catalog-changed", () => {
     void synchronize().catch((error: unknown) => {
@@ -935,92 +879,12 @@ function RibbonSidebarList({
     [],
   );
 
-  useEffect(() => {
-    if (preferences === null) return;
-    window.dispatchEvent(
-      new Event(RIBBON_SIDEBAR_PREFERENCES_CHANGED_EVENT),
-    );
-  }, [preferences]);
-
-  useEffect(() => {
-    const capture = (event: Event) => {
-      const detail = (event as CustomEvent<unknown>).detail;
-      if (
-        typeof detail !== "object" ||
-        detail === null ||
-        !("groupingKey" in detail) ||
-        !("groupId" in detail) ||
-        typeof detail.groupingKey !== "string" ||
-        typeof detail.groupId !== "string"
-      ) {
-        return;
-      }
-      setPendingNewThreadGroup({
-        group: detail as GroupRef,
-        activeThreadIdAtSubmission: activeThreadId,
-        knownThreadIds: new Set(sidebar.threads.map(({ id }) => id)),
-      });
-    };
-    window.addEventListener(
-      RIBBON_SIDEBAR_NEW_THREAD_GROUP_REQUESTED_EVENT,
-      capture,
-    );
-    return () => {
-      window.removeEventListener(
-        RIBBON_SIDEBAR_NEW_THREAD_GROUP_REQUESTED_EVENT,
-        capture,
-      );
-    };
-  }, [activeThreadId, sidebar.threads]);
-
-  useEffect(() => {
-    if (
-      pendingNewThreadGroup === null ||
-      activeThreadId === null ||
-      activeThreadId === pendingNewThreadGroup.activeThreadIdAtSubmission ||
-      snapshot === null
-    ) {
-      return;
-    }
-    const { group } = pendingNewThreadGroup;
-    if (pendingNewThreadGroup.knownThreadIds.has(activeThreadId)) {
-      setPendingNewThreadGroup(null);
-      return;
-    }
-    const descriptor = snapshot.groupings.find(
-      ({ groupingKey }) => groupingKey === group.groupingKey,
-    );
-    const destination = descriptor?.groups.find(({ id }) => id === group.groupId);
-    setPendingNewThreadGroup(null);
-    if (
-      descriptor?.available !== true ||
-      !descriptor.membershipWritable ||
-      destination?.acceptsAssignments !== true
-    ) {
-      return;
-    }
-    void rpc
-      .call("placeNewThreadV1", {
-        ...group,
-        threadId: activeThreadId,
-      })
-      .then((result) => {
-        if (!result.ok) setMutationError(result.error.message);
-      })
-      .catch((error: unknown) => {
-        setMutationError(
-          error instanceof Error
-            ? error.message
-            : "Could not place the new thread",
-        );
-      });
-  }, [activeThreadId, pendingNewThreadGroup, rpc, snapshot]);
-
   const grouping = snapshot?.groupings.find(
     ({ groupingKey }) => groupingKey === preferences?.view.groupingKey,
   );
   const placementByThread = useMemo(
-    () => new Map(placements.map((placement) => [placement.threadId, placement])),
+    () =>
+      new Map(placements.map((placement) => [placement.threadId, placement])),
     [placements],
   );
   useEffect(() => {
@@ -1066,7 +930,8 @@ function RibbonSidebarList({
       ) {
         return false;
       }
-      const threadVisibility = visibility.get(thread.id) ?? (thread.isHidden ? "hidden" : "visible");
+      const threadVisibility =
+        visibility.get(thread.id) ?? (thread.isHidden ? "hidden" : "visible");
       return threadVisibility === "hidden"
         ? !preferences.view.hide.hidden
         : !preferences.view.hide.visible;
@@ -1096,47 +961,6 @@ function RibbonSidebarList({
     });
     return [...rootThreads, ...searchOnly];
   }, [normalizedSearch, rootThreads, searchResult]);
-  useEffect(() => {
-    if (activeThreadId === null) {
-      scopeSyncedForThreadId.current = null;
-      return;
-    }
-    if (
-      sidebar.status !== "ready" ||
-      preferences === null ||
-      scopeSyncedForThreadId.current === activeThreadId
-    ) {
-      return;
-    }
-    const root = rootForThread(activeThreadId, liveThreads);
-    if (!root) return;
-    scopeSyncedForThreadId.current = activeThreadId;
-    if (preferences.view.scope.kind !== "group") return;
-    const scope = preferences.view.scope.group;
-    const groupId =
-      scope.groupingKey === "builtin:projects"
-        ? root.projectId
-        : scope.groupingKey === "builtin:sections"
-          ? (root.sectionId ?? "unsectioned")
-          : null;
-    if (groupId === null || groupId === scope.groupId) return;
-    changePreferences((current) => ({
-      ...current,
-      view: {
-        ...current.view,
-        scope: {
-          kind: "group",
-          group: { groupingKey: scope.groupingKey, groupId },
-        },
-      },
-    }));
-  }, [
-    activeThreadId,
-    changePreferences,
-    liveThreads,
-    preferences,
-    sidebar.status,
-  ]);
   const refreshPreviews = useCallback(() => {
     const request = ++previewRequest.current;
     setPreviewsLoaded(false);
@@ -1186,18 +1010,12 @@ function RibbonSidebarList({
   const childrenByParent = useMemo(() => {
     const result = new Map<string, PluginSidebarThread[]>();
     for (const child of liveThreads.filter(
-      ({ parentThreadId }) => parentThreadId && liveThreadIds.has(parentThreadId),
+      ({ parentThreadId }) =>
+        parentThreadId && liveThreadIds.has(parentThreadId),
     )) {
       const list = result.get(child.parentThreadId!) ?? [];
       list.push(child);
       result.set(child.parentThreadId!, list);
-    }
-    if (preferences !== null && preferences.view.sort !== "manual") {
-      for (const children of result.values()) {
-        children.sort((left, right) =>
-          compareSidebarThreads(preferences.view.sort, left, right),
-        );
-      }
     }
     return result;
   }, [liveThreadIds, liveThreads, preferences]);
@@ -1248,8 +1066,8 @@ function RibbonSidebarList({
     (root: PluginSidebarThread) => {
       if (!normalizedSearch) return true;
       if (searchResult.query !== normalizedSearch) return false;
-      return [root, ...descendants(root.id, childrenByParent)].some(
-        ({ id }) => searchResult.threadIds.has(id),
+      return [root, ...descendants(root.id, childrenByParent)].some(({ id }) =>
+        searchResult.threadIds.has(id),
       );
     },
     [childrenByParent, normalizedSearch, searchResult],
@@ -1262,55 +1080,65 @@ function RibbonSidebarList({
     () => new Set(supplementalThreads.map(({ id }) => id)),
     [supplementalThreads],
   );
-  const hasGroupScope = preferences?.view.scope.kind === "group";
-  // Pinned membership and ordering come directly from bb. An active Ribbon
-  // scope still controls which pinned roots are visible.
+  // Pinned membership and order remain owned by bb.
   const savedPinnedRoots = useMemo(
     () =>
       displayRootThreads.filter(
-        (thread) =>
-          thread.isPinned &&
-          (Boolean(normalizedSearch) ||
-            !hasGroupScope ||
-            visiblePlacementIds.has(thread.id)) &&
-          matchesSearch(thread),
+        (thread) => thread.isPinned && matchesSearch(thread),
       ),
-    [
-      displayRootThreads,
-      hasGroupScope,
-      matchesSearch,
-      normalizedSearch,
-      visiblePlacementIds,
-    ],
+    [displayRootThreads, matchesSearch],
   );
   function projectedOrder(roots: readonly PluginSidebarThread[]) {
-    if (!optimisticMove) return roots;
-    const source = roots.find(({ id }) => id === optimisticMove.threadId);
-    if (!source) return roots;
-    const remaining = roots.filter(({ id }) => id !== source.id);
-    const before = optimisticMove.destination.beforeThreadId;
-    const index = before === null ? remaining.length : remaining.findIndex(({ id }) => id === before);
-    if (index < 0) return roots;
-    return [...remaining.slice(0, index), source, ...remaining.slice(index)];
+    return optimisticMoves.reduce<readonly PluginSidebarThread[]>(
+      (current, move) => {
+        if (
+          move.destination.kind === "placement" &&
+          move.groupingKey !== selectedGroupingKey
+        )
+          return current;
+        const source = current.find(({ id }) => id === move.threadId);
+        if (!source) return current;
+        const remaining = current.filter(({ id }) => id !== source.id);
+        const before = move.destination.beforeThreadId;
+        const index =
+          before === null
+            ? remaining.length
+            : remaining.findIndex(({ id }) => id === before);
+        if (index < 0) return current;
+        return [
+          ...remaining.slice(0, index),
+          source,
+          ...remaining.slice(index),
+        ];
+      },
+      roots,
+    );
   }
   const pinnedRoots = projectedOrder(savedPinnedRoots);
   const placementOrder = new Map(
     placements.map(({ threadId }, index) => [threadId, index]),
   );
-  const displayGroupId = (thread: PluginSidebarThread) =>
-    optimisticMove?.threadId === thread.id && optimisticMove.destination.kind === "placement"
-      ? optimisticMove.destination.groupId
-      : grouping
-      ? placementByThread.get(thread.id)?.groupId ??
-        (grouping.groupingKey === "builtin:projects"
-          ? thread.projectId
-          : grouping.groupingKey === "builtin:sections"
-            ? (thread.sectionId ?? "unsectioned")
-            : (normalizedSearch && thread.isArchived) ||
-                supplementalThreadIds.has(thread.id)
-              ? grouping.defaultGroupId
-              : undefined)
+  const displayGroupId = (thread: PluginSidebarThread) => {
+    const move = [...optimisticMoves]
+      .reverse()
+      .find(
+        (move) =>
+          move.threadId === thread.id &&
+          move.groupingKey === selectedGroupingKey,
+      );
+    if (move?.destination.kind === "placement") return move.destination.groupId;
+    return grouping
+      ? (placementByThread.get(thread.id)?.groupId ??
+          (grouping.groupingKey === "builtin:projects"
+            ? thread.projectId
+            : grouping.groupingKey === "builtin:sections"
+              ? (thread.sectionId ?? "unsectioned")
+              : (normalizedSearch && thread.isArchived) ||
+                  supplementalThreadIds.has(thread.id)
+                ? grouping.defaultGroupId
+                : undefined))
       : "ungrouped";
+  };
   const unpinnedRoots = displayRootThreads.filter(
     (thread) =>
       !thread.isPinned &&
@@ -1319,19 +1147,15 @@ function RibbonSidebarList({
         (Boolean(normalizedSearch) && thread.isArchived)) &&
       matchesSearch(thread),
   );
-  if (preferences?.view.sort !== "manual") {
-    unpinnedRoots.sort((left, right) =>
-      compareSidebarThreads(preferences?.view.sort ?? "updated", left, right),
-    );
-  } else if (grouping) {
-    unpinnedRoots.sort(
-      (left, right) =>
-        (placementOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
-        (placementOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER),
-    );
-  }
+  unpinnedRoots.sort(
+    (left, right) =>
+      (placementOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+      (placementOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER),
+  );
 
-  const groupDefinitions = useMemo<SidebarSnapshot["groupings"][number]["groups"]>(() => {
+  const groupDefinitions = useMemo<
+    SidebarSnapshot["groupings"][number]["groups"]
+  >(() => {
     if (!grouping) {
       return [
         {
@@ -1347,7 +1171,10 @@ function RibbonSidebarList({
     const known = new Set(grouping.groups.map(({ id }) => id));
     const orphanIds = placements
       .map(({ groupId }) => groupId)
-      .filter((groupId, index, all) => !known.has(groupId) && all.indexOf(groupId) === index);
+      .filter(
+        (groupId, index, all) =>
+          !known.has(groupId) && all.indexOf(groupId) === index,
+      );
     return [
       ...grouping.groups,
       ...orphanIds.map((id) => ({
@@ -1360,29 +1187,18 @@ function RibbonSidebarList({
       })),
     ];
   }, [grouping, placements]);
-  const matchingScope =
-    !normalizedSearch &&
-    preferences?.view.scope.kind === "group" &&
-    preferences.view.scope.group.groupingKey === grouping?.groupingKey
-      ? preferences.view.scope.group
-      : null;
-  const displayedGroupDefinitions = matchingScope
-    ? groupDefinitions.filter(({ id }) => id === matchingScope.groupId)
-    : groupDefinitions;
   const sections =
     snapshot?.groupings
       .find(({ groupingKey }) => groupingKey === "builtin:sections")
       ?.groups.filter(({ id }) => id !== "unsectioned") ?? [];
 
-  const activeScope =
-    preferences?.view.scope.kind === "group"
-      ? preferences.view.scope.group
-      : null;
-
   const submitEntityName = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (entityDialog?.kind !== "create-section" && entityDialog?.kind !== "rename") {
+      if (
+        entityDialog?.kind !== "create-section" &&
+        entityDialog?.kind !== "rename"
+      ) {
         return;
       }
       const name = entityDialog.name.trim();
@@ -1441,15 +1257,15 @@ function RibbonSidebarList({
       threadId: string,
       groupId: string,
       anchor: { kind: "before"; threadId: string } | { kind: "start" | "end" },
+      groupingKey: GroupingKey,
     ) => {
-      if (!preferences?.view.groupingKey) return;
       setMutationError(null);
       const input = {
-        groupingKey: preferences.view.groupingKey,
+        groupingKey,
         groupId,
         threadId,
         anchor,
-        expectedRevision: revision,
+        expectedRevision: latestPlacementRevisions.current.get(groupingKey),
         origin: "ui" as const,
       };
       let result = await rpc.call("updatePlacementV1", input);
@@ -1470,7 +1286,7 @@ function RibbonSidebarList({
       }
       await loadPlacements();
     },
-    [loadPlacements, preferences, revision, rpc],
+    [loadPlacements, rpc],
   );
 
   const updateSection = useCallback(
@@ -1494,11 +1310,7 @@ function RibbonSidebarList({
   );
 
   const updateAssignment = useCallback(
-    async (
-      groupingKey: GroupingKey,
-      threadId: string,
-      groupId: string,
-    ) => {
+    async (groupingKey: GroupingKey, threadId: string, groupId: string) => {
       setMutationError(null);
       const group = snapshot?.groupings
         .find((grouping) => grouping.groupingKey === groupingKey)
@@ -1550,9 +1362,15 @@ function RibbonSidebarList({
   }
   if (!snapshot || !preferences) {
     return (
-      <div aria-label="Loading Ribbon sidebar" className="space-y-1.5 px-2 pt-1">
+      <div
+        aria-label="Loading Ribbon sidebar"
+        className="space-y-1.5 px-2 pt-1"
+      >
         {["w-2/3", "w-1/2"].map((width) => (
-          <div className="flex h-7 animate-pulse items-center gap-2 rounded-md" key={width}>
+          <div
+            className="flex h-7 animate-pulse items-center gap-2 rounded-md"
+            key={width}
+          >
             <span className="size-4 shrink-0 rounded-md bg-sidebar-border/60" />
             <span className={`h-3 ${width} rounded-sm bg-sidebar-border/50`} />
           </div>
@@ -1568,36 +1386,32 @@ function RibbonSidebarList({
     ? placementByThread.get(movingThread.id)
     : undefined;
   const canDropPlacementInto = (groupId: string) => {
-    if (!grouping || !movingThread || movingThread.isPinned || !movingPlacement) {
+    if (
+      !grouping ||
+      !movingThread ||
+      movingThread.isPinned ||
+      !movingPlacement
+    ) {
       return false;
     }
-    if (movingPlacement.groupId === groupId) return true;
+    if (displayGroupId(movingThread) === groupId) return true;
     const destination = groupDefinitions.find(({ id }) => id === groupId);
-    return grouping.membershipWritable && destination?.acceptsAssignments === true;
+    return (
+      grouping.membershipWritable && destination?.acceptsAssignments === true
+    );
   };
-  const scopeFilterValue: ScopeFilterValue = activeScope;
   const hasDisplayedThreads = pinnedRoots.length + unpinnedRoots.length > 0;
   const pinnedSectionCollapsed =
     !normalizedSearch && preferences.collapsed.has("builtin:pinned");
   const pinnedActivePreview =
     pinnedSectionCollapsed && activeThreadId !== null
       ? pinnedRoots
-          .flatMap((root) => [
-            root,
-            ...descendants(root.id, childrenByParent),
-          ])
+          .flatMap((root) => [root, ...descendants(root.id, childrenByParent)])
           .find(({ id }) => id === activeThreadId)
       : undefined;
-  const emptyMessage =
-    normalizedSearch !== ""
-      ? "No matching threads"
-      : preferences.view.scope.kind === "group" &&
-          preferences.view.scope.group.groupingKey === "builtin:projects"
-        ? "No threads in this project"
-        : preferences.view.scope.kind === "group" &&
-            preferences.view.scope.group.groupingKey === "builtin:sections"
-          ? "No threads in this section"
-          : "No threads yet";
+  const emptyMessage = normalizedSearch
+    ? "No matching threads"
+    : "No threads yet";
 
   async function updatePinnedOrder(
     threadId: string,
@@ -1618,62 +1432,33 @@ function RibbonSidebarList({
       });
     } catch (error) {
       setMutationError(
-        error instanceof Error ? error.message : "Could not reorder pinned thread",
+        error instanceof Error
+          ? error.message
+          : "Could not reorder pinned thread",
       );
-    } finally {
-      clearDrag();
     }
   }
 
-  const iconGrouping = snapshot.groupings.find(
-    ({ groupingKey, available }) =>
-      available && groupingKey === preferences.view.iconGroupingKey,
-  );
-  const iconGroupingKey =
-    preferences.view.iconGroupingKey === null
-      ? null
-      : iconGrouping?.groupingKey ?? "builtin:projects";
-
+  function threadStage(thread: PluginSidebarThread) {
+    const root = rootForThread(thread.id, liveThreads) ?? thread;
+    return (
+      parseWorkflowStage(
+        assignmentPlacements.get(THREAD_STAGES_GROUPING_KEY)?.get(root.id)
+          ?.groupId ?? "Idle",
+      ) ?? "Idle"
+    );
+  }
+  function threadBand(thread: PluginSidebarThread) {
+    const stage = threadStage(thread);
+    return stage === "Deferred"
+      ? "deferred"
+      : stage === "Completed"
+        ? "completed"
+        : "main";
+  }
   function threadIcon(thread: PluginSidebarThread): ReactNode {
-    if (iconGroupingKey === null) return null;
-    const root = thread.parentThreadId
-      ? rootForThread(thread.id, liveThreads) ?? thread
-      : thread;
-    if (iconGroupingKey === "builtin:projects") {
-      return (
-        // Empty by design: the box names its project, and icon-styles.ts
-        // paints it. Without the Icons plugin the box collapses.
-        <span
-          aria-hidden
-          data-ribbon-icons-project={root.projectId}
-          data-ribbon-sidebar-icon={
-            root.projectId === PERSONAL_PROJECT_ID ? "personal" : "project"
-          }
-          data-ribbon-sidebar-icon-optional=""
-        />
-      );
-    }
-    if (iconGroupingKey === "builtin:sections") {
-      const sectionId = root.sectionId;
-      return sectionId ? (
-        <span
-          aria-hidden
-          data-ribbon-icons-section={sectionId}
-          data-ribbon-sidebar-icon="section"
-        />
-      ) : (
-        <UnorganizedIcon />
-      );
-    }
-    const placement = assignmentPlacements.get(iconGroupingKey)?.get(root.id);
-    const group = iconGrouping?.groups.find(({ id }) => id === placement?.groupId);
-    const icon = group?.icon ?? iconGrouping?.icon;
-    return icon ? (
-      <ProviderIcon
-        icon={icon}
-        label={`${group?.label ?? iconGrouping?.singularLabel} group icon`}
-      />
-    ) : null;
+    const stage = threadStage(thread);
+    return <ProviderIcon icon={STAGE_ICONS[stage]} label={`${stage} stage`} />;
   }
 
   const renderRoot = (
@@ -1686,31 +1471,35 @@ function RibbonSidebarList({
       groupId?: string;
     },
   ) => {
-    const destination = placementByThread.get(root.id);
     const children = childrenByParent.get(root.id) ?? [];
     const childrenCollapsed = collapsedThreadIds.has(root.id);
     const indicatorThread = resolveThreadStatus(
-      childrenCollapsed ? [root, ...descendants(root.id, childrenByParent)] : [root],
+      childrenCollapsed
+        ? [root, ...descendants(root.id, childrenByParent)]
+        : [root],
       draftThreadIds,
       threadRowStatuses.get(root.id),
     );
     const stageOwner = root.parentThreadId
-      ? rootForThread(root.id, liveThreads) ?? root
+      ? (rootForThread(root.id, liveThreads) ?? root)
       : root;
     const stage = assignmentPlacements
       .get("plugin:thread-stages:stages")
       ?.get(stageOwner.id)?.groupId;
     const reorderable =
       depth === 0 &&
-      optimisticMove === null &&
-      preferences.view.sort === "manual" &&
       !normalizedSearch &&
       !root.isArchived &&
       rowContext !== undefined;
     return (
       <Fragment key={root.id}>
-        {dragDestination?.indicatorBefore === root.id ? <li className="list-none"><ThreadDropPreview /></li> : null}
+        {dragDestination?.indicatorBefore === root.id ? (
+          <li className="list-none">
+            <ThreadDropPreview />
+          </li>
+        ) : null}
         <ThreadRow
+          rootThreadId={stageOwner.id}
           pullRequestNumberPosition={preferences.view.pullRequestNumberPosition}
           active={activeThreadId === root.id}
           alignAdornmentsToEntireItem={
@@ -1757,11 +1546,17 @@ function RibbonSidebarList({
           hasUnsubmittedDraft={draftThreadIds.has(root.id)}
           icon={threadIcon(root)}
           dragging={draggingThreadId === root.id}
-          muted={stage === "Deferred" || stage === "Blocked" || stage === "Completed"}
-          dragTarget={rowContext ? {
-            ...rowContext,
-            threadId: root.id,
-          } as ThreadDragTarget : undefined}
+          muted={
+            stage === "Deferred" || stage === "Blocked" || stage === "Completed"
+          }
+          dragTarget={
+            rowContext
+              ? ({
+                  ...rowContext,
+                  threadId: root.id,
+                } as ThreadDragTarget)
+              : undefined
+          }
           projected={dragDestination !== null}
           onNewSection={() =>
             setEntityDialog({ kind: "create-section", name: "" })
@@ -1796,746 +1591,742 @@ function RibbonSidebarList({
           sections={sections}
           thread={root}
         />
-        {includeDescendants && !childrenCollapsed && draggingThreadId !== root.id
-          ? children.map((child) =>
-              renderRoot(child, depth + 1),
-            )
+        {includeDescendants &&
+        !childrenCollapsed &&
+        draggingThreadId !== root.id
+          ? children.map((child) => renderRoot(child, depth + 1))
           : null}
-        {dragDestination?.indicatorAfter === root.id ? <li className="list-none"><ThreadDropPreview /></li> : null}
+        {dragDestination?.indicatorAfter === root.id ? (
+          <li className="list-none">
+            <ThreadDropPreview />
+          </li>
+        ) : null}
       </Fragment>
     );
   };
 
+  const onNewSection =
+    settings.values?.showProjectsAndSections !== false
+      ? () => setEntityDialog({ kind: "create-section", name: "" })
+      : undefined;
+  const displayOptions =
+    settings.values?.showProjectsAndSections !== false ? (
+      <SidebarDisplayOptionsItems
+        groupingKey={
+          selectedGroupingKey === "builtin:projects"
+            ? "builtin:projects"
+            : "builtin:sections"
+        }
+        onGroupingChange={(groupingKey) => {
+          clearDrag();
+          changePreferences((current) => ({
+            ...current,
+            view: { ...current.view, groupingKey },
+          }));
+        }}
+        hide={preferences.view.hide}
+        onHideChange={(kind, hidden) =>
+          changePreferences((current) => ({
+            ...current,
+            view: {
+              ...current.view,
+              hide: { ...current.view.hide, [kind]: hidden },
+            },
+          }))
+        }
+        pullRequestNumberPosition={preferences.view.pullRequestNumberPosition}
+        onPullRequestNumberPositionChange={(pullRequestNumberPosition) =>
+          changePreferences((current) => ({
+            ...current,
+            view: { ...current.view, pullRequestNumberPosition },
+          }))
+        }
+      />
+    ) : null;
+
   return (
     <PullRequestDetailsProvider load={loadPullRequestDetails}>
-    <ThreadDragProvider
-      canDrop={(sourceId, target) => {
-        const source = rootThreads.find(({ id }) => id === sourceId);
-        if (!source || normalizedSearch || preferences.view.sort !== "manual") return false;
-        if (target.kind === "pinned") return source.isPinned;
-        return canDropPlacementInto(target.groupId);
-      }}
-      onStart={setDraggingThreadId}
-      onDestination={setDragDestination}
-      onCancel={clearDrag}
-      onDrop={(threadId, destination) => {
-        setOptimisticMove({ threadId, destination });
-        clearDrag();
-        const update = destination.kind === "pinned"
-          ? updatePinnedOrder(threadId, destination.beforeThreadId)
-          : updatePlacement(threadId, destination.groupId, destination.beforeThreadId === null
-              ? { kind: "end" } : { kind: "before", threadId: destination.beforeThreadId });
-        void update.catch((error: unknown) => {
-          setMutationError(error instanceof Error ? error.message : "Could not move thread");
-        }).finally(() => setOptimisticMove(null));
-      }}
-    >
-    <div
-      className="relative flex w-full min-w-0 flex-col"
-      data-sidebar="group"
-      data-sidebar-sticky-density="compact-actions"
-      data-sidebar-sticky-stack=""
-      data-ribbon-sidebar-ready={
-        placementsLoaded && previewsLoaded ? "" : undefined
-      }
-      data-ribbon-sidebar-root=""
-      data-ribbon-sidebar-scope-group-id={
-        normalizedSearch ? undefined : activeScope?.groupId
-      }
-      data-ribbon-sidebar-scope-grouping-key={
-        normalizedSearch ? undefined : activeScope?.groupingKey
-      }
-    >
-      {settings.values?.showProjectsAndSections !== false ? (
-        <SidebarTopControls>
-          {preferences.view.filterGroupingKey === null ? (
-            <span className="flex h-11 min-w-0 flex-1 items-center px-2 text-sm font-medium text-sidebar-foreground">
-              All groups
-            </span>
-          ) : (
-            <ScopeFilter
-              filterGroupingKey={preferences.view.filterGroupingKey}
-              groupings={orderedGroupings(
-                snapshot.groupings.filter(({ available }) => available),
-              )}
-              onAddProjectLocalPath={(project) => {
-                void rpc
-                  .call("addProjectLocalPathV1", { projectId: project.id })
-                  .then(() => synchronize())
-                  .catch((error: unknown) =>
-                    setMutationError(
-                      error instanceof Error
-                        ? error.message
-                        : "Could not add local path",
-                    ),
-                  );
-              }}
-              onChange={(next) =>
-                changePreferences((current) => ({
-                  ...current,
-                  view: changeSidebarScope(
-                    current.view,
-                    next === null
-                      ? { kind: "all" }
-                      : { kind: "group", group: next },
+      <ThreadDragProvider
+        canDrop={(sourceId, target) => {
+          const source = rootThreads.find(({ id }) => id === sourceId);
+          if (!source || normalizedSearch) return false;
+          if (target.kind === "pinned") return source.isPinned;
+          if ("threadId" in target && target.threadId) {
+            const row = rootThreads.find(
+              (thread) => thread.id === target.threadId,
+            );
+            if (
+              row &&
+              (threadBand(row) !== threadBand(source) ||
+                threadBand(source) === "completed")
+            )
+              return false;
+          }
+          return canDropPlacementInto(target.groupId);
+        }}
+        onStart={setDraggingThreadId}
+        onDestination={setDragDestination}
+        onCancel={clearDrag}
+        onDrop={(threadId, destination) => {
+          const id = ++moveSequence.current;
+          setOptimisticMoves((current) => [
+            ...current,
+            { id, groupingKey: selectedGroupingKey, threadId, destination },
+          ]);
+          clearDrag();
+          // Keep later gestures interactive, but commit their anchors in order.
+          moveQueue.current = moveQueue.current
+            .then(() =>
+              destination.kind === "pinned"
+                ? updatePinnedOrder(threadId, destination.beforeThreadId)
+                : updatePlacement(
+                    threadId,
+                    destination.groupId,
+                    destination.beforeThreadId === null
+                      ? { kind: "end" }
+                      : {
+                          kind: "before",
+                          threadId: destination.beforeThreadId,
+                        },
+                    selectedGroupingKey,
                   ),
-                }))
-              }
-              onNewProject={() => {
-                void rpc
-                  .call("createProjectV1", null)
-                  .then(() => synchronize())
-                  .catch((error: unknown) =>
-                    setMutationError(
-                      error instanceof Error
-                        ? error.message
-                        : "Could not create project",
-                    ),
-                  );
-              }}
-              onNewSection={() =>
-                setEntityDialog({ kind: "create-section", name: "" })
-              }
-              onOpenProjectSettings={(project) => {
-                window.location.assign(
-                  `/projects/${encodeURIComponent(project.id)}/settings`,
-                );
-                onNavigate();
-              }}
-              onRemoveProject={(project) =>
-                setEntityDialog({
-                  kind: "delete",
-                  scope: {
-                    groupingKey: "builtin:projects",
-                    groupId: project.id,
-                  },
-                  label: project.name,
-                })
-              }
-              onRemoveSection={(section) =>
-                setEntityDialog({
-                  kind: "delete",
-                  scope: {
-                    groupingKey: "builtin:sections",
-                    groupId: section.id,
-                  },
-                  label: section.name,
-                })
-              }
-              onRenameProject={(project) =>
-                setEntityDialog({
-                  kind: "rename",
-                  scope: {
-                    groupingKey: "builtin:projects",
-                    groupId: project.id,
-                  },
-                  label: project.name,
-                  name: project.name,
-                })
-              }
-              onRenameSection={(section) =>
-                setEntityDialog({
-                  kind: "rename",
-                  scope: {
-                    groupingKey: "builtin:sections",
-                    groupId: section.id,
-                  },
-                  label: section.name,
-                  name: section.name,
-                })
-              }
-              projectActionStates={projectActionStates}
-              projects={sidebar.projects}
-              sections={sections.map(({ id, label }) => ({ id, name: label }))}
-              value={scopeFilterValue}
-            />
-          )}
-          <SidebarDisplayOptionsMenu
-            groupings={orderedGroupings(
-              snapshot.groupings.filter(({ available }) => available),
-            )}
-            headingsGroupingKey={preferences.view.groupingKey}
-            hide={preferences.view.hide}
-            iconGroupingKey={iconGroupingKey as GroupingKey | null}
-            onIconsGroupingChange={(iconGroupingKey) =>
-              changePreferences((current) => ({
-                ...current,
-                view: { ...current.view, iconGroupingKey },
-              }))
-            }
-            onHeadingsGroupingChange={(groupingKey) =>
-              changePreferences((current) =>
-                current.view.groupingKey === groupingKey
-                  ? current
-                  : {
-                      ...current,
-                      view: changeSidebarGrouping(current.view, groupingKey),
-                    },
-              )
-            }
-            onHideChange={(kind, hidden) =>
-              changePreferences((current) => ({
-                ...current,
-                view: {
-                  ...current.view,
-                  hide: { ...current.view.hide, [kind]: hidden },
-                },
-              }))
-            }
-            onPagesGroupingChange={(groupingKey) =>
-              changePreferences((current) => ({
-                ...current,
-                view: changeSidebarPagesGrouping(current.view, groupingKey),
-              }))
-            }
-            onSortChange={(sort) =>
-              changePreferences((current) => ({
-                ...current,
-                view: { ...current.view, sort },
-              }))
-            }
-            pagesGroupingKey={preferences.view.filterGroupingKey}
-            pullRequestNumberPosition={preferences.view.pullRequestNumberPosition}
-            onPullRequestNumberPositionChange={(pullRequestNumberPosition) =>
-              changePreferences((current) => ({
-                ...current,
-                view: { ...current.view, pullRequestNumberPosition },
-              }))
-            }
-            sort={preferences.view.sort}
-          />
-        </SidebarTopControls>
-      ) : null}
-      {mutationError ? (
-        <div className="rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
-          {mutationError}
-        </div>
-      ) : null}
-
-      <Dialog
-        open={entityDialog !== null}
-        onOpenChange={(open) => {
-          if (!open && !entityPending) setEntityDialog(null);
+            )
+            .catch((error: unknown) => {
+              setMutationError(
+                error instanceof Error
+                  ? error.message
+                  : "Could not move thread",
+              );
+            })
+            .finally(() =>
+              setOptimisticMoves((current) =>
+                current.filter((move) => move.id !== id),
+              ),
+            );
         }}
       >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {entityDialog?.kind === "create-section"
-                ? "New section"
-                : entityDialog?.kind === "rename"
-                  ? `Rename ${entityDialog.label}`
-                  : entityDialog?.kind === "delete"
-                    ? `Delete ${entityDialog.label}?`
-                    : "Edit entity"}
-            </DialogTitle>
-            <DialogDescription>
-              {entityDialog?.kind === "delete"
-                ? "This removes the group from bb."
-                : entityDialog?.kind === "create-section"
-                  ? "Create a section for threads."
-                  : "Choose a new name for this section."}
-            </DialogDescription>
-          </DialogHeader>
-          {entityDialog?.kind === "create-section" ||
-          entityDialog?.kind === "rename" ? (
-            <form className="space-y-4" onSubmit={(event) => void submitEntityName(event)}>
-              <Input
-                aria-label={
-                  entityDialog.kind === "create-section" ? "Section name" : "New name"
-                }
-                autoFocus
-                disabled={entityPending}
-                onChange={(event) =>
-                  setEntityDialog((current) =>
-                    current?.kind === "create-section" || current?.kind === "rename"
-                      ? { ...current, name: event.target.value }
-                      : current,
-                  )
-                }
-                value={entityDialog.name}
-              />
-              <DialogFooter>
-                <Button disabled={entityPending || !entityDialog.name.trim()} type="submit">
-                  {entityDialog.kind === "create-section" ? "Create section" : "Rename"}
-                </Button>
-              </DialogFooter>
-            </form>
-          ) : entityDialog?.kind === "delete" ? (
-            <DialogFooter>
-              <Button
-                disabled={entityPending}
-                onClick={() => void deleteEntity()}
-                type="button"
-                variant="destructive"
-              >
-                Delete
-              </Button>
-            </DialogFooter>
+        <div
+          className="relative flex w-full min-w-0 flex-col"
+          data-sidebar="group"
+          data-sidebar-sticky-density="compact-actions"
+          data-sidebar-sticky-stack=""
+          style={
+            {
+              "--bb-sidebar-sticky-label-gap":
+                "calc((var(--bb-sidebar-sticky-row-height) - var(--bb-sidebar-sticky-label-height)) / 2 + 1px)",
+            } as CSSProperties
+          }
+          data-ribbon-sidebar-ready={
+            placementsLoaded && stagesLoaded && previewsLoaded ? "" : undefined
+          }
+          data-ribbon-sidebar-root=""
+        >
+          {mutationError ? (
+            <div className="rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
+              {mutationError}
+            </div>
           ) : null}
-        </DialogContent>
-      </Dialog>
 
-      <Dialog
-        open={threadRename !== null}
-        onOpenChange={(open) => {
-          if (!open && !threadRenamePending) setThreadRename(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rename thread</DialogTitle>
-            <DialogDescription>Choose the title shown in bb.</DialogDescription>
-          </DialogHeader>
-          {threadRename ? (
-            <form
-              className="space-y-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const nextTitle = threadRename.name.trim();
-                if (!nextTitle) return;
-                setThreadRenamePending(true);
-                void Promise.resolve(actions.rename(threadRename.id, nextTitle))
-                  .then(() => setThreadRename(null))
-                  .catch((error: unknown) => {
-                    setMutationError(
-                      error instanceof Error ? error.message : "Could not rename thread",
-                    );
-                  })
-                  .finally(() => setThreadRenamePending(false));
-              }}
-            >
-              <Input
-                aria-label="Thread title"
-                autoFocus
-                disabled={threadRenamePending}
-                onChange={(event) =>
-                  setThreadRename((current) =>
-                    current ? { ...current, name: event.target.value } : current,
-                  )
-                }
-                value={threadRename.name}
-              />
-              <DialogFooter>
-                <Button
-                  disabled={threadRenamePending || !threadRename.name.trim()}
-                  type="submit"
+          <Dialog
+            open={entityDialog !== null}
+            onOpenChange={(open) => {
+              if (!open && !entityPending) setEntityDialog(null);
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {entityDialog?.kind === "create-section"
+                    ? "New section"
+                    : entityDialog?.kind === "rename"
+                      ? `Rename ${entityDialog.label}`
+                      : entityDialog?.kind === "delete"
+                        ? `Delete ${entityDialog.label}?`
+                        : "Edit entity"}
+                </DialogTitle>
+                <DialogDescription>
+                  {entityDialog?.kind === "delete"
+                    ? "This removes the group from bb."
+                    : entityDialog?.kind === "create-section"
+                      ? "Create a section for threads."
+                      : "Choose a new name for this section."}
+                </DialogDescription>
+              </DialogHeader>
+              {entityDialog?.kind === "create-section" ||
+              entityDialog?.kind === "rename" ? (
+                <form
+                  className="space-y-4"
+                  onSubmit={(event) => void submitEntityName(event)}
                 >
-                  Rename
-                </Button>
-              </DialogFooter>
-            </form>
-          ) : null}
-        </DialogContent>
-      </Dialog>
-
-      {normalizedSearch && searchResult.status === "loading" ? (
-        <SidebarMessage icon="Loading" loading>
-          Searching threads…
-        </SidebarMessage>
-      ) : normalizedSearch && searchResult.status === "error" ? (
-        <SidebarMessage
-          action={{
-            label: "Retry",
-            onClick: () => setSearchAttempt((current) => current + 1),
-          }}
-          icon="AlertCircle"
-        >
-          Search failed.
-        </SidebarMessage>
-      ) : !hasDisplayedThreads ? (
-        <SidebarMessage icon="CircleQuestion">{emptyMessage}</SidebarMessage>
-      ) : (
-        <div className="space-y-4">
-      {pinnedRoots.length > 0 ? (
-        <ThreadDragGroup
-          aria-label="Pinned threads"
-          className="group/sidebar-section min-w-0 rounded-md"
-          data-sidebar-sticky-group=""
-          target={{ kind: "pinned", roots: pinnedRoots }}
-          disabled={preferences.view.sort !== "manual" || Boolean(normalizedSearch)}
-        >
-          <ThreadDragHeader
-            target={{ kind: "pinned", roots: pinnedRoots }}
-            disabled={preferences.view.sort !== "manual" || Boolean(normalizedSearch)}
-            className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} max-md:pointer-coarse:h-9`}
-            data-sidebar="group-label"
-            data-sidebar-sticky-tier="label"
-          >
-            <span className="flex min-w-0 flex-1 items-center">
-              <span className="min-w-0 truncate">Pinned</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-expanded={!pinnedSectionCollapsed}
-                aria-label={
-                  pinnedSectionCollapsed
-                    ? "Expand Pinned section"
-                    : "Collapse Pinned section"
-                }
-                className={`${
-                  pinnedSectionCollapsed ? "" : "bb-sidebar-hover-actions"
-                } mx-2 size-5 shrink-0 p-0 text-subtle-foreground focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
-                onClick={() =>
-                  changePreferences((current) => {
-                    const collapsed = new Set(current.collapsed);
-                    if (collapsed.has("builtin:pinned")) {
-                      collapsed.delete("builtin:pinned");
-                    } else {
-                      collapsed.add("builtin:pinned");
-                    }
-                    return { ...current, collapsed };
-                  })
-                }
-                type="button"
-              >
-                <Icon
-                  aria-hidden
-                  className={`size-3 transition-transform duration-150 ${
-                    pinnedSectionCollapsed ? "" : "rotate-90"
-                  }`}
-                  name="ChevronRight"
-                />
-              </Button>
-            </span>
-            <GroupHeaderMenu
-              actions={null}
-              activeGroupingKey={grouping?.groupingKey ?? null}
-              groupings={orderedGroupings(
-                snapshot.groupings.filter(({ available }) => available),
-              )}
-              label="Pinned"
-              onGroupingChange={(groupingKey) =>
-                changePreferences((current) => ({
-                  ...current,
-                  view: changeSidebarGrouping(
-                    current.view,
-                    groupingKey as GroupingKey | null,
-                  ),
-                }))
-              }
-            />
-          </ThreadDragHeader>
-          {dragDestination?.kind === "pinned" && dragDestination.atStart ? <ThreadDropPreview /> : null}
-          {!pinnedSectionCollapsed ? (
-            <ul>
-              {pinnedRoots.map((root) =>
-                renderRoot(root, 0, true, {
-                  kind: "pinned",
-                  roots: pinnedRoots,
-                }),
-              )}
-            </ul>
-          ) : pinnedActivePreview ? (
-            <ul>{renderRoot(pinnedActivePreview, 0, false)}</ul>
-          ) : null}
-          {dragDestination?.kind === "pinned" && !dragDestination.atStart && !dragDestination.indicatorBefore && !dragDestination.indicatorAfter ? <ThreadDropPreview /> : null}
-        </ThreadDragGroup>
-      ) : null}
-
-      {displayedGroupDefinitions.map((group) => {
-        const roots = projectedOrder(unpinnedRoots.filter(
-          (thread) => displayGroupId(thread) === group.id,
-        ));
-        if (normalizedSearch && roots.length === 0) return null;
-        if (roots.length === 0 && !group.visibleWhenEmpty) return null;
-        const ref = `${grouping?.groupingKey ?? "ungrouped"}/${group.id}`;
-        const collapsed =
-          grouping !== undefined &&
-          !normalizedSearch &&
-          preferences.collapsed.has(ref);
-        const groupThreads = roots.flatMap((root) => [
-          root,
-          ...descendants(root.id, childrenByParent),
-        ]);
-        const activityThread =
-          collapsed &&
-          (grouping?.groupingKey === "plugin:thread-stages:stages" ||
-            settings.values?.showCollapsedGroupIndicators === true)
-            ? groupIndicator(groupThreads, draftThreadIds, threadRowStatuses)
-            : null;
-        const activePreview =
-          collapsed && activeThreadId !== null
-            ? groupThreads.find(({ id }) => id === activeThreadId)
-            : undefined;
-        const sameKeyScope =
-          preferences.view.scope.kind === "group" &&
-          preferences.view.scope.group.groupingKey === grouping?.groupingKey &&
-          preferences.view.scope.group.groupId === group.id;
-        // A group heading takes the same icon its rows do: whichever was chosen
-        // for that project or section, or this plugin's own glyph until one is.
-        const entityGroupIcon: { kind: "project" | "section"; fallback: IconFallback } | undefined =
-          grouping?.groupingKey === "builtin:projects"
-            ? {
-                kind: "project",
-                fallback: sidebar.projects.find(({ id }) => id === group.id)
-                  ?.isPersonal
-                  ? "personal"
-                  : "project",
-              }
-            : grouping?.groupingKey === "builtin:sections"
-              ? { kind: "section", fallback: "section" }
-              : undefined;
-        const unorganizedGroup =
-          grouping?.groupingKey === "builtin:sections" &&
-          group.id === "unsectioned";
-        const section =
-          grouping?.groupingKey === "builtin:sections" && !unorganizedGroup
-            ? sections.find(({ id }) => id === group.id)
-            : undefined;
-        const project =
-          grouping?.groupingKey === "builtin:projects"
-            ? sidebar.projects.find(({ id }) => id === group.id)
-            : undefined;
-        const headerActions: HeaderGroupActions | null = section
-          ? {
-              kind: "section",
-              onRemove: () =>
-                setEntityDialog({
-                  kind: "delete",
-                  scope: {
-                    groupingKey: "builtin:sections",
-                    groupId: section.id,
-                  },
-                  label: section.label,
-                }),
-              onRename: () =>
-                setEntityDialog({
-                  kind: "rename",
-                  scope: {
-                    groupingKey: "builtin:sections",
-                    groupId: section.id,
-                  },
-                  label: section.label,
-                  name: section.label,
-                }),
-            }
-          : project && !project.isPersonal
-            ? {
-                kind: "project",
-                canAddLocalPath:
-                  projectActionStates.get(project.id)?.canAddLocalPath ?? false,
-                onAddLocalPath: () => {
-                  void rpc
-                    .call("addProjectLocalPathV1", { projectId: project.id })
-                    .then(() => synchronize())
-                    .catch((error: unknown) =>
-                      setMutationError(
-                        error instanceof Error
-                          ? error.message
-                          : "Could not add local path",
-                      ),
-                    );
-                },
-                onOpenSettings: () => {
-                  window.location.assign(
-                    `/projects/${encodeURIComponent(project.id)}/settings`,
-                  );
-                  onNavigate();
-                },
-                onRemove: () =>
-                  setEntityDialog({
-                    kind: "delete",
-                    scope: {
-                      groupingKey: "builtin:projects",
-                      groupId: project.id,
-                    },
-                    label: project.name,
-                  }),
-                onRename: () =>
-                  setEntityDialog({
-                    kind: "rename",
-                    scope: {
-                      groupingKey: "builtin:projects",
-                      groupId: project.id,
-                    },
-                    label: project.name,
-                    name: project.name,
-                  }),
-              }
-            : null;
-        return (
-          <ThreadDragGroup
-            aria-label={`${group.label} group`}
-            className="group/sidebar-section min-w-0 rounded-md"
-            data-sidebar-sticky-group=""
-            data-testid={sameKeyScope ? "scope-end-drop-target" : undefined}
-            key={group.id}
-            target={{ kind: "placement", groupId: group.id, roots }}
-            disabled={preferences.view.sort !== "manual" || Boolean(normalizedSearch) || !grouping}
-          >
-            {!sameKeyScope ? (
-              <ThreadDragHeader
-                target={{ kind: "placement", groupId: group.id, roots }}
-                disabled={preferences.view.sort !== "manual" || Boolean(normalizedSearch) || !grouping}
-                className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} transition-colors max-md:pointer-coarse:h-9`}
-                data-sidebar="group-label"
-                data-sidebar-sticky-tier="label"
-              >
-                <span className="relative z-10 flex min-w-0 flex-1 items-center text-left">
-                  <span className="flex min-w-0 items-center gap-2 text-left">
-                    {settings.values?.showGroupHeaderIcons !== false &&
-                    unorganizedGroup ? (
-                      <UnorganizedIcon />
-                    ) : settings.values?.showGroupHeaderIcons !== false &&
-                      entityGroupIcon ? (
-                      <span
-                        aria-hidden
-                        {...(entityGroupIcon.kind === "project"
-                          ? { "data-ribbon-icons-project": group.id }
-                          : { "data-ribbon-icons-section": group.id })}
-                        data-ribbon-sidebar-icon={entityGroupIcon.fallback}
-                      />
-                    ) : settings.values?.showGroupHeaderIcons !== false &&
-                      group.icon ? (
-                      <ProviderIcon
-                        icon={group.icon}
-                        label={`${group.label} group icon`}
-                      />
-                    ) : null}
-                    <span className="min-w-0 truncate" title={group.label}>
-                      {group.label}
-                    </span>
-                  </span>
-                  {grouping ? <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-expanded={!collapsed}
+                  <Input
                     aria-label={
-                      collapsed
-                        ? `Expand ${group.label} section`
-                        : `Collapse ${group.label} section`
+                      entityDialog.kind === "create-section"
+                        ? "Section name"
+                        : "New name"
                     }
-                    className={`${collapsed ? "" : "bb-sidebar-hover-actions"} relative z-20 mx-2 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      changePreferences((current) => {
-                        const next = new Set(current.collapsed);
-                        if (next.has(ref)) next.delete(ref);
-                        else next.add(ref);
-                        return { ...current, collapsed: next };
-                      });
-                    }}
+                    autoFocus
+                    disabled={entityPending}
+                    onChange={(event) =>
+                      setEntityDialog((current) =>
+                        current?.kind === "create-section" ||
+                        current?.kind === "rename"
+                          ? { ...current, name: event.target.value }
+                          : current,
+                      )
+                    }
+                    value={entityDialog.name}
+                  />
+                  <DialogFooter>
+                    <Button
+                      disabled={entityPending || !entityDialog.name.trim()}
+                      type="submit"
+                    >
+                      {entityDialog.kind === "create-section"
+                        ? "Create section"
+                        : "Rename"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              ) : entityDialog?.kind === "delete" ? (
+                <DialogFooter>
+                  <Button
+                    disabled={entityPending}
+                    onClick={() => void deleteEntity()}
                     type="button"
+                    variant="destructive"
                   >
-                    <Icon
-                      aria-hidden
-                      className={`size-3 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
-                      name="ChevronRight"
-                    />
-                  </Button> : null}
-                </span>
-                <GroupHeaderMenu
-                  actions={headerActions}
-                  activeGroupingKey={grouping?.groupingKey ?? null}
-                  groupings={orderedGroupings(
-                    snapshot.groupings.filter(({ available }) => available),
-                  )}
-                  label={group.label}
-                  onGroupingChange={(groupingKey) =>
-                    changePreferences((current) => ({
-                      ...current,
-                      view: changeSidebarGrouping(
-                        current.view,
-                        groupingKey as GroupingKey | null,
-                      ),
-                    }))
-                  }
-                  trailing={
-                    activityThread ? (
-                      <ThreadIndicator
-                        indicator={activityThread.indicator}
-                        label={activityThread.indicatorLabel}
-                        pluginStatus={activityThread.pluginStatus}
-                      />
-                    ) : collapsed && roots.length > 0 ? (
-                      <span
-                        aria-label={`${roots.length} ${roots.length === 1 ? "thread" : "threads"}`}
-                        className="tabular-nums text-xs text-subtle-foreground/60"
+                    Delete
+                  </Button>
+                </DialogFooter>
+              ) : null}
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={threadRename !== null}
+            onOpenChange={(open) => {
+              if (!open && !threadRenamePending) setThreadRename(null);
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Rename thread</DialogTitle>
+                <DialogDescription>
+                  Choose the title shown in bb.
+                </DialogDescription>
+              </DialogHeader>
+              {threadRename ? (
+                <form
+                  className="space-y-4"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const nextTitle = threadRename.name.trim();
+                    if (!nextTitle) return;
+                    setThreadRenamePending(true);
+                    void Promise.resolve(
+                      actions.rename(threadRename.id, nextTitle),
+                    )
+                      .then(() => setThreadRename(null))
+                      .catch((error: unknown) => {
+                        setMutationError(
+                          error instanceof Error
+                            ? error.message
+                            : "Could not rename thread",
+                        );
+                      })
+                      .finally(() => setThreadRenamePending(false));
+                  }}
+                >
+                  <Input
+                    aria-label="Thread title"
+                    autoFocus
+                    disabled={threadRenamePending}
+                    onChange={(event) =>
+                      setThreadRename((current) =>
+                        current
+                          ? { ...current, name: event.target.value }
+                          : current,
+                      )
+                    }
+                    value={threadRename.name}
+                  />
+                  <DialogFooter>
+                    <Button
+                      disabled={
+                        threadRenamePending || !threadRename.name.trim()
+                      }
+                      type="submit"
+                    >
+                      Rename
+                    </Button>
+                  </DialogFooter>
+                </form>
+              ) : null}
+            </DialogContent>
+          </Dialog>
+
+          {normalizedSearch && searchResult.status === "loading" ? (
+            <SidebarMessage icon="Loading" loading>
+              Searching threads…
+            </SidebarMessage>
+          ) : normalizedSearch && searchResult.status === "error" ? (
+            <SidebarMessage
+              action={{
+                label: "Retry",
+                onClick: () => setSearchAttempt((current) => current + 1),
+              }}
+              icon="AlertCircle"
+            >
+              Search failed.
+            </SidebarMessage>
+          ) : !hasDisplayedThreads ? (
+            <>
+              {onNewSection || displayOptions ? (
+                <div
+                  className={`bb-sidebar-hover-actions-row flex h-6 items-center pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} max-md:pointer-coarse:h-9`}
+                  data-sidebar="group-label"
+                >
+                  <span className="min-w-0 flex-1 truncate">Threads</span>
+                  <GroupHeaderMenu
+                    actions={null}
+                    label="Threads"
+                    onNewSection={onNewSection}
+                    displayOptions={displayOptions}
+                  />
+                </div>
+              ) : null}
+              <SidebarMessage icon="CircleQuestion">
+                {emptyMessage}
+              </SidebarMessage>
+            </>
+          ) : (
+            <div className="space-y-4">
+              {pinnedRoots.length > 0 ? (
+                <ThreadDragGroup
+                  aria-label="Pinned threads"
+                  className="group/sidebar-section min-w-0 rounded-md"
+                  data-sidebar-sticky-group=""
+                  target={{ kind: "pinned", roots: pinnedRoots }}
+                  disabled={Boolean(normalizedSearch)}
+                >
+                  <ThreadDragHeader
+                    target={{ kind: "pinned", roots: pinnedRoots }}
+                    disabled={Boolean(normalizedSearch)}
+                    className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} max-md:pointer-coarse:h-9`}
+                    data-sidebar="group-label"
+                    data-sidebar-sticky-tier="label"
+                  >
+                    <span className="flex min-w-0 flex-1 items-center">
+                      <span className="min-w-0 truncate">Pinned</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-expanded={!pinnedSectionCollapsed}
+                        aria-label={
+                          pinnedSectionCollapsed
+                            ? "Expand Pinned section"
+                            : "Collapse Pinned section"
+                        }
+                        className={`${
+                          pinnedSectionCollapsed
+                            ? ""
+                            : "bb-sidebar-hover-actions"
+                        } mx-2 size-5 shrink-0 p-0 text-subtle-foreground focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
+                        onClick={() =>
+                          changePreferences((current) => {
+                            const collapsed = new Set(current.collapsed);
+                            if (collapsed.has("builtin:pinned")) {
+                              collapsed.delete("builtin:pinned");
+                            } else {
+                              collapsed.add("builtin:pinned");
+                            }
+                            return { ...current, collapsed };
+                          })
+                        }
+                        type="button"
                       >
-                        {roots.length}
-                      </span>
-                    ) : null
-                  }
-                />
-              </ThreadDragHeader>
-            ) : null}
-            {dragDestination?.kind === "placement" && dragDestination.groupId === group.id && dragDestination.atStart ? <ThreadDropPreview /> : null}
-            <div className={grouping && !collapsed ? "mt-1" : undefined}>
-              {!collapsed
-                ? (
-                    <ul>
-                      {roots.map((root) =>
-                        renderRoot(
-                          root,
-                          0,
-                          true,
-                          grouping
-                            ? {
-                                kind: "placement",
-                                roots,
-                                groupId: group.id,
-                              }
-                            : undefined,
-                        ),
+                        <Icon
+                          aria-hidden
+                          className={`size-3 transition-transform duration-150 ${
+                            pinnedSectionCollapsed ? "" : "rotate-90"
+                          }`}
+                          name="ChevronRight"
+                        />
+                      </Button>
+                    </span>
+                    <GroupHeaderMenu
+                      actions={null}
+                      label="Pinned"
+                      onNewSection={onNewSection}
+                      displayOptions={displayOptions}
+                    />
+                  </ThreadDragHeader>
+                  {dragDestination?.kind === "pinned" &&
+                  dragDestination.atStart ? (
+                    <ThreadDropPreview />
+                  ) : null}
+                  {!pinnedSectionCollapsed ? (
+                    <ul className="space-y-px">
+                      {pinnedRoots.map((root) =>
+                        renderRoot(root, 0, true, {
+                          kind: "pinned",
+                          roots: pinnedRoots,
+                        }),
                       )}
                     </ul>
-                  )
-                : activePreview
-                  ? (
-                      <ul>
-                        {renderRoot(activePreview, 0, false, {
-                          kind: "placement",
-                          roots,
-                          groupId: group.id,
-                        })}
-                      </ul>
-                    )
-                  : null}
+                  ) : pinnedActivePreview ? (
+                    <ul className="space-y-px">
+                      {renderRoot(pinnedActivePreview, 0, false)}
+                    </ul>
+                  ) : null}
+                  {dragDestination?.kind === "pinned" &&
+                  !dragDestination.atStart &&
+                  !dragDestination.indicatorBefore &&
+                  !dragDestination.indicatorAfter ? (
+                    <ThreadDropPreview />
+                  ) : null}
+                </ThreadDragGroup>
+              ) : null}
+
+              {groupDefinitions.map((group) => {
+                const roots = projectedOrder(
+                  unpinnedRoots.filter(
+                    (thread) => displayGroupId(thread) === group.id,
+                  ),
+                );
+                const bands = sectionBands(
+                  roots,
+                  threadStage,
+                  (root) =>
+                    assignmentPlacements
+                      .get(THREAD_STAGES_GROUPING_KEY)
+                      ?.get(root.id)?.enteredAtMs ?? 0,
+                );
+                const movingBand = movingThread
+                  ? threadBand(movingThread)
+                  : "main";
+                const dragRoots = bands[movingBand];
+                const otherRoots = dragRoots.filter(
+                  (root) => root.id !== draggingThreadId,
+                );
+                const startPreview =
+                  movingBand === "main"
+                    ? undefined
+                    : {
+                        before:
+                          otherRoots[0]?.id ??
+                          (movingBand === "deferred"
+                            ? bands.completed[0]?.id
+                            : null) ??
+                          null,
+                        after:
+                          otherRoots.length ||
+                          (movingBand === "deferred" && bands.completed.length)
+                            ? null
+                            : (bands.main.at(-1)?.id ?? null),
+                      };
+                // Group padding is an end-of-list target for the moving stage.
+                // Its marker must stay above the later stages, including hidden rows.
+                const endPreview =
+                  movingBand === "main"
+                    ? {
+                        before: otherRoots.length
+                          ? null
+                          : (bands.deferred[0]?.id ??
+                            bands.completed[0]?.id ??
+                            null),
+                        after: otherRoots.at(-1)?.id ?? null,
+                      }
+                    : movingBand === "deferred" && bands.completed.length
+                      ? {
+                          before: bands.completed[0]!.id,
+                          after: null,
+                        }
+                      : undefined;
+                const selectedRootId = activeThreadId
+                  ? (rootForThread(activeThreadId, liveThreads)?.id ??
+                    activeThreadId)
+                  : null;
+                const renderSectionRow = (root: PluginSidebarThread) =>
+                  renderRoot(root, 0, true, {
+                    kind: "placement",
+                    roots: bands[threadBand(root)],
+                    groupId: group.id,
+                  });
+                if (normalizedSearch && roots.length === 0) return null;
+                if (roots.length === 0 && !group.visibleWhenEmpty) return null;
+                const ref = `${grouping?.groupingKey ?? "ungrouped"}/${group.id}`;
+                const collapsed =
+                  grouping !== undefined &&
+                  !normalizedSearch &&
+                  preferences.collapsed.has(ref);
+                const groupTarget = {
+                  kind: "placement" as const,
+                  groupId: group.id,
+                  roots: dragRoots,
+                  startPreview:
+                    !collapsed && (startPreview?.before || startPreview?.after)
+                      ? startPreview
+                      : undefined,
+                  endPreview:
+                    !collapsed && (endPreview?.before || endPreview?.after)
+                      ? endPreview
+                      : undefined,
+                };
+                const groupThreads = roots.flatMap((root) => [
+                  root,
+                  ...descendants(root.id, childrenByParent),
+                ]);
+                const activityThread =
+                  collapsed &&
+                  (grouping?.groupingKey === "plugin:thread-stages:stages" ||
+                    settings.values?.showCollapsedGroupIndicators === true)
+                    ? groupIndicator(
+                        groupThreads,
+                        draftThreadIds,
+                        threadRowStatuses,
+                      )
+                    : null;
+                const activePreview =
+                  collapsed && activeThreadId !== null
+                    ? groupThreads.find(({ id }) => id === activeThreadId)
+                    : undefined;
+                // A group heading takes the same icon its rows do: whichever was chosen
+                // for that project or section, or this plugin's own glyph until one is.
+                const entityGroupIcon:
+                  | { kind: "project" | "section"; fallback: IconFallback }
+                  | undefined =
+                  grouping?.groupingKey === "builtin:projects"
+                    ? {
+                        kind: "project",
+                        fallback: sidebar.projects.find(
+                          ({ id }) => id === group.id,
+                        )?.isPersonal
+                          ? "personal"
+                          : "project",
+                      }
+                    : grouping?.groupingKey === "builtin:sections"
+                      ? { kind: "section", fallback: "section" }
+                      : undefined;
+                const unorganizedGroup =
+                  grouping?.groupingKey === "builtin:sections" &&
+                  group.id === "unsectioned";
+                const section =
+                  grouping?.groupingKey === "builtin:sections" &&
+                  !unorganizedGroup
+                    ? sections.find(({ id }) => id === group.id)
+                    : undefined;
+                const headerActions: HeaderGroupActions | null = section
+                  ? {
+                      kind: "section",
+                      onRemove: () =>
+                        setEntityDialog({
+                          kind: "delete",
+                          scope: {
+                            groupingKey: "builtin:sections",
+                            groupId: section.id,
+                          },
+                          label: section.label,
+                        }),
+                      onRename: () =>
+                        setEntityDialog({
+                          kind: "rename",
+                          scope: {
+                            groupingKey: "builtin:sections",
+                            groupId: section.id,
+                          },
+                          label: section.label,
+                          name: section.label,
+                        }),
+                    }
+                  : null;
+                return (
+                  <ThreadDragGroup
+                    aria-label={`${group.label} group`}
+                    className="group/sidebar-section min-w-0 rounded-md"
+                    data-sidebar-sticky-group=""
+                    key={group.id}
+                    target={groupTarget}
+                    disabled={Boolean(normalizedSearch) || !grouping}
+                  >
+                    <ThreadDragHeader
+                      target={groupTarget}
+                      disabled={Boolean(normalizedSearch) || !grouping}
+                      className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_SECTION_LABEL_CLASS} transition-colors max-md:pointer-coarse:h-9`}
+                      data-sidebar="group-label"
+                      data-sidebar-sticky-tier="label"
+                    >
+                      <span className="relative z-10 flex min-w-0 flex-1 items-center text-left">
+                        <span className="flex min-w-0 items-center gap-2 text-left">
+                          {settings.values?.showGroupHeaderIcons !== false &&
+                          unorganizedGroup ? (
+                            <UnorganizedIcon />
+                          ) : settings.values?.showGroupHeaderIcons !== false &&
+                            entityGroupIcon ? (
+                            <span
+                              aria-hidden
+                              {...(entityGroupIcon.kind === "project"
+                                ? { "data-ribbon-icons-project": group.id }
+                                : { "data-ribbon-icons-section": group.id })}
+                              data-ribbon-sidebar-icon={
+                                entityGroupIcon.fallback
+                              }
+                            />
+                          ) : settings.values?.showGroupHeaderIcons !== false &&
+                            group.icon ? (
+                            <ProviderIcon
+                              icon={group.icon}
+                              label={`${group.label} group icon`}
+                            />
+                          ) : null}
+                          <span
+                            className="min-w-0 truncate"
+                            title={group.label}
+                          >
+                            {group.label}
+                          </span>
+                        </span>
+                        {grouping ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-expanded={!collapsed}
+                            aria-label={
+                              collapsed
+                                ? `Expand ${group.label} ${selectedGroupingKey === "builtin:projects" ? "project" : "section"}`
+                                : `Collapse ${group.label} ${selectedGroupingKey === "builtin:projects" ? "project" : "section"}`
+                            }
+                            className={`${collapsed ? "" : "bb-sidebar-hover-actions"} relative z-20 mx-2 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              changePreferences((current) => {
+                                const next = new Set(current.collapsed);
+                                if (next.has(ref)) next.delete(ref);
+                                else next.add(ref);
+                                return { ...current, collapsed: next };
+                              });
+                            }}
+                            type="button"
+                          >
+                            <Icon
+                              aria-hidden
+                              className={`size-3 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
+                              name="ChevronRight"
+                            />
+                          </Button>
+                        ) : null}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        type="button"
+                        className="bb-sidebar-hover-actions m-1 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2"
+                        aria-label={`New thread in ${group.label}`}
+                        onClick={() =>
+                          actions.openNewThread({
+                            ...(grouping?.groupingKey === "builtin:projects"
+                              ? { projectId: group.id }
+                              : {
+                                  sectionId:
+                                    group.id === "unsectioned"
+                                      ? undefined
+                                      : group.id,
+                                }),
+                            focusPrompt: true,
+                          })
+                        }
+                      >
+                        <Icon aria-hidden name="Plus" className="size-4" />
+                      </Button>
+                      <GroupHeaderMenu
+                        onNewSection={onNewSection}
+                        displayOptions={displayOptions}
+                        actions={headerActions}
+                        label={group.label}
+                        trailing={
+                          activityThread ? (
+                            <ThreadIndicator
+                              indicator={activityThread.indicator}
+                              label={activityThread.indicatorLabel}
+                              pluginStatus={activityThread.pluginStatus}
+                            />
+                          ) : collapsed && roots.length > 0 ? (
+                            <span
+                              aria-label={`${roots.length} ${roots.length === 1 ? "thread" : "threads"}`}
+                              className="tabular-nums text-xs text-subtle-foreground/60"
+                            >
+                              {roots.length}
+                            </span>
+                          ) : null
+                        }
+                      />
+                    </ThreadDragHeader>
+                    {dragDestination?.kind === "placement" &&
+                    dragDestination.groupId === group.id &&
+                    dragDestination.atStart ? (
+                      <ThreadDropPreview />
+                    ) : null}
+                    <div className="space-y-px">
+                      {!collapsed ? (
+                        <>
+                          {bands.main.length > 0 ? (
+                            <ul className="space-y-px">
+                              {bands.main.map(renderSectionRow)}
+                            </ul>
+                          ) : null}
+                          <StagePreview
+                            key={`${group.id}/deferred`}
+                            stage="deferred"
+                            rows={bands.deferred}
+                            selectedRootId={selectedRootId}
+                            renderRow={renderSectionRow}
+                            revealAll={Boolean(normalizedSearch)}
+                          />
+                          <StagePreview
+                            key={`${group.id}/completed`}
+                            stage="completed"
+                            rows={bands.completed}
+                            selectedRootId={selectedRootId}
+                            renderRow={renderSectionRow}
+                            revealAll={Boolean(normalizedSearch)}
+                          />
+                        </>
+                      ) : activePreview ? (
+                        <ul className="space-y-px">
+                          {renderRoot(activePreview, 0, false, {
+                            kind: "placement",
+                            roots,
+                            groupId: group.id,
+                          })}
+                        </ul>
+                      ) : null}
+                    </div>
+                    {dragDestination?.kind === "placement" &&
+                    dragDestination.groupId === group.id &&
+                    !dragDestination.atStart &&
+                    !dragDestination.indicatorBefore &&
+                    !dragDestination.indicatorAfter ? (
+                      <ThreadDropPreview />
+                    ) : null}
+                  </ThreadDragGroup>
+                );
+              })}
             </div>
-            {dragDestination?.kind === "placement" && dragDestination.groupId === group.id && !dragDestination.atStart && !dragDestination.indicatorBefore && !dragDestination.indicatorAfter ? <ThreadDropPreview /> : null}
-          </ThreadDragGroup>
-        );
-      })}
+          )}
         </div>
-      )}
-    </div>
-    </ThreadDragProvider>
+      </ThreadDragProvider>
     </PullRequestDetailsProvider>
   );
 }
 
 export default definePluginApp((app) => {
-  app.composer.customize({
-    id: "new-thread-project-sync",
-    scopes: ["new-thread"],
-    banners: [
-      {
-        id: "new-thread-project-sync",
-        chrome: "bare",
-        component: NewThreadProjectSync,
-      },
-    ],
-  });
-  app.slots.experimental_sidebarNavigation({
-    id: "ribbon-navigation",
-    title: "Ribbon navigation",
-    component: SidebarNavigation,
-  });
+  registerWorkflowCommands(app);
   app.slots.experimental_threadList({
     id: "ribbon-sidebar",
     title: "Ribbon sidebar",
     description: "Organize every thread grouping through one Ribbon sidebar.",
     component: RibbonSidebarList,
-  });
-  app.contentScripts.register({
-    id: "new-thread-group",
-    mount({ signal }) {
-      const dispose = mountGroupAwareThreadCreation(window);
-      signal.addEventListener("abort", dispose, { once: true });
-      return dispose;
-    },
   });
   app.contentScripts.register({
     id: "sidebar-content-spacing",

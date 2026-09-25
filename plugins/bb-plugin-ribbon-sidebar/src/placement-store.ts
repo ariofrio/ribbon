@@ -1,6 +1,6 @@
 import type BetterSqlite3 from "better-sqlite3";
-import { createOrderKeyBetween } from "./order-keys";
 import type { ThreadStagesMigrationSnapshotV1 } from "./contracts";
+import { createOrderKeyBetween } from "./order-keys";
 
 export type GroupingKey =
   | "builtin:projects"
@@ -107,6 +107,12 @@ export const RIBBON_SIDEBAR_MIGRATIONS = [
       updated_at_ms INTEGER NOT NULL CHECK (updated_at_ms >= 0)
     );
   `,
+  `CREATE TABLE IF NOT EXISTS ribbon_upgrade (key TEXT PRIMARY KEY);
+    CREATE TABLE IF NOT EXISTS thread_task_workflow (
+      thread_id TEXT PRIMARY KEY,
+      is_working INTEGER NOT NULL CHECK (is_working IN (0, 1)),
+      updated_at INTEGER NOT NULL
+    );`,
 ];
 
 interface AssignmentRow {
@@ -375,10 +381,9 @@ export function createPlacementStore(
     if (grouping.membership.kind === "external") {
       return grouping.membership.groupIdForThread(threadId);
     }
-    const assignment = getAssignment.get(
-      grouping.groupingKey,
-      threadId,
-    ) as AssignmentRow | undefined;
+    const assignment = getAssignment.get(grouping.groupingKey, threadId) as
+      | AssignmentRow
+      | undefined;
     return assignment?.group_id ?? grouping.defaultGroupId;
   }
 
@@ -391,7 +396,9 @@ export function createPlacementStore(
       (row) => currentGroupId(grouping, row.thread_id) === groupId,
     );
     const memberIds = new Set(members.map((row) => row.thread_id));
-    const explicit = (listOrders.all(grouping.groupingKey, groupId) as OrderRow[])
+    const explicit = (
+      listOrders.all(grouping.groupingKey, groupId) as OrderRow[]
+    )
       .map((row) => row.thread_id)
       .filter((threadId) => memberIds.has(threadId));
     const explicitIds = new Set(explicit);
@@ -414,7 +421,10 @@ export function createPlacementStore(
       const current = getOrder.get(groupingKey, groupId, threadId) as
         | OrderRow
         | undefined;
-      if (current !== undefined && (previousKey === null || current.sort_key > previousKey)) {
+      if (
+        current !== undefined &&
+        (previousKey === null || current.sort_key > previousKey)
+      ) {
         previousKey = current.sort_key;
         continue;
       }
@@ -429,10 +439,9 @@ export function createPlacementStore(
     threadId: string,
   ): PlacementRecordV1 {
     if (grouping.membership.kind === "ribbon") {
-      const assignment = getAssignment.get(
-        grouping.groupingKey,
-        threadId,
-      ) as AssignmentRow | undefined;
+      const assignment = getAssignment.get(grouping.groupingKey, threadId) as
+        | AssignmentRow
+        | undefined;
       if (assignment !== undefined) return placementFromAssignment(assignment);
     }
     return {
@@ -441,6 +450,41 @@ export function createPlacementStore(
       threadId,
       enteredAtMs: null,
     };
+  }
+
+  function retainBuiltinRanks(changed: Set<GroupingKey>) {
+    for (const [groupingKey, migrationKey] of [
+      ["builtin:sections", "section-ranks"],
+      ["builtin:projects", "project-ranks"],
+    ] as const) {
+      const grouping = options.grouping(groupingKey);
+      if (!grouping || grouping.groupingKey !== groupingKey) continue;
+      const initialized = database
+        .prepare("SELECT key FROM ribbon_upgrade WHERE key = ?")
+        .get(migrationKey);
+      for (const group of grouping.groups) {
+        const members = orderedMemberIds(grouping, group.id);
+        if (!initialized) {
+          materializeOrder(grouping.groupingKey, group.id, members, now());
+          if (members.length) changed.add(grouping.groupingKey);
+          continue;
+        }
+        const missing = members.filter(
+          (id) => !getOrder.get(grouping.groupingKey, group.id, id),
+        );
+        let first =
+          (listOrders.all(grouping.groupingKey, group.id) as OrderRow[])[0]
+            ?.sort_key ?? null;
+        for (const id of missing.reverse()) {
+          first = createOrderKeyBetween(null, first);
+          upsertOrder.run(grouping.groupingKey, group.id, id, first, now());
+          changed.add(grouping.groupingKey);
+        }
+      }
+      database
+        .prepare("INSERT OR IGNORE INTO ribbon_upgrade(key) VALUES (?)")
+        .run(migrationKey);
+    }
   }
 
   const reconcile = database.transaction(
@@ -485,6 +529,7 @@ export function createPlacementStore(
         }
       }
 
+      retainBuiltinRanks(changed);
       for (const groupingKey of changed) {
         ensureRevision.run(groupingKey);
         incrementRevision.run(groupingKey);
@@ -529,6 +574,7 @@ export function createPlacementStore(
           changed.add(row.grouping_key);
         }
       }
+      retainBuiltinRanks(changed);
       for (const groupingKey of changed) {
         ensureRevision.run(groupingKey);
         incrementRevision.run(groupingKey);
@@ -543,7 +589,9 @@ export function createPlacementStore(
       assertUniqueThreadIds(childThreadIds, "Child threads");
       const eligible = new Set(eligibleRootThreadIds);
       if (childThreadIds.some((threadId) => eligible.has(threadId))) {
-        throw new Error("A thread cannot be both an eligible root and a child.");
+        throw new Error(
+          "A thread cannot be both an eligible root and a child.",
+        );
       }
       return reconcile.immediate(eligibleRootThreadIds, childThreadIds);
     },
@@ -561,9 +609,7 @@ export function createPlacementStore(
             )
             .all(threadId) as Array<{ grouping_key: GroupingKey }>;
           const orderKeys = database
-            .prepare(
-              "SELECT grouping_key FROM group_order WHERE thread_id = ?",
-            )
+            .prepare("SELECT grouping_key FROM group_order WHERE thread_id = ?")
             .all(threadId) as Array<{ grouping_key: GroupingKey }>;
           const changed = new Set(
             [...assignmentKeys, ...orderKeys].map((row) => row.grouping_key),
@@ -612,7 +658,9 @@ export function createPlacementStore(
               `plugin:${snapshot.sourcePluginId}:${groupingId}` as GroupingKey;
             const grouping = options.grouping(groupingKey);
             if (grouping === null || grouping.membership.kind !== "ribbon") {
-              throw new Error(`Migration grouping is unavailable: ${groupingKey}`);
+              throw new Error(
+                `Migration grouping is unavailable: ${groupingKey}`,
+              );
             }
             deleteGroupingAssignments.run(groupingKey);
             deleteGroupingOrders.run(groupingKey);
@@ -623,14 +671,18 @@ export function createPlacementStore(
               `plugin:${snapshot.sourcePluginId}:${placement.groupingId}` as GroupingKey;
             const grouping = options.grouping(groupingKey);
             if (grouping === null) {
-              throw new Error(`Migration grouping is unavailable: ${groupingKey}`);
+              throw new Error(
+                `Migration grouping is unavailable: ${groupingKey}`,
+              );
             }
             const groups = new Set(grouping.groups.map(({ id }) => id));
             if (
               !groups.has(placement.groupId) ||
               placement.orders.some(({ groupId }) => !groups.has(groupId))
             ) {
-              throw new Error(`Migration names an unknown group in ${groupingKey}.`);
+              throw new Error(
+                `Migration names an unknown group in ${groupingKey}.`,
+              );
             }
             upsertAssignment.run(
               groupingKey,
@@ -669,7 +721,9 @@ export function createPlacementStore(
                 previous_group_id: placement.previousGroupId ?? null,
                 origin: placement.origin,
               }))
-              .sort((left, right) => left.thread_id.localeCompare(right.thread_id));
+              .sort((left, right) =>
+                left.thread_id.localeCompare(right.thread_id),
+              );
             importedAssignments.sort((left, right) =>
               left.thread_id.localeCompare(right.thread_id),
             );
@@ -695,7 +749,9 @@ export function createPlacementStore(
                 JSON.stringify(expectedAssignments) ||
               JSON.stringify(importedOrders) !== JSON.stringify(expectedOrders)
             ) {
-              throw new Error(`Migration verification failed for ${groupingKey}.`);
+              throw new Error(
+                `Migration verification failed for ${groupingKey}.`,
+              );
             }
             ensureRevision.run(groupingKey);
             incrementRevision.run(groupingKey);
@@ -713,9 +769,8 @@ export function createPlacementStore(
     rekeyGrouping(from, to) {
       if (from === to) {
         ensureRevision.run(from);
-        const revision = (
-          getRevision.get(from) as { revision: number }
-        ).revision;
+        const revision = (getRevision.get(from) as { revision: number })
+          .revision;
         const counts = countGroupingRows.get(from, from) as {
           assignments: number;
           orders: number;
@@ -724,7 +779,9 @@ export function createPlacementStore(
       }
       const target = options.grouping(to);
       if (target === null || target.membership.kind !== "ribbon") {
-        throw new Error(`Target grouping is unavailable or externally owned: ${to}`);
+        throw new Error(
+          `Target grouping is unavailable or externally owned: ${to}`,
+        );
       }
       return database
         .transaction(() => {
@@ -736,19 +793,17 @@ export function createPlacementStore(
             to,
             target.defaultGroupId,
           ) as { count: number };
-          if (
-            targetCounts.orders > 0 ||
-            nonDefaultAssignments.count > 0
-          ) {
-            throw new Error(`Target grouping already has placement state: ${to}`);
+          if (targetCounts.orders > 0 || nonDefaultAssignments.count > 0) {
+            throw new Error(
+              `Target grouping already has placement state: ${to}`,
+            );
           }
           deleteGroupingAssignments.run(to);
           deleteGroupingOrders.run(to);
           deleteRevision.run(to);
           ensureRevision.run(from);
-          const revision = (
-            getRevision.get(from) as { revision: number }
-          ).revision;
+          const revision = (getRevision.get(from) as { revision: number })
+            .revision;
           const assignments = rekeyAssignments.run(to, from).changes;
           const orders = rekeyOrders.run(to, from).changes;
           deleteRevision.run(from);
@@ -831,7 +886,9 @@ export function createPlacementStore(
           },
         };
       }
-      const destination = grouping.groups.find((group) => group.id === input.groupId);
+      const destination = grouping.groups.find(
+        (group) => group.id === input.groupId,
+      );
       if (destination === undefined) {
         return {
           ok: false,
@@ -887,8 +944,10 @@ export function createPlacementStore(
         (input.anchor === undefined ||
           input.anchor.kind === "preserve" ||
           (input.anchor.kind === "start" && currentIndex === 0) ||
-          (input.anchor.kind === "end" && currentIndex === destinationOrder.length - 1) ||
-          (input.anchor.kind === "before" && currentIndex === anchorIndex - 1) ||
+          (input.anchor.kind === "end" &&
+            currentIndex === destinationOrder.length - 1) ||
+          (input.anchor.kind === "before" &&
+            currentIndex === anchorIndex - 1) ||
           (input.anchor.kind === "after" && currentIndex === anchorIndex + 1));
       ensureRevision.run(grouping.groupingKey);
       const revision = (
@@ -897,7 +956,10 @@ export function createPlacementStore(
       if (satisfied) {
         return {
           ok: true,
-          value: { placement: placementFor(grouping, input.threadId), revision },
+          value: {
+            placement: placementFor(grouping, input.threadId),
+            revision,
+          },
         };
       }
       if (
@@ -1095,9 +1157,14 @@ export function createPlacementStore(
             );
             let insertionIndex = destinationOrderWithRetained.length;
             if (
-              (input.anchor?.kind ?? freshDestination.defaultPlacement) === "start"
-            ) insertionIndex = 0;
-            if (input.anchor?.kind === "before" || input.anchor?.kind === "after") {
+              (input.anchor?.kind ?? freshDestination.defaultPlacement) ===
+              "start"
+            )
+              insertionIndex = 0;
+            if (
+              input.anchor?.kind === "before" ||
+              input.anchor?.kind === "after"
+            ) {
               const index = destinationOrderWithRetained.indexOf(
                 input.anchor.threadId,
               );
@@ -1110,19 +1177,23 @@ export function createPlacementStore(
             const previousKey =
               previousThreadId === undefined
                 ? null
-                : ((getOrder.get(
-                    input.groupingKey,
-                    input.groupId,
-                    previousThreadId,
-                  ) as OrderRow).sort_key);
+                : (
+                    getOrder.get(
+                      input.groupingKey,
+                      input.groupId,
+                      previousThreadId,
+                    ) as OrderRow
+                  ).sort_key;
             const nextKey =
               nextThreadId === undefined
                 ? null
-                : ((getOrder.get(
-                    input.groupingKey,
-                    input.groupId,
-                    nextThreadId,
-                  ) as OrderRow).sort_key);
+                : (
+                    getOrder.get(
+                      input.groupingKey,
+                      input.groupId,
+                      nextThreadId,
+                    ) as OrderRow
+                  ).sort_key;
             destinationKey = createOrderKeyBetween(previousKey, nextKey);
             upsertOrder.run(
               input.groupingKey,
@@ -1174,7 +1245,9 @@ export function createPlacementStore(
           },
         };
       }
-      const groupsById = new Map(grouping.groups.map((group) => [group.id, group]));
+      const groupsById = new Map(
+        grouping.groups.map((group) => [group.id, group]),
+      );
       for (const groupId of input.groupIds ?? []) {
         if (!groupsById.has(groupId)) {
           return {
@@ -1242,11 +1315,16 @@ export function createPlacementStore(
               : grouping.membership.groupIdForThread(eligible.thread_id);
           return effectiveGroupId === groupId;
         });
-        const orderRows = listOrders.all(grouping.groupingKey, groupId) as OrderRow[];
+        const orderRows = listOrders.all(
+          grouping.groupingKey,
+          groupId,
+        ) as OrderRow[];
         const explicitlyOrdered = orderRows
           .map((row) => eligibleById.get(row.thread_id))
           .filter((row): row is EligibleRow => row !== undefined)
-          .filter((row) => members.some((member) => member.thread_id === row.thread_id));
+          .filter((row) =>
+            members.some((member) => member.thread_id === row.thread_id),
+          );
         const explicitlyOrderedIds = new Set(
           explicitlyOrdered.map((row) => row.thread_id),
         );

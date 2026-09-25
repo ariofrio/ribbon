@@ -1,86 +1,37 @@
-import { ListTreeIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useState, type ReactNode } from "react";
-import type { IconDataV1 } from "./contracts";
-import { ProviderIcon } from "./provider-icon";
 import { Button } from "./vendor/components/ui/button";
-import {
-  ProjectGroupActionItems,
-  SectionGroupActionItems,
-} from "./scope-filter";
-import { Icon } from "./vendor/components/ui/icon";
-import { CompactViewportOverrideProvider } from "./vendor/components/ui/hooks/use-compact-viewport";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuPortal,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./vendor/components/ui/dropdown-menu";
+import { CompactViewportOverrideProvider } from "./vendor/components/ui/hooks/use-compact-viewport";
+import { Icon } from "./vendor/components/ui/icon";
 
-interface HeaderGrouping {
-  groupingKey: string;
-  pluralLabel: string;
-  icon?: IconDataV1;
-}
-
-export type HeaderGroupActions =
-  | {
-      kind: "section";
-      onRemove(): void;
-      onRename(): void;
-    }
-  | {
-      kind: "project";
-      canAddLocalPath: boolean;
-      onAddLocalPath(): void;
-      onOpenSettings(): void;
-      onRemove(): void;
-      onRename(): void;
-    };
-
-function GroupingIcon({ grouping }: { grouping: HeaderGrouping }) {
-  if (grouping.groupingKey === "builtin:sections") {
-    return <Icon aria-hidden className="size-4 shrink-0" name="ListView" />;
-  }
-  if (grouping.groupingKey === "builtin:projects") {
-    return <Icon aria-hidden className="size-4 shrink-0" name="Folder" />;
-  }
-  return grouping.icon ? (
-    <span
-      aria-hidden
-      className="inline-flex size-4 shrink-0 items-center justify-center leading-none"
-    >
-      <ProviderIcon
-        icon={grouping.icon}
-        label={`${grouping.pluralLabel} icon`}
-      />
-    </span>
-  ) : (
-    <Icon aria-hidden className="size-4 shrink-0" name="Workflow" />
-  );
-}
+export type HeaderGroupActions = {
+  kind: "section";
+  onRemove(): void;
+  onRename(): void;
+};
 
 export function GroupHeaderMenu({
   actions,
-  activeGroupingKey,
-  groupings,
   label,
-  onGroupingChange,
   trailing,
+  onNewSection,
+  displayOptions,
 }: {
   actions: HeaderGroupActions | null;
-  activeGroupingKey: string | null;
-  groupings: readonly HeaderGrouping[];
   label: string;
-  onGroupingChange(groupingKey: string | null): void;
   trailing?: ReactNode;
+  onNewSection?: () => void;
+  displayOptions?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  if (!actions && !onNewSection && !displayOptions)
+    return trailing ? <span className="mr-2">{trailing}</span> : null;
   return (
     <span className="relative flex w-7 shrink-0 self-stretch items-center justify-end max-md:pointer-coarse:w-9">
       <span
@@ -106,89 +57,34 @@ export function GroupHeaderMenu({
                 <Icon aria-hidden className="size-4" name="MoreHorizontal" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <HugeiconsIcon
-                    aria-hidden
-                    className="size-4 shrink-0"
-                    icon={ListTreeIcon}
-                    size={16}
-                  />
-                  Group by
-                </DropdownMenuSubTrigger>
-                <DropdownMenuPortal>
-                  <DropdownMenuSubContent>
-                    <DropdownMenuItem
-                      aria-checked={activeGroupingKey === null}
-                      className="pl-7"
-                      onSelect={() => onGroupingChange(null)}
-                      role="menuitemcheckbox"
-                    >
-                      {activeGroupingKey === null ? (
-                        <span className="absolute left-2 inline-flex size-3.5 items-center justify-center">
-                          <Icon
-                            aria-hidden
-                            className="size-3.5"
-                            name="Check"
-                          />
-                        </span>
-                      ) : null}
-                      <HugeiconsIcon
-                        aria-hidden
-                        className="size-4 shrink-0"
-                        icon={ListTreeIcon}
-                        size={16}
-                      />
-                      No grouping
-                    </DropdownMenuItem>
+            <DropdownMenuContent align="end" mobileTitle={`${label} options`}>
+              {onNewSection ? (
+                <DropdownMenuItem onSelect={onNewSection}>
+                  <Icon name="SectionAdd" className="size-4" aria-hidden />
+                  New section
+                </DropdownMenuItem>
+              ) : null}
+              {onNewSection && displayOptions ? (
+                <DropdownMenuSeparator />
+              ) : null}
+              {displayOptions}
+              {actions ? (
+                <>
+                  {onNewSection || displayOptions ? (
                     <DropdownMenuSeparator />
-                    {groupings.map((grouping) => {
-                      const checked =
-                        activeGroupingKey === grouping.groupingKey;
-                      return (
-                        <DropdownMenuItem
-                          aria-checked={checked}
-                          className="pl-7"
-                          key={grouping.groupingKey}
-                          onSelect={() => {
-                            if (!checked) {
-                              onGroupingChange(grouping.groupingKey);
-                            }
-                          }}
-                          role="menuitemcheckbox"
-                        >
-                          {checked ? (
-                            <span className="absolute left-2 inline-flex size-3.5 items-center justify-center">
-                              <Icon
-                                aria-hidden
-                                className="size-3.5"
-                                name="Check"
-                              />
-                            </span>
-                          ) : null}
-                          <GroupingIcon grouping={grouping} />
-                          {grouping.pluralLabel}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuSubContent>
-                </DropdownMenuPortal>
-              </DropdownMenuSub>
-              {actions ? <DropdownMenuSeparator /> : null}
-              {actions?.kind === "section" ? (
-                <SectionGroupActionItems
-                  onRemove={actions.onRemove}
-                  onRename={actions.onRename}
-                />
-              ) : actions?.kind === "project" ? (
-                <ProjectGroupActionItems
-                  canAddLocalPath={actions.canAddLocalPath}
-                  onAddLocalPath={actions.onAddLocalPath}
-                  onOpenSettings={actions.onOpenSettings}
-                  onRemove={actions.onRemove}
-                  onRename={actions.onRename}
-                />
+                  ) : null}
+                  <DropdownMenuItem onSelect={actions.onRename}>
+                    <Icon name="Edit" className="size-4" aria-hidden />
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={actions.onRemove}
+                    variant="destructive"
+                  >
+                    <Icon name="Trash2" className="size-4" aria-hidden />
+                    Remove
+                  </DropdownMenuItem>
+                </>
               ) : null}
             </DropdownMenuContent>
           </DropdownMenu>

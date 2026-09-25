@@ -63,7 +63,7 @@ try {
     stack: { ...stack, env: cliEnv },
     workspaceRoot: join(scratch, "workspaces"),
     bb,
-    assignStages: plugins.has("bb-plugin-thread-stages"),
+    assignStages: plugins.has("bb-plugin-ribbon-sidebar"),
   });
 
   for (const suite of selectedSuites) {

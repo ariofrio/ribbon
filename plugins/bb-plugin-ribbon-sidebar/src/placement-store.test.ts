@@ -26,13 +26,60 @@ describe("placement persistence", () => {
     for (const database of databases.splice(0)) database.close();
   });
 
+  it.each(["builtin:sections", "builtin:projects"] as const)(
+    "retains %s ranks across refreshes and prepends newly created roots",
+    (groupingKey) => {
+      const database = new Database(":memory:");
+      databases.push(database);
+      for (const migration of RIBBON_SIDEBAR_MIGRATIONS)
+        database.exec(migration);
+      const section: GroupingDescriptor = {
+        groupingKey,
+        singularLabel: "Section",
+        pluralLabel: "Sections",
+        defaultGroupId: "work",
+        groups: [{ id: "work", label: "Work", acceptsAssignments: true }],
+        membership: {
+          kind: "external",
+          writable: true,
+          groupIdForThread: () => "work",
+          setGroupIdForThread: () => {},
+        },
+      };
+      const store = createPlacementStore(database, {
+        grouping: (key) => (key === groupingKey ? section : null),
+        groupings: () => [section],
+      });
+      const order = () => {
+        const result = store.listPlacements({
+          groupingKey: section.groupingKey,
+        });
+        if (!result.ok) throw new Error(result.error.message);
+        return result.value.items.map((item) => item.threadId);
+      };
+      store.reconcileRoots(["b", "a"], []);
+      store.reconcileRoots(["a", "b"], []);
+      expect(order()).toEqual(["b", "a"]);
+      store.reconcileRoot("c", true);
+      expect(order()).toEqual(["c", "b", "a"]);
+      store.updatePlacement({
+        groupingKey: section.groupingKey,
+        groupId: "work",
+        threadId: "a",
+        anchor: { kind: "start" },
+        origin: "ui",
+      });
+      store.reconcileRoots(["d", "c", "b", "a"], []);
+      expect(order()).toEqual(["d", "a", "c", "b"]);
+    },
+  );
+
   it("reconciles visible roots to provider defaults in stable BB order", () => {
     const database = new Database(":memory:");
     databases.push(database);
     for (const migration of RIBBON_SIDEBAR_MIGRATIONS) database.exec(migration);
     const store = createPlacementStore(database, {
-      grouping: (key) =>
-        key === stages.groupingKey ? stages : null,
+      grouping: (key) => (key === stages.groupingKey ? stages : null),
       groupings: () => [stages],
       now: () => 1_234,
     });
@@ -40,9 +87,7 @@ describe("placement persistence", () => {
     expect(store.reconcileRoots(["thread-b", "thread-a"], [])).toEqual({
       changedGroupingKeys: ["plugin:thread-stages:stages"],
     });
-    expect(
-      store.listPlacements({ groupingKey: stages.groupingKey }),
-    ).toEqual({
+    expect(store.listPlacements({ groupingKey: stages.groupingKey })).toEqual({
       ok: true,
       value: {
         groupingKey: stages.groupingKey,
@@ -228,7 +273,9 @@ describe("placement persistence", () => {
         stages.groupingKey as `plugin:${string}:${string}`,
         renamed.groupingKey as `plugin:${string}:${string}`,
       ),
-    ).toThrow(`Target grouping already has placement state: ${renamed.groupingKey}`);
+    ).toThrow(
+      `Target grouping already has placement state: ${renamed.groupingKey}`,
+    );
     expect(
       store.getPlacement({
         groupingKey: stages.groupingKey,
@@ -471,7 +518,9 @@ describe("placement persistence", () => {
       groups: stages.groups.filter(({ id }) => id !== "Active"),
     };
 
-    expect(store.listPlacements({ groupingKey: stages.groupingKey })).toMatchObject({
+    expect(
+      store.listPlacements({ groupingKey: stages.groupingKey }),
+    ).toMatchObject({
       ok: true,
       value: { items: [{ threadId: "thread-a", groupId: "Active" }] },
     });
@@ -493,10 +542,7 @@ describe("placement persistence", () => {
       groupings: () => [stages],
       now: () => now,
     });
-    store.reconcileRoots(
-      ["thread-a", "thread-b", "thread-c", "thread-d"],
-      [],
-    );
+    store.reconcileRoots(["thread-a", "thread-b", "thread-c", "thread-d"], []);
     const ids = (groupId: string) => {
       const result = store.listPlacements({
         groupingKey: stages.groupingKey,
@@ -659,10 +705,7 @@ describe("placement persistence", () => {
     place("thread-b", "Idle", { kind: "start" });
     place("thread-b", "Active", { kind: "end" });
     place("thread-a", "Active", { kind: "end" });
-    store.reconcileRoots(
-      ["thread-a", "thread-b", "thread-c", "thread-d"],
-      [],
-    );
+    store.reconcileRoots(["thread-a", "thread-b", "thread-c", "thread-d"], []);
     place("thread-d", "Idle", { kind: "start" });
     place("thread-b", "Idle", { kind: "preserve" });
 
