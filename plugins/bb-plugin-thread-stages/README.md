@@ -2,8 +2,8 @@
 
 Compatibility bridge for existing Ribbon stage shortcuts and saved state.
 
-[**Ribbon sidebar**](../bb-plugin-ribbon-sidebar#readme) now owns the five stages,
-automation, retention, and section layout. New installations need only Ribbon:
+[**Ribbon sidebar**](../bb-plugin-ribbon-sidebar#readme) now owns the stages,
+retention, and section layout. New installations need only Ribbon:
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon

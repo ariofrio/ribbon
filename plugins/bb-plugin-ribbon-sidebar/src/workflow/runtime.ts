@@ -10,10 +10,6 @@ import {
   rootThreadIdByThreadId,
   type WorkflowHierarchyThread,
 } from "./root-thread-ownership";
-import {
-  createWorkflowObservationState,
-  registerThreadWorkflow,
-} from "./workflow-automation";
 import { resolveStageChord } from "./workflow-chords";
 import { resolveWorkflowReorder } from "./workflow-reorder";
 import {
@@ -35,7 +31,6 @@ export function createWorkflowRuntime(
     }>;
   },
 ) {
-  const database = bb.storage.database();
   async function updatePlacement(
     input: Parameters<PlacementStore["updatePlacement"]>[0],
   ): Promise<void> {
@@ -97,34 +92,6 @@ export function createWorkflowRuntime(
       orderRevision: groupOrder.revision,
       orderPlacements: groupOrder.items,
     };
-  }
-
-  async function updateLifecycleStage(
-    threadId: string,
-    stage: Extract<WorkflowStage, "Active" | "Idle">,
-  ): Promise<void> {
-    const current = await store.getPlacement({
-      groupingKey: THREAD_STAGES_GROUPING_KEY,
-      threadId,
-    });
-    if (!current.ok) {
-      throw new Error(
-        `placement read was rejected (${current.error.code}): ${current.error.message}`,
-      );
-    }
-    if (
-      (stage === "Active" && current.value.placement.groupId !== "Idle") ||
-      (stage === "Idle" && current.value.placement.groupId !== "Active")
-    ) {
-      return;
-    }
-    await updatePlacement({
-      groupingKey: THREAD_STAGES_GROUPING_KEY,
-      groupId: stage,
-      threadId,
-      expectedRevision: current.value.revision,
-      origin: "auto",
-    });
   }
 
   function requireRootThread(
@@ -309,11 +276,6 @@ export function createWorkflowRuntime(
       return { assignments };
     },
   };
-  registerThreadWorkflow(
-    bb,
-    updateLifecycleStage,
-    createWorkflowObservationState(database),
-  );
   registerCompletedAutoArchive(
     bb,
     {

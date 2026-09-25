@@ -40,7 +40,7 @@ import {
 } from "./icon-styles";
 import { usePersistentStringSet } from "./persistent-string-set";
 import type { GroupingKey, PlacementRecordV1 } from "./placement-store";
-import { ProviderIcon } from "./provider-icon";
+import { ProviderIcon, WorkingStageIcon } from "./provider-icon";
 import { sectionBands } from "./section-layout";
 import type { rpcContract } from "./server";
 import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
@@ -63,6 +63,7 @@ import {
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
 import {
   resolveThreadStatus,
+  withoutRuntimeIndicator,
   withPullRequestSignal,
   type ThreadStatus,
 } from "./thread-status";
@@ -92,7 +93,11 @@ import {
   type SidebarPreferences,
   type SidebarSort,
 } from "./view-state";
-import { STAGE_ICONS, THREAD_STAGES_GROUPING_KEY } from "./workflow/catalog";
+import {
+  STAGE_ICONS,
+  THREAD_STAGES_GROUPING_KEY,
+  WORKING_STAGE_ICONS,
+} from "./workflow/catalog";
 import { registerWorkflowCommands } from "./workflow/commands";
 import { parseWorkflowStage } from "./workflow/workflow-stage";
 
@@ -1456,15 +1461,22 @@ function RibbonSidebarList({
         ? "completed"
         : "main";
   }
-  function threadIcon(thread: PluginSidebarThread): ReactNode {
+  function threadIcon(
+    thread: PluginSidebarThread,
+    working: boolean,
+  ): ReactNode {
     const stage = threadStage(thread);
-    return (
+    return working ? (
+      <WorkingStageIcon
+        {...WORKING_STAGE_ICONS[stage]}
+        label={`${stage} stage, working`}
+        className="text-subtle-foreground/75"
+      />
+    ) : (
       <ProviderIcon
         icon={STAGE_ICONS[stage]}
         label={`${stage} stage`}
-        className={`text-subtle-foreground/75 ${
-          stage === "Active" ? "motion-safe:animate-spin" : ""
-        }`}
+        className="text-subtle-foreground/75"
       />
     );
   }
@@ -1550,9 +1562,9 @@ function RibbonSidebarList({
           childrenCollapsed={childrenCollapsed}
           depth={depth}
           hasChildren={children.length > 0}
-          indicatorThread={indicatorThread}
+          indicatorThread={withoutRuntimeIndicator(indicatorThread)}
           hasUnsubmittedDraft={draftThreadIds.has(root.id)}
-          icon={threadIcon(root)}
+          icon={threadIcon(root, indicatorThread.spinsStageRing)}
           dragging={draggingThreadId === root.id}
           muted={
             stage === "Deferred" || stage === "Blocked" || stage === "Completed"

@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "I'm preparing a routine bulk status notification. The visible roots are Billing cleanup (Idle), Release checklist (Completed), Search indexing (Active), and Vendor access (Blocked). I did not ask to resume anything. Which roots are in scope by default? Do not send any messages.",
+      "prompt": "I'm preparing a routine bulk status notification. The visible roots are Billing cleanup (Idle), Release checklist (Completed), Search indexing (Idle, currently working), and Vendor access (Blocked). I did not ask to resume anything. Which roots are in scope by default? Do not send any messages.",
       "expected_output": "The agent excludes the Completed root by default while retaining the other visible roots, and explains that Completed is treated like archived work unless explicitly included or resumed.",
       "files": [],
       "expectations": [

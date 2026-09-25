@@ -11,6 +11,7 @@ function status(
     indicator,
     indicatorLabel: indicator === "none" ? null : indicator,
     isWorking: false,
+    spinsStageRing: false,
     pluginStatus: null,
     pullRequestMark: null,
     ...overrides,

@@ -113,6 +113,25 @@ export const RIBBON_SIDEBAR_MIGRATIONS = [
       is_working INTEGER NOT NULL CHECK (is_working IN (0, 1)),
       updated_at INTEGER NOT NULL
     );`,
+  // Active is no longer a stage: rows show working on their stage icon.
+  `
+    INSERT OR IGNORE INTO group_order(
+      grouping_key, group_id, thread_id, sort_key, updated_at_ms
+    )
+      SELECT grouping_key, 'Idle', thread_id, sort_key, updated_at_ms
+      FROM group_order
+      WHERE grouping_key = 'plugin:thread-stages:stages' AND group_id = 'Active';
+    DELETE FROM group_order
+      WHERE grouping_key = 'plugin:thread-stages:stages' AND group_id = 'Active';
+    UPDATE group_assignment SET group_id = 'Idle'
+      WHERE grouping_key = 'plugin:thread-stages:stages' AND group_id = 'Active';
+    UPDATE group_assignment SET previous_group_id = 'Idle'
+      WHERE grouping_key = 'plugin:thread-stages:stages'
+        AND previous_group_id = 'Active';
+    UPDATE grouping_revision SET revision = revision + 1
+      WHERE grouping_key = 'plugin:thread-stages:stages';
+    DROP TABLE IF EXISTS thread_task_workflow;
+  `,
 ];
 
 interface AssignmentRow {

@@ -3,7 +3,6 @@ import { rootThreadIdByThreadId } from "./root-thread-ownership";
 export const WORKFLOW_STAGES = [
   "Deferred",
   "Idle",
-  "Active",
   "Blocked",
   "Completed",
 ] as const;
@@ -49,7 +48,6 @@ const STAGE_BY_KEY = new Map<string, WorkflowStage>(
     const entries: Array<[string, WorkflowStage]> = [[stageKey(stage), stage]];
     if (stage === "Deferred") entries.push(["backlog", stage]);
     if (stage === "Idle") entries.push(["todo", stage]);
-    if (stage === "Active") entries.push(["working", stage]);
     if (stage === "Blocked") entries.push(["waiting", stage]);
     if (stage === "Completed") {
       entries.push(["done", stage], ["canceled", stage], ["cancelled", stage]);
@@ -81,7 +79,6 @@ export function groupThreadsByStage<Thread extends SidebarThreadLike>(
   const groups: Record<WorkflowStage, Thread[]> = {
     Deferred: [],
     Idle: [],
-    Active: [],
     Blocked: [],
     Completed: [],
   };

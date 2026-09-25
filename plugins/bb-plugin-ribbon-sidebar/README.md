@@ -16,7 +16,7 @@ bb plugin install ribbon-sidebar@ribbon
 Use a heading’s **⋯ menu → New section** to create a section.
 Choose **⋯ menu → Group by → Section or Project**. The choice persists
 across reloads, and each grouping keeps its own order and collapsed headings.
-Inside each group, Idle, Active, and Blocked share one manually ordered list,
+Inside each group, Idle and Blocked share one manually ordered list,
 followed immediately by Deferred and Completed.
 New roots enter at the top. Activity changes leave their positions unchanged.
 
@@ -64,11 +64,11 @@ Right is the default, and the choice persists on this client across reloads.
 
 ## Stages and shortcuts
 
-Ribbon owns stage automation, shortcuts, and Completed retention. Idle roots
-become Active while a turn or background command runs anywhere in the hierarchy.
-A pending question or approval takes priority on that thread; work on another
-descendant can still keep the root Active. Automation preserves manual Deferred,
-Blocked, and Completed assignments.
+Ribbon owns stages, shortcuts, and Completed retention. Running work never
+changes a stage: a working thread's stage icon turns its ring instead of
+showing bb's spinner, and a collapsed root's ring also turns for work in its
+hidden descendants. A pending question or approval stops the ring. Earlier
+versions had an Active stage; its threads return to Idle on upgrade.
 
 Completed hierarchies auto-archive after seven days by default. Ribbon settings
 can select 1 or 30 days, or Never. Completion and subsequent root or descendant

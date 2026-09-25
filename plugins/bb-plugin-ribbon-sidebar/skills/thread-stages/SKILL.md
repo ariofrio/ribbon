@@ -1,6 +1,6 @@
 ---
 name: thread-stages
-description: Understand and apply the Deferred, Idle, Active, Blocked, and Completed workflow stages supplied to Ribbon sidebar. Use when deciding which stage a root bb thread belongs in, interpreting automatic stage changes, selecting staged threads for work, or changing a root's stage or position. Child threads inherit their root parent's placement. Do not archive a thread merely to mark it Completed.
+description: Understand and apply the Deferred, Idle, Blocked, and Completed workflow stages supplied to Ribbon sidebar. Use when deciding which stage a root bb thread belongs in, interpreting automatic stage changes, selecting staged threads for work, or changing a root's stage or position. Child threads inherit their root parent's placement. Do not archive a thread merely to mark it Completed.
 ---
 
 # Thread stages
@@ -9,7 +9,6 @@ Thread stages describe the workflow state of root threads:
 
 - **Deferred** is intentionally set aside for later.
 - **Idle** is available or waiting without a blocker.
-- **Active** has a turn or background command running.
 - **Blocked** cannot progress until something external changes.
 - **Completed** is finished and should be treated like archived work.
 
@@ -21,18 +20,10 @@ Treat **Completed** roots as out of scope by default. Exclude them from bulk
 operations, messages, and notifications unless the user explicitly includes
 them or intends to resume them.
 
-## Automatic stages
+## Working threads
 
-Activity automation manages a root only while its stage is **Idle** or
-**Active**:
-
-- A turn or background command on the root or any descendant counts as
-  **Active** work.
-- A pending question or approval takes priority over activity on that same
-  thread, so that thread counts as **Idle**. Activity elsewhere in the
-  hierarchy still keeps the root **Active**.
-- A root in **Deferred**, **Blocked**, or **Completed** stays there regardless
-  of later activity changes.
-
-Moving a root back to **Idle** or **Active** opts it into automation for its
-next activity transition. Between transitions, a stage set by hand stays put.
+Stages change only when someone sets them; running work never moves a root.
+A working thread keeps its stage, and Ribbon shows the work by turning the
+stage icon's ring on that row. A collapsed root's ring also turns for work in
+its hidden descendants. A pending question or approval stops the ring, because
+the thread is waiting on the user rather than working.

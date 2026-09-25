@@ -120,17 +120,17 @@ describe("resolveWorkflowReorder", () => {
         assignments,
         threadId: "thr_b",
         workflowStage: "Idle",
-        enabledStages: ["Idle", "Active", "Completed"],
+        enabledStages: ["Idle", "Completed"],
         intent: { scope: "stage", direction: 1 },
       }),
-    ).toEqual({ kind: "stage", workflowStage: "Active" });
+    ).toEqual({ kind: "stage", workflowStage: "Completed" });
     expect(
       resolveWorkflowReorder({
         threads,
         assignments,
         threadId: "thr_b",
         workflowStage: "Idle",
-        enabledStages: ["Idle", "Active", "Completed"],
+        enabledStages: ["Idle", "Completed"],
         intent: { scope: "stage", direction: -1 },
       }),
     ).toEqual({ kind: "none" });

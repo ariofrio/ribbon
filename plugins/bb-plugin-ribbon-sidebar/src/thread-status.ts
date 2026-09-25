@@ -9,6 +9,8 @@ export interface ThreadStatus {
   indicator: PluginSidebarThreadIndicator;
   indicatorLabel: string | null;
   isWorking: boolean;
+  /** An agent is working and nothing it asked for outranks that. */
+  spinsStageRing: boolean;
   pluginStatus: PluginSidebarThreadRowStatus | null;
   /** Set when the row's pull request outranks the thread's own indicator. */
   pullRequestMark: PullRequestMark | null;
@@ -91,6 +93,7 @@ export function resolveThreadStatus(
       ?? threads.find((thread) => thread.indicator === indicator)?.indicatorLabel
       ?? LABELS[indicator],
     isWorking: hasWork || pluginStatus?.tone === "running",
+    spinsStageRing: hasWork && indicator !== "waiting-for-input",
     pluginStatus: visiblePluginStatus,
     pullRequestMark: null,
   };
@@ -120,6 +123,13 @@ const PULL_REQUEST_MARK_RANK: Record<PullRequestMark, number> = {
   ready: 6,
   waiting: 9,
 };
+
+/** A spinning stage ring stands in for bb's plain runtime spinner. */
+export function withoutRuntimeIndicator(status: ThreadStatus): ThreadStatus {
+  return status.indicator === "runtime"
+    ? { ...status, indicator: "none", indicatorLabel: null }
+    : status;
+}
 
 export function withPullRequestSignal(
   status: ThreadStatus,
