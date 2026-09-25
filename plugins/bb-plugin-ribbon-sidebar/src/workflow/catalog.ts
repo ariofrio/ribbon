@@ -29,35 +29,56 @@ const strokedPath = (d: string): IconDataV1 => ({
 });
 // Six dashes around the ring, one centred every 60 degrees from 30.
 const RING_SIXTH = (2 * Math.PI * 8) / 6;
+const DASH = 4;
+const GAP = RING_SIXTH - DASH;
+const dashedRing = (dashArray: string): IconDataV1 => ({
+  tag: "circle",
+  attrs: {
+    ...progressRing.attrs,
+    strokeLinecap: "round",
+    strokeDasharray: dashArray,
+    strokeDashoffset: DASH / 2 - RING_SIXTH / 2,
+  },
+});
+const byStage = <T>(value: (stage: WorkflowStage) => T) =>
+  Object.fromEntries(
+    WORKFLOW_STAGES.map((stage) => [stage, value(stage)]),
+  ) as Record<WorkflowStage, T>;
 
-export const STAGE_ICONS: Record<WorkflowStage, IconDataV1> = {
-  Deferred: stageIcon([
-    {
-      tag: "circle",
-      attrs: {
-        ...progressRing.attrs,
-        strokeLinecap: "round",
-        strokeDasharray: `4 ${RING_SIXTH - 4}`,
-        strokeDashoffset: 2 - RING_SIXTH / 2,
-      },
-    },
-  ]),
-  Idle: stageIcon([progressRing]),
-  // Lucide's LoaderCircle, drawn on the same ring; rows spin it.
-  Active: stageIcon([strokedPath("M20 12a8 8 0 1 1-5.528-7.609")]),
-  // Lucide's Ban, drawn on the same ring.
-  Blocked: stageIcon([
-    progressRing,
-    strokedPath("M6.343 6.343 17.657 17.657"),
-  ]),
-  Completed: stageIcon([
-    progressRing,
+const STAGE_RINGS = byStage((stage) =>
+  stage === "Deferred" ? dashedRing(`${DASH} ${GAP}`) : progressRing,
+);
+const STAGE_MARKS: Record<WorkflowStage, IconDataV1[]> = {
+  Deferred: [],
+  Idle: [],
+  // A slash as long as Completed's dot is wide, round caps included.
+  Blocked: [strokedPath("M9 15 15 9")],
+  Completed: [
     {
       tag: "circle",
       attrs: { cx: 12, cy: 12, r: 5, fill: "currentColor" },
     },
-  ]),
+  ],
 };
+/**
+ * The ring a working thread's stage draws instead, open at the top right like
+ * Lucide's LoaderCircle so that it reads as turning. Deferred keeps its dashes
+ * and drops the one that falls in the opening.
+ */
+const WORKING_RINGS = byStage((stage) =>
+  stage === "Deferred"
+    ? dashedRing(`${`${DASH} ${GAP} `.repeat(4)}${DASH} ${GAP + RING_SIXTH}`)
+    : strokedPath("M20 12a8 8 0 1 1-5.528-7.609"),
+);
+
+export const STAGE_ICONS = byStage((stage) =>
+  stageIcon([STAGE_RINGS[stage], ...STAGE_MARKS[stage]]),
+);
+/** A working stage in two layers, so that only its ring turns. */
+export const WORKING_STAGE_ICONS = byStage((stage) => ({
+  ring: stageIcon([WORKING_RINGS[stage]]),
+  marks: stageIcon(STAGE_MARKS[stage]),
+}));
 
 export function createGroupingCatalog(settings: {
   showDeferredStage?: boolean | string;
@@ -76,7 +97,7 @@ export function createGroupingCatalog(settings: {
         id: "stages",
         singularLabel: "Stage",
         pluralLabel: "Stages",
-        icon: STAGE_ICONS.Active,
+        icon: STAGE_ICONS.Completed,
         defaultGroupId: "Idle",
         groups: WORKFLOW_STAGES.map((stage) => ({
           id: stage,

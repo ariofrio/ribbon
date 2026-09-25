@@ -290,12 +290,10 @@ const STAGE_ICONS: Record<WorkflowStage, IconDataV1> = {
     },
   ]),
   Idle: stageIcon([progressRing]),
-  // Lucide's LoaderCircle, drawn on the same ring; rows spin it.
-  Active: stageIcon([strokedPath("M20 12a8 8 0 1 1-5.528-7.609")]),
-  // Lucide's Ban, drawn on the same ring.
+  // A slash as long as Completed's dot is wide, round caps included.
   Blocked: stageIcon([
     progressRing,
-    strokedPath("M6.343 6.343 17.657 17.657"),
+    strokedPath("M9 15 15 9"),
   ]),
   Completed: stageIcon([
     progressRing,
@@ -323,7 +321,7 @@ export function createGroupingCatalog(settings: {
         id: "stages",
         singularLabel: "Stage",
         pluralLabel: "Stages",
-        icon: STAGE_ICONS.Active,
+        icon: STAGE_ICONS.Completed,
         defaultGroupId: "Idle",
         groups: WORKFLOW_STAGES.map((stage) => ({
           id: stage,

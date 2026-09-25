@@ -103,13 +103,16 @@ export async function verifyThreadIndicators({ stack, fixture }) {
           console.error(await glyph.evaluate(node => node.outerHTML));
           throw error;
         });
-        observations.push(await glyph.evaluate((node) => {
+        const observation = await glyph.evaluate((node) => {
           const svg = node.querySelector("svg");
           const style = getComputedStyle(svg);
           const rect = svg.getBoundingClientRect();
           return {
             color: style.color, width: rect.width, height: rect.height,
-            mask: style.maskImage,
+            // bb shines the glyph itself; Ribbon shines the whole row, which
+            // masks the glyph's lane instead. Either way it shimmers or not.
+            shimmers: style.maskImage !== "none" || getComputedStyle(node).maskImage !== "none",
+            glyphMasked: style.maskImage !== "none",
             shapes: [...svg.querySelectorAll("path, circle, rect, line, polyline, polygon")].map((shape) => {
               const b = shape.getBBox();
               return [b.x, b.y, b.width, b.height];
@@ -119,7 +122,12 @@ export async function verifyThreadIndicators({ stack, fixture }) {
               iterations: animation.effect.getTiming().iterations,
             })),
           };
-        }));
+        });
+        if (provider !== "__builtin__") {
+          assert.equal(observation.glyphMasked, false, `${label}: Ribbon's glyph should not shimmer alone`);
+        }
+        delete observation.glyphMasked;
+        observations.push(observation);
       }
       await ready();
       for (const state of ["waiting", "failed"]) {
@@ -188,8 +196,10 @@ export async function verifyThreadIndicators({ stack, fixture }) {
         const map = glyph.getByRole("img", { name: `${FEATURED_THREAD} — open in split; Draft ${tone}`, exact: true });
         await map.waitFor();
         await page.waitForFunction(({ node, running }) => {
-          const mask = getComputedStyle(node).maskImage;
-          return running ? mask !== "none" : mask === "none";
+          const lane = node.closest("[data-sidebar-thread-trailing-indicator]");
+          const shimmers = getComputedStyle(node).maskImage !== "none" ||
+            getComputedStyle(lane).maskImage !== "none";
+          return running === shimmers;
         }, { node: await map.elementHandle(), running: tone === "running" });
       }
       console.log(`Checked split activity for ${provider}`);

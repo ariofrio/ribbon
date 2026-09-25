@@ -36,13 +36,6 @@ describe("Thread stages provider contracts", () => {
               defaultCollapsed: false,
             },
             {
-              id: "Active",
-              label: "Active",
-              visibleWhenEmpty: true,
-              acceptsAssignments: true,
-              defaultCollapsed: false,
-            },
-            {
               id: "Blocked",
               label: "Blocked",
               visibleWhenEmpty: true,
@@ -66,7 +59,7 @@ describe("Thread stages provider contracts", () => {
       catalog.groupings[0]?.groups.every((group) => group.icon !== undefined),
     ).toBe(true);
     expect(catalog.groupings[0]?.icon).toEqual(
-      catalog.groupings[0]?.groups.find(({ id }) => id === "Active")?.icon,
+      catalog.groupings[0]?.groups.find(({ id }) => id === "Completed")?.icon,
     );
   });
 
@@ -81,7 +74,7 @@ describe("Thread stages provider contracts", () => {
       visibleWhenEmpty: false,
       acceptsAssignments: false,
     });
-    expect(grouping?.groups[3]).toMatchObject({
+    expect(grouping?.groups[2]).toMatchObject({
       id: "Blocked",
       visibleWhenEmpty: false,
       acceptsAssignments: false,
@@ -102,19 +95,14 @@ describe("Thread stages provider contracts", () => {
       }),
     ]);
     expect(iconByStage.get("Idle")?.children).toEqual([ring]);
-    // Lucide's LoaderCircle: an open arc on the ring, no fill.
-    expect(iconByStage.get("Active")?.children).toEqual([
-      expect.objectContaining({
-        tag: "path",
-        attrs: expect.objectContaining({ d: "M20 12a8 8 0 1 1-5.528-7.609" }),
-      }),
-    ]);
-    // Lucide's Ban: the ring crossed by a diagonal.
+    // Working is drawn on each stage's ring by Ribbon, not stored as a stage.
+    expect(iconByStage.has("Active")).toBe(false);
+    // A slash that, round caps included, spans Completed's dot.
     expect(iconByStage.get("Blocked")?.children).toEqual([
       ring,
       expect.objectContaining({
         tag: "path",
-        attrs: expect.objectContaining({ d: "M6.343 6.343 17.657 17.657" }),
+        attrs: expect.objectContaining({ d: "M9 15 15 9", strokeLinecap: "round" }),
       }),
     ]);
     expect(iconByStage.get("Completed")?.children).toEqual([

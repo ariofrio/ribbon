@@ -13,7 +13,6 @@ describe("thread statuses", () => {
     expect(WORKFLOW_STAGES).toEqual([
       "Deferred",
       "Idle",
-      "Active",
       "Blocked",
       "Completed",
     ]);
@@ -21,7 +20,9 @@ describe("thread statuses", () => {
     expect(parseWorkflowStage("deferred")).toBe("Deferred");
     expect(parseWorkflowStage("waiting")).toBe("Blocked");
     expect(parseWorkflowStage("to-do")).toBe("Idle");
-    expect(parseWorkflowStage("working")).toBe("Active");
+    // Working is shown on the stage icon, not stored as a stage.
+    expect(parseWorkflowStage("working")).toBeNull();
+    expect(parseWorkflowStage("active")).toBeNull();
     expect(parseWorkflowStage("done")).toBe("Completed");
     expect(parseWorkflowStage("cancelled")).toBe("Completed");
     expect(parseWorkflowStage("not started")).toBeNull();
@@ -33,7 +34,7 @@ describe("thread statuses", () => {
         showDeferredStage: false,
         showBlockedStage: false,
       }),
-    ).toEqual(["Idle", "Active", "Completed"]);
+    ).toEqual(["Idle", "Completed"]);
     expect(enabledWorkflowStages(undefined)).toEqual(WORKFLOW_STAGES);
   });
 
@@ -49,7 +50,7 @@ describe("thread statuses", () => {
       { threadId: "first", workflowStage: "Idle", sortKey: "U", updatedAt: 1 },
       {
         threadId: "working",
-        workflowStage: "Active",
+        workflowStage: "Blocked",
         sortKey: "U",
         updatedAt: 3,
       },
@@ -62,7 +63,7 @@ describe("thread statuses", () => {
       "second",
       "unassigned",
     ]);
-    expect(groups.Active.map((thread) => thread.id)).toEqual(["working"]);
+    expect(groups.Blocked.map((thread) => thread.id)).toEqual(["working"]);
     expect(groups.Completed).toEqual([]);
   });
 
@@ -100,7 +101,7 @@ describe("thread statuses", () => {
       },
       {
         threadId: "child",
-        workflowStage: "Active",
+        workflowStage: "Deferred",
         sortKey: "b",
         updatedAt: 2,
       },
@@ -120,7 +121,7 @@ describe("thread statuses", () => {
       "grandchild",
       "parent",
     ]);
-    expect(groups.Active).toEqual([]);
+    expect(groups.Deferred).toEqual([]);
     expect(groups.Blocked).toEqual([]);
     expect(groups["Idle"].map(({ id }) => id)).toEqual(["other"]);
   });

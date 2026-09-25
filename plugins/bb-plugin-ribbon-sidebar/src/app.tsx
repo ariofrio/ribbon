@@ -40,7 +40,13 @@ import {
 } from "./icon-styles";
 import { usePersistentStringSet } from "./persistent-string-set";
 import type { GroupingKey, PlacementRecordV1 } from "./placement-store";
-import { ProviderIcon } from "./provider-icon";
+import { ProviderIcon, WorkingStageIcon } from "./provider-icon";
+import {
+  publishShineStyles,
+  SHINE_ATTRIBUTE,
+  SHINE_ROW_ATTRIBUTE,
+  useRowShine,
+} from "./row-shine";
 import { sectionBands } from "./section-layout";
 import type { rpcContract } from "./server";
 import { mountSidebarContentSpacing } from "./sidebar-content-spacing";
@@ -92,7 +98,11 @@ import {
   type SidebarPreferences,
   type SidebarSort,
 } from "./view-state";
-import { STAGE_ICONS, THREAD_STAGES_GROUPING_KEY } from "./workflow/catalog";
+import {
+  STAGE_ICONS,
+  THREAD_STAGES_GROUPING_KEY,
+  WORKING_STAGE_ICONS,
+} from "./workflow/catalog";
 import { registerWorkflowCommands } from "./workflow/commands";
 import { parseWorkflowStage } from "./workflow/workflow-stage";
 
@@ -249,6 +259,7 @@ function ThreadRow({
   reorderable,
   rootThreadId,
   sections,
+  shimmerRow,
   thread,
 }: {
   active: boolean;
@@ -283,6 +294,8 @@ function ThreadRow({
   reorderable: boolean;
   rootThreadId: string;
   sections: readonly { id: string; label: string }[];
+  /** Shimmer the working row rather than its indicator. */
+  shimmerRow: boolean;
   thread: PluginSidebarThread;
 }) {
   const {
@@ -298,6 +311,12 @@ function ThreadRow({
     ? pullRequestSignal(visiblePullRequest, pullRequestDetails)
     : null;
   const status = withPullRequestSignal(indicatorThread, pullRequestStatus);
+  const working =
+    indicatorThread.isWorking &&
+    indicatorThread.indicator !== "waiting-for-input";
+  const shines = shimmerRow && working;
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  useRowShine(rowRef, shines);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const rowTitle = title(thread);
@@ -399,7 +418,11 @@ function ThreadRow({
               ? "text-sidebar-foreground"
               : "text-sidebar-foreground/85 hover:text-sidebar-accent-foreground dark:text-sidebar-foreground"
         } ${layout !== null && !active ? "bg-sidebar-accent/50" : ""} ${reorderable ? "select-none" : ""}`}
-        ref={sortable.setNodeRef}
+        ref={(node) => {
+          sortable.setNodeRef(node);
+          rowRef.current = node;
+        }}
+        {...(shines ? { [SHINE_ROW_ATTRIBUTE]: "" } : {})}
         onDragStart={(event) => event.preventDefault()}
         style={{ paddingLeft: 8 + depth * 24 }}
       >
@@ -441,6 +464,7 @@ function ThreadRow({
             <span
               className="col-start-1 row-start-1 flex self-center"
               data-ribbon-sidebar-icon-slot=""
+              {...{ [SHINE_ATTRIBUTE]: "" }}
               style={{
                 gridRowEnd: iconSpansEntireItem ? "span 2" : "auto",
                 gridRowStart: 1,
@@ -465,6 +489,7 @@ function ThreadRow({
           >
             <span
               className="flex min-w-0 flex-1 items-center gap-2"
+              {...{ [SHINE_ATTRIBUTE]: "" }}
               title={accessibleTitle}
             >
               {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
@@ -518,6 +543,7 @@ function ThreadRow({
           {preview ? (
             <span
               className="row-start-2 truncate text-[11px] leading-4 text-subtle-foreground/75"
+              {...{ [SHINE_ATTRIBUTE]: "" }}
               style={{
                 gridColumnEnd: alignsTrailingIndicatorToTitle
                   ? hasIcon
@@ -555,9 +581,10 @@ function ThreadRow({
                 <span
                   className="inline-flex size-4 items-center justify-center"
                   data-sidebar-thread-trailing-indicator=""
+                  {...{ [SHINE_ATTRIBUTE]: "" }}
                 >
                   <SplitPaneMiniMap
-                    active={status.isWorking}
+                    active={!shimmerRow && status.isWorking}
                     label={
                       status.indicatorLabel
                         ? `${rowTitle} — open in split; ${status.indicatorLabel}`
@@ -570,6 +597,7 @@ function ThreadRow({
                 <span
                   className="inline-flex size-4 items-center justify-center"
                   data-sidebar-thread-trailing-indicator=""
+                  {...{ [SHINE_ATTRIBUTE]: "" }}
                 >
                   <ThreadIndicator
                     indicator={status.indicator}
@@ -577,6 +605,7 @@ function ThreadRow({
                     pluginStatus={status.pluginStatus}
                     pullRequestMark={status.pullRequestMark}
                     hideIdleDraftLabel={!(hasChildren && childrenCollapsed)}
+                    shine={!shimmerRow}
                   />
                 </span>
               )}
@@ -1012,6 +1041,7 @@ function RibbonSidebarList({
   // Inserted once: the icons arrive through the cascade, so neither a list that
   // moved nor an edited icon costs this plugin anything.
   useEffect(() => publishIconStyles(), []);
+  useEffect(() => publishShineStyles(), []);
   const childrenByParent = useMemo(() => {
     const result = new Map<string, PluginSidebarThread[]>();
     for (const child of liveThreads.filter(
@@ -1461,15 +1491,22 @@ function RibbonSidebarList({
         ? "completed"
         : "main";
   }
-  function threadIcon(thread: PluginSidebarThread): ReactNode {
+  function threadIcon(
+    thread: PluginSidebarThread,
+    working: boolean,
+  ): ReactNode {
     const stage = threadStage(thread);
-    return (
+    return working ? (
+      <WorkingStageIcon
+        {...WORKING_STAGE_ICONS[stage]}
+        label={`${stage} stage, working`}
+        className="text-subtle-foreground/75"
+      />
+    ) : (
       <ProviderIcon
         icon={STAGE_ICONS[stage]}
         label={`${stage} stage`}
-        className={`text-subtle-foreground/75 ${
-          stage === "Active" ? "motion-safe:animate-spin" : ""
-        }`}
+        className="text-subtle-foreground/75"
       />
     );
   }
@@ -1492,6 +1529,7 @@ function RibbonSidebarList({
         : [root],
       draftThreadIds,
       threadRowStatuses.get(root.id),
+      { showRuntime: false },
     );
     const stageOwner = root.parentThreadId
       ? (rootForThread(root.id, liveThreads) ?? root)
@@ -1518,6 +1556,7 @@ function RibbonSidebarList({
           alignAdornmentsToEntireItem={
             settings.values?.threadAdornmentAlignment === "Entire item"
           }
+          shimmerRow={settings.values?.shimmerWorkingRows !== false}
           actions={actions}
           assignments={
             depth === 0
@@ -1557,7 +1596,7 @@ function RibbonSidebarList({
           hasChildren={children.length > 0}
           indicatorThread={indicatorThread}
           hasUnsubmittedDraft={draftThreadIds.has(root.id)}
-          icon={threadIcon(root)}
+          icon={threadIcon(root, indicatorThread.spinsStageRing)}
           dragging={draggingThreadId === root.id}
           muted={
             stage === "Deferred" || stage === "Blocked" || stage === "Completed"

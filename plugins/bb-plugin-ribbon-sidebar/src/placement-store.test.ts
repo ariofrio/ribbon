@@ -26,6 +26,58 @@ describe("placement persistence", () => {
     for (const database of databases.splice(0)) database.close();
   });
 
+  it("folds retired Active stage placements into Idle when upgrading", () => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    const [retireActive, ...earlier] = [...RIBBON_SIDEBAR_MIGRATIONS].reverse();
+    for (const migration of earlier.reverse()) database.exec(migration);
+    const key = "plugin:thread-stages:stages";
+    const assign = database.prepare(
+      "INSERT INTO group_assignment VALUES (?, ?, ?, 1, ?, 'auto')",
+    );
+    assign.run(key, "working", "Active", "Idle");
+    assign.run(key, "blocked", "Blocked", "Active");
+    assign.run("builtin:sections", "section", "Active", null);
+    const order = database.prepare("INSERT INTO group_order VALUES (?, ?, ?, ?, 1)");
+    order.run(key, "Active", "working", "B");
+    order.run(key, "Idle", "working", "A");
+    order.run(key, "Active", "lone", "C");
+    database.exec(
+      `INSERT INTO grouping_revision VALUES ('${key}', 4);
+       INSERT INTO thread_task_workflow VALUES ('working', 1, 1);`,
+    );
+
+    database.exec(retireActive!);
+
+    expect(
+      database
+        .prepare(
+          "SELECT grouping_key, thread_id, group_id, previous_group_id FROM group_assignment ORDER BY thread_id",
+        )
+        .all(),
+    ).toEqual([
+      { grouping_key: key, thread_id: "blocked", group_id: "Blocked", previous_group_id: "Idle" },
+      { grouping_key: "builtin:sections", thread_id: "section", group_id: "Active", previous_group_id: null },
+      { grouping_key: key, thread_id: "working", group_id: "Idle", previous_group_id: "Idle" },
+    ]);
+    expect(
+      database
+        .prepare("SELECT group_id, thread_id, sort_key FROM group_order ORDER BY thread_id")
+        .all(),
+    ).toEqual([
+      { group_id: "Idle", thread_id: "lone", sort_key: "C" },
+      { group_id: "Idle", thread_id: "working", sort_key: "A" },
+    ]);
+    expect(
+      database.prepare("SELECT revision FROM grouping_revision WHERE grouping_key = ?").get(key),
+    ).toEqual({ revision: 5 });
+    expect(
+      database
+        .prepare("SELECT name FROM sqlite_master WHERE name = 'thread_task_workflow'")
+        .get(),
+    ).toBeUndefined();
+  });
+
   it.each(["builtin:sections", "builtin:projects"] as const)(
     "retains %s ranks across refreshes and prepends newly created roots",
     (groupingKey) => {

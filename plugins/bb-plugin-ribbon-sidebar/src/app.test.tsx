@@ -313,8 +313,8 @@ const snapshot: {
           defaultCollapsed: false,
         },
         {
-          id: "Active",
-          label: "Active",
+          id: "Blocked",
+          label: "Blocked",
           icon: {
             tag: "svg",
             attrs: { viewBox: "0 0 24 24" },
@@ -362,7 +362,7 @@ function options(overrides: Record<string, unknown> = {}) {
                     : "section-a"
                   : index === 0
                     ? "Idle"
-                    : "Active",
+                    : "Blocked",
             threadId,
             enteredAtMs: groupingKey.startsWith("plugin:") ? 1 : null,
             ...(groupingKey.startsWith("plugin:") ? { origin: "auto" } : {}),
@@ -724,7 +724,7 @@ describe("Ribbon sidebar app", () => {
 
   it.each([
     ["none", false, "Saving draft"],
-    ["runtime", false, "Thread working"],
+    ["runtime", false, "Saving draft"],
     ["runtime", true, "Saving draft"],
     ["unread-error", true, "Unread thread failed"],
     ["waiting-for-input", true, "Thread needs user input"],
@@ -762,6 +762,129 @@ describe("Ribbon sidebar app", () => {
     },
   );
 
+  it("spins a working thread's stage ring in place of bb's runtime spinner", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        ...options().value.sidebarThreads,
+        threads: [
+          thread({
+            id: "thread-a",
+            indicator: "runtime",
+            indicatorLabel: "Thread working",
+          }),
+          thread({ id: "thread-b" }),
+        ],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const working = await slot.findByLabelText("Idle stage, working");
+    expect(slot.getByLabelText("Blocked stage")).toBeTruthy();
+    expect(slot.queryByLabelText("Thread working")).toBeNull();
+    // Only the ring turns; the stage's own marks stay upright.
+    const [ring, marks] = Array.from(working.querySelectorAll("svg"));
+    expect(ring!.getAttribute("class")).toContain("animate-spin");
+    expect(marks?.getAttribute("class") ?? "").not.toContain("animate-spin");
+    expect(
+      working.closest("li")!.querySelector("[data-sidebar-thread-trailing-indicator]"),
+    ).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("shimmers a working row's content, not its buttons or indicators", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        ...options().value.sidebarThreads,
+        threads: [
+          thread({
+            id: "thread-a",
+            indicator: "runtime",
+            indicatorLabel: "Thread working",
+            activity: { ...activity, backgroundCommands: 1 },
+          }),
+          thread({ id: "thread-child", parentThreadId: "thread-a" }),
+          thread({ id: "thread-b" }),
+        ],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const working = (await slot.findByLabelText("Idle stage, working")).closest(
+      "[data-ribbon-shine-row]",
+    )!;
+    expect(working).not.toBeNull();
+    const shining = Array.from(working.querySelectorAll("[data-ribbon-shine]"));
+    expect(shining.map((node) => node.textContent)).toEqual(
+      expect.arrayContaining(["thread-a", "A useful preview"]),
+    );
+    expect(
+      shining.some((node) => node.querySelector("[aria-label='Idle stage, working']")),
+    ).toBe(true);
+    expect(
+      shining.some((node) =>
+        node.querySelector("[aria-label='Background command running']"),
+      ),
+    ).toBe(true);
+    for (const button of Array.from(working.querySelectorAll("button"))) {
+      expect(button.closest("[data-ribbon-shine]")).toBeNull();
+    }
+    // The row carries the shimmer, so its indicators no longer shine alone.
+    expect(working.querySelector(".animate-shine-icon")).toBeNull();
+    const resting = slot
+      .getByRole("link", { name: /^Open thread-b/ })
+      .closest("[data-thread-id]")!;
+    expect(resting.querySelector("[data-ribbon-shine-row]")).toBeNull();
+    expect(resting.closest("[data-ribbon-shine-row]")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("leaves the shimmer on a working row's indicator when row shimmer is off", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      settings: { shimmerWorkingRows: false },
+      sidebarThreads: {
+        ...options().value.sidebarThreads,
+        threads: [
+          thread({
+            id: "thread-a",
+            indicator: "runtime",
+            indicatorLabel: "Thread working",
+            activity: { ...activity, backgroundCommands: 1 },
+          }),
+        ],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const icon = await slot.findByLabelText("Idle stage, working");
+    expect(icon.closest("[data-ribbon-shine-row]")).toBeNull();
+    expect(
+      slot.getByLabelText("Background command running").getAttribute("class"),
+    ).toContain("animate-shine-icon");
+    slot.lifecycle.unmount();
+  });
+
+  it("shows a background command beside a working thread's spinning ring", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        ...options().value.sidebarThreads,
+        threads: [
+          thread({
+            id: "thread-a",
+            indicator: "runtime",
+            indicatorLabel: "Thread working",
+            activity: { ...activity, backgroundCommands: 1 },
+          }),
+        ],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    expect(await slot.findByLabelText("Idle stage, working")).toBeTruthy();
+    expect(slot.getByLabelText("Background command running")).toBeTruthy();
+    expect(slot.queryByLabelText("Thread working")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
   it("combines a hidden child's draft with its parent's work", async () => {
     const app = await loadPluginApp(() => import("./app"));
     window.localStorage.setItem(
@@ -790,7 +913,8 @@ describe("Ribbon sidebar app", () => {
     fireEvent.click(
       slot.getByRole("button", { name: "Expand thread-a threads" }),
     );
-    expect(slot.getByLabelText("Thread working")).toBeTruthy();
+    expect(slot.getByLabelText("Idle stage, working")).toBeTruthy();
+    expect(slot.queryByLabelText("Thread working")).toBeNull();
     expect(
       slot.getByRole("link", { name: "Open child (unsubmitted draft)" }),
     ).toBeTruthy();
@@ -896,7 +1020,7 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
-  it("keeps the agent's own indicator above a waiting pull request", async () => {
+  it("shows a waiting pull request beside a working thread's spinning ring", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({
       sidebarPullRequests: {
@@ -915,8 +1039,9 @@ describe("Ribbon sidebar app", () => {
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("thread-a");
-    expect(slot.getByLabelText("Thread working")).toBeTruthy();
-    expect(slot.queryByLabelText("Waiting on CI")).toBeNull();
+    expect(slot.getByLabelText("Idle stage, working")).toBeTruthy();
+    expect(slot.queryByLabelText("Thread working")).toBeNull();
+    expect(await slot.findByLabelText("Waiting on CI")).toBeTruthy();
     slot.lifecycle.unmount();
   });
 
@@ -980,8 +1105,8 @@ describe("Ribbon sidebar app", () => {
           thread({
             id: "thread-a",
             title: "Design migration",
-            indicator: "runtime",
-            indicatorLabel: "Thread working",
+            indicator: "background-command",
+            indicatorLabel: "Background command running",
           }),
           thread({ id: "thread-b", title: "Ship UI" }),
         ],
@@ -1024,8 +1149,8 @@ describe("Ribbon sidebar app", () => {
           thread({
             id: "thread-a",
             title: "Design migration",
-            indicator: "runtime",
-            indicatorLabel: "Thread working",
+            indicator: "background-command",
+            indicatorLabel: "Background command running",
           }),
           thread({ id: "thread-b", title: "Ship UI" }),
         ],
@@ -1073,8 +1198,8 @@ describe("Ribbon sidebar app", () => {
           thread({
             id: "thread-a",
             title: "Design migration",
-            indicator: "runtime",
-            indicatorLabel: "Thread working",
+            indicator: "background-command",
+            indicatorLabel: "Background command running",
           }),
           thread({ id: "thread-b", title: "Ship UI" }),
         ],
@@ -1167,7 +1292,7 @@ describe("Ribbon sidebar app", () => {
       name: "Open Design migration — A useful preview",
     });
     expect(open).toBeTruthy();
-    expect(slot.getByLabelText("Thread working")).toBeTruthy();
+    expect(slot.getByLabelText("Idle stage, working")).toBeTruthy();
     expect(
       open.parentElement?.querySelector("[data-ribbon-sidebar-icon-slot] svg"),
     ).not.toBeNull();
@@ -1178,7 +1303,8 @@ describe("Ribbon sidebar app", () => {
     fireEvent.click(collapseChildren);
     expect(slot.queryByText("Verify child flow")).toBeNull();
     expect(slot.getByLabelText("Needs input")).toBeTruthy();
-    expect(slot.queryByLabelText("Thread working")).toBeNull();
+    // A question outranks work, so the collapsed row's ring stops.
+    expect(slot.queryByLabelText("Idle stage, working")).toBeNull();
     expect(
       JSON.parse(
         window.localStorage.getItem("bb.plugin.ribbon-sidebar.collapsedThreads") ?? "[]",
@@ -1188,7 +1314,7 @@ describe("Ribbon sidebar app", () => {
       slot.getByRole("button", { name: "Expand Design migration threads" }),
     );
     expect(slot.getByText("Verify child flow")).toBeTruthy();
-    expect(slot.getByLabelText("Thread working")).toBeTruthy();
+    expect(slot.getByLabelText("Idle stage, working")).toBeTruthy();
     expect(slot.getByText("Child preview")).toBeTruthy();
     expect(fixture.value.rpc.listPreviewsV1).toHaveBeenCalledWith({
       threadIds: ["thread-a", "thread-child", "thread-b"],
@@ -1460,7 +1586,7 @@ describe("Ribbon sidebar app", () => {
                   ? "section-b"
                   : "section-a"
                 : threadId === "thread-b"
-                  ? "Active"
+                  ? "Blocked"
                   : "Idle",
             threadId,
             enteredAtMs: groupingKey.startsWith("plugin:") ? 1 : null,
@@ -1768,7 +1894,7 @@ describe("Ribbon sidebar app", () => {
   });
 
   it.each([
-    ["Active", "preserve"],
+    ["Blocked", "preserve"],
     ["Completed", "start"],
   ])(
     "moves to %s from any thread menu with the group's placement policy",

@@ -30,6 +30,9 @@ export async function verifyThreadTitleClicks({ stack, fixture }) {
       await label.waitFor();
       await label.scrollIntoViewIfNeeded();
       if (thread === longThread) {
+        // Its turn never ends, so its row shimmers. The shimmer's masks sit
+        // over the row's link and must still let clicks through to it.
+        await row.locator("[data-ribbon-shine-row]").waitFor();
         await page.waitForFunction((title) => {
           const label = [...document.querySelectorAll("[data-ribbon-sidebar-root] span")]
             .find((node) => node.childElementCount === 0 && node.textContent === title);
@@ -42,6 +45,20 @@ export async function verifyThreadTitleClicks({ stack, fixture }) {
       await page.mouse.click(box.x + 8, box.y + box.height / 2);
       await page.waitForURL(`**/threads/${thread.id}`, { timeout: 15_000 });
     }
+    // Leave the working thread, then return through its stage icon.
+    const featuredLink = sidebar.locator(
+      `a[data-sidebar-thread-id="${fixture.threads.get(FEATURED_THREAD).id}"]`,
+    );
+    const featured = await featuredLink.boundingBox();
+    await page.mouse.click(featured.x + featured.width / 2, featured.y + featured.height / 2);
+    await page.waitForURL(`**/threads/${fixture.threads.get(FEATURED_THREAD).id}`, { timeout: 15_000 });
+    const icon = await sidebar
+      .locator("li")
+      .filter({ has: page.locator(`a[data-sidebar-thread-id="${longThread.id}"]`) })
+      .locator('[aria-label$=" stage, working"]')
+      .boundingBox();
+    await page.mouse.click(icon.x + icon.width / 2, icon.y + icon.height / 2);
+    await page.waitForURL(`**/threads/${longThread.id}`, { timeout: 15_000 });
     await context.close();
   } finally {
     await browser.close();

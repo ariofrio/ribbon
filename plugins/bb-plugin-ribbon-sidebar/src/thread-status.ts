@@ -9,6 +9,8 @@ export interface ThreadStatus {
   indicator: PluginSidebarThreadIndicator;
   indicatorLabel: string | null;
   isWorking: boolean;
+  /** An agent is working and nothing it asked for outranks that. */
+  spinsStageRing: boolean;
   pluginStatus: PluginSidebarThreadRowStatus | null;
   /** Set when the row's pull request outranks the thread's own indicator. */
   pullRequestMark: PullRequestMark | null;
@@ -46,6 +48,8 @@ export function resolveThreadStatus(
   threads: readonly PluginSidebarThread[],
   draftIds: ReadonlySet<string>,
   pluginStatus: PluginSidebarThreadRowStatus | null = null,
+  /** Rows leave runtime to their stage ring; headings have no ring. */
+  { showRuntime = true }: { showRuntime?: boolean } = {},
 ): ThreadStatus {
   const has = (kind: PluginSidebarThreadIndicator) =>
     threads.some((thread) => thread.indicator === kind);
@@ -73,7 +77,7 @@ export function resolveThreadStatus(
     : hasDraft && hasWork ? "working-draft"
     : active.has("plan-mode") ? "plan-mode"
     : active.has("goal") ? "goal"
-    : active.has("runtime") ? "runtime"
+    : showRuntime && active.has("runtime") ? "runtime"
     : active.has("workflow") ? "workflow"
     : active.has("background-agent") ? "background-agent"
     : active.has("background-command") ? "background-command"
@@ -91,6 +95,7 @@ export function resolveThreadStatus(
       ?? threads.find((thread) => thread.indicator === indicator)?.indicatorLabel
       ?? LABELS[indicator],
     isWorking: hasWork || pluginStatus?.tone === "running",
+    spinsStageRing: hasWork && indicator !== "waiting-for-input",
     pluginStatus: visiblePluginStatus,
     pullRequestMark: null,
   };

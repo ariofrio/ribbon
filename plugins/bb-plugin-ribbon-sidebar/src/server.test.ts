@@ -31,8 +31,8 @@ const threadStagesCatalog = {
           defaultCollapsed: false,
         },
         {
-          id: "Active",
-          label: "Active",
+          id: "Blocked",
+          label: "Blocked",
           visibleWhenEmpty: true,
           acceptsAssignments: true,
           defaultCollapsed: false,
@@ -166,14 +166,14 @@ function setup({
             {
               groupingId: "stages",
               threadId: "thread-a",
-              groupId: "Active",
+              groupId: "Blocked",
               enteredAtMs: 200,
               updatedAtMs: 300,
               previousGroupId: "Idle",
               origin: "ui" as const,
               orders: [
                 { groupId: "Idle", sortKey: "A", updatedAtMs: 100 },
-                { groupId: "Active", sortKey: "B", updatedAtMs: 300 },
+                { groupId: "Blocked", sortKey: "B", updatedAtMs: 300 },
               ],
             },
           ],
@@ -296,7 +296,7 @@ describe("Ribbon sidebar server", () => {
       try {
         for (const [threadId, groupId] of [
           ["first", "Blocked"],
-          ["second", "Active"],
+          ["second", "Blocked"],
         ]) {
           await harness.behavior.callRpc("updatePlacementV1", {
             groupingKey: "plugin:thread-stages:stages",
@@ -505,6 +505,13 @@ describe("Ribbon sidebar server", () => {
         description: "Show each group’s icon beside its sidebar heading.",
         default: true,
       },
+      shimmerWorkingRows: {
+        type: "boolean",
+        label: "Shimmer working rows",
+        description:
+          "Shimmer a working thread's whole row instead of its activity indicator.",
+        default: true,
+      },
     });
   });
 
@@ -564,7 +571,7 @@ describe("Ribbon sidebar server", () => {
     await plugin(fixture.bb);
     await fixture.harness.behavior.callRpc("updatePlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
-      groupId: "Active",
+      groupId: "Blocked",
       threadId: "thr_parent",
       origin: "ui",
     });
@@ -590,7 +597,7 @@ describe("Ribbon sidebar server", () => {
         }),
       ).resolves.toMatchObject({
         ok: true,
-        value: { placement: { groupId: "Active" } },
+        value: { placement: { groupId: "Blocked" } },
       });
     });
   });
@@ -645,12 +652,12 @@ describe("Ribbon sidebar server", () => {
     await expect(
       fixture.harness.behavior.callRpc("placeNewThreadV1", {
         groupingKey: "plugin:thread-stages:stages",
-        groupId: "Active",
+        groupId: "Blocked",
         threadId: "thread-new",
       }),
     ).resolves.toMatchObject({
       ok: true,
-      value: { placement: { groupId: "Active", origin: "ui" } },
+      value: { placement: { groupId: "Blocked", origin: "ui" } },
     });
     expect(fixture.list).not.toHaveBeenCalled();
     expect(fixture.get).toHaveBeenCalledWith({ threadId: "thread-new" });
@@ -767,7 +774,7 @@ describe("Ribbon sidebar server", () => {
     await plugin(fixture.bb);
     await fixture.harness.behavior.callRpc("updatePlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
-      groupId: "Active",
+      groupId: "Blocked",
       threadId: "thr_parent",
       origin: "ui",
     });
@@ -796,7 +803,7 @@ describe("Ribbon sidebar server", () => {
         }),
       ).resolves.toMatchObject({
         ok: true,
-        value: { placement: { groupId: "Active" } },
+        value: { placement: { groupId: "Blocked" } },
       });
     });
     service.controller.abort();
@@ -904,7 +911,7 @@ describe("Ribbon sidebar server", () => {
     await plugin(fixture.bb);
     await fixture.harness.behavior.callRpc("updatePlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
-      groupId: "Active",
+      groupId: "Blocked",
       threadId: "thr_root",
       origin: "ui",
     });
@@ -929,7 +936,7 @@ describe("Ribbon sidebar server", () => {
       }),
     ).resolves.toMatchObject({
       ok: true,
-      value: { placement: { groupId: "Active" } },
+      value: { placement: { groupId: "Blocked" } },
     });
     expect(fixture.list).not.toHaveBeenCalled();
     service.controller.abort();
@@ -1070,6 +1077,20 @@ describe("Ribbon sidebar server", () => {
         ],
       }),
     ]);
+  });
+
+  it("leaves working state to the row instead of automating an Active stage", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+
+    expect(
+      harness.inspection.registrations.services.map(({ name }) => name),
+    ).not.toContain("stage-automation");
+    expect(
+      harness.inspection.registrations.schedules.map(({ name }) => name),
+    ).not.toContain("stage-automation-reconciliation");
+    const listed = await harness.behavior.runCli(["groupings", "--json"]);
+    expect(listed.stdout).not.toContain('"Active"');
   });
 
   it("keeps archived and hidden roots out of CLI lists unless included", async () => {
@@ -1371,7 +1392,7 @@ describe("Ribbon sidebar server", () => {
       ok: true,
       value: {
         placement: {
-          groupId: "Active",
+          groupId: "Blocked",
           enteredAtMs: 200,
           previousGroupId: "Idle",
           origin: "ui",

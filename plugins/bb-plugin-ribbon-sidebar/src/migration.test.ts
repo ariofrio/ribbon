@@ -14,7 +14,7 @@ const grouping = {
   defaultGroupId: "Idle",
   groups: [
     { id: "Idle", label: "Idle", acceptsAssignments: true },
-    { id: "Active", label: "Active", acceptsAssignments: true },
+    { id: "Blocked", label: "Blocked", acceptsAssignments: true },
   ],
   membership: { kind: "ribbon" as const },
 };
@@ -106,9 +106,10 @@ describe("Thread stages migration", () => {
       revision: 2,
       imported: true,
     });
+    // Active is retired: its placements and orders arrive as Idle.
     expect(acknowledgementObservations).toEqual([
       ["Idle:thread-a", "Idle:thread-b"],
-      ["Idle:thread-b", "Active:thread-a"],
+      ["Idle:thread-a", "Idle:thread-b"],
     ]);
     expect(acknowledgePlacementMigrationV1.mock.calls).toEqual([
       [{ installationId: "a".repeat(32), revision: 1 }],
@@ -118,13 +119,50 @@ describe("Thread stages migration", () => {
       ok: true,
       value: {
         placement: {
-          groupId: "Active",
+          groupId: "Idle",
           enteredAtMs: 200,
           previousGroupId: "Idle",
           origin: "ui",
         },
       },
     });
+  });
+
+  it("keeps a retired Active thread's own Idle order and moves a lone one", async () => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    for (const migration of RIBBON_SIDEBAR_MIGRATIONS) database.exec(migration);
+    const store = createPlacementStore(database, {
+      grouping: (key) => (key === groupingKey ? grouping : null),
+      groupings: () => [grouping],
+    });
+    store.reconcileRoots(["thread-a", "thread-b", "thread-c"], []);
+    const source = snapshot(1, "Active");
+    source.placements.push({
+      groupingId: "stages",
+      threadId: "thread-c",
+      groupId: "Active",
+      enteredAtMs: 400,
+      updatedAtMs: 400,
+      origin: "auto",
+      orders: [{ groupId: "Active", sortKey: "C", updatedAtMs: 400 }],
+    });
+
+    await migrateThreadStages(store, {
+      getPlacementMigrationSnapshotV1: async () => source,
+      acknowledgePlacementMigrationV1: async () => ({ transferred: true }),
+    });
+
+    const orders = database
+      .prepare(
+        "SELECT group_id, thread_id, sort_key FROM group_order WHERE grouping_key = ? ORDER BY thread_id",
+      )
+      .all(groupingKey);
+    expect(orders).toEqual([
+      { group_id: "Idle", thread_id: "thread-a", sort_key: "A" },
+      { group_id: "Idle", thread_id: "thread-b", sort_key: "B" },
+      { group_id: "Idle", thread_id: "thread-c", sort_key: "C" },
+    ]);
   });
 
   it("does not rewrite an already imported source revision", async () => {
