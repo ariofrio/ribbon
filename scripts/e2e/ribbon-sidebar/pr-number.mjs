@@ -76,6 +76,31 @@ export async function verifyPrNumber({ stack, fixture }) {
     }
 
     await placement("right");
+    // A right-aligned number keeps the indicator lane free at rest, so it
+    // lines up with rows that draw an indicator and does not move on hover.
+    await page.mouse.move(1000, 700);
+    const rightEdges = await page.evaluate((threadId) => {
+      const rows = [...document.querySelectorAll("[data-ribbon-sidebar-root] a[data-sidebar-thread-id]")]
+        .map((link) => link.closest("li"));
+      const edge = (row) => [...row.querySelectorAll("span")]
+        .find((node) => node.textContent === "#12345")?.getBoundingClientRect().right;
+      const withIndicator = rows.find((row) =>
+        row.querySelector("[data-sidebar-thread-trailing-indicator]") && edge(row) !== undefined);
+      const featured = rows.find((row) =>
+        row.querySelector(`a[data-sidebar-thread-id="${threadId}"]`));
+      return {
+        indicatorless: featured.querySelector("[data-sidebar-thread-trailing-indicator]") ? null : edge(featured),
+        withIndicator: withIndicator && edge(withIndicator),
+      };
+    }, thread.id);
+    assert.equal(rightEdges.indicatorless !== null && rightEdges.withIndicator !== undefined, true,
+      "fixture has a right-aligned number both with and without an indicator");
+    assert.equal(rightEdges.indicatorless, rightEdges.withIndicator,
+      "right-aligned numbers share one edge whether or not the row has an indicator");
+    await row.hover();
+    const hoveredEdge = await row.evaluate((node) => [...node.querySelectorAll("span")]
+      .find((span) => span.textContent === "#12345").getBoundingClientRect().right);
+    assert.equal(hoveredEdge, rightEdges.indicatorless, "hovering does not move the number");
     await choose("Right", "Left");
     await placement("left");
     await page.reload();

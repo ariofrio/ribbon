@@ -334,6 +334,11 @@ function ThreadRow({
     ) : null;
   const actionsOpen = dropdownOpen || contextOpen;
   const showChildToggleAtRest = hasChildren && childrenCollapsed;
+  // A right-aligned PR number would otherwise sit in the indicator lane at
+  // rest and jump left when hover reveals the row's actions.
+  const reservesIndicatorLaneAtRest =
+    showChildToggleAtRest ||
+    (pullRequestNumber !== null && pullRequestNumberPosition === "right");
   const hasIcon = icon !== null;
   const iconSpansEntireItem = alignAdornmentsToEntireItem && preview !== null;
   const hasTrailingIndicator =
@@ -447,7 +452,7 @@ function ThreadRow({
           <span
             className={`row-start-1 flex min-w-0 items-center ${
               !hasTrailingIndicator && !thread.isArchived
-                ? showChildToggleAtRest
+                ? reservesIndicatorLaneAtRest
                   ? "pr-8 max-md:pointer-coarse:pr-2!"
                   : "pr-2 group-hover/thread-row:pr-8 group-has-[:focus-visible]/thread-row:pr-8 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-8 max-md:pointer-coarse:pr-2!"
                 : ""
