@@ -22,6 +22,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
   type MouseEvent,
   type ReactNode,
@@ -1671,6 +1672,12 @@ function RibbonSidebarList({
           data-sidebar="group"
           data-sidebar-sticky-density="compact-actions"
           data-sidebar-sticky-stack=""
+          style={
+            {
+              "--bb-sidebar-sticky-label-gap":
+                "calc((var(--bb-sidebar-sticky-row-height) - var(--bb-sidebar-sticky-label-height)) / 2 + 1px)",
+            } as CSSProperties
+          }
           data-ribbon-sidebar-ready={
             placementsLoaded && stagesLoaded && previewsLoaded ? "" : undefined
           }
@@ -1948,7 +1955,7 @@ function RibbonSidebarList({
                     <ThreadDropPreview />
                   ) : null}
                   {!pinnedSectionCollapsed ? (
-                    <ul>
+                    <ul className="space-y-px">
                       {pinnedRoots.map((root) =>
                         renderRoot(root, 0, true, {
                           kind: "pinned",
@@ -1957,7 +1964,9 @@ function RibbonSidebarList({
                       )}
                     </ul>
                   ) : pinnedActivePreview ? (
-                    <ul>{renderRoot(pinnedActivePreview, 0, false)}</ul>
+                    <ul className="space-y-px">
+                      {renderRoot(pinnedActivePreview, 0, false)}
+                    </ul>
                   ) : null}
                   {dragDestination?.kind === "pinned" &&
                   !dragDestination.atStart &&
@@ -2245,12 +2254,14 @@ function RibbonSidebarList({
                     dragDestination.atStart ? (
                       <ThreadDropPreview />
                     ) : null}
-                    <div
-                      className={grouping && !collapsed ? "mt-1" : undefined}
-                    >
+                    <div className="space-y-px">
                       {!collapsed ? (
                         <>
-                          <ul>{bands.main.map(renderSectionRow)}</ul>
+                          {bands.main.length > 0 ? (
+                            <ul className="space-y-px">
+                              {bands.main.map(renderSectionRow)}
+                            </ul>
+                          ) : null}
                           <StagePreview
                             key={`${group.id}/deferred`}
                             stage="deferred"
@@ -2269,7 +2280,7 @@ function RibbonSidebarList({
                           />
                         </>
                       ) : activePreview ? (
-                        <ul>
+                        <ul className="space-y-px">
                           {renderRoot(activePreview, 0, false, {
                             kind: "placement",
                             roots,

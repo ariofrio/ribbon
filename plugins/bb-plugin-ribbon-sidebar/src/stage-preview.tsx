@@ -49,9 +49,10 @@ export function StagePreview<T extends { id: string }>({
     element?.focus({ preventScroll: true });
     element?.scrollIntoView({ block: "nearest" });
   }, [expanded]);
+  if (visible.length === 0) return null;
   return (
     <>
-      <ul id={id} ref={list}>
+      <ul className="space-y-px" id={id} ref={list}>
         {visible.map(renderRow)}
       </ul>
       {!revealAll &&
