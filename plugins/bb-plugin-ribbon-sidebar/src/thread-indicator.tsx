@@ -49,7 +49,7 @@ export function ThreadIndicator({
     if (pluginStatus.tone === "running") {
       return (
         <span className="inline-flex size-4 items-center justify-center motion-safe:animate-pulse text-success">
-          <Icon name={pluginStatus.icon} aria-label={pluginStatus.label} className={`${className} animate-shine-icon`} />
+          <Icon name={pluginStatus.icon} aria-label={pluginStatus.label} className={className} />
         </span>
       );
     }
@@ -112,7 +112,7 @@ export function ThreadIndicator({
         <Icon
           name="Edit"
           aria-label={ariaLabel}
-          className={`${className} animate-shine-icon text-muted-foreground/50`}
+          className={`${className} text-muted-foreground/50`}
         />
       );
     case "unread-success":
@@ -141,7 +141,7 @@ function ActiveIcon({
     <Icon
       name={name}
       aria-label={label}
-      className="size-4 shrink-0 animate-shine-icon text-muted-foreground/50"
+      className="size-4 shrink-0 text-muted-foreground/50"
     />
   );
 }

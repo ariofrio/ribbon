@@ -791,6 +791,53 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("shimmers a working row's content, not its buttons or indicators", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options({
+      sidebarThreads: {
+        ...options().value.sidebarThreads,
+        threads: [
+          thread({
+            id: "thread-a",
+            indicator: "runtime",
+            indicatorLabel: "Thread working",
+            activity: { ...activity, backgroundCommands: 1 },
+          }),
+          thread({ id: "thread-child", parentThreadId: "thread-a" }),
+          thread({ id: "thread-b" }),
+        ],
+      },
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const working = (await slot.findByLabelText("Idle stage, working")).closest(
+      "[data-ribbon-shine-row]",
+    )!;
+    expect(working).not.toBeNull();
+    const shining = Array.from(working.querySelectorAll("[data-ribbon-shine]"));
+    expect(shining.map((node) => node.textContent)).toEqual(
+      expect.arrayContaining(["thread-a", "A useful preview"]),
+    );
+    expect(
+      shining.some((node) => node.querySelector("[aria-label='Idle stage, working']")),
+    ).toBe(true);
+    expect(
+      shining.some((node) =>
+        node.querySelector("[aria-label='Background command running']"),
+      ),
+    ).toBe(true);
+    for (const button of Array.from(working.querySelectorAll("button"))) {
+      expect(button.closest("[data-ribbon-shine]")).toBeNull();
+    }
+    // The row carries the shimmer, so its indicators no longer shine alone.
+    expect(working.querySelector(".animate-shine-icon")).toBeNull();
+    const resting = slot
+      .getByRole("link", { name: /^Open thread-b/ })
+      .closest("[data-thread-id]")!;
+    expect(resting.querySelector("[data-ribbon-shine-row]")).toBeNull();
+    expect(resting.closest("[data-ribbon-shine-row]")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
   it("shows a background command beside a working thread's spinning ring", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({
