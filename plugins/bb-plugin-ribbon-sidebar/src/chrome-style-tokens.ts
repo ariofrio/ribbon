@@ -3,4 +3,4 @@ export const CHROME_SECTION_LABEL_CLASS =
 
 /** Group headings read like the thread titles beneath them. */
 export const CHROME_GROUP_HEADING_CLASS =
-  "text-sm font-normal leading-5 text-sidebar-foreground/85 dark:text-sidebar-foreground";
+  "text-sm font-normal text-sidebar-foreground/85 dark:text-sidebar-foreground";
