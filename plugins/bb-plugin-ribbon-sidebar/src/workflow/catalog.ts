@@ -27,17 +27,22 @@ const strokedPath = (d: string): IconDataV1 => ({
     strokeWidth: 1.5,
   },
 });
+const squarePath = (d: string): IconDataV1 => ({
+  tag: "path",
+  attrs: { d, stroke: "currentColor", strokeWidth: 1.5 },
+});
 // Six dashes around the ring, one centred every 60 degrees from 30.
 const RING_SIXTH = (2 * Math.PI * 8) / 6;
 const DASH = 4;
 const GAP = RING_SIXTH - DASH;
-const dashedRing = (dashArray: string): IconDataV1 => ({
+/** Dashes from the one centred at 30 degrees, or `skip` dashes on from it. */
+const dashedRing = (dashArray: string, skip = 0): IconDataV1 => ({
   tag: "circle",
   attrs: {
     ...progressRing.attrs,
     strokeLinecap: "round",
     strokeDasharray: dashArray,
-    strokeDashoffset: DASH / 2 - RING_SIXTH / 2,
+    strokeDashoffset: DASH / 2 - RING_SIXTH / 2 - skip * RING_SIXTH,
   },
 });
 const byStage = <T>(value: (stage: WorkflowStage) => T) =>
@@ -61,22 +66,33 @@ const STAGE_MARKS: Record<WorkflowStage, IconDataV1[]> = {
   ],
 };
 /**
- * The ring a working thread's stage draws instead, open at the top right like
- * Lucide's LoaderCircle so that it reads as turning. Deferred keeps its dashes
- * and drops the one that falls in the opening.
+ * The ring a working thread's stage draws instead: an arc, open at the top
+ * right like Lucide's LoaderCircle so that it reads as turning, and the gap
+ * that closes it in another color. Colors can be translucent, so the two never
+ * overlap: square ends meet where a solid ring changes color, and Deferred's
+ * sixth dash is the gap on its own.
  */
-const WORKING_RINGS = byStage((stage) =>
+const WORKING_ARCS = byStage((stage) =>
   stage === "Deferred"
     ? dashedRing(`${`${DASH} ${GAP} `.repeat(4)}${DASH} ${GAP + RING_SIXTH}`)
-    : strokedPath("M20 12a8 8 0 1 1-5.528-7.609"),
+    : squarePath("M20 12a8 8 0 1 1-5.528-7.609"),
+);
+const WORKING_GAPS = byStage((stage) =>
+  stage === "Deferred"
+    ? dashedRing(`${DASH} ${6 * RING_SIXTH - DASH}`, 5)
+    : squarePath("M14.472 4.391A8 8 0 0 1 20 12"),
 );
 
 export const STAGE_ICONS = byStage((stage) =>
   stageIcon([STAGE_RINGS[stage], ...STAGE_MARKS[stage]]),
 );
-/** A working stage in two layers, so that only its ring turns. */
+/**
+ * A working stage in layers: the arc and its gap turn together while the
+ * marks stay upright on top.
+ */
 export const WORKING_STAGE_ICONS = byStage((stage) => ({
-  ring: stageIcon([WORKING_RINGS[stage]]),
+  gap: WORKING_GAPS[stage],
+  arc: WORKING_ARCS[stage],
   marks: stageIcon(STAGE_MARKS[stage]),
 }));
 

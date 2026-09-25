@@ -785,6 +785,13 @@ describe("Ribbon sidebar app", () => {
     const [ring, marks] = Array.from(working.querySelectorAll("svg"));
     expect(ring!.getAttribute("class")).toContain("animate-spin");
     expect(marks?.getAttribute("class") ?? "").not.toContain("animate-spin");
+    // The arc and the gap closing it turn together, and never overlap.
+    const [gap, arc] = Array.from(ring!.children);
+    expect(gap!.getAttribute("d")).toBe("M14.472 4.391A8 8 0 0 1 20 12");
+    expect(arc!.hasAttribute("data-ribbon-working-arc")).toBe(true);
+    expect(arc!.firstElementChild!.getAttribute("d")).toBe(
+      "M20 12a8 8 0 1 1-5.528-7.609",
+    );
     expect(
       working.closest("li")!.querySelector("[data-sidebar-thread-trailing-indicator]"),
     ).toBeNull();

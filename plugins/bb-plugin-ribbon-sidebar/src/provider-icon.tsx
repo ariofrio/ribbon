@@ -1,4 +1,5 @@
 import { createElement, type ReactElement } from "react";
+import { CHROME_TITLE_COLOR_CLASS } from "./chrome-style-tokens";
 import type { IconDataV1 } from "./contracts";
 
 function renderNode(
@@ -33,16 +34,19 @@ export function ProviderIcon({
 }
 
 /**
- * A stage icon for a working thread: the ring turns while the stage's own
- * marks, like Blocked's slash, stay upright on top of it.
+ * A stage icon for a working thread. Its arc, in the title's color, turns with
+ * the gap that closes the ring in the icon's own color. The stage's marks, like
+ * Blocked's slash, stay upright on top.
  */
 export function WorkingStageIcon({
-  ring,
+  gap,
+  arc,
   marks,
   label,
   className = "",
 }: {
-  ring: IconDataV1;
+  gap: IconDataV1;
+  arc: IconDataV1;
   marks: IconDataV1;
   label: string;
   className?: string;
@@ -52,7 +56,16 @@ export function WorkingStageIcon({
       aria-label={label}
       className={`relative inline-flex size-4 shrink-0 [&_svg]:absolute [&_svg]:inset-0 [&_svg]:size-4 ${className}`}
     >
-      {renderNode(ring, "ring", "motion-safe:animate-spin")}
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        className="motion-safe:animate-spin"
+      >
+        {renderNode(gap, "gap")}
+        <g className={CHROME_TITLE_COLOR_CLASS} data-ribbon-working-arc="">
+          {renderNode(arc, "arc")}
+        </g>
+      </svg>
       {marks.children?.length ? renderNode(marks, "marks") : null}
     </span>
   );
