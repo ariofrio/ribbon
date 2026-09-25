@@ -51,17 +51,8 @@ const STAGE_RINGS = byStage((stage) =>
 const STAGE_MARKS: Record<WorkflowStage, IconDataV1[]> = {
   Deferred: [],
   Idle: [],
-  // Half filled, the same size as Completed's dot.
-  Blocked: [
-    {
-      tag: "path",
-      attrs: {
-        d: "M12 7A5 5 0 0 1 12 17Z",
-        fill: "currentColor",
-        transform: "rotate(-135 12 12)",
-      },
-    },
-  ],
+  // A slash as long as Completed's dot is wide, round caps included.
+  Blocked: [strokedPath("M9 9 15 15")],
   Completed: [
     {
       tag: "circle",

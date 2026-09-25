@@ -97,15 +97,12 @@ describe("Thread stages provider contracts", () => {
     expect(iconByStage.get("Idle")?.children).toEqual([ring]);
     // Working is drawn on each stage's ring by Ribbon, not stored as a stage.
     expect(iconByStage.has("Active")).toBe(false);
-    // Half of Completed's dot.
+    // A slash that, round caps included, spans Completed's dot.
     expect(iconByStage.get("Blocked")?.children).toEqual([
       ring,
       expect.objectContaining({
         tag: "path",
-        attrs: expect.objectContaining({
-          d: "M12 7A5 5 0 0 1 12 17Z",
-          fill: "currentColor",
-        }),
+        attrs: expect.objectContaining({ d: "M9 9 15 15", strokeLinecap: "round" }),
       }),
     ]);
     expect(iconByStage.get("Completed")?.children).toEqual([
