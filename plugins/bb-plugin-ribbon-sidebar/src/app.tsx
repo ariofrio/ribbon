@@ -1462,9 +1462,9 @@ function RibbonSidebarList({
       <ProviderIcon
         icon={STAGE_ICONS[stage]}
         label={`${stage} stage`}
-        className={
-          stage === "Active" ? "motion-safe:animate-spin" : undefined
-        }
+        className={`text-subtle-foreground/75 ${
+          stage === "Active" ? "motion-safe:animate-spin" : ""
+        }`}
       />
     );
   }
