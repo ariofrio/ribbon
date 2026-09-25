@@ -65,11 +65,10 @@ Right is the default, and the choice persists on this client across reloads.
 ## Stages and shortcuts
 
 Ribbon owns stages, shortcuts, and Completed retention. Running work never
-changes a stage. Instead of bb's spinner, a working thread's stage icon turns
-its ring, with an arc in the title's color. A collapsed root's ring also turns
-for work in its hidden descendants, and a pending question or approval stops
-it. Earlier versions had an Active stage; its threads return to Idle on
-upgrade.
+changes a stage: a working thread's stage icon turns its ring instead of
+showing bb's spinner, and a collapsed root's ring also turns for work in its
+hidden descendants. A pending question or approval stops the ring. Earlier
+versions had an Active stage; its threads return to Idle on upgrade.
 
 Completed hierarchies auto-archive after seven days by default. Ribbon settings
 can select 1 or 30 days, or Never. Completion and subsequent root or descendant
