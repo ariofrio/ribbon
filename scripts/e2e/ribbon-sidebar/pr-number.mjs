@@ -1,10 +1,27 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
+import { AGENT, FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
 
 export async function verifyPrNumber({ stack, fixture }) {
+  // Other suites give the featured thread children, whose toggle hover reveals
+  // beside the number. Own a childless, read row for the indicator-lane checks.
+  const featuredProject = fixture.projects.get(FEATURED_PROJECT);
+  const laneThread = fixture.runJson([
+    "thread", "spawn",
+    "--project", featuredProject.id,
+    "--machine", "screenshots",
+    "--environment", featuredProject.root,
+    "--provider", `acp-${AGENT.id}`,
+    "--model", AGENT.modelId,
+    "--permission-mode", "accept-edits",
+    "--title", "Check PR number alignment",
+    "--prompt", "Confirm the PR number alignment fixture is ready.",
+  ]);
   const browser = await chromium.launch({ args: ["--mute-audio"] });
   try {
+    fixture.run(["thread", "wait", laneThread.id, "--status", "idle"]);
+    fixture.run(["thread", "update", laneThread.id, "--section", fixture.section.id]);
+    fixture.run(["thread", "read", laneThread.id]);
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     await context.addInitScript(() => {
       localStorage.setItem("bb.sidebar.threadListProvider", JSON.stringify("ribbon-sidebar/ribbon-sidebar"));
@@ -79,6 +96,8 @@ export async function verifyPrNumber({ stack, fixture }) {
     // A right-aligned number keeps the indicator lane free at rest, so it
     // lines up with rows that draw an indicator and does not move on hover.
     await page.mouse.move(1000, 700);
+    const laneRow = sidebar.locator("li").filter({ has: page.locator(`a[data-sidebar-thread-id="${laneThread.id}"]`) });
+    await laneRow.getByText("#12345", { exact: true }).waitFor();
     const rightEdges = await page.evaluate((threadId) => {
       const rows = [...document.querySelectorAll("[data-ribbon-sidebar-root] a[data-sidebar-thread-id]")]
         .map((link) => link.closest("li"));
@@ -86,19 +105,19 @@ export async function verifyPrNumber({ stack, fixture }) {
         .find((node) => node.textContent === "#12345")?.getBoundingClientRect().right;
       const withIndicator = rows.find((row) =>
         row.querySelector("[data-sidebar-thread-trailing-indicator]") && edge(row) !== undefined);
-      const featured = rows.find((row) =>
+      const lane = rows.find((row) =>
         row.querySelector(`a[data-sidebar-thread-id="${threadId}"]`));
       return {
-        indicatorless: featured.querySelector("[data-sidebar-thread-trailing-indicator]") ? null : edge(featured),
+        indicatorless: lane.querySelector("[data-sidebar-thread-trailing-indicator]") ? null : edge(lane),
         withIndicator: withIndicator && edge(withIndicator),
       };
-    }, thread.id);
+    }, laneThread.id);
     assert.equal(rightEdges.indicatorless !== null && rightEdges.withIndicator !== undefined, true,
       "fixture has a right-aligned number both with and without an indicator");
     assert.equal(rightEdges.indicatorless, rightEdges.withIndicator,
       "right-aligned numbers share one edge whether or not the row has an indicator");
-    await row.hover();
-    const hoveredEdge = await row.evaluate((node) => [...node.querySelectorAll("span")]
+    await laneRow.hover();
+    const hoveredEdge = await laneRow.evaluate((node) => [...node.querySelectorAll("span")]
       .find((span) => span.textContent === "#12345").getBoundingClientRect().right);
     assert.equal(hoveredEdge, rightEdges.indicatorless, "hovering does not move the number");
     await choose("Right", "Left");
@@ -121,6 +140,10 @@ export async function verifyPrNumber({ stack, fixture }) {
     await placement("right");
     await context.close();
   } finally {
-    await browser.close();
+    try {
+      await browser.close();
+    } finally {
+      fixture.run(["thread", "delete", laneThread.id, "--yes"]);
+    }
   }
 }
