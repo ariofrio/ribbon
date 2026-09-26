@@ -24,7 +24,11 @@ async function render(initial: Selection | null) {
     {},
     {
       rpc: {
-        "selection.get": () => ({ selection: stored, suggestion: haiku }),
+        "selection.get": () => ({
+          selection: stored,
+          suggestion: haiku,
+          automaticName: "Haiku 4.5",
+        }),
         "selection.set": ({ selection }) => {
           stored = selection;
           return null;
@@ -36,7 +40,7 @@ async function render(initial: Selection | null) {
 
 it("starts automatic and seeds bb's picker from the suggested model", async () => {
   const slot = await render(null);
-  await screen.findByText(/^Automatic: Luna on Codex threads/);
+  await screen.findByText(/^Automatic: bb's inference model, currently Haiku 4\.5\./);
   expect(screen.queryByTestId("bb-provider-model-picker")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Choose a model" }));
   const picker = await screen.findByTestId("bb-provider-model-picker");
@@ -66,7 +70,7 @@ it("saves picker changes and returns to automatic", async () => {
     }),
   );
   fireEvent.click(screen.getByRole("button", { name: "Use automatic" }));
-  await screen.findByText(/^Automatic: Luna on Codex threads/);
+  await screen.findByText(/^Automatic: bb's inference model, currently Haiku 4\.5\./);
   expect(slot.inspection.rpcCalls.at(-1)).toMatchObject({
     method: "selection.set",
     input: { selection: null },

@@ -56,6 +56,7 @@ export const rpcContract = defineRpcContract({
     output: z.object({
       selection: selection.nullable(),
       suggestion: selection.nullable(),
+      automaticName: z.string().nullable(),
     }),
   },
   "selection.set": {
@@ -74,13 +75,7 @@ const lowestEffort = (model: Model) =>
     ),
   )[0]?.reasoningEffort ?? model.defaultReasoningEffort;
 
-// Luna for Codex and Haiku for Claude Code when no model is selected.
-const automatic = (providerId: string, catalog: Catalog) =>
-  [...catalog.models, ...catalog.selectedOnlyModels].find((model) =>
-    providerId === "codex"
-      ? /luna/i.test(model.model)
-      : providerId === "claude-code" && /haiku/i.test(model.model),
-  );
+type Choice = Pick<Selection, "providerId" | "model">;
 
 export default function plugin(bb: BbPluginApi) {
   const store = createStore(bb);
@@ -99,25 +94,53 @@ export default function plugin(bb: BbPluginApi) {
     selection.nullable().catch(null).parse(
       (await bb.storage.kv.get(SELECTION_KEY)) ?? null,
     );
+  // Without a selection, follow bb's own helper-inference model: BB_INFERENCE,
+  // then BB_INFERENCE_FALLBACK, each written `<provider>/<model>`.
+  async function inferenceChoices(): Promise<Choice[]> {
+    const { aiServices } = await sdk.system.config();
+    return [aiServices.inference, aiServices.inferenceFallback].flatMap(
+      (value) => {
+        const match = /^([^/]+)\/([^/]+)$/u.exec(value);
+        return match ? [{ providerId: match[1]!, model: match[2]! }] : [];
+      },
+    );
+  }
+  // The first choice the machine offers, or "unknown" when a catalog failed to
+  // load and a later attempt might find one.
+  async function resolve(choices: Choice[], hostId?: string) {
+    let unknown = false;
+    for (const choice of choices) {
+      const catalog = await sdk.providers
+        .models(
+          hostId
+            ? { hostId, providerId: choice.providerId }
+            : { providerId: choice.providerId },
+        )
+        .catch(() => undefined);
+      if (catalog?.modelLoadError) unknown = true;
+      const model = catalog?.modelLoadError
+        ? undefined
+        : [...(catalog?.models ?? []), ...(catalog?.selectedOnlyModels ?? [])]
+            .find((model) => model.model === choice.model || model.id === choice.model);
+      if (model) return { providerId: choice.providerId, model };
+    }
+    return unknown ? "unknown" : undefined;
+  }
   bb.rpc.register(rpcContract, {
     async "selection.get"() {
-      let suggestion: Selection | null = null;
-      for (const providerId of ["claude-code", "codex"]) {
-        const catalog = await sdk.providers
-          .models({ providerId })
-          .catch(() => undefined);
-        const model =
-          catalog && !catalog.modelLoadError && automatic(providerId, catalog);
-        if (model) {
-          suggestion = {
-            providerId,
-            model: model.model,
-            reasoningLevel: lowestEffort(model),
-          };
-          break;
-        }
-      }
-      return { selection: await readSelection(), suggestion };
+      const automatic = await resolve(await inferenceChoices());
+      const found = typeof automatic === "object" ? automatic : undefined;
+      return {
+        selection: await readSelection(),
+        suggestion: found
+          ? {
+              providerId: found.providerId,
+              model: found.model.model,
+              reasoningLevel: lowestEffort(found.model),
+            }
+          : null,
+        automaticName: found?.model.displayName ?? null,
+      };
     },
     async "selection.set"({ selection }) {
       if (selection) await bb.storage.kv.set(SELECTION_KEY, selection);
@@ -364,28 +387,22 @@ export default function plugin(bb: BbPluginApi) {
       environmentId: thread.environmentId,
     });
     const selected = await readSelection();
-    const providerId = selected?.providerId ?? thread.providerId;
-    const catalog = await sdk.providers.models({
-      hostId: environment.hostId,
-      providerId,
-    });
-    if (catalog.modelLoadError) return;
-    const model = selected
-      ? [...catalog.models, ...catalog.selectedOnlyModels].find(
-          (model) =>
-            model.model === selected.model || model.id === selected.model,
-        )
-      : automatic(providerId, catalog);
-    if (!model) {
+    const resolved = await resolve(
+      selected ? [selected] : await inferenceChoices(),
+      environment.hostId,
+    );
+    if (resolved === "unknown") return;
+    if (!resolved) {
       finish(
         job,
         "skipped",
         selected
           ? `Selected model ${selected.model} unavailable on this host`
-          : "No supported inexpensive model available",
+          : "bb's inference models unavailable on this host",
       );
       return;
     }
+    const { providerId, model } = resolved;
     const personal = (await sdk.projects.list({ includePersonal: true })).find(
       (project) => project.kind === "personal",
     );

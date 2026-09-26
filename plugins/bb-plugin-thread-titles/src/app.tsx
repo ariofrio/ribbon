@@ -14,6 +14,7 @@ function TitleModelSettings() {
   const [state, setState] = useState<{
     selection: Selection | null;
     suggestion: Selection | null;
+    automaticName: string | null;
   }>();
   const [error, setError] = useState<string>();
 
@@ -51,7 +52,7 @@ function TitleModelSettings() {
           <p className="mt-0.5 text-xs leading-snug text-subtle-foreground/75">
             {state.selection
               ? "Every thread uses this model on its own machine. A thread whose machine lacks it keeps its title."
-              : "Automatic: Luna on Codex threads and Haiku on Claude Code threads. Threads on other providers keep their titles."}
+              : `Automatic: bb's inference model${state.automaticName ? `, currently ${state.automaticName}` : ""}. Set it with bb-app config set BB_INFERENCE.`}
           </p>
           {error && (
             <p className="mt-1 text-xs leading-snug text-destructive">{error}</p>

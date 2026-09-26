@@ -17,8 +17,9 @@ required.
 
 ## Behavior
 
-When the first turn ends, a fresh hidden worker generates a concise title on
-the source thread's provider and host, in a personal workspace. It receives the
+When the first turn ends, a fresh hidden worker generates a concise title with
+the title model (see [Settings](#settings)) on the source thread's machine, in a
+personal workspace. It receives the
 complete recorded transcript as quoted data and is instructed to return a title
 without tools. Completion is read from durable turn history, so a missed event
 or restart does not lose the trigger.
@@ -57,10 +58,17 @@ using bb's own provider, model, and reasoning picker. Every title worker then
 runs that selection on the source thread's machine, whatever the thread's own
 provider. A machine without the selected model skips the thread.
 
-**Use automatic** clears the selection. Automatic titling runs on the source
-thread's provider: Codex uses an available Luna model and Claude Code uses
-Haiku, each at its lowest reasoning level. Threads on other providers are
-skipped.
+**Use automatic** clears the selection. Automatic titling follows the model bb
+uses for its own helper tasks, such as its thread titles and commit messages:
+`BB_INFERENCE`, then `BB_INFERENCE_FALLBACK` when the thread's machine lacks the
+first. Both are written `<provider>/<model>` and default to
+`codex/gpt-5.6-luna` and `codex/gpt-5.4-mini`. Workers use the lowest reasoning
+level, and a thread whose machine offers neither model is skipped. Change them
+with:
+
+```sh
+bb-app config set BB_INFERENCE <provider>/<model>
+```
 
 The default transcript limit is 200,000 UTF-8 bytes. Larger transcripts are
 skipped in full, never truncated. Configure a limit between 1,000 and 2,000,000

@@ -41,6 +41,10 @@ async function setup() {
     "claude-code": ["claude-haiku-4-5", "claude-sonnet-5"],
   };
   const modelQueries: Array<{ hostId?: string; providerId?: string }> = [];
+  const aiServices = {
+    inference: "codex/gpt-5.6-luna",
+    inferenceFallback: "codex/gpt-5.4-mini",
+  };
   const host = createFakePluginHost({
     pluginId: "thread-titles",
     sdk: {
@@ -82,6 +86,7 @@ async function setup() {
         interactions: { list: async () => [] as never },
       },
       environments: { get: async () => ({ hostId: "host" }) as never },
+      system: { config: async () => ({ aiServices: { ...aiServices } }) as never },
       projects: {
         list: async () => [{ id: "personal", kind: "personal" }] as never,
       },
@@ -152,6 +157,7 @@ async function setup() {
     updates,
     catalogs,
     modelQueries,
+    aiServices,
     emit,
     user,
     endTurn,
@@ -672,17 +678,57 @@ async function firstTurn(h: Awaited<ReturnType<typeof setup>>) {
   await h.emit();
 }
 
-it("suggests the automatic choice until a model is selected", async () => {
+it("suggests bb's inference model until a model is selected", async () => {
   const h = await setup();
   expect(await h.harness.behavior.callRpc("selection.get", null)).toEqual({
     selection: null,
     suggestion: {
-      providerId: "claude-code",
-      model: "claude-haiku-4-5",
+      providerId: "codex",
+      model: "gpt-5.6-luna",
       reasoningLevel: "low",
     },
+    automaticName: "gpt-5.6-luna",
   });
   expect(h.modelQueries.at(-1)?.hostId).toBeUndefined();
+});
+
+it("titles every thread with bb's inference model by default", async () => {
+  const h = await setup();
+  h.thread.providerId = "claude-code";
+  await firstTurn(h);
+  expect(h.spawned[0]).toMatchObject({
+    providerId: "codex",
+    model: "gpt-5.6-luna",
+    reasoningLevel: "low",
+    environment: { type: "host", hostId: "host" },
+  });
+});
+
+it("uses bb's inference fallback when the thread's machine lacks the primary", async () => {
+  const h = await setup();
+  h.catalogs.codex = ["gpt-5.4-mini"];
+  await firstTurn(h);
+  expect(h.spawned[0]).toMatchObject({
+    providerId: "codex",
+    model: "gpt-5.4-mini",
+  });
+});
+
+it("follows a changed inference setting and skips when no machine model matches", async () => {
+  const h = await setup();
+  h.aiServices.inference = "claude-code/claude-haiku-4-5";
+  h.aiServices.inferenceFallback = "some-service/some-model";
+  await firstTurn(h);
+  expect(h.spawned[0]).toMatchObject({
+    providerId: "claude-code",
+    model: "claude-haiku-4-5",
+  });
+
+  const next = await setup();
+  next.aiServices.inference = "some-service/some-model";
+  next.aiServices.inferenceFallback = "codex/missing";
+  await firstTurn(next);
+  expect(next.spawned).toHaveLength(0);
 });
 
 it("runs every title worker on the selected model on the thread's host", async () => {
