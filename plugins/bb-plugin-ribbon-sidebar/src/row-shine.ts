@@ -13,6 +13,7 @@ import { type RefObject, useLayoutEffect } from "react";
  * outside the scope root bb compiles a plugin's own stylesheet into.
  */
 export const SHINE_ROW_ATTRIBUTE = "data-ribbon-shine-row";
+export const ACTIVE_ROW_ATTRIBUTE = "data-ribbon-active-row";
 
 /** Marks a piece of a row's content that shimmers with it. */
 export const SHINE_ATTRIBUTE = "data-ribbon-shine";
@@ -23,12 +24,17 @@ export const SHINE_ATTRIBUTE = "data-ribbon-shine";
 const SHINE_SECONDS = 1;
 const SHINE_WAVE = "120px";
 
+export function activeAnimationDelay(now: number): string {
+  return `${-(now % (SHINE_SECONDS * 1000))}ms`;
+}
+
 export function shineStyles(): string {
   return [
     "@property --ribbon-shine{syntax:'<number>';inherits:true;initial-value:0}",
     "@keyframes ribbon-shine{from{--ribbon-shine:0}to{--ribbon-shine:1}}",
     "@media (prefers-reduced-motion: no-preference){" +
-      `[${SHINE_ROW_ATTRIBUTE}]{animation:ribbon-shine ${SHINE_SECONDS}s linear infinite}` +
+      `[${SHINE_ROW_ATTRIBUTE}]{animation:ribbon-shine ${SHINE_SECONDS}s linear infinite;animation-delay:var(--ribbon-active-animation-delay)}` +
+      `[${ACTIVE_ROW_ATTRIBUTE}] [class*="animate-spin"]{animation-delay:var(--ribbon-active-animation-delay)}` +
       `[${SHINE_ROW_ATTRIBUTE}] [${SHINE_ATTRIBUTE}]{` +
       // A mask makes each piece a stacking context, painted over the link
       // that covers the row; let clicks through to it as before.
@@ -59,7 +65,16 @@ export function publishShineStyles(target: Document = document): () => void {
 export function useRowShine(
   row: RefObject<HTMLElement | null>,
   active: boolean,
+  working: boolean,
 ): void {
+  useLayoutEffect(() => {
+    if (!working || !row.current) return;
+    row.current.style.setProperty(
+      "--ribbon-active-animation-delay",
+      activeAnimationDelay(performance.now()),
+    );
+  }, [row, working]);
+
   useLayoutEffect(() => {
     const element = row.current;
     if (!active || !element) return;
