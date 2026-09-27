@@ -1,8 +1,8 @@
 import {
   Book03Icon,
   BookOpen01Icon,
-  Folder01Icon,
   Folder02Icon,
+  FolderClosedIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import type { CSSProperties } from "react";
@@ -99,12 +99,32 @@ export function HeadingChevron({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+// book-open-01 spans y 3.5 to 20.5; book-03 spans y 2 to 22.
+const SHUT_BOOK_SCALE = 17 / 20;
+
+/**
+ * book-03 as the open book folded shut: without the spine line inside its
+ * cover, and scaled about its centre to the open book's height, so opening a
+ * section reads as the one book spreading out. The stroke is widened by the
+ * same factor, so it still draws at the weight every other icon does.
+ */
+const ShutBookIcon: IconSvgElement = Book03Icon.filter(
+  ([, attrs]) => attrs.d !== "M8 2V18",
+).map(([tag, attrs]) => [
+  tag,
+  {
+    ...attrs,
+    strokeWidth: String(1.5 / SHUT_BOOK_SCALE),
+    transform: `translate(12 12) scale(${SHUT_BOOK_SCALE}) translate(-12 -12)`,
+  },
+]);
+
 const STANDARD_ICONS: Record<
   "project" | "section",
   Record<"open" | "shut", [IconSvgElement, string]>
 > = {
-  section: { open: [BookOpen01Icon, "BookOpen01"], shut: [Book03Icon, "Book03"] },
-  project: { open: [Folder02Icon, "Folder02"], shut: [Folder01Icon, "Folder01"] },
+  section: { open: [BookOpen01Icon, "BookOpen01"], shut: [ShutBookIcon, "BookClosed"] },
+  project: { open: [Folder02Icon, "Folder02"], shut: [FolderClosedIcon, "FolderClosed"] },
 };
 
 /**

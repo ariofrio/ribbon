@@ -1932,9 +1932,9 @@ describe("Ribbon sidebar app", () => {
   it("draws standard heading icons that open and shut with their group", async () => {
     const app = await loadPluginApp(() => import("./app"));
     for (const [groupingKey, region, toggle, shut, open] of [
-      ["builtin:sections", "Release group", "Release section", "Book03", "BookOpen01"],
-      ["builtin:sections", "Unorganized group", "Unorganized section", "Book03", "BookOpen01"],
-      ["builtin:projects", "Storefront group", "Storefront project", "Folder01", "Folder02"],
+      ["builtin:sections", "Release group", "Release section", "BookClosed", "BookOpen01"],
+      ["builtin:sections", "Unorganized group", "Unorganized section", "BookClosed", "BookOpen01"],
+      ["builtin:projects", "Storefront group", "Storefront project", "FolderClosed", "Folder02"],
     ] as const) {
       window.localStorage.setItem(
         "bb.plugin.ribbon-sidebar.preferences.v1",
@@ -1955,6 +1955,8 @@ describe("Ribbon sidebar app", () => {
       await slot.findByRole("button", { name: `Expand ${toggle}` });
       expect(header.querySelector(`[data-icon="${shut}"]`)).not.toBeNull();
       expect(header.querySelector(`[data-icon="${open}"]`)).toBeNull();
+      // The shut book has no spine line inside its cover.
+      expect(header.querySelector('path[d="M8 2V18"]')).toBeNull();
       slot.lifecycle.unmount();
     }
   });

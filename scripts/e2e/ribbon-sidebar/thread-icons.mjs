@@ -241,8 +241,16 @@ export async function verifyThreadIcons({ stack, fixture }) {
         { width: 16, height: 16, color: glyph.ink },
         "A standardized section icon should be a 16px glyph in the heading's ink",
       );
+      // The shut book reads as the open one folded: exactly as tall.
+      const drawnHeight = (name) => standard(name).evaluate((svg) => {
+        const boxes = [...svg.querySelectorAll("path")].map((path) => path.getBoundingClientRect());
+        return Math.max(...boxes.map((box) => box.bottom)) - Math.min(...boxes.map((box) => box.top));
+      });
+      const openHeight = await drawnHeight("BookOpen01");
       await atlas.getByRole("button", { name: "Collapse Atlas section", exact: true }).click();
-      await standard("Book03").waitFor();
+      await standard("BookClosed").waitFor();
+      const shutHeight = await drawnHeight("BookClosed");
+      assert.ok(Math.abs(shutHeight - openHeight) < 0.25, `The shut book should be as tall as the open one: ${shutHeight} vs ${openHeight}`);
       await atlas.getByRole("button", { name: "Expand Atlas section", exact: true }).click();
       await standard("BookOpen01").waitFor();
       fixture.run(["plugin", "config", "ribbon-sidebar", "set", "groupHeaderIcons", "On"]);
