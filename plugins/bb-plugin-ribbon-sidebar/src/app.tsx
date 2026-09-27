@@ -405,7 +405,7 @@ function ThreadRow({
       }
     >
       <div
-        className={`bb-sidebar-hover-actions-row group/thread-row relative grid w-full items-start rounded-md pr-0 text-sm transition-colors ${
+        className={`bb-sidebar-hover-actions-row group/thread-row relative grid w-full items-start rounded-md pr-0 text-sm ${
           reservesTrailingLane
             ? "grid-cols-[minmax(0,1fr)_auto] gap-x-1"
             : "grid-cols-1"
