@@ -105,6 +105,14 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
         await sidebar.getByRole("button", { name: "Expand Atlas section", exact: true }).waitFor();
         await page.mouse.click(labelBox.x + 4, labelBox.y + labelBox.height / 2);
         await toggle.waitFor();
+        // So does a click on the chevron, which hovering reveals while the
+        // section is expanded.
+        await heading.hover();
+        const shown = await chevron.boundingBox();
+        await page.mouse.click(shown.x + shown.width / 2, shown.y + shown.height / 2);
+        await sidebar.getByRole("button", { name: "Expand Atlas section", exact: true }).waitFor();
+        await page.mouse.click(shown.x + shown.width / 2, shown.y + shown.height / 2);
+        await toggle.waitFor();
       }
       await page.mouse.move(1200, 750);
 

@@ -80,6 +80,9 @@ export function HeadingChevron({ collapsed }: { collapsed: boolean }) {
       aria-hidden
       className={`${collapsed ? "" : "bb-sidebar-hover-actions"} mx-2 flex size-5 shrink-0 items-center justify-center ${HEADING_MUTED_CLASS}`}
       data-ribbon-heading-chevron=""
+      // bb's hover-actions rule turns the pointer back on while the row is
+      // hovered; the chevron is only a picture of the heading's toggle.
+      style={{ pointerEvents: "none" }}
     >
       <Icon
         aria-hidden
