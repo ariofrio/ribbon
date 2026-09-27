@@ -30,6 +30,7 @@ import {
 } from "react";
 import type { z } from "zod";
 import { CHROME_GROUP_HEADING_CLASS } from "./chrome-style-tokens";
+import { GroupBody } from "./group-body";
 import {
   HEADING_ICON_STYLE,
   HEADING_MUTED_CLASS,
@@ -2027,7 +2028,16 @@ function RibbonSidebarList({
                   dragDestination.atStart ? (
                     <ThreadDropPreview />
                   ) : null}
-                  {!pinnedSectionCollapsed ? (
+                  <GroupBody
+                    open={!pinnedSectionCollapsed}
+                    folded={
+                      pinnedActivePreview ? (
+                        <ul className="space-y-px">
+                          {renderRoot(pinnedActivePreview, 0, false)}
+                        </ul>
+                      ) : null
+                    }
+                  >
                     <ul className="space-y-px">
                       {pinnedRoots.map((root) =>
                         renderRoot(root, 0, true, {
@@ -2036,11 +2046,7 @@ function RibbonSidebarList({
                         }),
                       )}
                     </ul>
-                  ) : pinnedActivePreview ? (
-                    <ul className="space-y-px">
-                      {renderRoot(pinnedActivePreview, 0, false)}
-                    </ul>
-                  ) : null}
+                  </GroupBody>
                   {dragDestination?.kind === "pinned" &&
                   !dragDestination.atStart &&
                   !dragDestination.indicatorBefore &&
@@ -2338,41 +2344,44 @@ function RibbonSidebarList({
                     dragDestination.atStart ? (
                       <ThreadDropPreview />
                     ) : null}
-                    <div className="space-y-px">
-                      {!collapsed ? (
-                        <>
-                          {bands.main.length > 0 ? (
-                            <ul className="space-y-px">
-                              {bands.main.map(renderSectionRow)}
-                            </ul>
-                          ) : null}
-                          <StagePreview
-                            key={`${group.id}/deferred`}
-                            stage="deferred"
-                            rows={bands.deferred}
-                            selectedRootId={selectedRootId}
-                            renderRow={renderSectionRow}
-                            revealAll={Boolean(normalizedSearch)}
-                          />
-                          <StagePreview
-                            key={`${group.id}/completed`}
-                            stage="completed"
-                            rows={bands.completed}
-                            selectedRootId={selectedRootId}
-                            renderRow={renderSectionRow}
-                            revealAll={Boolean(normalizedSearch)}
-                          />
-                        </>
-                      ) : activePreview ? (
-                        <ul className="space-y-px">
-                          {renderRoot(activePreview, 0, false, {
-                            kind: "placement",
-                            roots,
-                            groupId: group.id,
-                          })}
-                        </ul>
-                      ) : null}
-                    </div>
+                    <GroupBody
+                      open={!collapsed}
+                      folded={
+                        activePreview ? (
+                          <ul className="space-y-px">
+                            {renderRoot(activePreview, 0, false, {
+                              kind: "placement",
+                              roots,
+                              groupId: group.id,
+                            })}
+                          </ul>
+                        ) : null
+                      }
+                    >
+                      <div className="space-y-px">
+                        {bands.main.length > 0 ? (
+                          <ul className="space-y-px">
+                            {bands.main.map(renderSectionRow)}
+                          </ul>
+                        ) : null}
+                        <StagePreview
+                          key={`${group.id}/deferred`}
+                          stage="deferred"
+                          rows={bands.deferred}
+                          selectedRootId={selectedRootId}
+                          renderRow={renderSectionRow}
+                          revealAll={Boolean(normalizedSearch)}
+                        />
+                        <StagePreview
+                          key={`${group.id}/completed`}
+                          stage="completed"
+                          rows={bands.completed}
+                          selectedRootId={selectedRootId}
+                          renderRow={renderSectionRow}
+                          revealAll={Boolean(normalizedSearch)}
+                        />
+                      </div>
+                    </GroupBody>
                     {dragDestination?.kind === "placement" &&
                     dragDestination.groupId === group.id &&
                     !dragDestination.atStart &&

@@ -195,6 +195,11 @@ export async function verifyThreadIcons({ stack, fixture }) {
       await home.mouse.click(box.x + 40, box.y + box.height / 2);
       const expand = homeSidebar.getByRole("button", { name: "Expand Atlas section", exact: true });
       await expand.waitFor();
+      // Wait for the fold to finish: its rows leave once they are shut.
+      await homeSidebar
+        .getByRole("region", { name: "Atlas group", exact: true })
+        .locator("[data-ribbon-group-body]")
+        .waitFor({ state: "detached" });
       // A sticky heading paints a sidebar-colored shield above itself, which
       // lets the pointer through, so measure what it paints, not what it hits.
       const overlap = await expand.evaluate((toggle) => {
