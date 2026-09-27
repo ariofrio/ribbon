@@ -48,11 +48,11 @@ export function headingColorStyle(kind?: "project" | "section"): CSSProperties {
 }
 
 /** Lightness and chroma per mode; the hue is the palette color's own. */
-const FILL = { light: "0.92 0.04", dark: "0.31 0.05" };
-const INK = { light: "0.44 0.13", dark: "0.85 0.1" };
+const FILL = { light: "0.95 0.025", dark: "0.28 0.035" };
+const INK = { light: "0.47 0.13", dark: "0.82 0.11" };
 const GRAY = {
-  fill: "light-dark(oklch(0.92 0 0), oklch(0.31 0 0))",
-  ink: "light-dark(oklch(0.44 0 0), oklch(0.85 0 0))",
+  fill: "light-dark(oklch(0.95 0 0), oklch(0.28 0 0))",
+  ink: "light-dark(oklch(0.47 0 0), oklch(0.82 0 0))",
 };
 
 /**

@@ -130,9 +130,9 @@ export async function verifyThreadIcons({ stack, fixture }) {
     const dark = painted.scheme.includes("dark");
     const [, , paletteHue] = oklch(painted.palette);
     for (const [part, value, expected] of [
-      ["fill", painted.background, dark ? [0.31, 0.05] : [0.92, 0.04]],
-      ["label", painted.label, dark ? [0.85, 0.1] : [0.44, 0.13]],
-      ["icon", painted.icon, dark ? [0.85, 0.1] : [0.44, 0.13]],
+      ["fill", painted.background, dark ? [0.28, 0.035] : [0.95, 0.025]],
+      ["label", painted.label, dark ? [0.82, 0.11] : [0.47, 0.13]],
+      ["icon", painted.icon, dark ? [0.82, 0.11] : [0.47, 0.13]],
     ]) {
       const [lightness, chroma, hue] = oklch(value);
       assert.deepEqual([lightness, chroma], expected, `The Atlas heading's ${part} should use the ${painted.scheme} heading tone`);
@@ -218,8 +218,8 @@ export async function verifyThreadIcons({ stack, fixture }) {
         background: getComputedStyle(node).backgroundColor,
         label: getComputedStyle(node.querySelector('span[title="Unorganized"]')).color,
       }));
-    assert.equal(unorganized.background, dark ? "oklch(0.31 0 0)" : "oklch(0.92 0 0)", "An uncolored heading should be gray");
-    assert.equal(unorganized.label, dark ? "oklch(0.85 0 0)" : "oklch(0.44 0 0)", "An uncolored heading's label should be gray ink");
+    assert.equal(unorganized.background, dark ? "oklch(0.28 0 0)" : "oklch(0.95 0 0)", "An uncolored heading should be gray");
+    assert.equal(unorganized.label, dark ? "oklch(0.82 0 0)" : "oklch(0.47 0 0)", "An uncolored heading's label should be gray ink");
 
     // Groups keep their spacing, and nothing from the next heading covers the
     // one above it. With no thread open, a collapsed group

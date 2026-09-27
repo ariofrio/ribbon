@@ -825,26 +825,26 @@ describe("Ribbon sidebar app", () => {
     // and chroma chosen per mode for a faint wash and the ink on it.
     const color = "var(--ribbon-icons-section-color-light)";
     expect(heading.style.getPropertyValue("--ribbon-heading-fill")).toBe(
-      `light-dark(oklch(from ${color} 0.92 0.04 h), oklch(from ${color} 0.31 0.05 h))`,
+      `light-dark(oklch(from ${color} 0.95 0.025 h), oklch(from ${color} 0.28 0.035 h))`,
     );
     expect(heading.style.getPropertyValue("--ribbon-heading-ink")).toBe(
-      `light-dark(oklch(from ${color} 0.44 0.13 h), oklch(from ${color} 0.85 0.1 h))`,
+      `light-dark(oklch(from ${color} 0.47 0.13 h), oklch(from ${color} 0.82 0.11 h))`,
     );
     expect(heading.style.backgroundColor).toBe(
-      "var(--ribbon-heading-fill, light-dark(oklch(0.92 0 0), oklch(0.31 0 0)))",
+      "var(--ribbon-heading-fill, light-dark(oklch(0.95 0 0), oklch(0.28 0 0)))",
     );
     expect(heading.style.getPropertyValue("--ribbon-heading-on")).toBe(
-      "var(--ribbon-heading-ink, light-dark(oklch(0.44 0 0), oklch(0.85 0 0)))",
+      "var(--ribbon-heading-ink, light-dark(oklch(0.47 0 0), oklch(0.82 0 0)))",
     );
     // Headings without a color of their own are the same family in gray.
     const pinned = slot
       .getByRole("button", { name: "Collapse Pinned section" })
       .closest<HTMLElement>('[data-sidebar="group-label"]')!;
     expect(pinned.style.backgroundColor).toBe(
-      "light-dark(oklch(0.92 0 0), oklch(0.31 0 0))",
+      "light-dark(oklch(0.95 0 0), oklch(0.28 0 0))",
     );
     expect(pinned.style.getPropertyValue("--ribbon-heading-on")).toBe(
-      "light-dark(oklch(0.44 0 0), oklch(0.85 0 0))",
+      "light-dark(oklch(0.47 0 0), oklch(0.82 0 0))",
     );
     slot.lifecycle.unmount();
   });
