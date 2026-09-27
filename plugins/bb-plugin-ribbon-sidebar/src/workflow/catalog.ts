@@ -2,14 +2,16 @@ import { groupingCatalogSchema, type IconDataV1 } from "../contracts";
 import { WORKFLOW_STAGES, type WorkflowStage } from "./workflow-stage";
 export const THREAD_STAGES_GROUPING_KEY =
   "plugin:thread-stages:stages" as const;
+const RING_RADIUS = 8.25;
+const RING_STROKE_WIDTH = 2;
 const progressRing: IconDataV1 = {
   tag: "circle",
   attrs: {
     cx: 12,
     cy: 12,
-    r: 8,
+    r: RING_RADIUS,
     stroke: "currentColor",
-    strokeWidth: 1.5,
+    strokeWidth: RING_STROKE_WIDTH,
   },
 };
 const stageIcon = (children: IconDataV1[]): IconDataV1 => ({
@@ -28,7 +30,7 @@ const strokedPath = (d: string): IconDataV1 => ({
   },
 });
 // Six dashes around the ring, one centred every 60 degrees from 30.
-const RING_SIXTH = (2 * Math.PI * 8) / 6;
+const RING_SIXTH = (2 * Math.PI * RING_RADIUS) / 6;
 const DASH = 4;
 const GAP = RING_SIXTH - DASH;
 const dashedRing = (dashArray: string): IconDataV1 => ({
@@ -65,10 +67,20 @@ const STAGE_MARKS: Record<WorkflowStage, IconDataV1[]> = {
  * Lucide's LoaderCircle so that it reads as turning. Deferred keeps its dashes
  * and drops the one that falls in the opening.
  */
+const workingArc: IconDataV1 = {
+  tag: "path",
+  attrs: {
+    d: "M20.25 12a8.25 8.25 0 1 1-5.701-7.847",
+    stroke: "currentColor",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    strokeWidth: RING_STROKE_WIDTH,
+  },
+};
 const WORKING_RINGS = byStage((stage) =>
   stage === "Deferred"
     ? dashedRing(`${`${DASH} ${GAP} `.repeat(4)}${DASH} ${GAP + RING_SIXTH}`)
-    : strokedPath("M20 12a8 8 0 1 1-5.528-7.609"),
+    : workingArc,
 );
 
 export const STAGE_ICONS = byStage((stage) =>
