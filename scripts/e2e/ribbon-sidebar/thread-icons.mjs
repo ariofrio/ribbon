@@ -95,6 +95,34 @@ export async function verifyThreadIcons({ stack, fixture }) {
     assert.equal(view.groupingKey, "builtin:sections");
     assert.equal(view.filterGroupingKey, null);
 
+    // A section with a picked color fills its heading with it, and turns the
+    // heading's text and icon to the color the Icons plugin pairs with it.
+    const atlas = sidebar.locator('[data-sidebar="group-label"]').filter({
+      has: page.getByRole("button", { name: /^(Collapse|Expand) Atlas section$/ }),
+    });
+    const painted = await atlas.evaluate((node) => {
+      const resolve = (value) => {
+        const probe = document.createElement("span");
+        probe.style.color = value;
+        node.append(probe);
+        const color = getComputedStyle(probe).color;
+        probe.remove();
+        return color;
+      };
+      const style = getComputedStyle(node);
+      return {
+        background: style.backgroundColor,
+        expected: resolve(style.getPropertyValue("--ribbon-icons-section-color-light")),
+        label: getComputedStyle(node.querySelector('span[title="Atlas"]')).color,
+        icon: getComputedStyle(node.querySelector("[data-ribbon-sidebar-icon]")).backgroundColor,
+        white: resolve("white"),
+      };
+    });
+    assert.notEqual(painted.expected, "rgba(0, 0, 0, 0)", "The Atlas section should have a picked color");
+    assert.equal(painted.background, painted.expected, "The Atlas heading should be filled with its icon's color");
+    assert.equal(painted.label, painted.white, "The Atlas heading's label should read against its color");
+    assert.equal(painted.icon, painted.white, "The Atlas heading's icon should read against its color");
+
     let prState = "open";
     await page.route("**/api/v1/environments/*/pull-request", (route) => route.fulfill({
       json: {

@@ -1,0 +1,7 @@
+---
+"bb-plugin-ribbon-sidebar": minor
+---
+
+Click anywhere on a group heading to collapse or expand it; the chevron stays
+where it was. A section or project heading fills with its icon's color from the
+Icons plugin, with white text and icon to read against it.

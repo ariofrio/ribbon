@@ -30,6 +30,14 @@ import {
 } from "react";
 import type { z } from "zod";
 import { CHROME_GROUP_HEADING_CLASS } from "./chrome-style-tokens";
+import {
+  HEADING_MUTED_CLASS,
+  HEADING_TEXT_CLASS,
+  HEADING_TOGGLE_CLASS,
+  HeadingChevron,
+  headingColorStyle,
+  headingIconStyle,
+} from "./heading";
 import type { IconDataV1 } from "./contracts";
 import { GroupHeaderMenu, type HeaderGroupActions } from "./group-header-menu";
 import { orderedGroupings } from "./grouping-order";
@@ -1971,43 +1979,30 @@ function RibbonSidebarList({
                     data-sidebar="group-label"
                     data-sidebar-sticky-tier="label"
                   >
-                    <span className="flex min-w-0 flex-1 items-center">
+                    <button
+                      aria-expanded={!pinnedSectionCollapsed}
+                      aria-label={
+                        pinnedSectionCollapsed
+                          ? "Expand Pinned section"
+                          : "Collapse Pinned section"
+                      }
+                      className={HEADING_TOGGLE_CLASS}
+                      onClick={() =>
+                        changePreferences((current) => {
+                          const collapsed = new Set(current.collapsed);
+                          if (collapsed.has("builtin:pinned")) {
+                            collapsed.delete("builtin:pinned");
+                          } else {
+                            collapsed.add("builtin:pinned");
+                          }
+                          return { ...current, collapsed };
+                        })
+                      }
+                      type="button"
+                    />
+                    <span className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center">
                       <span className="min-w-0 truncate">Pinned</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-expanded={!pinnedSectionCollapsed}
-                        aria-label={
-                          pinnedSectionCollapsed
-                            ? "Expand Pinned section"
-                            : "Collapse Pinned section"
-                        }
-                        className={`${
-                          pinnedSectionCollapsed
-                            ? ""
-                            : "bb-sidebar-hover-actions"
-                        } mx-2 size-5 shrink-0 p-0 text-subtle-foreground focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
-                        onClick={() =>
-                          changePreferences((current) => {
-                            const collapsed = new Set(current.collapsed);
-                            if (collapsed.has("builtin:pinned")) {
-                              collapsed.delete("builtin:pinned");
-                            } else {
-                              collapsed.add("builtin:pinned");
-                            }
-                            return { ...current, collapsed };
-                          })
-                        }
-                        type="button"
-                      >
-                        <Icon
-                          aria-hidden
-                          className={`size-3 transition-transform duration-150 ${
-                            pinnedSectionCollapsed ? "" : "rotate-90"
-                          }`}
-                          name="ChevronRight"
-                        />
-                      </Button>
+                      <HeadingChevron collapsed={pinnedSectionCollapsed} />
                     </span>
                     <GroupHeaderMenu
                       actions={null}
@@ -2210,9 +2205,41 @@ function RibbonSidebarList({
                       className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} transition-colors max-md:pointer-coarse:h-9`}
                       data-sidebar="group-label"
                       data-sidebar-sticky-tier="label"
+                      {...(entityGroupIcon
+                        ? {
+                            [`data-ribbon-icons-${entityGroupIcon.kind}`]:
+                              group.id,
+                            style: headingColorStyle(entityGroupIcon.kind),
+                          }
+                        : {})}
                     >
-                      <span className="relative z-10 flex min-w-0 flex-1 items-center text-left">
-                        <span className="flex min-w-0 items-center gap-2 text-left">
+                      {grouping ? (
+                        <button
+                          aria-expanded={!collapsed}
+                          aria-label={
+                            collapsed
+                              ? `Expand ${group.label} ${selectedGroupingKey === "builtin:projects" ? "project" : "section"}`
+                              : `Collapse ${group.label} ${selectedGroupingKey === "builtin:projects" ? "project" : "section"}`
+                          }
+                          className={HEADING_TOGGLE_CLASS}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            changePreferences((current) => {
+                              const next = new Set(current.collapsed);
+                              if (next.has(ref)) next.delete(ref);
+                              else next.add(ref);
+                              return { ...current, collapsed: next };
+                            });
+                          }}
+                          title={group.label}
+                          type="button"
+                        />
+                      ) : null}
+                      <span className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center text-left">
+                        <span
+                          className={`flex min-w-0 items-center gap-2 text-left ${HEADING_TEXT_CLASS}`}
+                        >
                           {settings.values?.showGroupHeaderIcons !== false &&
                           unorganizedGroup ? (
                             <UnorganizedIcon />
@@ -2226,6 +2253,7 @@ function RibbonSidebarList({
                               data-ribbon-sidebar-icon={
                                 entityGroupIcon.fallback
                               }
+                              style={headingIconStyle(entityGroupIcon.kind)}
                             />
                           ) : settings.values?.showGroupHeaderIcons !== false &&
                             group.icon ? (
@@ -2242,41 +2270,14 @@ function RibbonSidebarList({
                           </span>
                         </span>
                         {grouping ? (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-expanded={!collapsed}
-                            aria-label={
-                              collapsed
-                                ? `Expand ${group.label} ${selectedGroupingKey === "builtin:projects" ? "project" : "section"}`
-                                : `Collapse ${group.label} ${selectedGroupingKey === "builtin:projects" ? "project" : "section"}`
-                            }
-                            className={`${collapsed ? "" : "bb-sidebar-hover-actions"} relative z-20 mx-2 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              changePreferences((current) => {
-                                const next = new Set(current.collapsed);
-                                if (next.has(ref)) next.delete(ref);
-                                else next.add(ref);
-                                return { ...current, collapsed: next };
-                              });
-                            }}
-                            type="button"
-                          >
-                            <Icon
-                              aria-hidden
-                              className={`size-3 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
-                              name="ChevronRight"
-                            />
-                          </Button>
+                          <HeadingChevron collapsed={collapsed} />
                         ) : null}
                       </span>
                       <Button
                         variant="ghost"
                         size="icon"
                         type="button"
-                        className="bb-sidebar-hover-actions m-1 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2"
+                        className={`bb-sidebar-hover-actions relative z-20 m-1 size-5 shrink-0 p-0 ${HEADING_MUTED_CLASS} ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2`}
                         aria-label={`New thread in ${group.label}`}
                         onClick={() =>
                           actions.openNewThread({
@@ -2309,7 +2310,7 @@ function RibbonSidebarList({
                           ) : collapsed && roots.length > 0 ? (
                             <span
                               aria-label={`${roots.length} ${roots.length === 1 ? "thread" : "threads"}`}
-                              className="tabular-nums text-xs text-subtle-foreground/60"
+                              className="tabular-nums text-xs text-[color:color-mix(in_oklab,var(--ribbon-heading-on,var(--subtle-foreground))_60%,transparent)]"
                             >
                               {roots.length}
                             </span>

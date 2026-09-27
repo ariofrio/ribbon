@@ -791,6 +791,45 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("makes each whole heading the toggle, with its chevron in place", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    for (const name of ["Collapse Release section", "Collapse Pinned section"]) {
+      const toggle = await slot.findByRole("button", { name });
+      const heading = toggle.closest<HTMLElement>('[data-sidebar="group-label"]')!;
+      // The toggle spans the row; the chevron is only its picture now.
+      expect(toggle.parentElement).toBe(heading);
+      const chevron = heading.querySelector("[data-ribbon-heading-chevron]")!;
+      expect(chevron).not.toBeNull();
+      expect(chevron.closest("button")).toBeNull();
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    }
+    fireEvent.click(slot.getByRole("button", { name: "Collapse Release section" }));
+    expect(
+      await slot.findByRole("button", { name: "Expand Release section" }),
+    ).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it("paints a section heading in its icon's color", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const heading = (
+      await slot.findByRole("button", { name: "Collapse Release section" })
+    ).closest<HTMLElement>('[data-sidebar="group-label"]')!;
+    // The Icons plugin sets its color variables on whatever names the owner.
+    expect(heading.getAttribute("data-ribbon-icons-section")).toBe("section-a");
+    expect(heading.style.backgroundColor).toBe(
+      "var(--ribbon-icons-section-color-light, var(--sidebar))",
+    );
+    expect(heading.style.getPropertyValue("--ribbon-heading-on")).toBe(
+      "var(--ribbon-icons-section-on-color-light)",
+    );
+    slot.lifecycle.unmount();
+  });
+
   it("shimmers a working row's content, not its buttons or indicators", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({
