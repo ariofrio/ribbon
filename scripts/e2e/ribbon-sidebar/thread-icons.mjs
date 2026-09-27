@@ -180,8 +180,8 @@ export async function verifyThreadIcons({ stack, fixture }) {
     assert.equal(unorganized.background, dark ? "oklch(0.31 0 0)" : "oklch(0.92 0 0)", "An uncolored heading should be gray");
     assert.equal(unorganized.label, dark ? "oklch(0.85 0 0)" : "oklch(0.44 0 0)", "An uncolored heading's label should be gray ink");
 
-    // Collapsed headings sit a row's gap apart, and nothing from the next
-    // heading covers the one above it. With no thread open, a collapsed group
+    // Groups keep their spacing, and nothing from the next heading covers the
+    // one above it. With no thread open, a collapsed group
     // previews nothing, so its heading sits right above the next one.
     {
       const home = await context.newPage();
@@ -206,7 +206,7 @@ export async function verifyThreadIcons({ stack, fixture }) {
           covered: Math.max(0, node.getBoundingClientRect().bottom - (next.getBoundingClientRect().top - shield)),
         };
       });
-      assert.deepEqual(overlap, { gap: 1, covered: 0 }, "Collapsed headings should sit 1px apart, uncovered");
+      assert.deepEqual(overlap, { gap: 16, covered: 0 }, "Collapsed groups should keep their 16px spacing, uncovered");
       await home.mouse.click(box.x + 40, box.y + box.height / 2);
       await collapse.waitFor();
       await home.close();

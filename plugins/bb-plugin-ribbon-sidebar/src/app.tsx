@@ -1972,7 +1972,7 @@ function RibbonSidebarList({
               </SidebarMessage>
             </>
           ) : (
-            <div className="space-y-px">
+            <div className="space-y-4">
               {pinnedRoots.length > 0 ? (
                 <ThreadDragGroup
                   aria-label="Pinned threads"
