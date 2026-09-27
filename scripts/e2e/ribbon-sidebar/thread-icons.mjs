@@ -225,13 +225,13 @@ export async function verifyThreadIcons({ stack, fixture }) {
       await collapse.waitFor();
     }
 
-    // Standardized heading icons: an archive box for a section, open while
-    // the section is, in the heading's own ink.
+    // Standardized heading icons: a book for a section, open while the
+    // section is, in the heading's own ink.
     {
       fixture.run(["plugin", "config", "ribbon-sidebar", "set", "groupHeaderIcons", "Standardized"]);
       const standard = (name) => atlas.locator(`svg[data-icon="${name}"]`);
-      await standard("Archive02").waitFor();
-      const glyph = await standard("Archive02").evaluate((svg) => {
+      await standard("BookOpen01").waitFor();
+      const glyph = await standard("BookOpen01").evaluate((svg) => {
         const box = svg.getBoundingClientRect();
         const label = svg.closest('[data-sidebar="group-label"]').querySelector('span[title="Atlas"]');
         return { width: box.width, height: box.height, color: getComputedStyle(svg).color, ink: getComputedStyle(label).color };
@@ -242,9 +242,9 @@ export async function verifyThreadIcons({ stack, fixture }) {
         "A standardized section icon should be a 16px glyph in the heading's ink",
       );
       await atlas.getByRole("button", { name: "Collapse Atlas section", exact: true }).click();
-      await standard("Archive").waitFor();
+      await standard("Book03").waitFor();
       await atlas.getByRole("button", { name: "Expand Atlas section", exact: true }).click();
-      await standard("Archive02").waitFor();
+      await standard("BookOpen01").waitFor();
       fixture.run(["plugin", "config", "ribbon-sidebar", "set", "groupHeaderIcons", "On"]);
       await atlas.locator("[data-ribbon-sidebar-icon]").waitFor();
     }

@@ -1,6 +1,6 @@
 import {
-  Archive02Icon,
-  ArchiveIcon,
+  Book03Icon,
+  BookOpen01Icon,
   Folder01Icon,
   Folder02Icon,
 } from "@hugeicons/core-free-icons";
@@ -103,13 +103,13 @@ const STANDARD_ICONS: Record<
   "project" | "section",
   Record<"open" | "shut", [IconSvgElement, string]>
 > = {
-  section: { open: [Archive02Icon, "Archive02"], shut: [ArchiveIcon, "Archive"] },
+  section: { open: [BookOpen01Icon, "BookOpen01"], shut: [Book03Icon, "Book03"] },
   project: { open: [Folder02Icon, "Folder02"], shut: [Folder01Icon, "Folder01"] },
 };
 
 /**
- * One icon for every section, and one for every project, instead of the icon
- * each chose: an archive box or a folder, open while its group is.
+ * One icon for every section, Unorganized included, and one for every project,
+ * instead of the icon each chose: a book or a folder, open while its group is.
  */
 export function StandardHeadingIcon({
   kind,

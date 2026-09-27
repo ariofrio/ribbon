@@ -29,7 +29,8 @@ Click anywhere on a heading to collapse or expand it. A section or project
 whose icon has a color in the [Icons plugin](../bb-plugin-icons#readme) tints
 its heading with that color; every other heading is tinted gray. The **Group
 header icons** setting shows each group's own icon (On), none (Off), or
-Standardized: an archive box for every section and a folder for every project,
+Standardized: a book for every section, Unorganized included, and a folder for
+every project,
 open while the group is. A collapsed group previews the open thread. Its plus
 button creates a thread in that section or project. Headings, icons, menus, row styles, and focus
 treatments use Ribbon's existing bb components and theme tokens.

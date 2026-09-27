@@ -2284,14 +2284,14 @@ function RibbonSidebarList({
                         <span
                           className={`flex min-w-0 items-center gap-2 text-left ${HEADING_TEXT_CLASS}`}
                         >
-                          {headerIcons === "Off" ? null : unorganizedGroup ? (
-                            <UnorganizedIcon />
-                          ) : entityGroupIcon &&
+                          {headerIcons === "Off" ? null : entityGroupIcon &&
                             headerIcons === "Standardized" ? (
                             <StandardHeadingIcon
                               kind={entityGroupIcon.kind}
                               collapsed={collapsed}
                             />
+                          ) : unorganizedGroup ? (
+                            <UnorganizedIcon />
                           ) : entityGroupIcon ? (
                             <span
                               aria-hidden

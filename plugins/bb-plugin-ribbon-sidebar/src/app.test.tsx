@@ -1932,7 +1932,8 @@ describe("Ribbon sidebar app", () => {
   it("draws standard heading icons that open and shut with their group", async () => {
     const app = await loadPluginApp(() => import("./app"));
     for (const [groupingKey, region, toggle, shut, open] of [
-      ["builtin:sections", "Release group", "Release section", "Archive", "Archive02"],
+      ["builtin:sections", "Release group", "Release section", "Book03", "BookOpen01"],
+      ["builtin:sections", "Unorganized group", "Unorganized section", "Book03", "BookOpen01"],
       ["builtin:projects", "Storefront group", "Storefront project", "Folder01", "Folder02"],
     ] as const) {
       window.localStorage.setItem(
@@ -1945,8 +1946,10 @@ describe("Ribbon sidebar app", () => {
       const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
       const header = (await slot.findByRole("region", { name: region }))
         .querySelector<HTMLElement>('[data-sidebar="group-label"]')!;
-      // One glyph for every section or project, not the one each chose.
+      // One glyph for every section or project, not the one each chose, and
+      // none special for Unorganized.
       expect(header.querySelector("[data-ribbon-sidebar-icon]")).toBeNull();
+      expect(header.querySelector('[data-icon="ListViewOff"]')).toBeNull();
       expect(header.querySelector(`[data-icon="${open}"]`)).not.toBeNull();
       fireEvent.click(slot.getByRole("button", { name: `Collapse ${toggle}` }));
       await slot.findByRole("button", { name: `Expand ${toggle}` });
