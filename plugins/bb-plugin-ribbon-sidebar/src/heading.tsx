@@ -1,3 +1,10 @@
+import {
+  Archive02Icon,
+  ArchiveIcon,
+  Folder01Icon,
+  Folder02Icon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import type { CSSProperties } from "react";
 import { Icon } from "./vendor/components/ui/icon";
 
@@ -89,5 +96,36 @@ export function HeadingChevron({ collapsed }: { collapsed: boolean }) {
         name="ChevronRight"
       />
     </span>
+  );
+}
+
+const STANDARD_ICONS: Record<
+  "project" | "section",
+  Record<"open" | "shut", [IconSvgElement, string]>
+> = {
+  section: { open: [Archive02Icon, "Archive02"], shut: [ArchiveIcon, "Archive"] },
+  project: { open: [Folder02Icon, "Folder02"], shut: [Folder01Icon, "Folder01"] },
+};
+
+/**
+ * One icon for every section, and one for every project, instead of the icon
+ * each chose: an archive box or a folder, open while its group is.
+ */
+export function StandardHeadingIcon({
+  kind,
+  collapsed,
+}: {
+  kind: "project" | "section";
+  collapsed: boolean;
+}) {
+  const [icon, name] = STANDARD_ICONS[kind][collapsed ? "shut" : "open"];
+  return (
+    <HugeiconsIcon
+      aria-hidden
+      className="size-4 shrink-0"
+      data-icon={name}
+      icon={icon}
+      size={16}
+    />
   );
 }

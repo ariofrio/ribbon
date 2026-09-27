@@ -424,7 +424,7 @@ function options(overrides: Record<string, unknown> = {}) {
         showMessagePreviews: true,
         threadAdornmentAlignment: "Title row",
         showCollapsedGroupIndicators: false,
-        showGroupHeaderIcons: true,
+        groupHeaderIcons: "On",
       },
       rpc: {
         synchronizeV1,
@@ -1903,7 +1903,7 @@ describe("Ribbon sidebar app", () => {
         showProjectsAndSections: true,
         showMessagePreviews: true,
         showCollapsedGroupIndicators: false,
-        showGroupHeaderIcons: false,
+        groupHeaderIcons: "Off",
       },
     });
     window.localStorage.setItem(
@@ -1927,6 +1927,33 @@ describe("Ribbon sidebar app", () => {
       hiddenHeader.querySelector('[data-ribbon-icons-section="section-a"]'),
     ).toBeNull();
     hiddenSlot.lifecycle.unmount();
+  });
+
+  it("draws standard heading icons that open and shut with their group", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    for (const [groupingKey, region, toggle, shut, open] of [
+      ["builtin:sections", "Release group", "Release section", "Archive", "Archive02"],
+      ["builtin:projects", "Storefront group", "Storefront project", "Folder01", "Folder02"],
+    ] as const) {
+      window.localStorage.setItem(
+        "bb.plugin.ribbon-sidebar.preferences.v1",
+        JSON.stringify({ view: { scope: { kind: "all" }, groupingKey }, collapsed: [] }),
+      );
+      const fixture = options({
+        settings: { ...options().value.settings, groupHeaderIcons: "Standardized" },
+      });
+      const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+      const header = (await slot.findByRole("region", { name: region }))
+        .querySelector<HTMLElement>('[data-sidebar="group-label"]')!;
+      // One glyph for every section or project, not the one each chose.
+      expect(header.querySelector("[data-ribbon-sidebar-icon]")).toBeNull();
+      expect(header.querySelector(`[data-icon="${open}"]`)).not.toBeNull();
+      fireEvent.click(slot.getByRole("button", { name: `Collapse ${toggle}` }));
+      await slot.findByRole("button", { name: `Expand ${toggle}` });
+      expect(header.querySelector(`[data-icon="${shut}"]`)).not.toBeNull();
+      expect(header.querySelector(`[data-icon="${open}"]`)).toBeNull();
+      slot.lifecycle.unmount();
+    }
   });
 
   it("moves a root from the thread's section menu", async () => {

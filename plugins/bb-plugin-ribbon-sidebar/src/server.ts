@@ -257,7 +257,7 @@ export const rpcContract = defineRpcContract({
         showProjectsAndSections: z.boolean().optional(),
         showMessagePreviews: z.boolean().optional(),
         showCollapsedGroupIndicators: z.boolean().optional(),
-        showGroupHeaderIcons: z.boolean().optional(),
+        groupHeaderIcons: z.enum(["On", "Off", "Standardized"]).optional(),
       })
       .strict(),
     output: z.object({ ok: z.literal(true) }).strict(),
@@ -399,11 +399,13 @@ export default async function plugin(bb: BbPluginApi) {
       description: "Show live activity indicators on collapsed sections.",
       default: false,
     },
-    showGroupHeaderIcons: {
-      type: "boolean",
-      label: "Show group header icons",
-      description: "Show each group’s icon beside its sidebar heading.",
-      default: true,
+    groupHeaderIcons: {
+      type: "select",
+      label: "Group header icons",
+      description:
+        "Show each group’s own icon beside its heading, none, or one standard icon for every section and project that opens and shuts with it.",
+      options: ["On", "Off", "Standardized"],
+      default: "On",
     },
     shimmerWorkingRows: {
       type: "boolean",

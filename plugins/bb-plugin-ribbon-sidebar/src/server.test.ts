@@ -499,11 +499,13 @@ describe("Ribbon sidebar server", () => {
         description: "Show live activity indicators on collapsed sections.",
         default: false,
       },
-      showGroupHeaderIcons: {
-        type: "boolean",
-        label: "Show group header icons",
-        description: "Show each group’s icon beside its sidebar heading.",
-        default: true,
+      groupHeaderIcons: {
+        type: "select",
+        label: "Group header icons",
+        description:
+          "Show each group’s own icon beside its heading, none, or one standard icon for every section and project that opens and shuts with it.",
+        options: ["On", "Off", "Standardized"],
+        default: "On",
       },
       shimmerWorkingRows: {
         type: "boolean",
@@ -1208,7 +1210,7 @@ describe("Ribbon sidebar server", () => {
         showProjectsAndSections: false,
         showMessagePreviews: false,
         showCollapsedGroupIndicators: true,
-        showGroupHeaderIcons: false,
+        groupHeaderIcons: "Off",
       }),
     ).resolves.toEqual({ ok: true });
     expect(updateSettings).toHaveBeenCalledWith({
@@ -1217,7 +1219,7 @@ describe("Ribbon sidebar server", () => {
         showProjectsAndSections: false,
         showMessagePreviews: false,
         showCollapsedGroupIndicators: true,
-        showGroupHeaderIcons: false,
+        groupHeaderIcons: "Off",
       },
     });
   });
