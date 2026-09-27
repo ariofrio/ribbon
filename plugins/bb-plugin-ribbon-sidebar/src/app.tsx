@@ -166,11 +166,21 @@ function descendants(
   return result;
 }
 
+// Every row asks for its root, several times a render, of the same list.
+const threadsById = new WeakMap<
+  readonly PluginSidebarThread[],
+  Map<string, PluginSidebarThread>
+>();
+
 function rootForThread(
   threadId: string,
   threads: readonly PluginSidebarThread[],
 ): PluginSidebarThread | undefined {
-  const byId = new Map(threads.map((thread) => [thread.id, thread]));
+  let byId = threadsById.get(threads);
+  if (!byId) {
+    byId = new Map(threads.map((thread) => [thread.id, thread]));
+    threadsById.set(threads, byId);
+  }
   let current = byId.get(threadId);
   const visited = new Set<string>();
   while (

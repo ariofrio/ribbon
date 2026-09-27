@@ -66,24 +66,27 @@ export function GroupBody({
       return;
     }
     const closing = phase === "closing";
-    const animations = foldingPieces(element, kept).map((piece) => {
+    // Read every size first, then start animating, so one layout serves all.
+    const pieces = foldingPieces(element, kept);
+    const shown = pieces.map((piece) => {
       const style = getComputedStyle(piece);
-      const shown = {
+      return {
         height: `${piece.getBoundingClientRect().height}px`,
         marginTop: style.marginTop,
         marginBottom: style.marginBottom,
         opacity: 1,
       };
-      const hidden = { height: "0px", marginTop: "0px", marginBottom: "0px", opacity: 0 };
+    });
+    const keptMargin = getComputedStyle(kept).marginTop;
+    const hidden = { height: "0px", marginTop: "0px", marginBottom: "0px", opacity: 0 };
+    const animations = pieces.map((piece, index) => {
       piece.style.overflow = "hidden";
-      return piece.animate(closing ? [shown, hidden] : [hidden, shown], {
-        duration: FOLD_MS,
-        easing: FOLD_EASING,
-        fill: closing ? "forwards" : "none",
-      });
+      return piece.animate(
+        closing ? [shown[index]!, hidden] : [hidden, shown[index]!],
+        { duration: FOLD_MS, easing: FOLD_EASING, fill: closing ? "forwards" : "none" },
+      );
     });
     // The kept row becomes the first in view; it sits flush like a preview.
-    const keptMargin = getComputedStyle(kept).marginTop;
     animations.push(
       kept.animate(
         closing
@@ -103,7 +106,7 @@ export function GroupBody({
     return () => {
       cancelled = true;
       for (const animation of animations) animation.cancel();
-      for (const piece of foldingPieces(element, kept)) piece.style.overflow = "";
+      for (const piece of pieces) piece.style.overflow = "";
     };
   }, [phase, keeping, keepThreadId]);
 
