@@ -1955,8 +1955,13 @@ describe("Ribbon sidebar app", () => {
       await slot.findByRole("button", { name: `Expand ${toggle}` });
       expect(header.querySelector(`[data-icon="${shut}"]`)).not.toBeNull();
       expect(header.querySelector(`[data-icon="${open}"]`)).toBeNull();
-      // The shut book has no spine line inside its cover.
+      // The shut book has no spine line inside its cover, and is drawn at
+      // its size rather than scaled, so its stroke is the usual weight.
       expect(header.querySelector('path[d="M8 2V18"]')).toBeNull();
+      for (const path of Array.from(header.querySelectorAll(`[data-icon="${shut}"] path`))) {
+        expect(path.getAttribute("transform")).toBeNull();
+        expect(path.getAttribute("stroke-width")).toBe("1.5");
+      }
       slot.lifecycle.unmount();
     }
   });

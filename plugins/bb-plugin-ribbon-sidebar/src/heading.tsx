@@ -1,5 +1,4 @@
 import {
-  Book03Icon,
   BookOpen01Icon,
   Folder02Icon,
   FolderClosedIcon,
@@ -99,25 +98,40 @@ export function HeadingChevron({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-// book-open-01 spans y 3.5 to 20.5; book-03 spans y 2 to 22.
-const SHUT_BOOK_SCALE = 17 / 20;
+const stroke = {
+  stroke: "currentColor",
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  strokeWidth: "1.5",
+} as const;
 
 /**
- * book-03 as the open book folded shut: without the spine line inside its
- * cover, and scaled about its centre to the open book's height, so opening a
- * section reads as the one book spreading out. The stroke is widened by the
- * same factor, so it still draws at the weight every other icon does.
+ * book-03 as book-open-01 folded shut: without the spine line inside its
+ * cover, its cover spans the open book's pages (y 3.5 to 18) and its page
+ * strip the open book's spine (y 18 to 20.5), at 85% of its width about the
+ * centre. Opening a section then reads as this one book spreading out.
+ *
+ * Remapped point by point rather than transformed, so the stroke keeps the
+ * weight every other icon draws at.
  */
-const ShutBookIcon: IconSvgElement = Book03Icon.filter(
-  ([, attrs]) => attrs.d !== "M8 2V18",
-).map(([tag, attrs]) => [
-  tag,
-  {
-    ...attrs,
-    strokeWidth: String(1.5 / SHUT_BOOK_SCALE),
-    transform: `translate(12 12) scale(${SHUT_BOOK_SCALE}) translate(-12 -12)`,
-  },
-]);
+const ShutBookIcon: IconSvgElement = [
+  [
+    "path",
+    {
+      d: "M18.8 20.5H6.9C5.961 20.5 5.2 19.94 5.2 19.25M5.2 19.25C5.2 18.56 5.961 18 6.9 18H18.8V7.125C18.8 5.416 18.8 4.562 18.302 4.031C17.804 3.5 17.003 3.5 15.4 3.5H10.3C7.896 3.5 6.694 3.5 5.947 4.296C5.2 5.093 5.2 6.374 5.2 8.938V19.25Z",
+      ...stroke,
+      key: "0",
+    },
+  ],
+  [
+    "path",
+    {
+      d: "M18.375 18C18.375 18 17.525 18.477 17.525 19.25C17.525 20.023 18.375 20.5 18.375 20.5",
+      ...stroke,
+      key: "1",
+    },
+  ],
+];
 
 const STANDARD_ICONS: Record<
   "project" | "section",
