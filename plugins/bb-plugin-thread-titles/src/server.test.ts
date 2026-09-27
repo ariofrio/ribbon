@@ -36,6 +36,11 @@ async function setup() {
   const updates: Array<Record<string, unknown>> = [];
   const workerEvents: Array<Record<string, unknown>> = [];
   let notify: ((event: unknown) => unknown) | undefined;
+  const catalogs: Record<string, string[]> = {
+    codex: ["gpt-5.4-mini", "gpt-5.6-luna", "gpt-6-luna"],
+    "claude-code": ["claude-haiku-4-5", "claude-sonnet-5"],
+  };
+  const modelQueries: Array<{ hostId?: string; providerId?: string }> = [];
   const host = createFakePluginHost({
     pluginId: "thread-titles",
     sdk: {
@@ -81,25 +86,27 @@ async function setup() {
         list: async () => [{ id: "personal", kind: "personal" }] as never,
       },
       providers: {
-        models: async () => ({
-          providers: [],
-          permissionCeiling: "accept-edits",
-          models: [
-            {
-              id: "gpt-5.6-luna",
-              model: "gpt-5.6-luna",
-              displayName: "Luna",
+        models: async ({ hostId, providerId }: { hostId?: string; providerId?: string } = {}) => {
+          modelQueries.push({ hostId, providerId });
+          return {
+            providers: [],
+            permissionCeiling: "accept-edits",
+            models: (catalogs[providerId ?? ""] ?? []).map((name) => ({
+              id: name,
+              model: name,
+              displayName: name,
               description: "",
               supportedReasoningEfforts: [
                 { reasoningEffort: "low", description: "" },
+                { reasoningEffort: "medium", description: "" },
               ],
-              defaultReasoningEffort: "low",
+              defaultReasoningEffort: "medium",
               isDefault: false,
-            },
-          ],
-          selectedOnlyModels: [],
-          modelLoadError: null,
-        }),
+            })),
+            selectedOnlyModels: [],
+            modelLoadError: null,
+          } as never;
+        },
       },
     },
   });
@@ -143,6 +150,8 @@ async function setup() {
     workerEvents,
     spawned,
     updates,
+    catalogs,
+    modelQueries,
     emit,
     user,
     endTurn,
@@ -651,4 +660,225 @@ it("recovers the second worker without mistaking the archived first worker for i
   expect(h.spawned).toHaveLength(2);
   expect(h.updates).toHaveLength(2);
   expect(h.thread.title).toBe("Build a shared calendar");
+});
+
+async function firstTurn(h: Awaited<ReturnType<typeof setup>>) {
+  await h.harness.behavior.emitThreadEvent("thread.created", {
+    thread: h.thread,
+  });
+  h.thread.title = "Build a calendar";
+  h.user("Build a useful calendar application");
+  h.endTurn();
+  await h.emit();
+}
+
+it("suggests the newest Codex Luna model until a model is selected", async () => {
+  const h = await setup();
+  expect(await h.harness.behavior.callRpc("selection.get", null)).toEqual({
+    selection: null,
+    suggestion: {
+      providerId: "codex",
+      model: "gpt-6-luna",
+      reasoningLevel: "low",
+    },
+    automaticName: "gpt-6-luna",
+  });
+  expect(h.modelQueries.at(-1)?.hostId).toBeUndefined();
+});
+
+it("titles every thread with the newest Codex Luna model by default", async () => {
+  const h = await setup();
+  h.thread.providerId = "claude-code";
+  await firstTurn(h);
+  expect(h.spawned[0]).toMatchObject({
+    providerId: "codex",
+    model: "gpt-6-luna",
+    reasoningLevel: "low",
+    environment: { type: "host", hostId: "host" },
+  });
+});
+
+it("uses the next Luna model when the thread's machine lacks the newest", async () => {
+  const h = await setup();
+  h.catalogs.codex = ["gpt-5.4-mini", "gpt-5.6-luna"];
+  await firstTurn(h);
+  expect(h.spawned[0]).toMatchObject({
+    providerId: "codex",
+    model: "gpt-5.6-luna",
+  });
+});
+
+it("skips a thread whose machine offers no Codex Luna model", async () => {
+  const h = await setup();
+  h.catalogs.codex = ["gpt-5.4-mini"];
+  await firstTurn(h);
+  expect(h.spawned).toHaveLength(0);
+});
+
+it("runs every title worker on the selected model on the thread's host", async () => {
+  const h = await setup();
+  const selection = {
+    providerId: "claude-code",
+    model: "claude-sonnet-5",
+    reasoningLevel: "medium",
+    serviceTier: "fast",
+  };
+  await h.harness.behavior.callRpc("selection.set", { selection });
+  expect(await h.harness.behavior.callRpc("selection.get", null)).toMatchObject(
+    { selection },
+  );
+  await firstTurn(h);
+  expect(h.spawned).toHaveLength(1);
+  expect(h.spawned[0]).toMatchObject({
+    ...selection,
+    environment: { type: "host", hostId: "host" },
+  });
+  expect(h.modelQueries.at(-1)).toEqual({
+    hostId: "host",
+    providerId: "claude-code",
+  });
+});
+
+it("skips when the selected model is unavailable on the thread's host", async () => {
+  const h = await setup();
+  await h.harness.behavior.callRpc("selection.set", {
+    selection: {
+      providerId: "claude-code",
+      model: "claude-sonnet-5",
+      reasoningLevel: "medium",
+    },
+  });
+  h.catalogs["claude-code"] = ["claude-haiku-4-5"];
+  await firstTurn(h);
+  expect(h.spawned).toHaveLength(0);
+  vi.setSystemTime(Date.now() + 300_000);
+  h.catalogs["claude-code"] = ["claude-sonnet-5"];
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(0);
+});
+
+it("returns to the automatic choice when the selection is cleared", async () => {
+  const h = await setup();
+  await h.harness.behavior.callRpc("selection.set", {
+    selection: {
+      providerId: "claude-code",
+      model: "claude-sonnet-5",
+      reasoningLevel: "medium",
+    },
+  });
+  await h.harness.behavior.callRpc("selection.set", { selection: null });
+  await firstTurn(h);
+  expect(h.spawned[0]).toMatchObject({
+    providerId: "codex",
+    model: "gpt-6-luna",
+    reasoningLevel: "low",
+  });
+  expect(h.spawned[0]).not.toHaveProperty("serviceTier");
+});
+
+it("rejects a selection that names no model", async () => {
+  const h = await setup();
+  await expect(
+    h.harness.behavior.callRpc("selection.set", {
+      selection: { providerId: "codex", model: "", reasoningLevel: "low" },
+    }),
+  ).rejects.toThrow();
+});
+
+async function failWorker(
+  h: Awaited<ReturnType<typeof setup>>,
+  category: string,
+) {
+  h.worker.status = "error";
+  h.workerEvents.push(
+    { seq: 1, type: "provider/error", data: { errorInfo: { category, httpStatusCode: 429, providerCode: null } } },
+    { seq: 2, type: "turn/completed", data: { status: "failed" } },
+  );
+  await h.harness.behavior.emitThreadEvent("thread.failed", {
+    thread: h.worker,
+    error: null,
+  });
+}
+
+async function recoverWorker(h: Awaited<ReturnType<typeof setup>>) {
+  h.worker.id = "fallback-worker";
+  h.worker.status = "active";
+  h.workerEvents.length = 0;
+}
+
+it("retries once on the next Luna model after a transient failure", async () => {
+  const h = await setup();
+  await firstTurn(h);
+  await failWorker(h, "rate-limit");
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned.map((spawn) => spawn.model)).toEqual([
+    "gpt-6-luna",
+    "gpt-5.6-luna",
+  ]);
+  await recoverWorker(h);
+  h.worker.status = "idle";
+  h.workerEvents.push({ seq: 1, type: "turn/completed", data: { status: "completed" } });
+  await h.harness.behavior.emitThreadEvent("thread.idle", {
+    thread: h.worker,
+    lastAssistantText: null,
+  });
+  expect(h.updates).toEqual([
+    { threadId: "real", title: "Build a shared calendar" },
+  ]);
+});
+
+it("falls back after the worker times out, then never a third time", async () => {
+  const h = await setup();
+  await firstTurn(h);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  vi.setSystemTime(Date.now() + 120_000);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned.map((spawn) => spawn.model)).toEqual([
+    "gpt-6-luna",
+    "gpt-5.6-luna",
+  ]);
+  await recoverWorker(h);
+  await failWorker(h, "overloaded");
+  vi.setSystemTime(Date.now() + 300_000);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(2);
+});
+
+it("does not fall back after a permanent failure or from a selected model", async () => {
+  const h = await setup();
+  await firstTurn(h);
+  await failWorker(h, "unauthorized");
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(1);
+
+  const selected = await setup();
+  await selected.harness.behavior.callRpc("selection.set", {
+    selection: { providerId: "codex", model: "gpt-5.6-luna", reasoningLevel: "low" },
+  });
+  await firstTurn(selected);
+  await failWorker(selected, "rate-limit");
+  await selected.harness.behavior.runSchedule("title-reconciliation");
+  expect(selected.spawned).toHaveLength(1);
+});
+
+it("recovers a lost fallback spawn without adopting the failed worker", async () => {
+  const h = await setup();
+  await firstTurn(h);
+  await failWorker(h, "rate-limit");
+  h.harness.inspection.sdk.stub("threads.spawn", async () => {
+    throw new Error("connection reset");
+  });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  const next = await h.harness.lifecycle.reload(plugin);
+  cleanups.push(() => next.harness.lifecycle.dispose());
+  next.harness.inspection.sdk.stub("threads.list", async ({ offset }) =>
+    (offset ? [] : [h.worker]) as never,
+  );
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.updates).toHaveLength(0);
+  expect(h.spawned).toHaveLength(1);
+  expect(next.harness.inspection.logEntries.map((entry) => entry.message)).toContain(
+    "Thread real: title refinement skipped (Interrupted before worker creation could be confirmed)",
+  );
 });

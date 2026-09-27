@@ -164,14 +164,19 @@ export async function verifyThreadIndicators({ stack, fixture }) {
       if (provider !== "__builtin__") {
         const motion = await row.evaluate((node) => {
           const ring = node.querySelector('[class*="animate-spin"]');
+          const shining = node.querySelector("[data-ribbon-shine]");
           return {
             rowAnimation: getComputedStyle(node).animationName,
             rowDelay: getComputedStyle(node).animationDelay,
             ringDelay: ring ? getComputedStyle(ring).animationDelay : null,
+            rowWidth: node.getBoundingClientRect().width,
+            waveWidth: shining ? parseFloat(getComputedStyle(shining).maskSize) : null,
           };
         });
         assert.equal(motion.rowAnimation, "ribbon-shine");
         assert.equal(motion.ringDelay, motion.rowDelay);
+        assert.ok(Math.abs(motion.waveWidth - motion.rowWidth * 2) < 1,
+          `shimmer wave ${motion.waveWidth}px should span twice the ${motion.rowWidth}px row`);
       }
       runtime = "idle";
       await clearDraft();

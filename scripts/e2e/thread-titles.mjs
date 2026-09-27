@@ -13,7 +13,17 @@ async function until(check, label) {
 export async function verifyThreadTitles({ stack, fixture }) {
   const { run, runJson } = fixture;
   const transcriptsPath = join(stack.dataDir, "transcripts.json");
-  run(["plugin", "config", "thread-titles", "set", "model", "fixture"]);
+  const selected = await fetch(
+    new URL("/api/v1/plugins/thread-titles/rpc/selection.set", stack.serverUrl),
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        selection: { providerId: "acp-screenshots", model: "fixture", reasoningLevel: "low" },
+      }),
+    },
+  );
+  assert.ok(selected.ok, await selected.text());
   for (const [initialTitle, decision, expectedTitle] of [
     ["Calendar", { action: "rename", reason: "generic", title: "Build a shared calendar" }, "Build a shared calendar"],
     ["Build a shared calendar", { action: "keep" }, "Build a shared calendar"],

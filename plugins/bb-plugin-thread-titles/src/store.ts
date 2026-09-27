@@ -17,6 +17,13 @@ export interface Job {
   proposed: string | null;
   snapshotSeq: number;
   intentHash: string | null;
+  // The worker ran on the automatic model rather than a selected one.
+  automatic?: boolean;
+  model?: string | null;
+  // This phase's one retry, on the automatic fallback model, has started.
+  onFallback?: boolean;
+  // Failed workers, never recovered as a later worker in any phase.
+  failedWorkerIds?: string[];
 }
 
 export function createStore(bb: BbPluginApi) {
