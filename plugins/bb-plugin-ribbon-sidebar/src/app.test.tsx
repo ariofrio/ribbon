@@ -1932,8 +1932,8 @@ describe("Ribbon sidebar app", () => {
   it("draws standard heading icons that open and shut with their group", async () => {
     const app = await loadPluginApp(() => import("./app"));
     for (const [groupingKey, region, toggle, shut, open] of [
-      ["builtin:sections", "Release group", "Release section", "BookClosed", "BookOpen01"],
-      ["builtin:sections", "Unorganized group", "Unorganized section", "BookClosed", "BookOpen01"],
+      ["builtin:sections", "Release group", "Release section", "BookClosed", "BookOpen"],
+      ["builtin:sections", "Unorganized group", "Unorganized section", "BookClosed", "BookOpen"],
       ["builtin:projects", "Storefront group", "Storefront project", "FolderClosed", "Folder02"],
     ] as const) {
       window.localStorage.setItem(

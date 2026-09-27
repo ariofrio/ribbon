@@ -230,8 +230,8 @@ export async function verifyThreadIcons({ stack, fixture }) {
     {
       fixture.run(["plugin", "config", "ribbon-sidebar", "set", "groupHeaderIcons", "Standardized"]);
       const standard = (name) => atlas.locator(`svg[data-icon="${name}"]`);
-      await standard("BookOpen01").waitFor();
-      const glyph = await standard("BookOpen01").evaluate((svg) => {
+      await standard("BookOpen").waitFor();
+      const glyph = await standard("BookOpen").evaluate((svg) => {
         const box = svg.getBoundingClientRect();
         const label = svg.closest('[data-sidebar="group-label"]').querySelector('span[title="Atlas"]');
         return { width: box.width, height: box.height, color: getComputedStyle(svg).color, ink: getComputedStyle(label).color };
@@ -246,13 +246,15 @@ export async function verifyThreadIcons({ stack, fixture }) {
         const boxes = [...svg.querySelectorAll("path")].map((path) => path.getBoundingClientRect());
         return Math.max(...boxes.map((box) => box.bottom)) - Math.min(...boxes.map((box) => box.top));
       });
-      const openHeight = await drawnHeight("BookOpen01");
+      const openHeight = await drawnHeight("BookOpen");
       await atlas.getByRole("button", { name: "Collapse Atlas section", exact: true }).click();
       await standard("BookClosed").waitFor();
       const shutHeight = await drawnHeight("BookClosed");
-      assert.ok(Math.abs(shutHeight - openHeight) < 0.25, `The shut book should be as tall as the open one: ${shutHeight} vs ${openHeight}`);
+      // Both books are as tall as the folders: 18 of 24 units, 12px at 16px.
+      assert.ok(Math.abs(openHeight - 12) < 0.25, `The open book should be 12px tall: ${openHeight}`);
+      assert.ok(Math.abs(shutHeight - 12) < 0.25, `The shut book should be 12px tall: ${shutHeight}`);
       await atlas.getByRole("button", { name: "Expand Atlas section", exact: true }).click();
-      await standard("BookOpen01").waitFor();
+      await standard("BookOpen").waitFor();
       fixture.run(["plugin", "config", "ribbon-sidebar", "set", "groupHeaderIcons", "On"]);
       await atlas.locator("[data-ribbon-sidebar-icon]").waitFor();
     }
