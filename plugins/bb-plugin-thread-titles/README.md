@@ -17,8 +17,9 @@ required.
 
 ## Behavior
 
-When the first turn ends, a fresh hidden worker generates a concise title on
-the source thread's provider and host, in a personal workspace. It receives the
+When the first turn ends, a fresh hidden worker generates a concise title with
+the title model (see [Settings](#settings)) on the source thread's machine, in a
+personal workspace. It receives the
 complete recorded transcript as quoted data and is instructed to return a title
 without tools. Completion is read from durable turn history, so a missed event
 or restart does not lose the trigger.
@@ -46,20 +47,22 @@ events, including across restarts, but never repeats an ambiguous worker creatio
 or title write. If the initial stored title appeared
 while the plugin was offline and its baseline is unknown, the update is skipped.
 A destructive history edit or context clear during generation cancels the job.
-Each phase is claimed at most once. A completed first pass saves the resulting
+Each phase starts at most one worker, plus the single fallback retry, and
+recovery never adopts a failed worker. A completed first pass saves the resulting
 title as the baseline for the third-message assessment; a completed assessment
 or skipped job is never retried. Previously completed jobs are not backfilled.
 
 ## Settings
 
-By default, Codex uses an available Luna model and Claude Code uses Haiku.
-Other providers require an explicit model ID. The model must be available on the
-source thread's provider:
+Choose the title model under **Title model** on the plugin's settings page,
+using bb's own provider, model, and reasoning picker. Every title worker then
+runs that selection on the source thread's machine, whatever the thread's own
+provider. A machine without the selected model skips the thread.
 
-```sh
-bb plugin config thread-titles set model gpt-5.6-luna
-bb plugin config thread-titles unset model
-```
+**Use automatic** clears the selection. Automatic titling runs what bb's own
+Codex title service runs: the newest Luna model in the Codex catalog of the
+thread's machine, at the lowest reasoning level, whatever the thread's own
+provider. A thread whose machine offers no Luna model is skipped.
 
 The default transcript limit is 200,000 UTF-8 bytes. Larger transcripts are
 skipped in full, never truncated. Configure a limit between 1,000 and 2,000,000
@@ -71,7 +74,10 @@ bb plugin config thread-titles set maxTranscriptBytes 200000
 
 Workers that fail, request an interaction, attempt tools, return invalid JSON,
 or exceed two minutes of observed execution time are skipped. Waiting for bb's
-concurrency admission does not consume that execution timeout.
+concurrency admission does not consume that execution timeout. As in bb's own
+Codex title service, an automatic worker that times out or fails with a rate
+limit, overload, or lost connection is retried once on the next newest Luna
+model. A selected model is never retried.
 
 Inspect outcomes with `bb plugin logs thread-titles`.
 

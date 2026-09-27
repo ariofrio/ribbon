@@ -82,7 +82,20 @@ it("ignores new appended turns but detects context clearing after a snapshot", (
 it("uses only public plugin APIs", () => {
   const scan = experimental_scanPublicSdkOnly(
     fileURLToPath(new URL("..", import.meta.url)),
-    { allow: [/^zod$/, /^vitest\/config$/] },
+    {
+      allow: [
+        /^zod$/,
+        /^vitest\/config$/,
+        /^react$/,
+        /^@testing-library\/react$/,
+        // bb's own vendored UI and what it imports.
+        /^@\/vendor\//,
+        /^@radix-ui\/react-slot$/,
+        /^class-variance-authority$/,
+        /^clsx$/,
+        /^tailwind-merge$/,
+      ],
+    },
   );
   expect(scan.violations).toEqual([]);
   expect(scan.privateDependencies).toEqual([]);

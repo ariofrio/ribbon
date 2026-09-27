@@ -59,6 +59,9 @@
     "plugins/bb-plugin-ribbon-sidebar/src/vendor/components/ui/tooltip.tsx": "sha256-pfn1njL0QgIHxXF1Jjb97x02OJiSsfjF0i7+zHE/9q4=",
     "plugins/bb-plugin-ribbon-sidebar/src/vendor/hooks/useBrowserDimmingModal.ts": "sha256-Psct6KnDnpSx4wVqredwge7TFBoGfynYVQmK0/DzIMA=",
     "plugins/bb-plugin-ribbon-sidebar/src/vendor/lib/portal-scope.ts": "sha256-y/I+gcRDZYWl5VpIk1kdDMIsGJ9U0ATXDLfhqMxy+Yg=",
-    "plugins/bb-plugin-ribbon-sidebar/src/vendor/lib/utils.ts": "sha256-vr6aUNRqtgngie1XhQc2MRDM7ImQ1z+puGxY8iH1cKw="
+    "plugins/bb-plugin-ribbon-sidebar/src/vendor/lib/utils.ts": "sha256-vr6aUNRqtgngie1XhQc2MRDM7ImQ1z+puGxY8iH1cKw=",
+    "plugins/bb-plugin-thread-titles/src/vendor/components/ui/button.tsx": "sha256-0NKnWzoi0kR8yGQbp06XoqHiHzHr26AEQ/50+aXChRs=",
+    "plugins/bb-plugin-thread-titles/src/vendor/components/ui/motion.ts": "sha256-yWZQ5ENqVPIoDv74qVOxYL6uMARPNvevShRiltWFn4I=",
+    "plugins/bb-plugin-thread-titles/src/vendor/lib/utils.ts": "sha256-vr6aUNRqtgngie1XhQc2MRDM7ImQ1z+puGxY8iH1cKw="
   }
 }

@@ -23,6 +23,9 @@
       "dropdown-menu",
       "input",
       "tooltip"
+    ],
+    "plugins/bb-plugin-thread-titles": [
+      "button"
     ]
   },
   "literals": [
