@@ -18,6 +18,7 @@ export const HEADING_TEXT_CLASS =
   "text-[color:var(--ribbon-heading-on,currentColor)]";
 export const HEADING_MUTED_CLASS =
   "text-[color:var(--ribbon-heading-on,var(--subtle-foreground))]";
+export const HEADING_ACTION_CLASS = `${HEADING_MUTED_CLASS} hover:bg-white/15 hover:text-[color:var(--ribbon-heading-hover-on)] focus-visible:bg-white/15 focus-visible:text-[color:var(--ribbon-heading-hover-on)] data-[state=open]:bg-white/15 data-[state=open]:text-[color:var(--ribbon-heading-hover-on)] data-[state=open]:hover:bg-white/15`;
 
 /**
  * Every heading is a faint wash with ink on it. A project or section whose icon
@@ -34,6 +35,7 @@ export function headingColorStyle(kind?: "project" | "section"): CSSProperties {
     return {
       backgroundColor: GRAY.fill,
       ["--ribbon-heading-on" as string]: GRAY.ink,
+      ["--ribbon-heading-hover-on" as string]: GRAY.hoverInk,
     };
   }
   const color = `var(--ribbon-icons-${kind}-color-light)`;
@@ -42,17 +44,21 @@ export function headingColorStyle(kind?: "project" | "section"): CSSProperties {
   return {
     ["--ribbon-heading-fill" as string]: tone(FILL.light, FILL.dark),
     ["--ribbon-heading-ink" as string]: tone(INK.light, INK.dark),
+    ["--ribbon-heading-hover-ink" as string]: tone(HOVER_INK.light, HOVER_INK.dark),
     backgroundColor: `var(--ribbon-heading-fill, ${GRAY.fill})`,
     ["--ribbon-heading-on" as string]: `var(--ribbon-heading-ink, ${GRAY.ink})`,
+    ["--ribbon-heading-hover-on" as string]: `var(--ribbon-heading-hover-ink, ${GRAY.hoverInk})`,
   };
 }
 
 /** Lightness and chroma per mode; the hue is the palette color's own. */
 const FILL = { light: "0.95 0.025", dark: "0.28 0.035" };
 const INK = { light: "0.47 0.13", dark: "0.82 0.11" };
+const HOVER_INK = { light: "0.53 0.16", dark: "0.94 0.13" };
 const GRAY = {
   fill: "light-dark(oklch(0.95 0 0), oklch(0.28 0 0))",
   ink: "light-dark(oklch(0.47 0 0), oklch(0.82 0 0))",
+  hoverInk: "light-dark(oklch(0.53 0 0), oklch(0.94 0 0))",
 };
 
 /**

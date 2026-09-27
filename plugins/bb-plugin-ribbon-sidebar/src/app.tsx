@@ -33,7 +33,7 @@ import { CHROME_GROUP_HEADING_CLASS } from "./chrome-style-tokens";
 import { GroupBody } from "./group-body";
 import {
   HEADING_ICON_STYLE,
-  HEADING_MUTED_CLASS,
+  HEADING_ACTION_CLASS,
   HEADING_TEXT_CLASS,
   HEADING_TOGGLE_CLASS,
   STICKY_HEADING_STYLE,
@@ -2319,7 +2319,7 @@ function RibbonSidebarList({
                         variant="ghost"
                         size="icon"
                         type="button"
-                        className={`bb-sidebar-hover-actions relative z-20 m-1 size-5 shrink-0 p-0 ${HEADING_MUTED_CLASS} ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2`}
+                        className={`bb-sidebar-hover-actions relative z-20 m-1 size-5 shrink-0 p-0 ${HEADING_ACTION_CLASS} ring-sidebar-ring focus-visible:ring-2`}
                         aria-label={`New thread in ${group.label}`}
                         onClick={() =>
                           actions.openNewThread({

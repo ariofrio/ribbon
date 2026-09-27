@@ -138,6 +138,46 @@ export async function verifyThreadIcons({ stack, fixture }) {
       assert.deepEqual([lightness, chroma], expected, `The Atlas heading's ${part} should use the ${painted.scheme} heading tone`);
       assert.ok(Math.abs(hue - paletteHue) < 0.5, `The Atlas heading's ${part} should keep its color's hue (${hue} vs ${paletteHue})`);
     }
+
+    const headingButtons = [
+      atlas.getByRole("button", { name: "New thread in Atlas" }),
+      atlas.getByRole("button", { name: "Atlas options" }),
+    ];
+    for (const scheme of ["light", "dark"]) {
+      await page.evaluate((value) => {
+        document.documentElement.style.colorScheme = value;
+      }, scheme);
+      await atlas.hover();
+      const labelColor = await atlas.locator('span[title="Atlas"]').evaluate((node) =>
+        getComputedStyle(node).color);
+      const [labelLightness, , labelHue] = oklch(labelColor);
+      for (const button of headingButtons) {
+        await button.hover();
+        const hover = await button.evaluate((node) => {
+          for (const animation of node.getAnimations()) animation.finish();
+          const style = getComputedStyle(node);
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d");
+          context.fillStyle = style.backgroundColor;
+          context.fillRect(0, 0, 1, 1);
+          return {
+            color: style.color,
+            fill: [...context.getImageData(0, 0, 1, 1).data],
+          };
+        });
+        const [lightness, , hue] = oklch(hover.color);
+        assert.ok(lightness > labelLightness,
+          `${scheme} heading button ink should be brighter than the label`);
+        assert.ok(Math.abs(hue - labelHue) < 0.5,
+          `${scheme} heading button ink should keep the section hue`);
+        assert.deepEqual(hover.fill, [255, 255, 255, 38],
+          `${scheme} heading button hover should use 15% white`);
+      }
+    }
+    await page.evaluate(() => {
+      document.documentElement.style.removeProperty("color-scheme");
+    });
+
     // A heading is laid out like a thread row: the same height, padding, and
     // icon and label positions, 4px above its first row.
     const layout = await atlas.evaluate((node) => {

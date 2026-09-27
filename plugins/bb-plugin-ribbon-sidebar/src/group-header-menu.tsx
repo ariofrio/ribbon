@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "./vendor/components/ui/dropdown-menu";
 import { CompactViewportOverrideProvider } from "./vendor/components/ui/hooks/use-compact-viewport";
-import { HEADING_MUTED_CLASS } from "./heading";
+import { HEADING_ACTION_CLASS } from "./heading";
 import { Icon } from "./vendor/components/ui/icon";
 
 export type HeaderGroupActions = {
@@ -52,7 +52,7 @@ export function GroupHeaderMenu({
                 variant="ghost"
                 size="icon"
                 aria-label={`${label} options`}
-                className={`relative m-1 size-5 shrink-0 p-0 ${HEADING_MUTED_CLASS} ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2`}
+                className={`relative m-1 size-5 shrink-0 p-0 ${HEADING_ACTION_CLASS} ring-sidebar-ring focus-visible:ring-2`}
                 type="button"
               >
                 <Icon aria-hidden className="size-4" name="MoreHorizontal" />
