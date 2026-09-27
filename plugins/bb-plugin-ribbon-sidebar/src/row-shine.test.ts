@@ -19,9 +19,9 @@ describe("row shimmer styles", () => {
     // Only while motion is welcome; reduced motion leaves content untouched.
     expect(css).toMatch(/^@media \(prefers-reduced-motion: no-preference\)\{/m);
     expect(css).toContain("var(--ribbon-shine-offset");
-    // A fixed wave like bb's on "Thinking…", however wide the row.
-    expect(css).toContain("mask-size:120px 100%");
-    expect(css).not.toContain("--ribbon-shine-width");
+    // Like bb's icon shimmer, one wave spans two element widths.
+    expect(css).toContain("mask-size:var(--ribbon-shine-width, 120px) 100%");
+    expect(css).toContain("var(--ribbon-shine) * var(--ribbon-shine-width, 120px)");
   });
 
   it("lets clicks through to the row's link", () => {

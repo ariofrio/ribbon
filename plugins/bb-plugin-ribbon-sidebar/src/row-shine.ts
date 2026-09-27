@@ -19,10 +19,9 @@ export const ACTIVE_ROW_ATTRIBUTE = "data-ribbon-active-row";
 export const SHINE_ATTRIBUTE = "data-ribbon-shine";
 
 // bb's shine: opacity runs from half to full and back across two element
-// widths, and the wave travels that far each second. A row keeps the wave bb
-// gives "Thinking…", whatever the row's width.
+// widths, and the wave travels that far each second.
 const SHINE_SECONDS = 1;
-const SHINE_WAVE = "120px";
+const SHINE_WAVE = "var(--ribbon-shine-width, 120px)";
 
 export function activeAnimationDelay(now: number): string {
   return `${-(now % (SHINE_SECONDS * 1000))}ms`;
@@ -82,6 +81,9 @@ export function useRowShine(
       Array.from(element.querySelectorAll<HTMLElement>(`[${SHINE_ATTRIBUTE}]`));
     const measure = () => {
       const bounds = element.getBoundingClientRect();
+      if (bounds.width > 0) {
+        element.style.setProperty("--ribbon-shine-width", `${bounds.width * 2}px`);
+      }
       for (const piece of pieces()) {
         piece.style.setProperty(
           "--ribbon-shine-offset",
