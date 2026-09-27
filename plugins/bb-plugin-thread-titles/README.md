@@ -47,7 +47,8 @@ events, including across restarts, but never repeats an ambiguous worker creatio
 or title write. If the initial stored title appeared
 while the plugin was offline and its baseline is unknown, the update is skipped.
 A destructive history edit or context clear during generation cancels the job.
-Each phase is claimed at most once. A completed first pass saves the resulting
+Each phase starts at most one worker, plus the single fallback retry, and
+recovery never adopts a failed worker. A completed first pass saves the resulting
 title as the baseline for the third-message assessment; a completed assessment
 or skipped job is never retried. Previously completed jobs are not backfilled.
 
@@ -80,7 +81,10 @@ bb plugin config thread-titles set maxTranscriptBytes 200000
 
 Workers that fail, request an interaction, attempt tools, return invalid JSON,
 or exceed two minutes of observed execution time are skipped. Waiting for bb's
-concurrency admission does not consume that execution timeout.
+concurrency admission does not consume that execution timeout. As in bb's own
+helper inference, a worker on `BB_INFERENCE` that times out or fails with a
+rate limit, overload, or lost connection is retried once on
+`BB_INFERENCE_FALLBACK`. A selected model is never retried.
 
 Inspect outcomes with `bb plugin logs thread-titles`.
 

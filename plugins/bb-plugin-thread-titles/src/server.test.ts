@@ -37,7 +37,7 @@ async function setup() {
   const workerEvents: Array<Record<string, unknown>> = [];
   let notify: ((event: unknown) => unknown) | undefined;
   const catalogs: Record<string, string[]> = {
-    codex: ["gpt-5.6-luna"],
+    codex: ["gpt-5.6-luna", "gpt-5.4-mini"],
     "claude-code": ["claude-haiku-4-5", "claude-sonnet-5"],
   };
   const modelQueries: Array<{ hostId?: string; providerId?: string }> = [];
@@ -799,4 +799,102 @@ it("rejects a selection that names no model", async () => {
       selection: { providerId: "codex", model: "", reasoningLevel: "low" },
     }),
   ).rejects.toThrow();
+});
+
+async function failWorker(
+  h: Awaited<ReturnType<typeof setup>>,
+  category: string,
+) {
+  h.worker.status = "error";
+  h.workerEvents.push(
+    { seq: 1, type: "provider/error", data: { errorInfo: { category, httpStatusCode: 429, providerCode: null } } },
+    { seq: 2, type: "turn/completed", data: { status: "failed" } },
+  );
+  await h.harness.behavior.emitThreadEvent("thread.failed", {
+    thread: h.worker,
+    error: null,
+  });
+}
+
+async function recoverWorker(h: Awaited<ReturnType<typeof setup>>) {
+  h.worker.id = "fallback-worker";
+  h.worker.status = "active";
+  h.workerEvents.length = 0;
+}
+
+it("retries once on bb's inference fallback after a transient failure", async () => {
+  const h = await setup();
+  await firstTurn(h);
+  await failWorker(h, "rate-limit");
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned.map((spawn) => spawn.model)).toEqual([
+    "gpt-5.6-luna",
+    "gpt-5.4-mini",
+  ]);
+  await recoverWorker(h);
+  h.worker.status = "idle";
+  h.workerEvents.push({ seq: 1, type: "turn/completed", data: { status: "completed" } });
+  await h.harness.behavior.emitThreadEvent("thread.idle", {
+    thread: h.worker,
+    lastAssistantText: null,
+  });
+  expect(h.updates).toEqual([
+    { threadId: "real", title: "Build a shared calendar" },
+  ]);
+});
+
+it("falls back after the worker times out, then never a third time", async () => {
+  const h = await setup();
+  await firstTurn(h);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  vi.setSystemTime(Date.now() + 120_000);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned.map((spawn) => spawn.model)).toEqual([
+    "gpt-5.6-luna",
+    "gpt-5.4-mini",
+  ]);
+  await recoverWorker(h);
+  await failWorker(h, "overloaded");
+  vi.setSystemTime(Date.now() + 300_000);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(2);
+});
+
+it("does not fall back after a permanent failure or from a selected model", async () => {
+  const h = await setup();
+  await firstTurn(h);
+  await failWorker(h, "unauthorized");
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(1);
+
+  const selected = await setup();
+  await selected.harness.behavior.callRpc("selection.set", {
+    selection: { providerId: "codex", model: "gpt-5.6-luna", reasoningLevel: "low" },
+  });
+  await firstTurn(selected);
+  await failWorker(selected, "rate-limit");
+  await selected.harness.behavior.runSchedule("title-reconciliation");
+  expect(selected.spawned).toHaveLength(1);
+});
+
+it("recovers a lost fallback spawn without adopting the failed worker", async () => {
+  const h = await setup();
+  await firstTurn(h);
+  await failWorker(h, "rate-limit");
+  h.harness.inspection.sdk.stub("threads.spawn", async () => {
+    throw new Error("connection reset");
+  });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  const next = await h.harness.lifecycle.reload(plugin);
+  cleanups.push(() => next.harness.lifecycle.dispose());
+  next.harness.inspection.sdk.stub("threads.list", async ({ offset }) =>
+    (offset ? [] : [h.worker]) as never,
+  );
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.updates).toHaveLength(0);
+  expect(h.spawned).toHaveLength(1);
+  expect(next.harness.inspection.logEntries.map((entry) => entry.message)).toContain(
+    "Thread real: title refinement skipped (Interrupted before worker creation could be confirmed)",
+  );
 });

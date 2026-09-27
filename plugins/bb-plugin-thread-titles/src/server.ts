@@ -11,6 +11,13 @@ import {
 import { createStore, type Job } from "./store";
 
 const EXECUTION_TIMEOUT = 2 * 60_000;
+// Failures bb's own helper inference retries on its fallback model.
+const TRANSIENT = new Set([
+  "rate-limit",
+  "overloaded",
+  "connection-failed",
+  "stream-disconnected",
+]);
 const titleResult = z
   .object({
     title: z
@@ -190,9 +197,31 @@ export default function plugin(bb: BbPluginApi) {
         snapshotSeq: 0,
         intentHash: null,
         reason: null,
+        onFallback: false,
       } satisfies Partial<Job>);
     }
     store.save(job);
+  }
+
+  // Mirror bb's helper inference: after a timeout or a transient failure on
+  // BB_INFERENCE, try BB_INFERENCE_FALLBACK once. Returns false when no retry
+  // applies, leaving the caller to skip the job.
+  async function retryOnFallback(job: Job, workerId: string) {
+    if (!job.inference || job.onFallback) return false;
+    await sdk.threads.stop({ threadId: workerId });
+    await sdk.threads.archive({ threadId: workerId });
+    Object.assign(job, {
+      state: "waiting",
+      workerId: null,
+      startedAt: null,
+      onFallback: true,
+      failedWorkerIds: [...(job.failedWorkerIds ?? []), workerId],
+    } satisfies Partial<Job>);
+    store.save(job);
+    bb.log.info(
+      `Thread ${job.threadId}: retrying title on bb's inference fallback`,
+    );
+    return true;
   }
 
   async function inspectWorker(job: Job, target: Thread) {
@@ -219,12 +248,24 @@ export default function plugin(bb: BbPluginApi) {
       finish(job, "skipped", "Worker ownership changed");
       return;
     }
-    if (
-      worker.archivedAt !== null ||
-      worker.deletedAt !== null ||
-      worker.status === "error"
-    ) {
-      finish(job, "skipped", "Title worker stopped or failed");
+    if (worker.archivedAt !== null || worker.deletedAt !== null) {
+      finish(job, "skipped", "Title worker stopped");
+      return;
+    }
+    const events = await readEvents(sdk, worker.id);
+    const failed =
+      worker.status === "error" ||
+      (worker.status === "idle" &&
+        record(events.filter((event) => event.type === "turn/completed").at(-1)?.data)
+          .status !== "completed");
+    if (failed) {
+      const transient = events.some(
+        (event) =>
+          event.type === "provider/error" &&
+          TRANSIENT.has(String(record(record(event.data).errorInfo).category)),
+      );
+      if (!(transient && (await retryOnFallback(job, worker.id))))
+        finish(job, "skipped", "Title worker failed");
       return;
     }
     // Time waiting for bb admission is not inference execution time.
@@ -236,14 +277,14 @@ export default function plugin(bb: BbPluginApi) {
       job.startedAt !== null &&
       Date.now() - job.startedAt >= EXECUTION_TIMEOUT
     ) {
-      finish(job, "skipped", "Title worker execution timed out");
+      if (!(await retryOnFallback(job, worker.id)))
+        finish(job, "skipped", "Title worker execution timed out");
       return;
     }
     if ((await sdk.threads.interactions.list({ threadId: worker.id })).length) {
       finish(job, "skipped", "Title worker requested an interaction");
       return;
     }
-    const events = await readEvents(sdk, worker.id);
     if (
       events.some((event) => {
         if (event.type !== "item/started" && event.type !== "item/completed")
@@ -259,13 +300,6 @@ export default function plugin(bb: BbPluginApi) {
       return;
     }
     if (worker.status !== "idle") return;
-    const completed = events
-      .filter((event) => event.type === "turn/completed")
-      .at(-1);
-    if (!completed || record(completed.data).status !== "completed") {
-      finish(job, "skipped", "Title worker did not complete successfully");
-      return;
-    }
     const output = (await sdk.threads.output({ threadId: worker.id })).output;
     let result: z.infer<typeof titleResult>;
     try {
@@ -316,7 +350,8 @@ export default function plugin(bb: BbPluginApi) {
       });
       const worker = workers.find(
         (worker) => worker.lifecycleOwnerThreadId === job.threadId &&
-          worker.id !== job.initialWorkerId,
+          worker.id !== job.initialWorkerId &&
+          !job.failedWorkerIds?.includes(worker.id),
       );
       if (worker) {
         job.workerId = worker.id;
@@ -388,7 +423,11 @@ export default function plugin(bb: BbPluginApi) {
     });
     const selected = await readSelection();
     const resolved = await resolve(
-      selected ? [selected] : await inferenceChoices(),
+      selected
+        ? [selected]
+        : (await inferenceChoices()).filter(
+            (choice) => !job.onFallback || choice.model !== job.model,
+          ),
       environment.hostId,
     );
     if (resolved === "unknown") return;
@@ -403,6 +442,8 @@ export default function plugin(bb: BbPluginApi) {
       return;
     }
     const { providerId, model } = resolved;
+    job.inference = !selected;
+    job.model = model.model;
     const personal = (await sdk.projects.list({ includePersonal: true })).find(
       (project) => project.kind === "personal",
     );
