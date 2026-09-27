@@ -59,17 +59,10 @@ using bb's own provider, model, and reasoning picker. Every title worker then
 runs that selection on the source thread's machine, whatever the thread's own
 provider. A machine without the selected model skips the thread.
 
-**Use automatic** clears the selection. Automatic titling follows the model bb
-uses for its own helper tasks, such as its thread titles and commit messages:
-`BB_INFERENCE`, then `BB_INFERENCE_FALLBACK` when the thread's machine lacks the
-first. Both are written `<provider>/<model>` and default to
-`codex/gpt-5.6-luna` and `codex/gpt-5.4-mini`. Workers use the lowest reasoning
-level, and a thread whose machine offers neither model is skipped. Change them
-with:
-
-```sh
-bb-app config set BB_INFERENCE <provider>/<model>
-```
+**Use automatic** clears the selection. Automatic titling runs what bb's own
+Codex title service runs: the newest Luna model in the Codex catalog of the
+thread's machine, at the lowest reasoning level, whatever the thread's own
+provider. A thread whose machine offers no Luna model is skipped.
 
 The default transcript limit is 200,000 UTF-8 bytes. Larger transcripts are
 skipped in full, never truncated. Configure a limit between 1,000 and 2,000,000
@@ -82,9 +75,9 @@ bb plugin config thread-titles set maxTranscriptBytes 200000
 Workers that fail, request an interaction, attempt tools, return invalid JSON,
 or exceed two minutes of observed execution time are skipped. Waiting for bb's
 concurrency admission does not consume that execution timeout. As in bb's own
-helper inference, a worker on `BB_INFERENCE` that times out or fails with a
-rate limit, overload, or lost connection is retried once on
-`BB_INFERENCE_FALLBACK`. A selected model is never retried.
+Codex title service, an automatic worker that times out or fails with a rate
+limit, overload, or lost connection is retried once on the next newest Luna
+model. A selected model is never retried.
 
 Inspect outcomes with `bb plugin logs thread-titles`.
 

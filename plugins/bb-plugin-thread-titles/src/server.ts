@@ -11,7 +11,7 @@ import {
 import { createStore, type Job } from "./store";
 
 const EXECUTION_TIMEOUT = 2 * 60_000;
-// Failures bb's own helper inference retries on its fallback model.
+// Failures bb's own Codex title service retries on its fallback model.
 const TRANSIENT = new Set([
   "rate-limit",
   "overloaded",
@@ -101,52 +101,44 @@ export default function plugin(bb: BbPluginApi) {
     selection.nullable().catch(null).parse(
       (await bb.storage.kv.get(SELECTION_KEY)) ?? null,
     );
-  // Without a selection, follow bb's own helper-inference model: BB_INFERENCE,
-  // then BB_INFERENCE_FALLBACK, each written `<provider>/<model>`.
-  async function inferenceChoices(): Promise<Choice[]> {
-    const { aiServices } = await sdk.system.config();
-    return [aiServices.inference, aiServices.inferenceFallback].flatMap(
-      (value) => {
-        const match = /^([^/]+)\/([^/]+)$/u.exec(value);
-        return match ? [{ providerId: match[1]!, model: match[2]! }] : [];
-      },
-    );
+  // Without a selection, run what bb's own Codex title service runs: the
+  // newest Luna model, then the next one as its fallback.
+  const lunaVersion = (id: string) =>
+    Number(/(\d+(?:\.\d+)?)-luna/iu.exec(id)?.[1] ?? 0);
+  async function automaticModels(hostId?: string) {
+    const catalog = await sdk.providers
+      .models(hostId ? { hostId, providerId: "codex" } : { providerId: "codex" })
+      .catch(() => undefined);
+    if (catalog?.modelLoadError) return "unknown" as const;
+    return [...(catalog?.models ?? []), ...(catalog?.selectedOnlyModels ?? [])]
+      .filter((model) => /luna/iu.test(model.model))
+      .sort((a, b) => lunaVersion(b.model) - lunaVersion(a.model))
+      .slice(0, 2);
   }
-  // The first choice the machine offers, or "unknown" when a catalog failed to
-  // load and a later attempt might find one.
-  async function resolve(choices: Choice[], hostId?: string) {
-    let unknown = false;
-    for (const choice of choices) {
-      const catalog = await sdk.providers
-        .models(
-          hostId
-            ? { hostId, providerId: choice.providerId }
-            : { providerId: choice.providerId },
-        )
-        .catch(() => undefined);
-      if (catalog?.modelLoadError) unknown = true;
-      const model = catalog?.modelLoadError
-        ? undefined
-        : [...(catalog?.models ?? []), ...(catalog?.selectedOnlyModels ?? [])]
-            .find((model) => model.model === choice.model || model.id === choice.model);
-      if (model) return { providerId: choice.providerId, model };
-    }
-    return unknown ? "unknown" : undefined;
+  // The selected model as the machine offers it, or "unknown" when its
+  // catalog failed to load and a later attempt might find it.
+  async function selectedModel(choice: Choice, hostId: string) {
+    const catalog = await sdk.providers
+      .models({ hostId, providerId: choice.providerId })
+      .catch(() => undefined);
+    if (catalog?.modelLoadError) return "unknown" as const;
+    return [...(catalog?.models ?? []), ...(catalog?.selectedOnlyModels ?? [])]
+      .find((model) => model.model === choice.model || model.id === choice.model);
   }
   bb.rpc.register(rpcContract, {
     async "selection.get"() {
-      const automatic = await resolve(await inferenceChoices());
-      const found = typeof automatic === "object" ? automatic : undefined;
+      const automatic = await automaticModels();
+      const model = automatic === "unknown" ? undefined : automatic[0];
       return {
         selection: await readSelection(),
-        suggestion: found
+        suggestion: model
           ? {
-              providerId: found.providerId,
-              model: found.model.model,
-              reasoningLevel: lowestEffort(found.model),
+              providerId: "codex",
+              model: model.model,
+              reasoningLevel: lowestEffort(model),
             }
           : null,
-        automaticName: found?.model.displayName ?? null,
+        automaticName: model?.displayName ?? null,
       };
     },
     async "selection.set"({ selection }) {
@@ -203,11 +195,11 @@ export default function plugin(bb: BbPluginApi) {
     store.save(job);
   }
 
-  // Mirror bb's helper inference: after a timeout or a transient failure on
-  // BB_INFERENCE, try BB_INFERENCE_FALLBACK once. Returns false when no retry
+  // Mirror bb's Codex title service: after a timeout or a transient failure on
+  // the newest Luna model, try the next one once. Returns false when no retry
   // applies, leaving the caller to skip the job.
   async function retryOnFallback(job: Job, workerId: string) {
-    if (!job.inference || job.onFallback) return false;
+    if (!job.automatic || job.onFallback) return false;
     await sdk.threads.stop({ threadId: workerId });
     await sdk.threads.archive({ threadId: workerId });
     Object.assign(job, {
@@ -219,7 +211,7 @@ export default function plugin(bb: BbPluginApi) {
     } satisfies Partial<Job>);
     store.save(job);
     bb.log.info(
-      `Thread ${job.threadId}: retrying title on bb's inference fallback`,
+      `Thread ${job.threadId}: retrying title on the next Luna model`,
     );
     return true;
   }
@@ -422,27 +414,26 @@ export default function plugin(bb: BbPluginApi) {
       environmentId: thread.environmentId,
     });
     const selected = await readSelection();
-    const resolved = await resolve(
-      selected
-        ? [selected]
-        : (await inferenceChoices()).filter(
-            (choice) => !job.onFallback || choice.model !== job.model,
-          ),
-      environment.hostId,
-    );
-    if (resolved === "unknown") return;
-    if (!resolved) {
+    const hostId = environment.hostId;
+    const automatic = selected ? [] : await automaticModels(hostId);
+    const model = selected
+      ? await selectedModel(selected, hostId)
+      : automatic === "unknown"
+        ? "unknown"
+        : automatic.find((model) => !job.onFallback || model.model !== job.model);
+    if (model === "unknown") return;
+    if (!model) {
       finish(
         job,
         "skipped",
         selected
           ? `Selected model ${selected.model} unavailable on this host`
-          : "bb's inference models unavailable on this host",
+          : "No Codex Luna model on this host",
       );
       return;
     }
-    const { providerId, model } = resolved;
-    job.inference = !selected;
+    const providerId = selected?.providerId ?? "codex";
+    job.automatic = !selected;
     job.model = model.model;
     const personal = (await sdk.projects.list({ includePersonal: true })).find(
       (project) => project.kind === "personal",

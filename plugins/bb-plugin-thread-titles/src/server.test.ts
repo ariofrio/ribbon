@@ -37,14 +37,10 @@ async function setup() {
   const workerEvents: Array<Record<string, unknown>> = [];
   let notify: ((event: unknown) => unknown) | undefined;
   const catalogs: Record<string, string[]> = {
-    codex: ["gpt-5.6-luna", "gpt-5.4-mini"],
+    codex: ["gpt-5.4-mini", "gpt-5.6-luna", "gpt-6-luna"],
     "claude-code": ["claude-haiku-4-5", "claude-sonnet-5"],
   };
   const modelQueries: Array<{ hostId?: string; providerId?: string }> = [];
-  const aiServices = {
-    inference: "codex/gpt-5.6-luna",
-    inferenceFallback: "codex/gpt-5.4-mini",
-  };
   const host = createFakePluginHost({
     pluginId: "thread-titles",
     sdk: {
@@ -86,7 +82,6 @@ async function setup() {
         interactions: { list: async () => [] as never },
       },
       environments: { get: async () => ({ hostId: "host" }) as never },
-      system: { config: async () => ({ aiServices: { ...aiServices } }) as never },
       projects: {
         list: async () => [{ id: "personal", kind: "personal" }] as never,
       },
@@ -157,7 +152,6 @@ async function setup() {
     updates,
     catalogs,
     modelQueries,
-    aiServices,
     emit,
     user,
     endTurn,
@@ -678,57 +672,47 @@ async function firstTurn(h: Awaited<ReturnType<typeof setup>>) {
   await h.emit();
 }
 
-it("suggests bb's inference model until a model is selected", async () => {
+it("suggests the newest Codex Luna model until a model is selected", async () => {
   const h = await setup();
   expect(await h.harness.behavior.callRpc("selection.get", null)).toEqual({
     selection: null,
     suggestion: {
       providerId: "codex",
-      model: "gpt-5.6-luna",
+      model: "gpt-6-luna",
       reasoningLevel: "low",
     },
-    automaticName: "gpt-5.6-luna",
+    automaticName: "gpt-6-luna",
   });
   expect(h.modelQueries.at(-1)?.hostId).toBeUndefined();
 });
 
-it("titles every thread with bb's inference model by default", async () => {
+it("titles every thread with the newest Codex Luna model by default", async () => {
   const h = await setup();
   h.thread.providerId = "claude-code";
   await firstTurn(h);
   expect(h.spawned[0]).toMatchObject({
     providerId: "codex",
-    model: "gpt-5.6-luna",
+    model: "gpt-6-luna",
     reasoningLevel: "low",
     environment: { type: "host", hostId: "host" },
   });
 });
 
-it("uses bb's inference fallback when the thread's machine lacks the primary", async () => {
+it("uses the next Luna model when the thread's machine lacks the newest", async () => {
   const h = await setup();
-  h.catalogs.codex = ["gpt-5.4-mini"];
+  h.catalogs.codex = ["gpt-5.4-mini", "gpt-5.6-luna"];
   await firstTurn(h);
   expect(h.spawned[0]).toMatchObject({
     providerId: "codex",
-    model: "gpt-5.4-mini",
+    model: "gpt-5.6-luna",
   });
 });
 
-it("follows a changed inference setting and skips when no machine model matches", async () => {
+it("skips a thread whose machine offers no Codex Luna model", async () => {
   const h = await setup();
-  h.aiServices.inference = "claude-code/claude-haiku-4-5";
-  h.aiServices.inferenceFallback = "some-service/some-model";
+  h.catalogs.codex = ["gpt-5.4-mini"];
   await firstTurn(h);
-  expect(h.spawned[0]).toMatchObject({
-    providerId: "claude-code",
-    model: "claude-haiku-4-5",
-  });
-
-  const next = await setup();
-  next.aiServices.inference = "some-service/some-model";
-  next.aiServices.inferenceFallback = "codex/missing";
-  await firstTurn(next);
-  expect(next.spawned).toHaveLength(0);
+  expect(h.spawned).toHaveLength(0);
 });
 
 it("runs every title worker on the selected model on the thread's host", async () => {
@@ -786,7 +770,7 @@ it("returns to the automatic choice when the selection is cleared", async () => 
   await firstTurn(h);
   expect(h.spawned[0]).toMatchObject({
     providerId: "codex",
-    model: "gpt-5.6-luna",
+    model: "gpt-6-luna",
     reasoningLevel: "low",
   });
   expect(h.spawned[0]).not.toHaveProperty("serviceTier");
@@ -822,14 +806,14 @@ async function recoverWorker(h: Awaited<ReturnType<typeof setup>>) {
   h.workerEvents.length = 0;
 }
 
-it("retries once on bb's inference fallback after a transient failure", async () => {
+it("retries once on the next Luna model after a transient failure", async () => {
   const h = await setup();
   await firstTurn(h);
   await failWorker(h, "rate-limit");
   await h.harness.behavior.runSchedule("title-reconciliation");
   expect(h.spawned.map((spawn) => spawn.model)).toEqual([
+    "gpt-6-luna",
     "gpt-5.6-luna",
-    "gpt-5.4-mini",
   ]);
   await recoverWorker(h);
   h.worker.status = "idle";
@@ -851,8 +835,8 @@ it("falls back after the worker times out, then never a third time", async () =>
   await h.harness.behavior.runSchedule("title-reconciliation");
   await h.harness.behavior.runSchedule("title-reconciliation");
   expect(h.spawned.map((spawn) => spawn.model)).toEqual([
+    "gpt-6-luna",
     "gpt-5.6-luna",
-    "gpt-5.4-mini",
   ]);
   await recoverWorker(h);
   await failWorker(h, "overloaded");
