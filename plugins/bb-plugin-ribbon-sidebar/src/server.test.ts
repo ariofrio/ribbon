@@ -1009,12 +1009,12 @@ describe("Ribbon sidebar server", () => {
       result.groupings
         .find(({ groupingKey }) => groupingKey === "builtin:projects")
         ?.groups.find(({ id }) => id === "project-personal")?.label,
-    ).toBe("Chats");
+    ).toBe("Personal");
     expect(
       result.groupings
         .find(({ groupingKey }) => groupingKey === "builtin:projects")
         ?.groups.map(({ label }) => label),
-    ).toEqual(["Storefront", "Back office", "Chats"]);
+    ).toEqual(["Storefront", "Back office", "Personal"]);
     expect(
       result.groupings.find(
         ({ groupingKey }) => groupingKey === "builtin:projects",

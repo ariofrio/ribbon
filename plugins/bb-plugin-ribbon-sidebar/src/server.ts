@@ -539,7 +539,7 @@ export default async function plugin(bb: BbPluginApi) {
       )
       .map((project) => ({
         id: project.id,
-        label: project.kind === "personal" ? "Chats" : project.name,
+        label: project.name,
         acceptsAssignments: true,
         visibleWhenEmpty: true,
         defaultCollapsed: false,
