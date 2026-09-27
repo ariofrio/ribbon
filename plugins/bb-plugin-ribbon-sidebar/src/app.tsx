@@ -19,6 +19,7 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useInsertionEffect,
   useMemo,
   useRef,
   useState,
@@ -42,6 +43,7 @@ import { usePersistentStringSet } from "./persistent-string-set";
 import type { GroupingKey, PlacementRecordV1 } from "./placement-store";
 import { ProviderIcon, WorkingStageIcon } from "./provider-icon";
 import {
+  ACTIVE_ROW_ATTRIBUTE,
   publishShineStyles,
   SHINE_ATTRIBUTE,
   SHINE_ROW_ATTRIBUTE,
@@ -316,7 +318,7 @@ function ThreadRow({
     indicatorThread.indicator !== "waiting-for-input";
   const shines = shimmerRow && working;
   const rowRef = useRef<HTMLDivElement | null>(null);
-  useRowShine(rowRef, shines);
+  useRowShine(rowRef, shines, working);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const rowTitle = title(thread);
@@ -423,6 +425,7 @@ function ThreadRow({
           rowRef.current = node;
         }}
         {...(shines ? { [SHINE_ROW_ATTRIBUTE]: "" } : {})}
+        {...(working ? { [ACTIVE_ROW_ATTRIBUTE]: "" } : {})}
         onDragStart={(event) => event.preventDefault()}
         style={{ paddingLeft: 8 + depth * 24 }}
       >
@@ -1041,7 +1044,7 @@ function RibbonSidebarList({
   // Inserted once: the icons arrive through the cascade, so neither a list that
   // moved nor an edited icon costs this plugin anything.
   useEffect(() => publishIconStyles(), []);
-  useEffect(() => publishShineStyles(), []);
+  useInsertionEffect(() => publishShineStyles(), []);
   const childrenByParent = useMemo(() => {
     const result = new Map<string, PluginSidebarThread[]>();
     for (const child of liveThreads.filter(

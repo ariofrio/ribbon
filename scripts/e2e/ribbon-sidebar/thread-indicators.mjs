@@ -161,6 +161,18 @@ export async function verifyThreadIndicators({ stack, fixture }) {
       await ready();
       await editor.fill("A draft while working");
       await observe("Thread working with unsubmitted draft");
+      if (provider !== "__builtin__") {
+        const motion = await row.evaluate((node) => {
+          const ring = node.querySelector('[class*="animate-spin"]');
+          return {
+            rowAnimation: getComputedStyle(node).animationName,
+            rowDelay: getComputedStyle(node).animationDelay,
+            ringDelay: ring ? getComputedStyle(ring).animationDelay : null,
+          };
+        });
+        assert.equal(motion.rowAnimation, "ribbon-shine");
+        assert.equal(motion.ringDelay, motion.rowDelay);
+      }
       runtime = "idle";
       await clearDraft();
       await page.reload();

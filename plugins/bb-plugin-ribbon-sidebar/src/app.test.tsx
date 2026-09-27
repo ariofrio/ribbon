@@ -813,6 +813,12 @@ describe("Ribbon sidebar app", () => {
       "[data-ribbon-shine-row]",
     )!;
     expect(working).not.toBeNull();
+    expect(working.hasAttribute("data-ribbon-active-row")).toBe(true);
+    expect(
+      (working as HTMLElement).style.getPropertyValue(
+        "--ribbon-active-animation-delay",
+      ),
+    ).toMatch(/^-?\d+(?:\.\d+)?ms$/);
     const shining = Array.from(working.querySelectorAll("[data-ribbon-shine]"));
     expect(shining.map((node) => node.textContent)).toEqual(
       expect.arrayContaining(["thread-a", "A useful preview"]),
