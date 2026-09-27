@@ -1,4 +1,4 @@
-import { type RefObject, useLayoutEffect } from "react";
+import { type RefObject, useLayoutEffect, useRef } from "react";
 
 /**
  * A shimmer across a working thread's row, like bb's `animate-shine` on a
@@ -74,28 +74,45 @@ export function useRowShine(
     );
   }, [row, working]);
 
+  // Measured only when layout is already done, by a ResizeObserver, and all
+  // at once: reading positions between style writes would force a layout for
+  // every piece of every row each time the sidebar renders.
+  const observer = useRef<ResizeObserver | null>(null);
   useLayoutEffect(() => {
     const element = row.current;
-    if (!active || !element) return;
-    const pieces = () =>
-      Array.from(element.querySelectorAll<HTMLElement>(`[${SHINE_ATTRIBUTE}]`));
+    if (!active || !element || typeof ResizeObserver === "undefined") return;
     const measure = () => {
+      const pieces = Array.from(
+        element.querySelectorAll<HTMLElement>(`[${SHINE_ATTRIBUTE}]`),
+      );
       const bounds = element.getBoundingClientRect();
+      const offsets = pieces.map(
+        (piece) => piece.getBoundingClientRect().left - bounds.left,
+      );
       if (bounds.width > 0) {
         element.style.setProperty("--ribbon-shine-width", `${bounds.width * 2}px`);
       }
-      for (const piece of pieces()) {
-        piece.style.setProperty(
-          "--ribbon-shine-offset",
-          `${piece.getBoundingClientRect().left - bounds.left}px`,
-        );
-      }
+      pieces.forEach((piece, index) =>
+        piece.style.setProperty("--ribbon-shine-offset", `${offsets[index]}px`),
+      );
     };
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    for (const piece of pieces()) observer.observe(piece);
-    return () => observer.disconnect();
+    const resizes = new ResizeObserver(measure);
+    resizes.observe(element);
+    observer.current = resizes;
+    return () => {
+      resizes.disconnect();
+      observer.current = null;
+    };
+  }, [active, row]);
+
+  // A piece that appears later, such as a new indicator, is measured when the
+  // observer first sees it; one it already sees is left alone.
+  useLayoutEffect(() => {
+    const element = row.current;
+    const resizes = observer.current;
+    if (!element || !resizes) return;
+    for (const piece of Array.from(element.querySelectorAll(`[${SHINE_ATTRIBUTE}]`))) {
+      resizes.observe(piece);
+    }
   });
 }

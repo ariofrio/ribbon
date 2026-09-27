@@ -27,8 +27,12 @@ export function ThreadTitle({ title }: { title: string }) {
     // leaves them alone, where scrollWidth would shrink as the title pans.
     const measure = () =>
       setOverflow(Math.max(0, text.getBoundingClientRect().width - container.getBoundingClientRect().width));
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
+    // The observer's first report comes once layout is done, before paint;
+    // measuring here instead would force a layout for every title mounting.
+    if (typeof ResizeObserver === "undefined") {
+      measure();
+      return;
+    }
     const observer = new ResizeObserver(measure);
     observer.observe(container);
     observer.observe(text);

@@ -64,21 +64,13 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
         .waitFor({ timeout: 120_000 });
 
       const sidebar = page.locator("[data-ribbon-sidebar-root]");
-      for (const name of ["Atlas options", "New thread in Atlas", "Collapse Atlas section"]) {
+      for (const name of ["Atlas options", "New thread in Atlas"]) {
         const button = sidebar.getByRole("button", { name, exact: true });
         await button.locator('xpath=ancestor::*[@data-sidebar-sticky-tier="label"][1]').hover();
         await button.hover();
         const box = await button.boundingBox();
         assert.equal(box.width, 20, `${name} should be 20px wide`);
         assert.equal(box.height, 20, `${name} should be 20px tall`);
-        if (name === "Collapse Atlas section") {
-          const spacing = await button.evaluate((node) => ({
-            left: node.getBoundingClientRect().left - node.previousElementSibling.getBoundingClientRect().right,
-            right: parseFloat(getComputedStyle(node).marginRight),
-          }));
-          assert.equal(spacing.left, 8, "The grouping toggle should have 8px to its left");
-          assert.equal(spacing.right, 8, "The grouping toggle should have 8px to its right");
-        }
         await button.evaluate(async (node) => {
           await Promise.all(node.getAnimations().map((animation) => animation.finished));
           const background = getComputedStyle(node).backgroundColor;
@@ -86,6 +78,49 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
             throw new Error(`${node.ariaLabel} has no hover background`);
           }
         });
+      }
+
+      {
+        // The whole heading is the toggle; its chevron keeps the toggle button's
+        // size, a little closer to the title.
+        const toggle = sidebar.getByRole("button", { name: "Collapse Atlas section", exact: true });
+        const heading = toggle.locator('xpath=ancestor::*[@data-sidebar-sticky-tier="label"][1]');
+        await heading.hover();
+        const [toggleBox, headingBox] = [await toggle.boundingBox(), await heading.boundingBox()];
+        assert.deepEqual(toggleBox, headingBox, "The heading toggle should cover the whole heading");
+        const chevron = heading.locator("[data-ribbon-heading-chevron]");
+        // Shown at rest, not only on hover, even while the section is open.
+        await page.mouse.move(1200, 750);
+        assert.equal(
+          await chevron.evaluate((node) => getComputedStyle(node).opacity),
+          "1",
+          "An open section's chevron should show without hovering",
+        );
+        await heading.hover();
+        const chevronBox = await chevron.boundingBox();
+        assert.equal(chevronBox.width, 20, "The heading chevron should be 20px wide");
+        assert.equal(chevronBox.height, 20, "The heading chevron should be 20px tall");
+        const spacing = await chevron.evaluate((node) => ({
+          left: node.getBoundingClientRect().left - node.previousElementSibling.getBoundingClientRect().right,
+          right: parseFloat(getComputedStyle(node).marginRight),
+        }));
+        assert.equal(spacing.left, 4, "The heading chevron should have 4px to its left");
+        assert.equal(spacing.right, 8, "The heading chevron should have 8px to its right");
+        // A real click on the label, not the chevron, folds the section.
+        const label = heading.getByText("Atlas", { exact: true });
+        const labelBox = await label.boundingBox();
+        await page.mouse.click(labelBox.x + 4, labelBox.y + labelBox.height / 2);
+        await sidebar.getByRole("button", { name: "Expand Atlas section", exact: true }).waitFor();
+        await page.mouse.click(labelBox.x + 4, labelBox.y + labelBox.height / 2);
+        await toggle.waitFor();
+        // So does a click on the chevron, which hovering reveals while the
+        // section is expanded.
+        await heading.hover();
+        const shown = await chevron.boundingBox();
+        await page.mouse.click(shown.x + shown.width / 2, shown.y + shown.height / 2);
+        await sidebar.getByRole("button", { name: "Expand Atlas section", exact: true }).waitFor();
+        await page.mouse.click(shown.x + shown.width / 2, shown.y + shown.height / 2);
+        await toggle.waitFor();
       }
       await page.mouse.move(1200, 750);
 

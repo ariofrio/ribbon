@@ -791,6 +791,64 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("makes each whole heading the toggle, with its chevron in place", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    for (const name of ["Collapse Release section", "Collapse Pinned section"]) {
+      const toggle = await slot.findByRole("button", { name });
+      const heading = toggle.closest<HTMLElement>('[data-sidebar="group-label"]')!;
+      // The toggle spans the row; the chevron is only its picture now.
+      expect(toggle.parentElement).toBe(heading);
+      const chevron = heading.querySelector("[data-ribbon-heading-chevron]")!;
+      expect(chevron).not.toBeNull();
+      expect(chevron.closest("button")).toBeNull();
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    }
+    fireEvent.click(slot.getByRole("button", { name: "Collapse Release section" }));
+    expect(
+      await slot.findByRole("button", { name: "Expand Release section" }),
+    ).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it("paints a section heading in its icon's color", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const heading = (
+      await slot.findByRole("button", { name: "Collapse Release section" })
+    ).closest<HTMLElement>('[data-sidebar="group-label"]')!;
+    // The Icons plugin sets its color variables on whatever names the owner.
+    expect(heading.getAttribute("data-ribbon-icons-section")).toBe("section-a");
+    // One even family, whatever the palette color: its hue, at a lightness
+    // and chroma chosen per mode for a faint wash and the ink on it.
+    const color = "var(--ribbon-icons-section-color-light)";
+    expect(heading.style.getPropertyValue("--ribbon-heading-fill")).toBe(
+      `light-dark(oklch(from ${color} 0.95 0.025 h), oklch(from ${color} 0.28 0.035 h))`,
+    );
+    expect(heading.style.getPropertyValue("--ribbon-heading-ink")).toBe(
+      `light-dark(oklch(from ${color} 0.47 0.13 h), oklch(from ${color} 0.82 0.11 h))`,
+    );
+    expect(heading.style.backgroundColor).toBe(
+      "var(--ribbon-heading-fill, light-dark(oklch(0.95 0 0), oklch(0.28 0 0)))",
+    );
+    expect(heading.style.getPropertyValue("--ribbon-heading-on")).toBe(
+      "var(--ribbon-heading-ink, light-dark(oklch(0.47 0 0), oklch(0.82 0 0)))",
+    );
+    // Headings without a color of their own are the same family in gray.
+    const pinned = slot
+      .getByRole("button", { name: "Collapse Pinned section" })
+      .closest<HTMLElement>('[data-sidebar="group-label"]')!;
+    expect(pinned.style.backgroundColor).toBe(
+      "light-dark(oklch(0.95 0 0), oklch(0.28 0 0))",
+    );
+    expect(pinned.style.getPropertyValue("--ribbon-heading-on")).toBe(
+      "light-dark(oklch(0.47 0 0), oklch(0.82 0 0))",
+    );
+    slot.lifecycle.unmount();
+  });
+
   it("shimmers a working row's content, not its buttons or indicators", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({
