@@ -2340,7 +2340,7 @@ function RibbonSidebarList({
                           })
                         }
                       >
-                        <Icon aria-hidden name="Plus" className="size-4" />
+                        <Icon aria-hidden name="MessageSquarePlus" className="size-4" />
                       </Button>
                       <GroupHeaderMenu
                         onNewSection={onNewSection}
