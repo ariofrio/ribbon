@@ -118,7 +118,6 @@ export async function verifyThreadIcons({ stack, fixture }) {
         palette: resolve(style.getPropertyValue("--ribbon-icons-section-color-light")),
         label: getComputedStyle(node.querySelector('span[title="Atlas"]')).color,
         icon: getComputedStyle(node.querySelector("[data-ribbon-sidebar-icon]")).backgroundColor,
-        white: resolve("white"),
       };
     });
     const oklch = (value) => {
@@ -126,16 +125,50 @@ export async function verifyThreadIcons({ stack, fixture }) {
       assert.ok(match, `Expected an oklch() color, got ${value}`);
       return match.slice(1).map(Number);
     };
-    const [lightness, chroma, hue] = oklch(painted.background);
+    const dark = painted.scheme.includes("dark");
     const [, , paletteHue] = oklch(painted.palette);
-    assert.deepEqual(
-      [lightness, chroma],
-      painted.scheme.includes("dark") ? [0.44, 0.11] : [0.56, 0.14],
-      `The Atlas heading should use the ${painted.scheme} heading fill`,
-    );
-    assert.ok(Math.abs(hue - paletteHue) < 0.5, `The Atlas heading should keep its color's hue (${hue} vs ${paletteHue})`);
-    assert.equal(painted.label, painted.white, "The Atlas heading's label should read against its color");
-    assert.equal(painted.icon, painted.white, "The Atlas heading's icon should read against its color");
+    for (const [part, value, expected] of [
+      ["fill", painted.background, dark ? [0.31, 0.05] : [0.92, 0.04]],
+      ["label", painted.label, dark ? [0.85, 0.1] : [0.44, 0.13]],
+      ["icon", painted.icon, dark ? [0.85, 0.1] : [0.44, 0.13]],
+    ]) {
+      const [lightness, chroma, hue] = oklch(value);
+      assert.deepEqual([lightness, chroma], expected, `The Atlas heading's ${part} should use the ${painted.scheme} heading tone`);
+      assert.ok(Math.abs(hue - paletteHue) < 0.5, `The Atlas heading's ${part} should keep its color's hue (${hue} vs ${paletteHue})`);
+    }
+    // A heading is laid out like a thread row: the same height, gap, padding,
+    // and icon and label positions.
+    const layout = await atlas.evaluate((node) => {
+      const group = node.closest("[data-sidebar-sticky-group]");
+      const row = group.querySelector("ul > li .group\\/thread-row");
+      const box = (element) => element.getBoundingClientRect();
+      const label = (element) => [...element.querySelectorAll("span")]
+        .find((span) => span.childElementCount === 0 && span.textContent.trim().length > 0 && !span.closest("[data-ribbon-sidebar-icon-slot]"));
+      return {
+        heading: {
+          height: box(node).height,
+          padding: getComputedStyle(node).paddingLeft,
+          radius: getComputedStyle(node).borderRadius,
+          icon: box(node.querySelector("[data-ribbon-sidebar-icon]")).left - box(node).left,
+          label: box(label(node)).left - box(node).left,
+        },
+        row: {
+          height: box(row).height,
+          padding: getComputedStyle(row).paddingLeft,
+          radius: getComputedStyle(row).borderRadius,
+          icon: box(row.querySelector("[data-ribbon-sidebar-icon-slot] > *")).left - box(row).left,
+          label: box(label(row.querySelector("[title]"))).left - box(row).left,
+        },
+        headingGap: box(row).top - box(node).bottom,
+        rowGap: (() => {
+          const [first, second] = group.querySelectorAll("ul > li .group\\/thread-row");
+          return second ? box(second).top - box(first).bottom : null;
+        })(),
+      };
+    });
+    assert.deepEqual(layout.heading, layout.row, "A heading should be laid out like a thread row");
+    assert.equal(layout.headingGap, layout.rowGap ?? 1, "A heading should sit as close to its first row as rows sit to each other");
+
     // A heading with no color of its own is a gray bar of the same family.
     const unorganized = await sidebar
       .locator('[data-sidebar="group-label"]')
@@ -144,12 +177,40 @@ export async function verifyThreadIcons({ stack, fixture }) {
         background: getComputedStyle(node).backgroundColor,
         label: getComputedStyle(node.querySelector('span[title="Unorganized"]')).color,
       }));
-    assert.equal(
-      unorganized.background,
-      painted.scheme.includes("dark") ? "oklch(0.44 0 0)" : "oklch(0.56 0 0)",
-      "An uncolored heading should be gray",
-    );
-    assert.equal(unorganized.label, painted.white, "An uncolored heading's label should be white");
+    assert.equal(unorganized.background, dark ? "oklch(0.31 0 0)" : "oklch(0.92 0 0)", "An uncolored heading should be gray");
+    assert.equal(unorganized.label, dark ? "oklch(0.85 0 0)" : "oklch(0.44 0 0)", "An uncolored heading's label should be gray ink");
+
+    // Collapsed headings sit a row's gap apart, and nothing from the next
+    // heading covers the one above it. With no thread open, a collapsed group
+    // previews nothing, so its heading sits right above the next one.
+    {
+      const home = await context.newPage();
+      await home.goto(stack.serverUrl);
+      const homeSidebar = home.locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]");
+      await homeSidebar.waitFor({ timeout: 120_000 });
+      const collapse = homeSidebar.getByRole("button", { name: "Collapse Atlas section", exact: true });
+      const box = await collapse.boundingBox();
+      await home.mouse.click(box.x + 40, box.y + box.height / 2);
+      const expand = homeSidebar.getByRole("button", { name: "Expand Atlas section", exact: true });
+      await expand.waitFor();
+      // A sticky heading paints a sidebar-colored shield above itself, which
+      // lets the pointer through, so measure what it paints, not what it hits.
+      const overlap = await expand.evaluate((toggle) => {
+        const node = toggle.closest('[data-sidebar="group-label"]');
+        const headings = [...document.querySelectorAll('[data-ribbon-sidebar-root] [data-sidebar="group-label"]')];
+        const next = headings[headings.indexOf(node) + 1];
+        if (!next) return "no heading follows Atlas";
+        const shield = parseFloat(getComputedStyle(next, "::before").height) || 0;
+        return {
+          gap: next.getBoundingClientRect().top - node.getBoundingClientRect().bottom,
+          covered: Math.max(0, node.getBoundingClientRect().bottom - (next.getBoundingClientRect().top - shield)),
+        };
+      });
+      assert.deepEqual(overlap, { gap: 1, covered: 0 }, "Collapsed headings should sit 1px apart, uncovered");
+      await home.mouse.click(box.x + 40, box.y + box.height / 2);
+      await collapse.waitFor();
+      await home.close();
+    }
 
     let prState = "open";
     await page.route("**/api/v1/environments/*/pull-request", (route) => route.fulfill({

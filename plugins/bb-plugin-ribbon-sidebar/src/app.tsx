@@ -31,12 +31,13 @@ import {
 import type { z } from "zod";
 import { CHROME_GROUP_HEADING_CLASS } from "./chrome-style-tokens";
 import {
+  HEADING_ICON_STYLE,
   HEADING_MUTED_CLASS,
   HEADING_TEXT_CLASS,
   HEADING_TOGGLE_CLASS,
+  STICKY_HEADING_STYLE,
   HeadingChevron,
   headingColorStyle,
-  headingIconStyle,
 } from "./heading";
 import type { IconDataV1 } from "./contracts";
 import { GroupHeaderMenu, type HeaderGroupActions } from "./group-header-menu";
@@ -1775,8 +1776,11 @@ function RibbonSidebarList({
           data-sidebar-sticky-stack=""
           style={
             {
-              "--bb-sidebar-sticky-label-gap":
-                "calc((var(--bb-sidebar-sticky-row-height) - var(--bb-sidebar-sticky-label-height)) / 2 + 1px)",
+              // Headings are laid out like thread rows: as tall as one, and as
+              // close to the rows under them as those rows are to each other.
+              "--bb-sidebar-sticky-label-height":
+                "var(--bb-sidebar-sticky-row-height)",
+              "--bb-sidebar-sticky-label-gap": "1px",
             } as CSSProperties
           }
           data-ribbon-sidebar-ready={
@@ -1946,7 +1950,7 @@ function RibbonSidebarList({
             <>
               {onNewSection || displayOptions ? (
                 <div
-                  className={`bb-sidebar-hover-actions-row flex h-6 items-center rounded-md pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} max-md:pointer-coarse:h-9`}
+                  className={`bb-sidebar-hover-actions-row flex h-(--bb-sidebar-row-height) items-center rounded-md pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} max-md:pointer-coarse:h-(--bb-sidebar-row-height-coarse)`}
                   data-sidebar="group-label"
                   style={headingColorStyle()}
                 >
@@ -1968,7 +1972,7 @@ function RibbonSidebarList({
               </SidebarMessage>
             </>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-px">
               {pinnedRoots.length > 0 ? (
                 <ThreadDragGroup
                   aria-label="Pinned threads"
@@ -1980,10 +1984,10 @@ function RibbonSidebarList({
                   <ThreadDragHeader
                     target={{ kind: "pinned", roots: pinnedRoots }}
                     disabled={Boolean(normalizedSearch)}
-                    className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} max-md:pointer-coarse:h-9`}
+                    className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-(--bb-sidebar-row-height) items-center rounded-md pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} max-md:pointer-coarse:h-(--bb-sidebar-row-height-coarse)`}
                     data-sidebar="group-label"
                     data-sidebar-sticky-tier="label"
-                    style={headingColorStyle()}
+                    style={{ ...headingColorStyle(), ...STICKY_HEADING_STYLE }}
                   >
                     <button
                       aria-expanded={!pinnedSectionCollapsed}
@@ -2210,7 +2214,7 @@ function RibbonSidebarList({
                     <ThreadDragHeader
                       target={groupTarget}
                       disabled={Boolean(normalizedSearch) || !grouping}
-                      className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} transition-colors max-md:pointer-coarse:h-9`}
+                      className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-(--bb-sidebar-row-height) items-center rounded-md pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} transition-colors max-md:pointer-coarse:h-(--bb-sidebar-row-height-coarse)`}
                       data-sidebar="group-label"
                       data-sidebar-sticky-tier="label"
                       {...(entityGroupIcon
@@ -2219,7 +2223,10 @@ function RibbonSidebarList({
                               group.id,
                           }
                         : {})}
-                      style={headingColorStyle(entityGroupIcon?.kind)}
+                      style={{
+                        ...headingColorStyle(entityGroupIcon?.kind),
+                        ...STICKY_HEADING_STYLE,
+                      }}
                     >
                       {grouping ? (
                         <button
@@ -2261,7 +2268,7 @@ function RibbonSidebarList({
                               data-ribbon-sidebar-icon={
                                 entityGroupIcon.fallback
                               }
-                              style={headingIconStyle(entityGroupIcon.kind)}
+                              style={HEADING_ICON_STYLE}
                             />
                           ) : settings.values?.showGroupHeaderIcons !== false &&
                             group.icon ? (

@@ -3,7 +3,7 @@
 ---
 
 Click anywhere on a group heading to collapse or expand it; the chevron stays
-where it was. A section or project heading fills with its icon's color from the
-Icons plugin, with white text and icon: every color at one lightness and chroma
-so the bars read as a set, darker in dark mode. Headings without a color are
-gray bars of the same family.
+where it was. Headings are laid out like thread rows, with the same height,
+padding, and spacing. A section or project heading takes its icon's color from
+the Icons plugin as a faint wash with colored text and icon, every color at one
+lightness and chroma per mode; every other heading is the same wash in gray.

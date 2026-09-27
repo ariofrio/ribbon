@@ -20,41 +20,55 @@ export const HEADING_MUTED_CLASS =
   "text-[color:var(--ribbon-heading-on,var(--subtle-foreground))]";
 
 /**
- * Every heading is a filled bar with white on it. A project or section whose
- * icon has a color takes that color's hue: the Icons plugin sets the color on
- * any element that names the owner, and only where someone picked one. Every
- * other heading is gray.
+ * Every heading is a faint wash with ink on it. A project or section whose icon
+ * has a color takes that color's hue: the Icons plugin sets the color on any
+ * element that names the owner, and only where someone picked one. Every other
+ * heading is the same family in gray.
  *
  * The Icons palette is tuned for small glyphs, where one hue can run far hotter
- * than another, so a bar keeps only the hue, at one lightness and chroma for
- * every color, darker in dark mode so the bars do not glare.
+ * than another, so a heading keeps only the hue, at one lightness and chroma
+ * per mode for every color.
  */
 export function headingColorStyle(kind?: "project" | "section"): CSSProperties {
   if (kind === undefined) {
     return {
-      backgroundColor: GRAY_FILL,
-      ["--ribbon-heading-on" as string]: "white",
+      backgroundColor: GRAY.fill,
+      ["--ribbon-heading-on" as string]: GRAY.ink,
     };
   }
   const color = `var(--ribbon-icons-${kind}-color-light)`;
+  const tone = (light: string, dark: string) =>
+    `light-dark(oklch(from ${color} ${light} h), oklch(from ${color} ${dark} h))`;
   return {
-    ["--ribbon-heading-fill" as string]:
-      `light-dark(oklch(from ${color} ${FILL.light} h), oklch(from ${color} ${FILL.dark} h))`,
-    backgroundColor: `var(--ribbon-heading-fill, ${GRAY_FILL})`,
-    ["--ribbon-heading-on" as string]: `var(--ribbon-icons-${kind}-on-color-light, white)`,
+    ["--ribbon-heading-fill" as string]: tone(FILL.light, FILL.dark),
+    ["--ribbon-heading-ink" as string]: tone(INK.light, INK.dark),
+    backgroundColor: `var(--ribbon-heading-fill, ${GRAY.fill})`,
+    ["--ribbon-heading-on" as string]: `var(--ribbon-heading-ink, ${GRAY.ink})`,
   };
 }
 
 /** Lightness and chroma per mode; the hue is the palette color's own. */
-const FILL = { light: "0.56 0.14", dark: "0.44 0.11" };
-const GRAY_FILL = "light-dark(oklch(0.56 0 0), oklch(0.44 0 0))";
+const FILL = { light: "0.92 0.04", dark: "0.31 0.05" };
+const INK = { light: "0.44 0.13", dark: "0.85 0.1" };
+const GRAY = {
+  fill: "light-dark(oklch(0.92 0 0), oklch(0.31 0 0))",
+  ink: "light-dark(oklch(0.44 0 0), oklch(0.85 0 0))",
+};
 
-/** The heading's icon turns to the contrasting color, or it would vanish. */
-export function headingIconStyle(kind: "project" | "section"): CSSProperties {
-  return {
-    backgroundColor: `var(--ribbon-icons-${kind}-on-color-light, var(--ribbon-icons-${kind}-color, currentColor))`,
-  };
-}
+/**
+ * bb shields each sticky heading's top with a band of sidebar as tall as the
+ * stack's padding. Headings sit a row's gap apart, so that band would paint
+ * over the bottom of a collapsed heading above; the stack's own sticky band
+ * already covers its padding.
+ */
+export const STICKY_HEADING_STYLE: CSSProperties = {
+  ["--bb-sidebar-sticky-tier-shield-top-height" as string]: "0px",
+};
+
+/** The heading's icon takes the heading's ink. */
+export const HEADING_ICON_STYLE: CSSProperties = {
+  backgroundColor: "var(--ribbon-heading-on, currentColor)",
+};
 
 /**
  * Where the heading's toggle button used to be, and the same size, so nothing

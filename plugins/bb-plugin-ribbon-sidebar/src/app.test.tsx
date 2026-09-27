@@ -821,25 +821,31 @@ describe("Ribbon sidebar app", () => {
     ).closest<HTMLElement>('[data-sidebar="group-label"]')!;
     // The Icons plugin sets its color variables on whatever names the owner.
     expect(heading.getAttribute("data-ribbon-icons-section")).toBe("section-a");
-    // One even family of fills, whatever the palette color: its hue, at a
-    // lightness and chroma chosen for a filled bar in each mode.
+    // One even family, whatever the palette color: its hue, at a lightness
+    // and chroma chosen per mode for a faint wash and the ink on it.
+    const color = "var(--ribbon-icons-section-color-light)";
     expect(heading.style.getPropertyValue("--ribbon-heading-fill")).toBe(
-      "light-dark(oklch(from var(--ribbon-icons-section-color-light) 0.56 0.14 h), oklch(from var(--ribbon-icons-section-color-light) 0.44 0.11 h))",
+      `light-dark(oklch(from ${color} 0.92 0.04 h), oklch(from ${color} 0.31 0.05 h))`,
+    );
+    expect(heading.style.getPropertyValue("--ribbon-heading-ink")).toBe(
+      `light-dark(oklch(from ${color} 0.44 0.13 h), oklch(from ${color} 0.85 0.1 h))`,
     );
     expect(heading.style.backgroundColor).toBe(
-      "var(--ribbon-heading-fill, light-dark(oklch(0.56 0 0), oklch(0.44 0 0)))",
+      "var(--ribbon-heading-fill, light-dark(oklch(0.92 0 0), oklch(0.31 0 0)))",
     );
     expect(heading.style.getPropertyValue("--ribbon-heading-on")).toBe(
-      "var(--ribbon-icons-section-on-color-light, white)",
+      "var(--ribbon-heading-ink, light-dark(oklch(0.44 0 0), oklch(0.85 0 0)))",
     );
-    // Headings without a color of their own are gray bars of the same family.
+    // Headings without a color of their own are the same family in gray.
     const pinned = slot
       .getByRole("button", { name: "Collapse Pinned section" })
       .closest<HTMLElement>('[data-sidebar="group-label"]')!;
     expect(pinned.style.backgroundColor).toBe(
-      "light-dark(oklch(0.56 0 0), oklch(0.44 0 0))",
+      "light-dark(oklch(0.92 0 0), oklch(0.31 0 0))",
     );
-    expect(pinned.style.getPropertyValue("--ribbon-heading-on")).toBe("white");
+    expect(pinned.style.getPropertyValue("--ribbon-heading-on")).toBe(
+      "light-dark(oklch(0.44 0 0), oklch(0.85 0 0))",
+    );
     slot.lifecycle.unmount();
   });
 
