@@ -89,6 +89,14 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
         const [toggleBox, headingBox] = [await toggle.boundingBox(), await heading.boundingBox()];
         assert.deepEqual(toggleBox, headingBox, "The heading toggle should cover the whole heading");
         const chevron = heading.locator("[data-ribbon-heading-chevron]");
+        // Shown at rest, not only on hover, even while the section is open.
+        await page.mouse.move(1200, 750);
+        assert.equal(
+          await chevron.evaluate((node) => getComputedStyle(node).opacity),
+          "1",
+          "An open section's chevron should show without hovering",
+        );
+        await heading.hover();
         const chevronBox = await chevron.boundingBox();
         assert.equal(chevronBox.width, 20, "The heading chevron should be 20px wide");
         assert.equal(chevronBox.height, 20, "The heading chevron should be 20px tall");

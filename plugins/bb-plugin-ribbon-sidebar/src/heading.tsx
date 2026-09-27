@@ -71,17 +71,16 @@ export const HEADING_ICON_STYLE: CSSProperties = {
 };
 
 /**
- * The size the heading's toggle button was, set a little closer to the title.
- * Expanded headings show it only on hover, as before.
+ * The size the heading's toggle button was, set a little closer to the title,
+ * and always shown.
  */
 export function HeadingChevron({ collapsed }: { collapsed: boolean }) {
   return (
     <span
       aria-hidden
-      className={`${collapsed ? "" : "bb-sidebar-hover-actions"} mr-2 ml-1 flex size-5 shrink-0 items-center justify-center ${HEADING_MUTED_CLASS}`}
+      className={`mr-2 ml-1 flex size-5 shrink-0 items-center justify-center ${HEADING_MUTED_CLASS}`}
       data-ribbon-heading-chevron=""
-      // bb's hover-actions rule turns the pointer back on while the row is
-      // hovered; the chevron is only a picture of the heading's toggle.
+      // Only a picture of the heading's toggle, which lies under it.
       style={{ pointerEvents: "none" }}
     >
       <Icon
