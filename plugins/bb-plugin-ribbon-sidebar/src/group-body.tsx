@@ -77,7 +77,13 @@ export function GroupBody({
         opacity: 1,
       };
     });
-    const keptMargin = getComputedStyle(kept).marginTop;
+    // The kept row, and each list around it, closes up its own margins, so
+    // the body ends exactly as tall as the folded group's preview.
+    const flush = [kept, ...keptAncestors(element, kept)];
+    const margins = flush.map((node) => {
+      const style = getComputedStyle(node);
+      return { marginTop: style.marginTop, marginBottom: style.marginBottom };
+    });
     const hidden = { height: "0px", marginTop: "0px", marginBottom: "0px", opacity: 0 };
     const animations = pieces.map((piece, index) => {
       piece.style.overflow = "hidden";
@@ -86,15 +92,16 @@ export function GroupBody({
         { duration: FOLD_MS, easing: FOLD_EASING, fill: closing ? "forwards" : "none" },
       );
     });
-    // The kept row becomes the first in view; it sits flush like a preview.
-    animations.push(
-      kept.animate(
-        closing
-          ? [{ marginTop: keptMargin }, { marginTop: "0px" }]
-          : [{ marginTop: "0px" }, { marginTop: keptMargin }],
-        { duration: FOLD_MS, easing: FOLD_EASING, fill: closing ? "forwards" : "none" },
-      ),
-    );
+    const none = { marginTop: "0px", marginBottom: "0px" };
+    flush.forEach((node, index) => {
+      animations.push(
+        node.animate(closing ? [margins[index]!, none] : [none, margins[index]!], {
+          duration: FOLD_MS,
+          easing: FOLD_EASING,
+          fill: closing ? "forwards" : "none",
+        }),
+      );
+    });
     let cancelled = false;
     void Promise.all(animations.map(({ finished }) => finished)).then(
       () => {
@@ -175,11 +182,23 @@ function keptRow(
   );
 }
 
-/** Every row, and every control between rows, except the one kept in view. */
+/**
+ * Every list, row, and control between rows that does not hold the one kept
+ * in view: whole lists fold too, taking their margins with them.
+ */
 function foldingPieces(body: HTMLElement, kept: HTMLElement): HTMLElement[] {
   return Array.from(
-    body.querySelectorAll<HTMLElement>("li, [data-ribbon-fold-piece]"),
+    body.querySelectorAll<HTMLElement>("ul, li, [data-ribbon-fold-piece]"),
   ).filter((piece) => piece !== kept && !piece.contains(kept) && !kept.contains(piece));
+}
+
+/** The lists and wrappers between the kept row and the body. */
+function keptAncestors(body: HTMLElement, kept: HTMLElement): HTMLElement[] {
+  const ancestors: HTMLElement[] = [];
+  for (let node = kept.parentElement; node && node !== body; node = node.parentElement) {
+    ancestors.push(node);
+  }
+  return ancestors;
 }
 
 function motionAllowed(): boolean {

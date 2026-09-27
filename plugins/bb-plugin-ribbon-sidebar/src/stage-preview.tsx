@@ -62,7 +62,7 @@ export function StagePreview<T extends { id: string }>({
           aria-controls={id}
           data-ribbon-fold-piece=""
           aria-expanded={expanded}
-          className={`h-7 w-full justify-start rounded-md pl-8 pr-2 ${CHROME_SECTION_LABEL_CLASS} hover:bg-sidebar-accent hover:text-subtle-foreground/75 focus-visible:ring-sidebar-ring`}
+          className={`flex h-7 w-full justify-start rounded-md pl-8 pr-2 ${CHROME_SECTION_LABEL_CLASS} hover:bg-sidebar-accent hover:text-subtle-foreground/75 focus-visible:ring-sidebar-ring`}
           size="sm"
           variant="ghost"
           type="button"

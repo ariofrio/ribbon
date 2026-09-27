@@ -182,6 +182,8 @@ export async function verifyThreadIcons({ stack, fixture }) {
       // Click, then watch the open thread's row on every frame of the fold.
       const watchOpenRow = (point) => page.evaluate(async ([x, y]) => {
         const samples = [];
+        const group = document.querySelector('[data-ribbon-sidebar-root] a[aria-current="page"]')
+          .closest("[data-sidebar-sticky-group]");
         document.elementFromPoint(x, y)
           .dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: x, clientY: y }));
         const start = performance.now();
@@ -192,14 +194,27 @@ export async function verifyThreadIcons({ stack, fixture }) {
           for (let node = row; node && node !== document.body; node = node.parentElement) {
             opacity *= Number(getComputedStyle(node).opacity);
           }
-          samples.push(row ? { height: row.getBoundingClientRect().height, opacity } : null);
+          samples.push(row ? {
+            height: row.getBoundingClientRect().height,
+            opacity,
+            group: group.getBoundingClientRect().height,
+            folding: group.querySelector("[data-ribbon-group-body]") !== null,
+          } : null);
         }
         return samples;
       }, point);
+      // The group ends the fold as tall as the folded group, so nothing below
+      // it jumps when the folded rows leave.
+      const settles = (frames) => {
+        const lastFolding = frames.filter((frame) => frame?.folding).at(-1);
+        const firstFolded = frames.find((frame) => frame && !frame.folding);
+        return !lastFolding || !firstFolded || Math.abs(lastFolding.group - firstFolded.group) < 0.5;
+      };
       const stays = (frames) => frames.every((frame) => frame !== null && frame.height >= 27 && frame.opacity > 0.99);
       const point = [box.x + 40, box.y + box.height / 2];
       const folding = await watchOpenRow(point);
       assert.ok(stays(folding), `The open thread's row should stay in view while its group folds: ${JSON.stringify(folding)}`);
+      assert.ok(settles(folding), `The group should not jump when its folded rows leave: ${JSON.stringify(folding)}`);
       const [headingBox, rowBox] = [
         await sidebar.getByRole("button", { name: "Expand Atlas section", exact: true }).boundingBox(),
         await openRow.boundingBox(),
