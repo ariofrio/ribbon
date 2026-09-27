@@ -1778,10 +1778,10 @@ function RibbonSidebarList({
           style={
             {
               // Headings are laid out like thread rows, as tall as one and
-              // 2px above the rows under them.
+              // 4px above the rows under them.
               "--bb-sidebar-sticky-label-height":
                 "var(--bb-sidebar-sticky-row-height)",
-              "--bb-sidebar-sticky-label-gap": "2px",
+              "--bb-sidebar-sticky-label-gap": "4px",
             } as CSSProperties
           }
           data-ribbon-sidebar-ready={

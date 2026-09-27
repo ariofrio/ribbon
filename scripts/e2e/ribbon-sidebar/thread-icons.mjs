@@ -139,7 +139,7 @@ export async function verifyThreadIcons({ stack, fixture }) {
       assert.ok(Math.abs(hue - paletteHue) < 0.5, `The Atlas heading's ${part} should keep its color's hue (${hue} vs ${paletteHue})`);
     }
     // A heading is laid out like a thread row: the same height, padding, and
-    // icon and label positions, 2px above its first row.
+    // icon and label positions, 4px above its first row.
     const layout = await atlas.evaluate((node) => {
       const group = node.closest("[data-sidebar-sticky-group]");
       const row = group.querySelector("ul > li .group\\/thread-row");
@@ -169,7 +169,7 @@ export async function verifyThreadIcons({ stack, fixture }) {
       };
     });
     assert.deepEqual(layout.heading, layout.row, "A heading should be laid out like a thread row");
-    assert.equal(layout.headingGap, 2, "A heading should sit 2px above its first row");
+    assert.equal(layout.headingGap, 4, "A heading should sit 4px above its first row");
 
     // A heading with no color of its own is a gray bar of the same family.
     const unorganized = await sidebar
