@@ -27,7 +27,7 @@ visible even outside that preview. Search reveals every matching result.
 
 Click anywhere on a heading to collapse or expand it. A section or project
 whose icon has a color in the [Icons plugin](../bb-plugin-icons#readme) fills
-its heading with that color. A collapsed group previews the open thread. Its plus button creates a thread
+its heading with that color; every other heading is gray. A collapsed group previews the open thread. Its plus button creates a thread
 in that section or project. Headings, icons, menus, row styles, and focus
 treatments use Ribbon's existing bb components and theme tokens.
 

@@ -136,6 +136,20 @@ export async function verifyThreadIcons({ stack, fixture }) {
     assert.ok(Math.abs(hue - paletteHue) < 0.5, `The Atlas heading should keep its color's hue (${hue} vs ${paletteHue})`);
     assert.equal(painted.label, painted.white, "The Atlas heading's label should read against its color");
     assert.equal(painted.icon, painted.white, "The Atlas heading's icon should read against its color");
+    // A heading with no color of its own is a gray bar of the same family.
+    const unorganized = await sidebar
+      .locator('[data-sidebar="group-label"]')
+      .filter({ has: page.getByRole("button", { name: /^(Collapse|Expand) Unorganized section$/ }) })
+      .evaluate((node) => ({
+        background: getComputedStyle(node).backgroundColor,
+        label: getComputedStyle(node.querySelector('span[title="Unorganized"]')).color,
+      }));
+    assert.equal(
+      unorganized.background,
+      painted.scheme.includes("dark") ? "oklch(0.44 0 0)" : "oklch(0.56 0 0)",
+      "An uncolored heading should be gray",
+    );
+    assert.equal(unorganized.label, painted.white, "An uncolored heading's label should be white");
 
     let prState = "open";
     await page.route("**/api/v1/environments/*/pull-request", (route) => route.fulfill({

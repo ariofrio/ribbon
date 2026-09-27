@@ -1946,10 +1946,15 @@ function RibbonSidebarList({
             <>
               {onNewSection || displayOptions ? (
                 <div
-                  className={`bb-sidebar-hover-actions-row flex h-6 items-center pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} max-md:pointer-coarse:h-9`}
+                  className={`bb-sidebar-hover-actions-row flex h-6 items-center rounded-md pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} max-md:pointer-coarse:h-9`}
                   data-sidebar="group-label"
+                  style={headingColorStyle()}
                 >
-                  <span className="min-w-0 flex-1 truncate">Threads</span>
+                  <span
+                    className={`min-w-0 flex-1 truncate ${HEADING_TEXT_CLASS}`}
+                  >
+                    Threads
+                  </span>
                   <GroupHeaderMenu
                     actions={null}
                     label="Threads"
@@ -1975,9 +1980,10 @@ function RibbonSidebarList({
                   <ThreadDragHeader
                     target={{ kind: "pinned", roots: pinnedRoots }}
                     disabled={Boolean(normalizedSearch)}
-                    className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} max-md:pointer-coarse:h-9`}
+                    className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} max-md:pointer-coarse:h-9`}
                     data-sidebar="group-label"
                     data-sidebar-sticky-tier="label"
+                    style={headingColorStyle()}
                   >
                     <button
                       aria-expanded={!pinnedSectionCollapsed}
@@ -2001,7 +2007,9 @@ function RibbonSidebarList({
                       type="button"
                     />
                     <span className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center">
-                      <span className="min-w-0 truncate">Pinned</span>
+                      <span className={`min-w-0 truncate ${HEADING_TEXT_CLASS}`}>
+                        Pinned
+                      </span>
                       <HeadingChevron collapsed={pinnedSectionCollapsed} />
                     </span>
                     <GroupHeaderMenu
@@ -2202,16 +2210,16 @@ function RibbonSidebarList({
                     <ThreadDragHeader
                       target={groupTarget}
                       disabled={Boolean(normalizedSearch) || !grouping}
-                      className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} transition-colors max-md:pointer-coarse:h-9`}
+                      className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} transition-colors max-md:pointer-coarse:h-9`}
                       data-sidebar="group-label"
                       data-sidebar-sticky-tier="label"
                       {...(entityGroupIcon
                         ? {
                             [`data-ribbon-icons-${entityGroupIcon.kind}`]:
                               group.id,
-                            style: headingColorStyle(entityGroupIcon.kind),
                           }
                         : {})}
+                      style={headingColorStyle(entityGroupIcon?.kind)}
                     >
                       {grouping ? (
                         <button

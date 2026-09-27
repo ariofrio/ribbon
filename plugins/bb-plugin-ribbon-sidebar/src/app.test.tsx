@@ -827,11 +827,19 @@ describe("Ribbon sidebar app", () => {
       "light-dark(oklch(from var(--ribbon-icons-section-color-light) 0.56 0.14 h), oklch(from var(--ribbon-icons-section-color-light) 0.44 0.11 h))",
     );
     expect(heading.style.backgroundColor).toBe(
-      "var(--ribbon-heading-fill, var(--sidebar))",
+      "var(--ribbon-heading-fill, light-dark(oklch(0.56 0 0), oklch(0.44 0 0)))",
     );
     expect(heading.style.getPropertyValue("--ribbon-heading-on")).toBe(
-      "var(--ribbon-icons-section-on-color-light)",
+      "var(--ribbon-icons-section-on-color-light, white)",
     );
+    // Headings without a color of their own are gray bars of the same family.
+    const pinned = slot
+      .getByRole("button", { name: "Collapse Pinned section" })
+      .closest<HTMLElement>('[data-sidebar="group-label"]')!;
+    expect(pinned.style.backgroundColor).toBe(
+      "light-dark(oklch(0.56 0 0), oklch(0.44 0 0))",
+    );
+    expect(pinned.style.getPropertyValue("--ribbon-heading-on")).toBe("white");
     slot.lifecycle.unmount();
   });
 
