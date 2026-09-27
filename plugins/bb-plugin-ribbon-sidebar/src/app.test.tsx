@@ -821,8 +821,13 @@ describe("Ribbon sidebar app", () => {
     ).closest<HTMLElement>('[data-sidebar="group-label"]')!;
     // The Icons plugin sets its color variables on whatever names the owner.
     expect(heading.getAttribute("data-ribbon-icons-section")).toBe("section-a");
+    // One even family of fills, whatever the palette color: its hue, at a
+    // lightness and chroma chosen for a filled bar in each mode.
+    expect(heading.style.getPropertyValue("--ribbon-heading-fill")).toBe(
+      "light-dark(oklch(from var(--ribbon-icons-section-color-light) 0.56 0.14 h), oklch(from var(--ribbon-icons-section-color-light) 0.44 0.11 h))",
+    );
     expect(heading.style.backgroundColor).toBe(
-      "var(--ribbon-icons-section-color-light, var(--sidebar))",
+      "var(--ribbon-heading-fill, var(--sidebar))",
     );
     expect(heading.style.getPropertyValue("--ribbon-heading-on")).toBe(
       "var(--ribbon-icons-section-on-color-light)",

@@ -95,8 +95,10 @@ export async function verifyThreadIcons({ stack, fixture }) {
     assert.equal(view.groupingKey, "builtin:sections");
     assert.equal(view.filterGroupingKey, null);
 
-    // A section with a picked color fills its heading with it, and turns the
-    // heading's text and icon to the color the Icons plugin pairs with it.
+    // A section with a picked color fills its heading with that color's hue,
+    // at the lightness and chroma headings share in the current mode, and
+    // turns the heading's text and icon to the color the Icons plugin pairs
+    // with it.
     const atlas = sidebar.locator('[data-sidebar="group-label"]').filter({
       has: page.getByRole("button", { name: /^(Collapse|Expand) Atlas section$/ }),
     });
@@ -111,15 +113,27 @@ export async function verifyThreadIcons({ stack, fixture }) {
       };
       const style = getComputedStyle(node);
       return {
+        scheme: getComputedStyle(document.documentElement).colorScheme,
         background: style.backgroundColor,
-        expected: resolve(style.getPropertyValue("--ribbon-icons-section-color-light")),
+        palette: resolve(style.getPropertyValue("--ribbon-icons-section-color-light")),
         label: getComputedStyle(node.querySelector('span[title="Atlas"]')).color,
         icon: getComputedStyle(node.querySelector("[data-ribbon-sidebar-icon]")).backgroundColor,
         white: resolve("white"),
       };
     });
-    assert.notEqual(painted.expected, "rgba(0, 0, 0, 0)", "The Atlas section should have a picked color");
-    assert.equal(painted.background, painted.expected, "The Atlas heading should be filled with its icon's color");
+    const oklch = (value) => {
+      const match = /^oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)$/.exec(value);
+      assert.ok(match, `Expected an oklch() color, got ${value}`);
+      return match.slice(1).map(Number);
+    };
+    const [lightness, chroma, hue] = oklch(painted.background);
+    const [, , paletteHue] = oklch(painted.palette);
+    assert.deepEqual(
+      [lightness, chroma],
+      painted.scheme.includes("dark") ? [0.44, 0.11] : [0.56, 0.14],
+      `The Atlas heading should use the ${painted.scheme} heading fill`,
+    );
+    assert.ok(Math.abs(hue - paletteHue) < 0.5, `The Atlas heading should keep its color's hue (${hue} vs ${paletteHue})`);
     assert.equal(painted.label, painted.white, "The Atlas heading's label should read against its color");
     assert.equal(painted.icon, painted.white, "The Atlas heading's icon should read against its color");
 
