@@ -225,6 +225,30 @@ export async function verifyThreadIcons({ stack, fixture }) {
       await collapse.waitFor();
     }
 
+    // Standardized heading icons: an archive box for a section, open while
+    // the section is, in the heading's own ink.
+    {
+      fixture.run(["plugin", "config", "ribbon-sidebar", "set", "groupHeaderIcons", "Standardized"]);
+      const standard = (name) => atlas.locator(`svg[data-icon="${name}"]`);
+      await standard("Archive02").waitFor();
+      const glyph = await standard("Archive02").evaluate((svg) => {
+        const box = svg.getBoundingClientRect();
+        const label = svg.closest('[data-sidebar="group-label"]').querySelector('span[title="Atlas"]');
+        return { width: box.width, height: box.height, color: getComputedStyle(svg).color, ink: getComputedStyle(label).color };
+      });
+      assert.deepEqual(
+        { width: glyph.width, height: glyph.height, color: glyph.color },
+        { width: 16, height: 16, color: glyph.ink },
+        "A standardized section icon should be a 16px glyph in the heading's ink",
+      );
+      await atlas.getByRole("button", { name: "Collapse Atlas section", exact: true }).click();
+      await standard("Archive").waitFor();
+      await atlas.getByRole("button", { name: "Expand Atlas section", exact: true }).click();
+      await standard("Archive02").waitFor();
+      fixture.run(["plugin", "config", "ribbon-sidebar", "set", "groupHeaderIcons", "On"]);
+      await atlas.locator("[data-ribbon-sidebar-icon]").waitFor();
+    }
+
     // A heading with no color of its own is a gray bar of the same family.
     const unorganized = await sidebar
       .locator('[data-sidebar="group-label"]')
