@@ -81,8 +81,8 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
       }
 
       {
-        // The whole heading is the toggle; its chevron keeps the place and size
-        // the toggle button had.
+        // The whole heading is the toggle; its chevron keeps the toggle button's
+        // size, a little closer to the title.
         const toggle = sidebar.getByRole("button", { name: "Collapse Atlas section", exact: true });
         const heading = toggle.locator('xpath=ancestor::*[@data-sidebar-sticky-tier="label"][1]');
         await heading.hover();
@@ -96,7 +96,7 @@ export async function verifyOptionalIconLayout({ stack, fixture }) {
           left: node.getBoundingClientRect().left - node.previousElementSibling.getBoundingClientRect().right,
           right: parseFloat(getComputedStyle(node).marginRight),
         }));
-        assert.equal(spacing.left, 8, "The heading chevron should have 8px to its left");
+        assert.equal(spacing.left, 4, "The heading chevron should have 4px to its left");
         assert.equal(spacing.right, 8, "The heading chevron should have 8px to its right");
         // A real click on the label, not the chevron, folds the section.
         const label = heading.getByText("Atlas", { exact: true });
