@@ -101,7 +101,7 @@ export function ThreadActionsDropdown({
         <DropdownMenuTrigger asChild>
           <Button
             aria-label="Thread actions"
-            className="relative m-1 size-5 shrink-0 cursor-pointer rounded-md p-0 text-subtle-foreground outline-none ring-sidebar-ring hover:bg-state-hover hover:text-muted-foreground focus-visible:bg-state-hover focus-visible:text-muted-foreground focus-visible:ring-2 active:bg-state-active data-[state=open]:bg-state-active data-[state=open]:text-muted-foreground data-[state=open]:hover:bg-state-active data-[state=open]:focus-visible:bg-state-active"
+            className="relative m-1 size-5 shrink-0 cursor-pointer rounded-md p-0 text-subtle-foreground outline-none ring-sidebar-ring hover:bg-state-hover hover:text-foreground focus-visible:bg-state-hover focus-visible:text-foreground focus-visible:ring-2 active:bg-state-active data-[state=open]:bg-state-active data-[state=open]:text-foreground data-[state=open]:hover:bg-state-active data-[state=open]:focus-visible:bg-state-active"
             onClick={(event) => event.stopPropagation()}
             onDragStart={(event) => event.preventDefault()}
             size="icon"
