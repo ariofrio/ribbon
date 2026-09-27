@@ -171,6 +171,45 @@ export async function verifyThreadIcons({ stack, fixture }) {
     assert.deepEqual(layout.heading, layout.row, "A heading should be laid out like a thread row");
     assert.equal(layout.headingGap, 4, "A heading should sit 4px above its first row");
 
+    // Folding the group that holds the open thread keeps that thread's row in
+    // view throughout: the other rows fold away around it, and it ends up
+    // where the folded group previews it, right under the heading.
+    {
+      const collapse = sidebar.getByRole("button", { name: "Collapse Atlas section", exact: true });
+      const openRow = sidebar.locator('li:has(a[aria-current="page"])').first();
+      await openRow.waitFor();
+      const box = await collapse.boundingBox();
+      // Click, then watch the open thread's row on every frame of the fold.
+      const watchOpenRow = (point) => page.evaluate(async ([x, y]) => {
+        const samples = [];
+        document.elementFromPoint(x, y)
+          .dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: x, clientY: y }));
+        const start = performance.now();
+        while (performance.now() - start < 450) {
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          const row = document.querySelector('[data-ribbon-sidebar-root] li:has(a[aria-current="page"])');
+          let opacity = 1;
+          for (let node = row; node && node !== document.body; node = node.parentElement) {
+            opacity *= Number(getComputedStyle(node).opacity);
+          }
+          samples.push(row ? { height: row.getBoundingClientRect().height, opacity } : null);
+        }
+        return samples;
+      }, point);
+      const stays = (frames) => frames.every((frame) => frame !== null && frame.height >= 27 && frame.opacity > 0.99);
+      const point = [box.x + 40, box.y + box.height / 2];
+      const folding = await watchOpenRow(point);
+      assert.ok(stays(folding), `The open thread's row should stay in view while its group folds: ${JSON.stringify(folding)}`);
+      const [headingBox, rowBox] = [
+        await sidebar.getByRole("button", { name: "Expand Atlas section", exact: true }).boundingBox(),
+        await openRow.boundingBox(),
+      ];
+      assert.equal(rowBox.y - (headingBox.y + headingBox.height), 4, "The folded group should preview the open thread right under its heading");
+      const unfolding = await watchOpenRow(point);
+      assert.ok(stays(unfolding), `The open thread's row should stay in view while its group unfolds: ${JSON.stringify(unfolding)}`);
+      await collapse.waitFor();
+    }
+
     // A heading with no color of its own is a gray bar of the same family.
     const unorganized = await sidebar
       .locator('[data-sidebar="group-label"]')

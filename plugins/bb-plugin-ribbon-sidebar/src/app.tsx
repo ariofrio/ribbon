@@ -2030,6 +2030,17 @@ function RibbonSidebarList({
                   ) : null}
                   <GroupBody
                     open={!pinnedSectionCollapsed}
+                    keepThreadId={
+                      activeThreadId !== null &&
+                      pinnedRoots
+                        .flatMap((root) => [
+                          root,
+                          ...descendants(root.id, childrenByParent),
+                        ])
+                        .some(({ id }) => id === activeThreadId)
+                        ? activeThreadId
+                        : null
+                    }
                     folded={
                       pinnedActivePreview ? (
                         <ul className="space-y-px">
@@ -2346,6 +2357,12 @@ function RibbonSidebarList({
                     ) : null}
                     <GroupBody
                       open={!collapsed}
+                      keepThreadId={
+                        activeThreadId !== null &&
+                        groupThreads.some(({ id }) => id === activeThreadId)
+                          ? activeThreadId
+                          : null
+                      }
                       folded={
                         activePreview ? (
                           <ul className="space-y-px">
