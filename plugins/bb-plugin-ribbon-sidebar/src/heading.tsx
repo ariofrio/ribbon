@@ -1,5 +1,5 @@
 import {
-  Folder02Icon,
+  Folder03Icon,
   FolderClosedIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
@@ -148,7 +148,7 @@ const STANDARD_ICONS: Record<
   Record<"open" | "shut", [IconSvgElement, string]>
 > = {
   section: { open: [OpenBookIcon, "BookOpen"], shut: [ShutBookIcon, "BookClosed"] },
-  project: { open: [Folder02Icon, "Folder02"], shut: [FolderClosedIcon, "FolderClosed"] },
+  project: { open: [Folder03Icon, "Folder03"], shut: [FolderClosedIcon, "FolderClosed"] },
 };
 
 /**

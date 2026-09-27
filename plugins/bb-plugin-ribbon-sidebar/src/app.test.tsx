@@ -1934,7 +1934,7 @@ describe("Ribbon sidebar app", () => {
     for (const [groupingKey, region, toggle, shut, open] of [
       ["builtin:sections", "Release group", "Release section", "BookClosed", "BookOpen"],
       ["builtin:sections", "Unorganized group", "Unorganized section", "BookClosed", "BookOpen"],
-      ["builtin:projects", "Storefront group", "Storefront project", "FolderClosed", "Folder02"],
+      ["builtin:projects", "Storefront group", "Storefront project", "FolderClosed", "Folder03"],
     ] as const) {
       window.localStorage.setItem(
         "bb.plugin.ribbon-sidebar.preferences.v1",
