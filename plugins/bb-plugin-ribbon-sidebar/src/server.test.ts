@@ -82,16 +82,26 @@ function setup({
 } = {}) {
   let currentThreadStagesCatalog = threadStagesCatalog;
   let currentMigrationSnapshotFails = migrationSnapshotFails;
-  const timeline = vi.fn(async () => ({
-    rows: [
-      {
-        kind: "conversation",
-        role: "assistant",
-        text: "Cached sidebar preview",
-        sourceSeqEnd: 2,
-      },
-    ],
-  }));
+  const timeline = vi.fn(async () => {
+    throw new Error("previews must not build timelines");
+  });
+  const eventsList = vi.fn(
+    async ({ types }: { types?: readonly string[] }) =>
+      [
+        {
+          seq: 2,
+          type: "item/completed",
+          data: {
+            item: { type: "agentMessage", id: "m2", text: "Cached sidebar preview" },
+          },
+        },
+        {
+          seq: 1,
+          type: "client/turn/requested",
+          data: { initiator: "user", input: [{ type: "text", text: "Start" }] },
+        },
+      ].filter((event) => !types || types.includes(event.type)),
+  );
   const updateSettings = vi.fn(async () => ({ values: {} }));
   const getSettings = vi.fn(async () => ({ ok: true, schema: {}, values: {} }));
   const pluginsList = vi.fn(async () => ({
@@ -206,6 +216,7 @@ function setup({
         get,
         list,
         timeline,
+        events: { list: eventsList },
         search: async () =>
           ({
             active: { results: [{ thread: threads[1] }] },
@@ -266,6 +277,7 @@ function setup({
   return {
     ...host,
     callRpc,
+    eventsList,
     get,
     list,
     send,
@@ -1282,7 +1294,7 @@ describe("Ribbon sidebar server", () => {
   });
 
   it("serves previews from the durable background cache", async () => {
-    const { bb, harness, timeline } = setup();
+    const { bb, harness, eventsList } = setup();
     await plugin(bb);
     const running = harness.behavior.runService("thread-previews");
 
@@ -1295,11 +1307,28 @@ describe("Ribbon sidebar server", () => {
         previews: [{ threadId: "thread-a", preview: "Cached sidebar preview" }],
       });
     });
-    const callsBeforeRead = timeline.mock.calls.length;
+    const callsBeforeRead = eventsList.mock.calls.length;
     await harness.behavior.callRpc("listPreviewsV1", {
       threadIds: ["thread-a"],
     });
-    expect(timeline).toHaveBeenCalledTimes(callsBeforeRead);
+    expect(eventsList).toHaveBeenCalledTimes(callsBeforeRead);
+
+    running.controller.abort();
+    await running.done;
+  });
+
+  it("does not read any thread while message previews are hidden", async () => {
+    const { bb, harness, eventsList } = setup({
+      settings: { showMessagePreviews: false },
+    });
+    await plugin(bb);
+    const running = harness.behavior.runService("thread-previews");
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(eventsList).not.toHaveBeenCalled();
+
+    await harness.behavior.setSettings({ showMessagePreviews: true });
+    await vi.waitFor(() => expect(eventsList).toHaveBeenCalled());
 
     running.controller.abort();
     await running.done;

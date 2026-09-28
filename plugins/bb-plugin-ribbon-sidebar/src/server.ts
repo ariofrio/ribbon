@@ -501,7 +501,7 @@ export default async function plugin(bb: BbPluginApi) {
   const previews = createPreviewStore(database);
   const threadActions = createThreadActionsStore(database);
   const childOrder = createChildOrderStore(database);
-  registerThreadPreviews(bb, previews);
+  registerThreadPreviews(bb, previews, settings);
 
   let projectGroups: GroupingDescriptor["groups"] = [];
   let personalProjectId: string | null = null;
