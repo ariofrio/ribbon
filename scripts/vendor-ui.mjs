@@ -45,6 +45,41 @@ import { fileURLToPath } from "node:url";
  */
 export const VENDOR_ROOT = "vendor";
 
+/**
+ * The items each plugin vendors and the directory under its src/ they land
+ * in. A plain array takes the default root. A fork of one of bb's built-ins
+ * keeps upstream's imports verbatim — `@/components/ui/button` — by vendoring
+ * straight into src/, which `{ "root": "", "items": [...] }` selects; the
+ * generator then owns each top-level directory a registry target names there
+ * (components/, lib/, hooks/), and the fork's own code stays out of them.
+ */
+export function pluginEntries(config) {
+  return Object.entries(config.plugins).map(([pluginDirectory, value]) =>
+    Array.isArray(value)
+      ? { pluginDirectory, names: value, root: VENDOR_ROOT }
+      : { pluginDirectory, names: value.items, root: value.root ?? VENDOR_ROOT },
+  );
+}
+
+function vendorPrefix(root) {
+  return root === "" ? "" : `${root}/`;
+}
+
+/**
+ * For a plugin vendoring into src/ itself, the directories the lock shows the
+ * generator writing to; anything else there is a stray.
+ */
+export function ownedDirectories(lock, pluginDirectory) {
+  const prefix = `${pluginDirectory}/src/`;
+  const directories = new Set();
+  for (const path of Object.keys(lock?.files ?? {})) {
+    if (!path.startsWith(prefix)) continue;
+    const [first] = path.slice(prefix.length).split("/");
+    if (path.slice(prefix.length).includes("/")) directories.add(first);
+  }
+  return [...directories].sort();
+}
+
 export function readConfig(repositoryRoot) {
   return JSON.parse(
     readFileSync(join(repositoryRoot, "vendor-ui.json"), "utf8"),
@@ -153,7 +188,7 @@ export async function resolveClosure(names, fetchOne) {
  * The files one plugin vendors: repository-relative path → contents. A
  * registry item's `target` is src-relative, matching the `@/*` alias.
  */
-export async function pluginFiles(pluginDirectory, names, fetchOne) {
+export async function pluginFiles(pluginDirectory, names, fetchOne, root = VENDOR_ROOT) {
   const closure = await resolveClosure(names, fetchOne);
   const files = new Map();
   for (const item of closure.values()) {
@@ -164,33 +199,46 @@ export async function pluginFiles(pluginDirectory, names, fetchOne) {
       if (within.startsWith("../") || within === ".." || target.startsWith("/")) {
         throw new Error(`${item.name}: target escapes the plugin: ${target}`);
       }
-      files.set(`${pluginDirectory}/src/${VENDOR_ROOT}/${within}`, file.content);
+      files.set(`${pluginDirectory}/src/${vendorPrefix(root)}${within}`, file.content);
     }
   }
   return files;
 }
 
-/** Every file currently sitting in a plugin's vendored directories. */
-export function vendoredOnDisk(repositoryRoot, pluginDirectory) {
-  const absolute = join(repositoryRoot, pluginDirectory, "src", VENDOR_ROOT);
-  let entries;
-  try {
-    entries = readdirSync(absolute, { recursive: true, withFileTypes: true });
-  } catch (error) {
-    if (error.code === "ENOENT") return [];
-    throw error;
+/**
+ * Every file currently sitting in a plugin's vendored directories: src/<root>,
+ * or for a plugin vendoring into src/ itself, each of `directories` under it.
+ */
+export function vendoredOnDisk(
+  repositoryRoot,
+  pluginDirectory,
+  root = VENDOR_ROOT,
+  directories = [],
+) {
+  const roots = root === "" ? directories : [root];
+  const found = [];
+  for (const directory of roots) {
+    const absolute = join(repositoryRoot, pluginDirectory, "src", directory);
+    let entries;
+    try {
+      entries = readdirSync(absolute, { recursive: true, withFileTypes: true });
+    } catch (error) {
+      if (error.code === "ENOENT") continue;
+      throw error;
+    }
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      found.push(
+        relative(
+          join(repositoryRoot, pluginDirectory),
+          join(entry.parentPath, entry.name),
+        )
+          .split(sep)
+          .join("/"),
+      );
+    }
   }
-  return entries
-    .filter((entry) => entry.isFile())
-    .map((entry) =>
-      relative(
-        join(repositoryRoot, pluginDirectory),
-        join(entry.parentPath, entry.name),
-      )
-        .split(sep)
-        .join("/"),
-    )
-    .sort();
+  return found.sort();
 }
 
 /**
@@ -216,8 +264,13 @@ export function inspect(repositoryRoot, config, lock) {
     if (digest(contents) !== expected) edited.push(path);
   }
 
-  for (const pluginDirectory of Object.keys(config.plugins)) {
-    for (const relativePath of vendoredOnDisk(repositoryRoot, pluginDirectory)) {
+  for (const { pluginDirectory, root } of pluginEntries(config)) {
+    for (const relativePath of vendoredOnDisk(
+      repositoryRoot,
+      pluginDirectory,
+      root,
+      ownedDirectories(lock, pluginDirectory),
+    )) {
       const path = `${pluginDirectory}/${relativePath}`;
       if (lock.files[path] === undefined) untracked.push(path);
     }
@@ -275,7 +328,7 @@ export function formatProblems(problems, config, lock) {
   }
   if (problems.untracked.length > 0) {
     lines.push(
-      `No registry item explains these files under src/${VENDOR_ROOT}/, which the generator owns outright — they are orphans from an older pin, or a plugin's own code that belongs outside it:\n${problems.untracked
+      `No registry item explains these files, and they sit in a directory the generator owns outright — they are orphans from an older pin, or a plugin's own code that belongs outside it:\n${problems.untracked
         .map((path) => `  ${path}`)
         .join("\n")}`,
     );
@@ -306,11 +359,12 @@ async function build(repositoryRoot, config) {
   };
 
   const files = new Map();
-  for (const [pluginDirectory, names] of Object.entries(config.plugins)) {
+  for (const { pluginDirectory, names, root } of pluginEntries(config)) {
     for (const [path, contents] of await pluginFiles(
       pluginDirectory,
       names,
       fetchOne,
+      root,
     )) {
       files.set(path, contents);
     }
@@ -320,12 +374,18 @@ async function build(repositoryRoot, config) {
   // what a previous lock listed would leave a stray that was never locked in
   // place, and --check would then demand a rebuild that could not remove it.
   const previous = new Set();
-  for (const pluginDirectory of Object.keys(config.plugins)) {
-    for (const relativePath of vendoredOnDisk(repositoryRoot, pluginDirectory)) {
+  const lock = readLock(repositoryRoot);
+  for (const { pluginDirectory, root } of pluginEntries(config)) {
+    for (const relativePath of vendoredOnDisk(
+      repositoryRoot,
+      pluginDirectory,
+      root,
+      ownedDirectories(lock, pluginDirectory),
+    )) {
       previous.add(`${pluginDirectory}/${relativePath}`);
     }
   }
-  for (const path of Object.keys(readLock(repositoryRoot)?.files ?? {})) {
+  for (const path of Object.keys(lock?.files ?? {})) {
     previous.add(path);
   }
   for (const path of previous) {

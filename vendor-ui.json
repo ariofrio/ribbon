@@ -26,6 +26,27 @@
       "textarea",
       "tooltip"
     ],
+    "plugins/bb-plugin-thread-stages": {
+      "root": "",
+      "items": [
+        "button",
+        "checkbox",
+        "chrome-style-tokens",
+        "coarse-pointer-sizing",
+        "context-menu",
+        "dialog",
+        "dropdown-menu",
+        "empty-state",
+        "icon",
+        "input",
+        "motion",
+        "skeleton",
+        "tooltip",
+        "use-compact-viewport",
+        "use-pointer-coarse",
+        "utils"
+      ]
+    },
     "plugins/bb-plugin-thread-titles": [
       "button"
     ]

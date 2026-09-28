@@ -1,160 +1,300 @@
-import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
+import {
+  cliCommand,
+  defineCli,
+  defineRpcContract,
+  PluginCliError,
+  type BbPluginApi,
+} from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
-  acknowledgePlacementMigrationInputSchema,
-  acknowledgePlacementMigrationOutputSchema,
-  createGroupingCatalog,
-  getGroupingCatalogInputSchema,
-  groupingCatalogSchema,
-  placementMigrationSnapshotSchema,
-} from "./contracts";
-import {
-  THREAD_STAGE_SOURCE_MIGRATIONS,
-  createThreadStageMigrationSource,
-} from "./migration-source";
-import { registerStageMentions } from "./stage-mentions";
-import { WORKFLOW_STAGES } from "./workflow-stage";
+  defaultPreferences,
+  describePreference,
+  getPreferenceDefault,
+  isPreferenceKey,
+  parsePreferenceValue,
+  PREFERENCE_KEYS,
+  PREFERENCES_CHANGED_CHANNEL,
+  preferenceDefinitions,
+  type PreferenceKey,
+  type PreferenceValue,
+  type PreferenceValues,
+} from "./shared/preferences.js";
 
-const AUTO_ARCHIVE_OPTIONS = ["Never", "1 day", "7 days", "30 days"] as const;
+const PREFERENCE_KV_PREFIX = "preference:";
+const MIGRATION_KV_KEY = "migration:ui-preferences:v1";
 
-const workflowStageSchema = z.enum(WORKFLOW_STAGES);
-const assignmentSchema = z
-  .object({
-    threadId: z.string(),
-    workflowStage: workflowStageSchema,
-    sortKey: z.string().min(1),
-    updatedAt: z.number().int(),
-  })
-  .strict();
-const stateSchema = z
-  .object({ assignments: z.array(assignmentSchema) })
-  .strict();
-const destinationSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("stay") }).strict(),
-  z
-    .object({
-      kind: z.literal("thread"),
-      threadId: z.string(),
-      projectId: z.string().nullable(),
-    })
-    .strict(),
-  z.object({ kind: z.literal("compose") }).strict(),
-]);
+const preferenceKeySchema = z.enum(
+  PREFERENCE_KEYS as [PreferenceKey, ...PreferenceKey[]],
+);
 
-export const rpcContract = defineRpcContract({
-  setWorkflowStage: {
-    input: z
-      .object({
-        threadId: z.string().min(1).max(256),
-        workflowStage: workflowStageSchema,
-        scope: z
-          .object({
-            groupingKey: z.union([
-              z.literal("builtin:projects"),
-              z.literal("builtin:sections"),
-              z.string().regex(/^plugin:[^:/]+:[^:/]+$/u),
-            ]),
-            groupId: z.string().min(1).max(128),
-          })
-          .strict()
-          .nullable()
-          .optional(),
-      })
-      .strict(),
-    output: z.object({ destination: destinationSchema }).strict(),
-  },
-  reorderThread: {
-    input: z
-      .object({
-        threadId: z.string().min(1).max(256),
-        scope: z.enum(["step", "edge", "stage"]),
-        direction: z.union([z.literal(-1), z.literal(1)]),
-      })
-      .strict(),
-    output: stateSchema,
-  },
-  getGroupingCatalogV1: {
-    input: getGroupingCatalogInputSchema,
-    output: groupingCatalogSchema,
-  },
-  getPlacementMigrationSnapshotV1: {
+const preferenceValuesSchema = z.object(
+  Object.fromEntries(
+    PREFERENCE_KEYS.map((key) => [key, preferenceDefinitions[key].schema]),
+  ) as { [Key in PreferenceKey]: (typeof preferenceDefinitions)[Key]["schema"] },
+);
+
+export const threadListRpcContract = defineRpcContract({
+  listPreferences: {
     input: z.null(),
-    output: placementMigrationSnapshotSchema,
+    output: z.object({ preferences: preferenceValuesSchema }).strict(),
   },
-  acknowledgePlacementMigrationV1: {
-    input: acknowledgePlacementMigrationInputSchema,
-    output: acknowledgePlacementMigrationOutputSchema,
+  setPreference: {
+    input: z.object({ key: preferenceKeySchema, value: z.unknown() }).strict(),
+    output: z
+      .object({ key: preferenceKeySchema, value: z.unknown() })
+      .strict(),
+  },
+  resetPreference: {
+    input: z.object({ key: preferenceKeySchema }).strict(),
+    output: z
+      .object({ key: preferenceKeySchema, value: z.unknown() })
+      .strict(),
   },
 });
 
-export default async function plugin(bb: BbPluginApi) {
-  const database = bb.storage.database();
-  bb.storage.migrate(database, THREAD_STAGE_SOURCE_MIGRATIONS);
-  const migrationSource = createThreadStageMigrationSource(database);
-  const settings = bb.settings.define({
-    showDeferredStage: {
-      type: "boolean",
-      label: "Show Deferred stage",
-      description:
-        "Allow threads to move into Deferred. A nonempty Deferred stage remains visible until it is emptied.",
-      default: true,
+function kvKey(key: PreferenceKey): string {
+  return `${PREFERENCE_KV_PREFIX}${key}`;
+}
+
+export function createPreferenceStore(bb: BbPluginApi) {
+  async function read<Key extends PreferenceKey>(
+    key: Key,
+  ): Promise<PreferenceValue<Key>> {
+    const stored = await bb.storage.kv.get<unknown>(kvKey(key));
+    if (stored === undefined) return getPreferenceDefault(key);
+    const parsed = parsePreferenceValue(key, stored);
+    if (parsed.success) return parsed.value;
+    bb.log.warn(
+      `stored preference ${key} is invalid (${parsed.message}); using the default`,
+    );
+    return getPreferenceDefault(key);
+  }
+
+  async function readAll(): Promise<PreferenceValues> {
+    const values = defaultPreferences();
+    await Promise.all(
+      PREFERENCE_KEYS.map(async (key) => {
+        (values as Record<PreferenceKey, unknown>)[key] = await read(key);
+      }),
+    );
+    return values;
+  }
+
+  async function write<Key extends PreferenceKey>(
+    key: Key,
+    value: unknown,
+  ): Promise<PreferenceValue<Key>> {
+    const parsed = parsePreferenceValue(key, value);
+    if (!parsed.success) {
+      throw new PreferenceValidationError(key, parsed.message);
+    }
+    await bb.storage.kv.set(kvKey(key), parsed.value);
+    bb.realtime.publish(PREFERENCES_CHANGED_CHANNEL, {
+      key,
+      value: parsed.value,
+    });
+    return parsed.value;
+  }
+
+  async function reset<Key extends PreferenceKey>(
+    key: Key,
+  ): Promise<PreferenceValue<Key>> {
+    await bb.storage.kv.delete(kvKey(key));
+    const value = getPreferenceDefault(key);
+    bb.realtime.publish(PREFERENCES_CHANGED_CHANNEL, { key, value });
+    return value;
+  }
+
+  return { read, readAll, write, reset };
+}
+
+export class PreferenceValidationError extends Error {
+  constructor(
+    readonly key: PreferenceKey,
+    readonly detail: string,
+  ) {
+    super(`Invalid value for ${key}: ${detail}`);
+    this.name = "PreferenceValidationError";
+  }
+}
+
+export async function migrateFromUiPreferences(
+  bb: BbPluginApi,
+): Promise<{ migrated: PreferenceKey[] }> {
+  const done = await bb.storage.kv.get<boolean>(MIGRATION_KV_KEY);
+  if (done === true) return { migrated: [] };
+  const migrated: PreferenceKey[] = [];
+  let entries: Record<string, { value: unknown } | undefined>;
+  try {
+    const response = await bb.sdk.system.uiPreferences.list();
+    entries = response.preferences as Record<
+      string,
+      { value: unknown } | undefined
+    >;
+  } catch (error) {
+    bb.log.warn(
+      `could not read bb's sidebar preferences to migrate them: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return { migrated };
+  }
+  for (const key of PREFERENCE_KEYS) {
+    const existing = await bb.storage.kv.get<unknown>(kvKey(key));
+    if (existing !== undefined) continue;
+    const legacyKey = preferenceDefinitions[key].legacyKey;
+    if (legacyKey === null) continue;
+    const legacy = entries[legacyKey];
+    if (legacy === undefined) continue;
+    const parsed = parsePreferenceValue(key, legacy.value);
+    if (!parsed.success) continue;
+    if (JSON.stringify(parsed.value) === JSON.stringify(getPreferenceDefault(key))) {
+      continue;
+    }
+    await bb.storage.kv.set(kvKey(key), parsed.value);
+    migrated.push(key);
+  }
+  await bb.storage.kv.set(MIGRATION_KV_KEY, true);
+  return { migrated };
+}
+
+function parseCliValue(raw: string): unknown {
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return raw;
+  }
+}
+
+function requireCliPreferenceKey(raw: string): PreferenceKey {
+  if (isPreferenceKey(raw)) return raw;
+  throw new PluginCliError(`Unknown preference: ${raw}`, {
+    code: "unknown_preference",
+    hint: `Known preferences: ${PREFERENCE_KEYS.join(", ")}.`,
+  });
+}
+
+const JSON_OPTION = {
+  type: "boolean",
+  description: "Emit machine-readable JSON",
+} as const;
+
+export default async function threadListPlugin(bb: BbPluginApi) {
+  const store = createPreferenceStore(bb);
+
+  bb.rpc.register(threadListRpcContract, {
+    async listPreferences() {
+      return { preferences: await store.readAll() };
     },
-    showBlockedStage: {
-      type: "boolean",
-      label: "Show Blocked stage",
-      description:
-        "Allow threads to move into Blocked. A nonempty Blocked stage remains visible until it is emptied.",
-      default: true,
+    async setPreference({ key, value }) {
+      return { key, value: await store.write(key, value) };
     },
-    autoArchiveCompletedAfter: {
-      type: "select",
-      label: "Auto-archive completed threads",
-      description:
-        "Archive unpinned Completed thread hierarchies after the selected time without a root or descendant thread update.",
-      options: [...AUTO_ARCHIVE_OPTIONS],
-      default: "7 days",
+    async resetPreference({ key }) {
+      return { key, value: await store.reset(key) };
     },
   });
-  bb.rpc.register(rpcContract, {
-    setWorkflowStage: (input) =>
-      bb.sdk.plugins.callRpc({
-        pluginId: "ribbon-sidebar",
-        method: "setWorkflowStage",
-        input,
-        outputSchema: rpcContract.setWorkflowStage.output,
-      }),
-    reorderThread: (input) =>
-      bb.sdk.plugins.callRpc({
-        pluginId: "ribbon-sidebar",
-        method: "reorderThread",
-        input,
-        outputSchema: rpcContract.reorderThread.output,
-      }),
-    async getGroupingCatalogV1() {
-      return createGroupingCatalog(await settings.get());
-    },
-    getPlacementMigrationSnapshotV1() {
-      return migrationSource.snapshot();
-    },
-    acknowledgePlacementMigrationV1(input) {
-      return migrationSource.acknowledge(input);
-    },
-  });
-  registerStageMentions(bb);
-  settings.onChange(() => {
-    void settings
-      .get()
-      .then((values) =>
-        bb.sdk.plugins.updateSettings({
-          pluginId: "ribbon-sidebar",
-          values,
+
+  bb.cli.register(
+    defineCli({
+      name: bb.pluginId,
+      summary: "Inspect and change the sidebar thread list's layout preferences",
+      description:
+        "Organization mode, sort, section order, hidden groups, and collapsed groups for bb's sidebar thread list. Values are JSON; a bare word is read as a string.",
+      commands: {
+        "prefs list": cliCommand({
+          summary: "List every preference and its current value",
+          options: { json: JSON_OPTION },
+          async run(input) {
+            const values = await store.readAll();
+            if (input.options.json) {
+              return { exitCode: 0, stdout: JSON.stringify(values) };
+            }
+            return {
+              exitCode: 0,
+              stdout: PREFERENCE_KEYS.map(
+                (key) =>
+                  `${key}\t${JSON.stringify(values[key])}\t${describePreference(key)}`,
+              ).join("\n"),
+            };
+          },
         }),
-      )
-      .catch((error) =>
-        bb.log.warn(`Could not update Ribbon stage settings: ${String(error)}`),
-      );
-  });
-  bb.log.info(
-    "Thread stages compatibility bridge loaded; Ribbon owns stages and automation",
+        "prefs get": cliCommand({
+          summary: "Print one preference",
+          positionals: [
+            { name: "key", description: "Preference name", required: true },
+          ],
+          options: { json: JSON_OPTION },
+          async run(input) {
+            const key = requireCliPreferenceKey(input.positionals.key);
+            const value = await store.read(key);
+            return {
+              exitCode: 0,
+              stdout: input.options.json
+                ? JSON.stringify({ key, value })
+                : JSON.stringify(value),
+            };
+          },
+        }),
+        "prefs set": cliCommand({
+          summary: "Set one preference",
+          positionals: [
+            { name: "key", description: "Preference name", required: true },
+            {
+              name: "value",
+              description: 'JSON value, e.g. \'"machine"\' or \'["pinned","threads"]\'',
+              required: true,
+            },
+          ],
+          options: { json: JSON_OPTION },
+          async run(input) {
+            const key = requireCliPreferenceKey(input.positionals.key);
+            try {
+              const value = await store.write(
+                key,
+                parseCliValue(input.positionals.value),
+              );
+              return {
+                exitCode: 0,
+                stdout: input.options.json
+                  ? JSON.stringify({ key, value })
+                  : `${key} = ${JSON.stringify(value)}`,
+              };
+            } catch (error) {
+              if (error instanceof PreferenceValidationError) {
+                throw new PluginCliError(error.message, {
+                  code: "invalid_preference_value",
+                  hint: describePreference(key),
+                });
+              }
+              throw error;
+            }
+          },
+        }),
+        "prefs reset": cliCommand({
+          summary: "Restore one preference to its default",
+          positionals: [
+            { name: "key", description: "Preference name", required: true },
+          ],
+          options: { json: JSON_OPTION },
+          async run(input) {
+            const key = requireCliPreferenceKey(input.positionals.key);
+            const value = await store.reset(key);
+            return {
+              exitCode: 0,
+              stdout: input.options.json
+                ? JSON.stringify({ key, value })
+                : `${key} = ${JSON.stringify(value)}`,
+            };
+          },
+        }),
+      },
+    }),
   );
+
+  const { migrated } = await migrateFromUiPreferences(bb);
+  if (migrated.length > 0) {
+    bb.log.info(
+      `migrated sidebar preferences from bb settings: ${migrated.join(", ")}`,
+    );
+  }
 }

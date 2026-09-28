@@ -149,7 +149,7 @@
     {
       "id": "thread-stages",
       "displayName": "Thread stages",
-      "description": "Mention stages in the composer, and preserve existing stage shortcuts and saved state for Ribbon sidebar.",
+      "description": "bb's thread list with workflow stages, stable thread order, and section and project icons.",
       "icon": {
         "url": "./plugins/bb-plugin-thread-stages/assets/icon.svg"
       },

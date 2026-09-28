@@ -39,11 +39,10 @@ bb plugin install ribbon-sidebar@ribbon
 
 ### <img src="assets/icons/thread-stages.svg" alt="" width="26" align="absmiddle"> &nbsp;Thread stages
 
-Mention stages in the composer, and preserve existing stage shortcuts and saved state for Ribbon sidebar.
+bb's thread list with workflow stages, stable thread order, and section and project icons.
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon
-bb plugin install ribbon-sidebar@ribbon
 bb plugin install thread-stages@ribbon
 ```
 
