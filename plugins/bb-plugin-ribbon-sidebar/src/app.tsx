@@ -17,6 +17,9 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import {
   Fragment,
+  isValidElement,
+  memo,
+  useLayoutEffect,
   useCallback,
   useEffect,
   useInsertionEffect,
@@ -27,6 +30,7 @@ import {
   type FormEvent,
   type MouseEvent,
   type ReactNode,
+  type SyntheticEvent,
 } from "react";
 import type { z } from "zod";
 import { CHROME_GROUP_HEADING_CLASS } from "./chrome-style-tokens";
@@ -234,7 +238,181 @@ function supplementalSidebarThread(
   };
 }
 
-function ThreadRow({
+type ThreadRowProps = Omit<Parameters<typeof ThreadRowContent>[0], "sortable">;
+type SortableRowProps = ThreadRowProps & {
+  sortable: ReturnType<typeof useSortable>;
+};
+
+function sameFields(left: object, right: object): boolean {
+  return (
+    Object.keys(left).length === Object.keys(right).length &&
+    Object.entries(left).every(([key, value]) =>
+      Object.is(value, Reflect.get(right, key)),
+    )
+  );
+}
+
+function sameRowProps(
+  previous: SortableRowProps,
+  next: SortableRowProps,
+): boolean {
+  const {
+    assignments: a,
+    indicatorThread: ai,
+    icon: ax,
+    sections: as,
+    dragTarget: ad,
+    sortable: adnd,
+    thread: at,
+    ...ap
+  } = previous;
+  const {
+    assignments: b,
+    indicatorThread: bi,
+    icon: bx,
+    sections: bs,
+    dragTarget: bd,
+    sortable: bdnd,
+    thread: bt,
+    ...bp
+  } = next;
+  if (
+    adnd.setNodeRef !== bdnd.setNodeRef ||
+    adnd.setActivatorNodeRef !== bdnd.setActivatorNodeRef ||
+    !sameFields(adnd.attributes, bdnd.attributes) ||
+    !sameFields(adnd.listeners ?? {}, bdnd.listeners ?? {})
+  )
+    return false;
+  if (at !== bt) {
+    const { activity: aa, environment: ae, host: ah, ...av } = at;
+    const { activity: ba, environment: be, host: bh, ...bv } = bt;
+    if (
+      !sameFields(av, bv) ||
+      !sameFields(aa, ba) ||
+      (ae !== be && (!ae || !be || !sameFields(ae, be))) ||
+      (ah !== bh && (!ah || !bh || !sameFields(ah, bh)))
+    )
+      return false;
+  }
+  if (!sameFields(ap, bp) || !sameFields(ai, bi)) return false;
+  if (
+    ax !== bx &&
+    !(
+      isValidElement<object>(ax) &&
+      isValidElement<object>(bx) &&
+      ax.type === bx.type &&
+      ax.key === bx.key &&
+      sameFields(ax.props, bx.props)
+    )
+  )
+    return false;
+  if (
+    as !== bs &&
+    (as.length !== bs.length ||
+      as.some((section, i) => !sameFields(section, bs[i]!)))
+  )
+    return false;
+  if (
+    a.length !== b.length ||
+    a.some(({ onSetGroup: _onSetGroup, ...item }, i) => {
+      const { onSetGroup: _nextOnSetGroup, ...other } = b[i]!;
+      return !sameFields(item, other);
+    })
+  )
+    return false;
+  if (ad !== bd) {
+    if (!ad || !bd) return false;
+    const { roots: ar, ...av } = ad;
+    const { roots: br, ...bv } = bd;
+    if (
+      !sameFields(av, bv) ||
+      ar.length !== br.length ||
+      ar.some((root, index) => root.id !== br[index]?.id)
+    )
+      return false;
+  }
+  return true;
+}
+
+const MemoThreadRow = memo(ThreadRowContent, sameRowProps);
+
+function ThreadRow(props: ThreadRowProps) {
+  const sortable = useSortable({
+    id: props.thread.id,
+    disabled: !props.reorderable,
+    data: { target: props.dragTarget, label: title(props.thread) },
+  });
+  const current = useRef(props);
+  const currentSortable = useRef(sortable);
+  useLayoutEffect(() => {
+    current.current = props;
+    currentSortable.current = sortable;
+  });
+  const listenerKeys = Object.keys(sortable.listeners ?? {})
+    .sort()
+    .join(",");
+  const listeners = useMemo(
+    () =>
+      Object.fromEntries(
+        listenerKeys
+          .split(",")
+          .filter(Boolean)
+          .map((key) => [
+            key,
+            (event: SyntheticEvent) => currentSortable.current.listeners?.[key]?.(event),
+          ]),
+      ),
+    [listenerKeys],
+  );
+  const handlers = useMemo(
+    () => ({
+      onNewSection: () => current.current.onNewSection(),
+      onOpen: (split: boolean) => current.current.onOpen(split),
+      onRename: () => current.current.onRename(),
+      onSetSection: (sectionId: string | null) =>
+        current.current.onSetSection(sectionId),
+      onToggleChildren: () => current.current.onToggleChildren(),
+      actions: {
+        open: (...args: Parameters<ThreadRowProps["actions"]["open"]>) =>
+          current.current.actions.open(...args),
+        openNewThread: (
+          ...args: Parameters<ThreadRowProps["actions"]["openNewThread"]>
+        ) => current.current.actions.openNewThread(...args),
+        setPinned: (
+          ...args: Parameters<ThreadRowProps["actions"]["setPinned"]>
+        ) => current.current.actions.setPinned(...args),
+        setRead: (...args: Parameters<ThreadRowProps["actions"]["setRead"]>) =>
+          current.current.actions.setRead(...args),
+        rename: (...args: Parameters<ThreadRowProps["actions"]["rename"]>) =>
+          current.current.actions.rename(...args),
+        archive: (...args: Parameters<ThreadRowProps["actions"]["archive"]>) =>
+          current.current.actions.archive(...args),
+        requestDelete: (
+          ...args: Parameters<ThreadRowProps["actions"]["requestDelete"]>
+        ) => current.current.actions.requestDelete(...args),
+      },
+    }),
+    [],
+  );
+  const assignments = props.assignments.map((assignment) => ({
+    ...assignment,
+    onSetGroup: (groupId: string) =>
+      current.current.assignments
+        .find((item) => item.groupingKey === assignment.groupingKey)
+        ?.onSetGroup(groupId),
+  }));
+  return (
+    <MemoThreadRow
+      {...props}
+      {...handlers}
+      assignments={assignments}
+      sortable={{ ...sortable, listeners }}
+    />
+  );
+}
+
+function ThreadRowContent({
+  sortable,
   active,
   alignAdornmentsToEntireItem,
   actions,
@@ -263,6 +441,7 @@ function ThreadRow({
   shimmerRow,
   thread,
 }: {
+  sortable: ReturnType<typeof useSortable>;
   active: boolean;
   alignAdornmentsToEntireItem: boolean;
   actions: ReturnType<typeof experimental_useSidebarThreadActions>;
@@ -318,14 +497,10 @@ function ThreadRow({
   const shines = shimmerRow && working;
   const rowRef = useRef<HTMLDivElement | null>(null);
   useRowShine(rowRef, shines, working);
+  const [keyboardFocus, setKeyboardFocus] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const rowTitle = title(thread);
-  const sortable = useSortable({
-    id: thread.id,
-    disabled: !reorderable,
-    data: { target: dragTarget, label: rowTitle },
-  });
   const accessibleTitle = preview ? `${rowTitle} — ${preview}` : rowTitle;
   const showPullRequest =
     visiblePullRequest !== null && pullRequestStatus !== null;
@@ -408,11 +583,7 @@ function ThreadRow({
           reservesTrailingLane
             ? "grid-cols-[minmax(0,1fr)_auto] gap-x-1"
             : "grid-cols-1"
-        } ${
-          active
-            ? "bg-sidebar-accent"
-            : "cursor-pointer hover:bg-sidebar-accent"
-        } ${
+        } ${active ? "bg-sidebar-accent" : "cursor-pointer hover:bg-sidebar-accent"} ${
           muted
             ? "text-subtle-foreground/75"
             : active
@@ -425,6 +596,21 @@ function ThreadRow({
         }}
         {...(shines ? { [SHINE_ROW_ATTRIBUTE]: "" } : {})}
         {...(working ? { [ACTIVE_ROW_ATTRIBUTE]: "" } : {})}
+        data-ribbon-keyboard-focus={keyboardFocus}
+        data-ribbon-actions-open={actionsOpen}
+        onFocusCapture={(event) =>
+          setKeyboardFocus(event.target.matches(":focus-visible"))
+        }
+        onBlurCapture={(event) => {
+          if (
+            !(event.relatedTarget instanceof Node) ||
+            !event.currentTarget.contains(event.relatedTarget)
+          ) setKeyboardFocus(false);
+        }}
+        onKeyDownCapture={(event) => {
+          if (!event.altKey && !event.ctrlKey && !event.metaKey)
+            setKeyboardFocus(true);
+        }}
         onDragStart={(event) => event.preventDefault()}
         style={{ paddingLeft: 8 + depth * 24 }}
       >
@@ -480,7 +666,7 @@ function ThreadRow({
               !hasTrailingIndicator && !thread.isArchived
                 ? reservesIndicatorLaneAtRest
                   ? "pr-8 max-md:pointer-coarse:pr-2!"
-                  : "pr-2 group-hover/thread-row:pr-8 group-has-[:focus-visible]/thread-row:pr-8 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-8 max-md:pointer-coarse:pr-2!"
+                  : "pr-2 group-hover/thread-row:pr-8 group-data-[ribbon-keyboard-focus=true]/thread-row:pr-8 group-data-[ribbon-actions-open=true]/thread-row:pr-8 max-md:pointer-coarse:pr-2!"
                 : ""
             }`}
             style={{
@@ -511,12 +697,12 @@ function ThreadRow({
                 className={`relative z-20 size-5 shrink-0 overflow-hidden p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3 ${
                   showChildToggleAtRest
                     ? "ml-2"
-                    : "bb-sidebar-hover-actions w-0 group-hover/thread-row:ml-2 group-hover/thread-row:w-5 group-has-[:focus-visible]/thread-row:ml-2 group-has-[:focus-visible]/thread-row:w-5 max-md:pointer-coarse:group-[:not(:has(:focus-visible))]/thread-row:ml-0! max-md:pointer-coarse:group-[:not(:has(:focus-visible))]/thread-row:w-0!"
+                    : "bb-sidebar-hover-actions w-0 group-hover/thread-row:ml-2 group-hover/thread-row:w-5 group-data-[ribbon-keyboard-focus=true]/thread-row:ml-2 group-data-[ribbon-keyboard-focus=true]/thread-row:w-5 max-md:pointer-coarse:group-data-[ribbon-keyboard-focus=false]/thread-row:ml-0! max-md:pointer-coarse:group-data-[ribbon-keyboard-focus=false]/thread-row:w-0!"
                 } ${
                   !thread.isArchived
                     ? showChildToggleAtRest
                       ? "-mr-1 max-md:pointer-coarse:mr-0!"
-                      : "group-hover/thread-row:-mr-1 group-has-[:focus-visible]/thread-row:-mr-1 max-md:pointer-coarse:mr-0!"
+                      : "group-hover/thread-row:-mr-1 group-data-[ribbon-keyboard-focus=true]/thread-row:-mr-1 max-md:pointer-coarse:mr-0!"
                     : ""
                 }`}
                 onClick={(event) => {

@@ -197,11 +197,16 @@ export function ThreadDragGroup({
   const id =
     target.kind === "pinned" ? "pinned" : `placement:${target.groupId}`;
   const { setNodeRef } = useDroppable({ id, disabled, data: { target } });
+  const [items, setItems] = useState(() => target.roots.map(({ id }) => id));
+  if (
+    items.length !== target.roots.length ||
+    items.some((id, index) => id !== target.roots[index]?.id)
+  ) {
+    setItems(target.roots.map(({ id }) => id));
+  }
   return (
     <section {...props} ref={setNodeRef}>
-      <SortableContext items={target.roots.map(({ id }) => id)}>
-        {children}
-      </SortableContext>
+      <SortableContext items={items}>{children}</SortableContext>
     </section>
   );
 }

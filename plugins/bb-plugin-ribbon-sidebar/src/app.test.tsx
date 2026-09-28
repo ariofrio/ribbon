@@ -495,6 +495,26 @@ function useManualSort(groupingKey = "plugin:thread-stages:stages") {
   );
 }
 
+it("uses the latest navigation callback after an unchanged row is memoized", async () => {
+  const app = await loadPluginApp(() => import("./app"));
+  const Component = app.threadLists[0]!.component;
+  const first = vi.fn();
+  const next = vi.fn();
+  const slot = renderSlot(
+    app.threadLists[0]!,
+    { ...props, onNavigate: first },
+    options().value,
+  );
+  await slot.findByText("Design migration");
+  slot.rerender(<Component {...props} onNavigate={next} />);
+  fireEvent.click(slot.getByRole("link", { name: /Design migration/ }));
+  expect(next).toHaveBeenCalledOnce();
+  expect(first).not.toHaveBeenCalled();
+  expect(slot.inspection.sidebarActionCalls).toContainEqual(
+    expect.objectContaining({ method: "open", threadId: "thread-a" }),
+  );
+});
+
 describe("Ribbon sidebar app", () => {
   it.each([
     ["builtin:sections", "Release"],
@@ -819,6 +839,7 @@ describe("Ribbon sidebar app", () => {
         "--ribbon-active-animation-delay",
       ),
     ).toMatch(/^-?\d+(?:\.\d+)?ms$/);
+    await within(working as HTMLElement).findByText("A useful preview");
     const shining = Array.from(working.querySelectorAll("[data-ribbon-shine]"));
     expect(shining.map((node) => node.textContent)).toEqual(
       expect.arrayContaining(["thread-a", "A useful preview"]),
