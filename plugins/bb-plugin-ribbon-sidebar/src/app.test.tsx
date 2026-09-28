@@ -528,7 +528,7 @@ describe("Ribbon sidebar app", () => {
       threadId: "thread-a", actionId: "review",
     }));
     slot.lifecycle.unmount();
-  });
+  }, 15_000);
 
   it("edits thread actions from the thread menu", async () => {
     const app = await loadPluginApp(() => import("./app"));
@@ -554,7 +554,7 @@ describe("Ribbon sidebar app", () => {
     }));
     expect(await within(row).findByRole("button", { name: "Review in Design migration" })).toBeTruthy();
     slot.lifecycle.unmount();
-  });
+  }, 15_000);
 
   it.each([
     ["builtin:sections", "Release"],

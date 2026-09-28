@@ -1,5 +1,11 @@
 # bb-plugin-ribbon-sidebar
 
+## 0.5.1
+
+### Patch Changes
+
+- 285263c: Give PR numbers equal-width digits in the sidebar without changing their font.
+
 ## 0.5.0
 
 ### Minor Changes
