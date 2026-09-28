@@ -170,6 +170,7 @@ import {
 import { useRibbonData } from "../../ribbon/app/data.js";
 import { ActionMenuItem } from "../ui/action-menu-items.js";
 import { SiblingLineage } from "../../ribbon/app/rails.js";
+import { useRibbonDnd } from "../../ribbon/app/dnd.js";
 import {
   renderBuiltInSidebarSection,
   type BuiltInSidebarSectionOptions,
@@ -2161,6 +2162,7 @@ export const ChronologicalSectionThreadSections = memo(
         groupThreadsByEnvironment,
       ],
     );
+    const ribbonDnd = useRibbonDnd("chronological");
     const sectionDnd = useSectionThreadDnd({
       containerId: CHRONOLOGICAL_CONTAINER_ID,
       enabled: true,
@@ -2173,6 +2175,7 @@ export const ChronologicalSectionThreadSections = memo(
       pinnedRootItems,
       pinnedRootNodes,
       onReorderPinnedThread,
+      ribbon: ribbonDnd,
     });
     const renderedSectionDnd = useNestDropPreview({
       compareThreads,

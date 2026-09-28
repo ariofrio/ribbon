@@ -247,6 +247,34 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
   const updatePlacement = useCallback<RibbonData["updatePlacement"]>(
     async (threadId, groupingKey, groupId, anchor) => {
       setError(null);
+      // The row lands where it was dropped before the server answers.
+      setPlacements((current) => {
+        const items = current.get(groupingKey);
+        if (!items) return current;
+        const moving = items.find((item) => item.threadId === threadId);
+        if (!moving) return current;
+        const rest = items.filter((item) => item.threadId !== threadId);
+        const placed = { ...moving, groupId };
+        let index = rest.length;
+        if (anchor.kind === "before" || anchor.kind === "after") {
+          const at = rest.findIndex((item) => item.threadId === anchor.threadId);
+          if (at === -1) return current;
+          index = anchor.kind === "before" ? at : at + 1;
+        } else if (anchor.kind === "start") {
+          index = rest.findIndex((item) => item.groupId === groupId);
+          if (index === -1) index = rest.length;
+        } else if (anchor.kind === "end") {
+          const last = rest.map((item) => item.groupId).lastIndexOf(groupId);
+          index = last === -1 ? rest.length : last + 1;
+        } else {
+          return current;
+        }
+        return new Map(current).set(groupingKey, [
+          ...rest.slice(0, index),
+          placed,
+          ...rest.slice(index),
+        ]);
+      });
       const input = {
         groupingKey,
         groupId,

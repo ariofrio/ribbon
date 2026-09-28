@@ -136,6 +136,7 @@ import {
   placementGroupingKey,
   placementRanks,
 } from "../../ribbon/app/order.js";
+import { useRibbonDnd } from "../../ribbon/app/dnd.js";
 
 export interface ProjectListProps {
   activeThreadId: string | null;
@@ -470,6 +471,7 @@ function useGroupedModeThreadDnd({
   collapsedThreadIds,
   compareThreads,
   draftThreadIds,
+  mode,
   onToggleThreadCollapsed,
   order,
   onOrderChange,
@@ -478,6 +480,7 @@ function useGroupedModeThreadDnd({
   threads,
 }: {
   collapsedThreadIds: Set<string>;
+  mode: SidebarOrganizationMode;
   compareThreads: ThreadComparator;
   draftThreadIds: ReadonlySet<string>;
   onToggleThreadCollapsed: ToggleCollapsedId;
@@ -495,6 +498,7 @@ function useGroupedModeThreadDnd({
     },
     [collapsedThreadIds, onToggleThreadCollapsed],
   );
+  const ribbonDnd = useRibbonDnd(mode);
   const threadDnd = useSectionThreadDnd({
     containerId: CHRONOLOGICAL_CONTAINER_ID,
     enabled: true,
@@ -508,6 +512,7 @@ function useGroupedModeThreadDnd({
     pinnedRootItems: pinned.pinnedRootItems,
     pinnedRootNodes: pinned.pinnedRootNodes,
     onReorderPinnedThread: pinned.onReorderPinnedThread,
+    ribbon: ribbonDnd,
   });
   return useNestDropPreview({
     compareThreads,
@@ -693,6 +698,7 @@ function ProjectModeSections({
     collapsedThreadIds,
     compareThreads,
     draftThreadIds,
+    mode: "project",
     onToggleThreadCollapsed,
     order,
     onOrderChange,
@@ -1177,6 +1183,7 @@ export function MachineModeSections({
     collapsedThreadIds,
     compareThreads,
     draftThreadIds,
+    mode: "machine",
     onToggleThreadCollapsed,
     order,
     onOrderChange,

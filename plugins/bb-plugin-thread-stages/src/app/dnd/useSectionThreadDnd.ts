@@ -50,6 +50,10 @@ import {
   type SidebarNestTargetState,
   type SidebarReorderPlacement,
 } from "../rows/sidebarThreadRowDroppable.js";
+import type { RibbonDndHandlers } from "../../ribbon/app/dnd.js";
+
+/** A section's top row-height: a drop there lands at its start, lower at its end. */
+const SECTION_START_BAND_PX = 32;
 
 export const PINNED_THREAD_PARENT_KEY = "sidebar:pinned-threads";
 export const NEST_BAND_FRACTION = 0.7;
@@ -117,6 +121,8 @@ interface UseSectionThreadDndArgs {
     request: NeighborReorderRequest,
     callbacks: { onSettled: () => void },
   ) => void;
+  /** Ribbon's say over drops: sibling order and where a root lands in a group. */
+  ribbon?: RibbonDndHandlers | null;
 }
 
 interface SectionThreadDndLookup {
@@ -882,6 +888,7 @@ export function useSectionThreadDnd({
   pinnedRootItems,
   pinnedRootNodes,
   onReorderPinnedThread,
+  ribbon = null,
 }: UseSectionThreadDndArgs): SectionThreadDndState | null {
   const lookup = useMemo(
     () =>
@@ -912,6 +919,8 @@ export function useSectionThreadDnd({
   const retainedNestTargetRef = useRef<RetainedNestTarget | null>(null);
   const coarsePointerRef = useRef(false);
   const pinnedInsertRef = useRef<SectionThreadReorderTarget | null>(null);
+  const siblingInsertRef = useRef<SectionThreadReorderTarget | null>(null);
+  const sectionEdgeRef = useRef<"start" | "end">("end");
   const nestCandidateRef = useRef<NestHoverCandidate | null>(null);
   const nestCandidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -967,20 +976,36 @@ export function useSectionThreadDnd({
   const handleRowPointer = useCallback(
     ({ threadId, relativeY, nesting }: ThreadRowPointerInfo) => {
       const activeId = activeIdRef.current;
-      if (
-        activeId === null ||
-        nesting ||
-        isPinnedRoot(activeId) ||
-        !isPinnedRoot(threadId)
-      ) {
+      if (activeId === null || nesting || threadId === activeId) return;
+      const placement: SidebarReorderPlacement =
+        relativeY < 0.5 ? "before" : "after";
+      if (isPinnedRoot(threadId)) {
+        if (!isPinnedRoot(activeId)) {
+          pinnedInsertRef.current = { threadId, placement };
+        }
         return;
       }
-      pinnedInsertRef.current = {
-        threadId,
-        placement: relativeY < 0.5 ? "before" : "after",
-      };
+      // Ribbon lets a row take a place before or after another row: among its
+      // siblings, or, for a root, in another section's list.
+      const active = lookup.threadByItemId.get(activeId);
+      const over = lookup.threadByItemId.get(threadId);
+      if (
+        ribbon &&
+        active &&
+        over &&
+        lookup.itemKindById.get(activeId) === "thread" &&
+        lookup.itemKindById.get(threadId) === "thread" &&
+        !isPinnedItem(activeId) &&
+        (ribbon.canReorder(active, over) ||
+          (active.parentThreadId === null &&
+            over.parentThreadId === null &&
+            lookup.parentKeyByItemId.get(activeId) !==
+              lookup.parentKeyByItemId.get(threadId)))
+      ) {
+        siblingInsertRef.current = { threadId, placement };
+      }
     },
-    [isPinnedRoot],
+    [isPinnedItem, isPinnedRoot, lookup, ribbon],
   );
   const handleResolvedRow = useCallback(
     ({ threadId, rect, retaining }: ResolvedThreadRowInfo) => {
@@ -992,6 +1017,7 @@ export function useSectionThreadDnd({
     (args) => {
       if (!isPointerWithinSidebar(args.pointerCoordinates)) {
         pinnedInsertRef.current = null;
+        siblingInsertRef.current = null;
         latestRowCollisionRef.current = null;
         return [];
       }
@@ -1008,6 +1034,7 @@ export function useSectionThreadDnd({
         });
       }
       pinnedInsertRef.current = null;
+      siblingInsertRef.current = null;
       const groupThreads =
         typeof args.active.id === "string"
           ? lookup.groupThreadsByItemId.get(args.active.id)
@@ -1045,7 +1072,25 @@ export function useSectionThreadDnd({
       const nestedCollisions = collisions.filter(({ id }) =>
         typeof id === "string" ? !topLevelSectionIds.has(id) : true,
       );
-      return nestedCollisions.length > 0 ? nestedCollisions : collisions;
+      const resolved = nestedCollisions.length > 0 ? nestedCollisions : collisions;
+      // Which edge of a section a drop with no row under it lands at.
+      const sectionHit = resolved.find(
+        ({ id }) =>
+          typeof id === "string" &&
+          (lookup.sectionIdByParentKey.has(id) ||
+            lookup.sectionParentKeyBySectionId.has(id)),
+      );
+      const sectionRect =
+        sectionHit && args.pointerCoordinates
+          ? args.droppableRects.get(sectionHit.id)
+          : undefined;
+      sectionEdgeRef.current =
+        sectionRect && args.pointerCoordinates
+          ? args.pointerCoordinates.y - sectionRect.top < SECTION_START_BAND_PX
+            ? "start"
+            : "end"
+          : "end";
+      return resolved;
     },
     [
       getNestBandFraction,
@@ -1236,7 +1281,7 @@ export function useSectionThreadDnd({
       const activeId =
         typeof event.active.id === "string" ? event.active.id : null;
       if (activeId === null || isPinnedRoot(activeId)) return;
-      const next = pinnedInsertRef.current;
+      const next = pinnedInsertRef.current ?? siblingInsertRef.current;
       setReorderTarget((current) =>
         current?.threadId === next?.threadId &&
         current?.placement === next?.placement
@@ -1328,6 +1373,66 @@ export function useSectionThreadDnd({
       const settle = (request: Promise<unknown>) => {
         void request.catch(() => undefined).finally(clearProjectedDrag);
       };
+      // A drop Ribbon places: beside a row, or at a section's edge.
+      const activeThreadForRibbon = lookup.threadByItemId.get(activeId);
+      const overRowForRibbon =
+        reorderTarget && !isPinnedRoot(reorderTarget.threadId)
+          ? lookup.threadByItemId.get(reorderTarget.threadId)
+          : undefined;
+      if (
+        ribbon &&
+        activeThreadForRibbon &&
+        !isPinnedItem(activeId) &&
+        (decision.kind === "unchanged" || decision.kind === "move")
+      ) {
+        if (
+          overRowForRibbon &&
+          reorderTarget &&
+          lookup.parentKeyByItemId.get(activeId) ===
+            lookup.parentKeyByItemId.get(reorderTarget.threadId) &&
+          lookup.nestParentIdByItemId.get(activeId) ===
+            lookup.nestParentIdByItemId.get(reorderTarget.threadId)
+        ) {
+          const nestParentId = lookup.nestParentIdByItemId.get(activeId);
+          const siblingIds =
+            nestParentId === undefined
+              ? (lookup.itemIdsByParentKey.get(
+                  lookup.parentKeyByItemId.get(activeId) ?? "",
+                ) ?? [])
+              : (lookup.nodeByItemId
+                  .get(nestParentId)
+                  ?.children.flatMap((child) =>
+                    child.kind === "thread" ? [child.node.thread.id] : [],
+                  ) ?? []);
+          settle(
+            ribbon.onReorderThread(
+              activeThreadForRibbon,
+              { thread: overRowForRibbon, placement: reorderTarget.placement },
+              siblingIds,
+            ),
+          );
+          return;
+        }
+        if (decision.kind === "move") {
+          const groupId = lookup.sectionIdByParentKey.get(decision.toParentKey) ?? null;
+          const anchor =
+            overRowForRibbon && reorderTarget
+              ? { thread: overRowForRibbon, placement: reorderTarget.placement }
+              : { edge: sectionEdgeRef.current };
+          setPendingDropDecision(decision);
+          settle(
+            ribbon.onMoveThread(activeThreadForRibbon, groupId, anchor).then((handled) =>
+              handled
+                ? undefined
+                : commitDropChanges(
+                    decision,
+                    `Failed to move ${describeThreadCount(decision.threadIds)}.`,
+                  ),
+            ),
+          );
+          return;
+        }
+      }
       switch (decision.kind) {
         case "move":
         case "nest":
@@ -1372,11 +1477,14 @@ export function useSectionThreadDnd({
       dragOverParentKey,
       enabled,
       handlePinnedDragEnd,
+      isPinnedItem,
+      isPinnedRoot,
       lookup,
       onReorderPinnedThread,
       onTopLevelSectionOrderChange,
       projectedNestParentId,
       reorderTarget,
+      ribbon,
       rowDrop,
       topLevelSectionIds,
       topLevelSectionOrder,
