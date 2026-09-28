@@ -428,6 +428,13 @@ export default async function ribbonServer(
       description: "Line pull request numbers up by giving every digit the same width.",
       default: true,
     },
+    pullRequestMarks: {
+      type: "boolean",
+      label: "Pull request marks",
+      description:
+        "Mark a row's indicator with GitHub's state: a red ✗ when CI fails, changes are requested, or the branch conflicts, an amber ● while it waits on CI or a review, and a green ✓ when it is ready to merge. Auto-merge, reviewers, and check counts come from the GitHub CLI.",
+      default: true,
+    },
   });
   const database = bb.storage.database();
   if (reclaimLegacyDatabase(database)) {

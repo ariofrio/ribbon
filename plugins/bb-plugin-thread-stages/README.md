@@ -105,7 +105,8 @@ indicator adds GitHub's marks: a red ✗ when CI fails, changes are requested,
 or the branch conflicts; an amber ● while it waits on CI or a review; and a
 green ✓ when it is ready to merge. A ✗ outranks unread completions, a ✓ waits
 until the thread is read, and a ● shows only when nothing else needs the row.
-Hover the PR number to see what the mark stands for. Auto-merge, reviewers,
+Hover the PR number to see what the mark stands for. **Pull request marks**
+in the plugin's settings turns the marks off. Auto-merge, reviewers,
 and check counts come from the GitHub CLI (`gh`) signed in on the bb server's
 machine; without it, marks follow bb's own pull request status.
 

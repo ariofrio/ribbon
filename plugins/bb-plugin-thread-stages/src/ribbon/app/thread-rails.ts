@@ -15,8 +15,8 @@ export const RAIL_EDGE_TOP = {
 export const RAIL_EDGE_BOTTOM = {
   "ring-top": `calc(100% - var(--ribbon-ring-y) + ${RING_CLEARANCE})`,
   "ring-bottom": `calc(100% - var(--ribbon-ring-y) - ${RING_CLEARANCE})`,
-  // Across the pixel between this row and the next.
-  "row-bottom": "-1px",
+  // Across the 2px bb keeps between this row and the next.
+  "row-bottom": "-2px",
 } as const;
 
 export interface RailSegment {

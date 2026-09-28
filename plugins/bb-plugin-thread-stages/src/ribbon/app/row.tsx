@@ -38,6 +38,7 @@ export function useRibbonRowSettings() {
       settings.values?.childThreadLines === "Tree" ? ("Tree" as const) : ("Bar" as const),
     shimmerWorkingRows: settings.values?.shimmerWorkingRows !== false,
     tabularPullRequestDigits: settings.values?.tabularPullRequestDigits !== false,
+    pullRequestMarks: settings.values?.pullRequestMarks !== false,
   };
 }
 
@@ -67,15 +68,24 @@ export function useRibbonRow(
   hideTitle: boolean;
 } | null {
   const ribbon = useRibbonData();
-  const { tabularPullRequestDigits } = useRibbonRowSettings();
+  const { tabularPullRequestDigits, pullRequestMarks } = useRibbonRowSettings();
   const { isLoading: pullRequestLoading, pullRequest } =
     experimental_useSidebarThreadPullRequest(thread.id);
   const position = ribbon?.view.pullRequestNumberPosition ?? "right";
   const visiblePullRequest = position === "hidden" ? null : pullRequest;
-  const { details, pending } = usePullRequestDetails(visiblePullRequest);
+  // GitHub's finer state is fetched only where the marks that show it are on.
+  const { details, pending } = usePullRequestDetails(
+    pullRequestMarks ? visiblePullRequest : null,
+  );
   if (ribbon === null) return null;
-  const signal = visiblePullRequest ? pullRequestSignal(visiblePullRequest, details) : null;
-  const status = ribbonThreadStatus(indicatorState, pluginStatus, signal);
+  const signal = visiblePullRequest
+    ? pullRequestSignal(visiblePullRequest, pullRequestMarks ? details : null)
+    : null;
+  const status = ribbonThreadStatus(
+    indicatorState,
+    pluginStatus,
+    pullRequestMarks ? signal : null,
+  );
   const stage = ribbon.stageOf(thread.id);
   const lifecycle = signal ? PR_LIFECYCLE_ICONS[signal.lifecycle] : null;
   const record = ribbon.threadActions.get(thread.id);

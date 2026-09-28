@@ -15,6 +15,7 @@ import { COARSE_POINTER_ROW_HEIGHT_CLASS } from "@/components/ui/coarse-pointer-
 import { CHROME_GROUP_HEADING_CLASS } from "../../ribbon/app/chrome-style-tokens.js";
 import { useRibbonData } from "../../ribbon/app/data.js";
 import { HEADING_MUTED_CLASS, HEADING_TEXT_CLASS } from "../../ribbon/app/heading.js";
+import { GroupBody } from "../../ribbon/app/group-body.js";
 import {
   SidebarStickyGroup,
   SidebarStickyTier,
@@ -307,7 +308,7 @@ export function TopLevelSidebarSection({
               className={cn(
                 ribbon
                   ? cn(
-                      "relative z-20 ml-1 mr-2 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none ring-sidebar-ring focus-visible:ring-2",
+                      "relative z-20 mr-1 inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none ring-sidebar-ring focus-visible:ring-2",
                       HEADING_MUTED_CLASS,
                     )
                   : cn(
@@ -371,7 +372,12 @@ export function TopLevelSidebarSection({
           </span>
         ) : null}
       </SidebarStickyTier>
-      {collapseControl?.isCollapsed || children == null ? null : (
+      {children == null ? null : ribbon ? (
+        // Folds open and shut with bb's own easing, as Ribbon's groups did.
+        <GroupBody open={collapseControl?.isCollapsed !== true}>
+          <div className="mt-1">{children}</div>
+        </GroupBody>
+      ) : collapseControl?.isCollapsed ? null : (
         <div className="mt-1">{children}</div>
       )}
     </SidebarStickyGroup>

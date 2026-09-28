@@ -468,6 +468,7 @@ describe("Ribbon sidebar server", () => {
       "groupHeaderIcons",
       "shimmerWorkingRows",
       "tabularPullRequestDigits",
+      "pullRequestMarks",
     ]);
     expect(harness.inspection.registrations.settingsDescriptors).toMatchObject({
       autoArchiveCompletedAfter: { type: "select", default: "7 days" },
@@ -476,6 +477,7 @@ describe("Ribbon sidebar server", () => {
       groupHeaderIcons: { type: "boolean", default: true },
       shimmerWorkingRows: { type: "boolean", default: true },
       tabularPullRequestDigits: { type: "boolean", default: true },
+      pullRequestMarks: { type: "boolean", default: true },
     });
     await harness.lifecycle.dispose();
   });

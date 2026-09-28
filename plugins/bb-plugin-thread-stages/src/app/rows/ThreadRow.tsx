@@ -99,8 +99,8 @@ import {
   useRowShine,
 } from "../../ribbon/app/row-shine.js";
 
-/** Ribbon's row buttons: the same 20px box in a 28px hit area as its headings. */
-const RIBBON_ROW_BUTTON_CLASS = `relative m-1 size-5 shrink-0 cursor-pointer rounded-md p-0 outline-none ring-sidebar-ring focus-visible:ring-2 ${SIDEBAR_CONTROL_STATE_CLASS}`;
+/** Ribbon's row buttons: the same 28px box as its headings, all of it hit area. */
+const RIBBON_ROW_BUTTON_CLASS = `relative size-7 shrink-0 cursor-pointer rounded-md p-0 outline-none ring-sidebar-ring focus-visible:ring-2 ${SIDEBAR_CONTROL_STATE_CLASS}`;
 import {
   ThreadActionsContextMenu,
   ThreadActionsMenu,
@@ -577,6 +577,7 @@ function ThreadRowComponent({
           "group-data-[sidebar-touch-armed=true]/thread-row:hidden",
           !shortcut &&
             !isEditing &&
+            ribbon === null &&
             (reserveRowActionSpace
               ? "pr-7.5 max-md:pointer-coarse:pr-0"
               : SIDEBAR_HOVER_ACTIONS_INSET_CLASS),

@@ -117,7 +117,8 @@ export function RailTree({
   return (
     <svg
       aria-hidden="true"
-      className="pointer-events-none absolute left-0 top-0 z-[1] h-full overflow-visible text-border-hairline opacity-70 [clip-path:inset(0_0_-1px_0)]"
+      // bb keeps 2px between rows; the line runs on that far to meet the next.
+      className="pointer-events-none absolute left-0 top-0 z-[1] h-full overflow-visible text-border-hairline opacity-70 [clip-path:inset(0_0_-2px_0)]"
       data-ribbon-sidebar-tree=""
       width={24 + 24 * depth}
     >

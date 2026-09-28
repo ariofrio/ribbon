@@ -20,8 +20,8 @@ import { cn } from "@/lib/utils";
 import { useRibbonData } from "../../ribbon/app/data.js";
 import { HEADING_ACTION_CLASS } from "../../ribbon/app/heading.js";
 
-/** Ribbon's heading buttons: a 20px glyph box in a 28px hit area, inked like the heading. */
-export const RIBBON_HEADING_BUTTON_CLASS = `relative m-1 size-5 shrink-0 cursor-pointer rounded-md p-0 outline-none ring-sidebar-ring focus-visible:ring-2 ${HEADING_ACTION_CLASS}`;
+/** Ribbon's heading buttons: a 28px box that is all hit area, inked like the heading. */
+export const RIBBON_HEADING_BUTTON_CLASS = `relative size-7 shrink-0 cursor-pointer rounded-md p-0 outline-none ring-sidebar-ring focus-visible:ring-2 ${HEADING_ACTION_CLASS}`;
 import { ThreadListVisibilityMenuItems } from "./ThreadListVisibility.js";
 import { SidebarHeaderMenuContents } from "./SidebarViewItems.js";
 
