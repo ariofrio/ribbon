@@ -67,7 +67,7 @@ export async function verifyRowShine({ stack, fixture }) {
     const page = await context.newPage();
     page.setDefaultTimeout(30_000);
     await page.route(/\/api\/v1\/(sidebar-bootstrap|threads(?:\/[^/?]+)?)(\?|$)/, async (route) => {
-      const response = await route.fetch();
+      const response = await route.fetch({ maxRetries: route.request().method() === "GET" ? 2 : 0 });
       if (!response.headers()["content-type"]?.includes("application/json")) {
         await route.fulfill({ response });
         return;
