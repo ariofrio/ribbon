@@ -1939,7 +1939,7 @@ describe("Ribbon sidebar app", () => {
     for (const [groupingKey, region, toggle, shut, open] of [
       ["builtin:sections", "Release group", "Release section", "BookClosed", "BookOpen"],
       ["builtin:sections", "Unorganized group", "Unorganized section", "BookClosed", "BookOpen"],
-      ["builtin:projects", "Storefront group", "Storefront project", "FolderClosed", "Folder02"],
+      ["builtin:projects", "Storefront group", "Storefront project", "FolderClosed", "FolderOpen"],
     ] as const) {
       window.localStorage.setItem(
         "bb.plugin.ribbon-sidebar.preferences.v1",
@@ -1960,10 +1960,16 @@ describe("Ribbon sidebar app", () => {
       await slot.findByRole("button", { name: `Expand ${toggle}` });
       expect(header.querySelector(`[data-icon="${shut}"]`)).not.toBeNull();
       expect(header.querySelector(`[data-icon="${open}"]`)).toBeNull();
-      // The shut book has no spine line inside its cover, and is drawn at
-      // its size rather than scaled, so its stroke is the usual weight.
-      expect(header.querySelector('path[d="M8 2V18"]')).toBeNull();
-      for (const path of Array.from(header.querySelectorAll(`[data-icon="${shut}"] path`))) {
+      // It shuts as its group folds, starting from open, and comes to rest.
+      expect(
+        header.querySelector(`[data-icon="${shut}"]`)!.getAttribute("data-ribbon-icon-opening"),
+      ).toBe("1");
+      await waitFor(() =>
+        expect(header.querySelector("[data-ribbon-icon-opening]")).toBeNull(),
+      );
+      // It is drawn at its size rather than scaled, so its stroke is the
+      // usual weight.
+      for (const path of Array.from(header.querySelectorAll(`[data-icon="${shut}"] path:not(mask path)`))) {
         expect(path.getAttribute("transform")).toBeNull();
         expect(path.getAttribute("stroke-width")).toBe("1.5");
       }

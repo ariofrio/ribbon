@@ -334,18 +334,38 @@ export async function verifyThreadIcons({ stack, fixture }) {
         { width: 16, height: 16, color: glyph.ink },
         "A standardized section icon should be a 16px glyph in the heading's ink",
       );
-      // The shut book reads as the open one folded: exactly as tall.
-      const drawnHeight = (name) => standard(name).evaluate((svg) => {
-        const boxes = [...svg.querySelectorAll("path")].map((path) => path.getBoundingClientRect());
-        return Math.max(...boxes.map((box) => box.bottom)) - Math.min(...boxes.map((box) => box.top));
+      const drawnWidth = (name) => standard(name).evaluate((svg) => {
+        const boxes = [...svg.querySelectorAll("path:not(mask path)")].map((path) => path.getBoundingClientRect());
+        return Math.max(...boxes.map((box) => box.right)) - Math.min(...boxes.map((box) => box.left));
       });
-      const openHeight = await drawnHeight("BookOpen");
+      const openWidth = await drawnWidth("BookOpen");
+      // The book shuts as its group folds, frame by frame, from open.
+      const shutting = atlas.evaluate((group) => new Promise((resolve) => {
+        const frames = [];
+        const start = performance.now();
+        requestAnimationFrame(function sample() {
+          const svg = group.querySelector('svg[data-icon="BookClosed"]');
+          if (svg) frames.push(svg.getAttribute("data-ribbon-icon-opening"));
+          if (frames.at(-1) === null || performance.now() - start > 2000) resolve(frames);
+          else requestAnimationFrame(sample);
+        });
+      }));
       await atlas.getByRole("button", { name: "Collapse Atlas section", exact: true }).click();
-      await standard("BookClosed").waitFor();
-      const shutHeight = await drawnHeight("BookClosed");
-      // Both books are as tall as the folders: 18 of 24 units, 12px at 16px.
-      assert.ok(Math.abs(openHeight - 12) < 0.25, `The open book should be 12px tall: ${openHeight}`);
-      assert.ok(Math.abs(shutHeight - 12) < 0.25, `The shut book should be 12px tall: ${shutHeight}`);
+      const frames = await shutting;
+      const drawn = frames.slice(0, -1).map(Number);
+      assert.equal(frames.at(-1), null, `The shut book should come to rest: ${JSON.stringify(frames)}`);
+      assert.ok(
+        drawn.length >= 3 && drawn.some((open) => open > 0.2 && open < 0.8) &&
+          drawn.every((open, index) => index === 0 || open <= drawn[index - 1]),
+        `The book should shut through frames between open and shut: ${JSON.stringify(frames)}`,
+      );
+      // One book, drawn at one size: open, it is its two pages side by side,
+      // shut, one page and the spine rounding off its edge.
+      const shutWidth = await drawnWidth("BookClosed");
+      assert.ok(
+        openWidth / shutWidth > 1.5 && openWidth / shutWidth < 2.1,
+        `The open book should be most of twice as wide as the shut one: ${openWidth} and ${shutWidth}`,
+      );
       await atlas.getByRole("button", { name: "Expand Atlas section", exact: true }).click();
       await standard("BookOpen").waitFor();
       fixture.run(["plugin", "config", "ribbon-sidebar", "set", "groupHeaderIcons", "On"]);
