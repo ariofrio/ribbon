@@ -1,11 +1,11 @@
-import { verifyChildStages } from "../ribbon-sidebar/child-stages.mjs";
-import { waitForStageCatalog } from "../ribbon-sidebar/new-thread-routing.mjs";
+import { verifyChildStages } from "../thread-stages/child-stages.mjs";
+import { waitForStageCatalog } from "../thread-stages/new-thread-routing.mjs";
 
 export default {
   order: 46,
   id: "child-stages",
   cases: ["independent"],
-  plugins: ["bb-plugin-ribbon-sidebar"],
+  plugins: ["bb-plugin-thread-stages"],
   async prepare({ bb, cliEnv }) {
     await waitForStageCatalog({ bb, cliEnv });
   },

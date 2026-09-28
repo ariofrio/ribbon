@@ -21,12 +21,12 @@ test("the screenshot suite uses the ChatGPT theme", () => {
   ]);
 });
 
-test("Ribbon sidebar's dedicated shot runs last", () => {
-  assert.equal(SHOTS.at(-1)?.id, "ribbon-sidebar");
+test("Thread stages' dedicated shot runs last", () => {
+  assert.equal(SHOTS.at(-1)?.id, "thread-stages");
 });
 
-test("every screenshot uses Ribbon's sole thread-list replacement", () => {
-  assert.equal(SIDEBAR_PROVIDER, "Ribbon sidebar");
+test("every screenshot uses the sole thread-list replacement", () => {
+  assert.equal(SIDEBAR_PROVIDER, "Thread stages");
 });
 
 test("the shortcut shot stops retrying when the late plugin handles the key", async () => {

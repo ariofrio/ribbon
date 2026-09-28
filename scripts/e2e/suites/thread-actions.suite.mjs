@@ -1,9 +1,9 @@
-import { verifyThreadActions } from "../ribbon-sidebar/thread-actions.mjs";
+import { verifyThreadActions } from "../thread-stages/thread-actions.mjs";
 
 export default {
   order: 61,
   id: "thread-actions",
   cases: ["edit-and-run"],
-  plugins: ["bb-plugin-icons", "bb-plugin-ribbon-sidebar"],
+  plugins: ["bb-plugin-thread-stages"],
   run: verifyThreadActions,
 };

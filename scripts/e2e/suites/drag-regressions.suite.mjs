@@ -1,4 +1,4 @@
-import { verifyDragRegressions } from "../ribbon-sidebar/drag-regressions.mjs";
+import { verifyDragRegressions } from "../thread-stages/drag-regressions.mjs";
 
 export default {
   order: 25,
@@ -11,6 +11,6 @@ export default {
     "rapid-reorder",
     "nested",
   ],
-  plugins: ["bb-plugin-ribbon-sidebar"],
+  plugins: ["bb-plugin-thread-stages"],
   run: verifyDragRegressions,
 };

@@ -1,6 +1,5 @@
 import {
   AGENT,
-  FEATURED_PROJECT,
   FEATURED_THREAD,
   SIDE_CHAT_QUESTION,
 } from "./fixture.mjs";
@@ -23,7 +22,7 @@ const THEME_FILES = [
   "card-beside-dark.png",
 ];
 
-export const SIDEBAR_PROVIDER = "Ribbon sidebar";
+export const SIDEBAR_PROVIDER = "Thread stages";
 
 /** bb's own sidebar column, which both sidebar cards are framed from. */
 function bbSidebar(page) {
@@ -108,9 +107,9 @@ async function hideFixtureModelLabel(page) {
  * view, and a scrolled sidebar is not the top of a sidebar.
  */
 async function openFeaturedThread(page, knownHref) {
-  // Installing Ribbon changes bb's Automatic choice. Select it explicitly so
-  // every shot exercises the only sidebar replacement in this repository;
-  // Ribbon's own shot supplies the route directly below.
+  // Installing Thread stages changes bb's Automatic choice. Select it
+  // explicitly so every shot exercises the only sidebar replacement in this
+  // repository; its own shot supplies the route directly below.
   if (knownHref === undefined) {
     await selectSidebar(page, SIDEBAR_PROVIDER);
     // Appearance does not render a thread list. Return to bb's main route so
@@ -157,20 +156,14 @@ async function openFeaturedThread(page, knownHref) {
     .locator('#thread-detail-timeline-panel [data-promptbox-hide-branch-compact]')
     .filter({ hasText: /^main$/ })
     .waitFor({ timeout: 120000 });
-  // The crumbs arrive later still: their backend is asked for the trail after
-  // the header has already painted, and they mount into a React root of their
-  // own on an animation frame. Only the breadcrumbs shot clicks the crumb, so
-  // every other shot framing this header would otherwise race it and capture
-  // whichever title won — with the project before it, or bare.
-  // Given the room the Ribbon sidebar is given, and for the same
-  // reason: a freshly seeded bb is still settling while the first shots are
-  // taken, and a plugin bundle can load well past Playwright's default minute.
-  await projectCrumb(page).waitFor({ timeout: 120000 });
-  // The Ribbon sidebar every shot shows draws its rows' previews and pull
+  // The Thread stages list every shot shows draws its rows' stages and pull
   // request states after the rows themselves, and a shot taken in between
-  // loses them. Its root is marked ready once the previews are in, and a row
+  // loses them. Its root is marked ready once the stages are in, and a row
   // stays marked pending until its pull request is known. The featured row
-  // proves the rows are drawn, so an empty pending set is not vacuous.
+  // proves the rows are drawn, so an empty pending set is not vacuous. Given
+  // two minutes because a freshly seeded bb is still settling while the first
+  // shots are taken, and a plugin bundle can load well past Playwright's
+  // default minute.
   const ribbon = page.locator(
     "[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]",
   );
@@ -187,7 +180,7 @@ async function openFeaturedThread(page, knownHref) {
     { timeout: 120000 },
   );
   // Every wait above proves a thing arrived. This one proves nothing is still
-  // moving: the header reflows around the crumb once it lands.
+  // moving.
   await settleAnimations(page);
 }
 
@@ -211,33 +204,6 @@ async function selectSidebar(page, name) {
   }
 }
 
-/**
- * The crumb the featured thread's project draws, named by the container the
- * plugin installs rather than by the label alone.
- *
- * bb's own sidebar lists threads under a project heading whose menu carries
- * the same `<project> actions` label. Waiting on the label alone can therefore
- * be answered by a control in the other half of the window rather than the
- * crumb this shot needs.
- */
-function projectCrumb(page) {
-  return page.locator(
-    `[data-breadcrumbs-root] [aria-label="${FEATURED_PROJECT} actions"]`,
-  );
-}
-
-/**
- * The project icon in the thread header, named by the header it sits in.
- *
- * The plugin gives every icon that opens its picker the same label, and more
- * than one is on screen at once — the strip under the composer carries one
- * too, and bb's own sidebar a third when it is grouping by project. This shot
- * is of the header's.
- */
-function headerIcon(page) {
-  return page.locator(`header [aria-label="Icon for ${FEATURED_PROJECT}"]`);
-}
-
 /** The collection is presented in ChatGPT's palette, including every plugin shot. */
 export function setupScreenshots({ fixture }) {
   fixture.run(["theme", "set", "plugin:chatgpt-theme:chatgpt"]);
@@ -245,9 +211,9 @@ export function setupScreenshots({ fixture }) {
 
 export const SHOTS = [
   {
-    // The collection, not a plugin: one window with four of the six at work —
-    // the stage sidebar, a project icon on every row and in the header, and the
-    // project the thread belongs to before its title. Nothing is shaded here,
+    // The collection, not a plugin: one window with three of the four at work —
+    // the stage sidebar with its section icon, the ChatGPT palette, and the
+    // side chat's shortcut plugin ready beneath. Nothing is shaded here,
     // because nothing is being pointed at.
     id: "collection",
     plugin: null,
@@ -261,73 +227,6 @@ export const SHOTS = [
       await openFeaturedThread(page);
     },
     highlights: () => [],
-  },
-  {
-    id: "breadcrumbs",
-    plugin: "bb-plugin-breadcrumbs",
-    outputs: THEME_FILES,
-    async prepare({ page }) {
-      await openFeaturedThread(page);
-      // The open menu marks the header aria-hidden, so the trigger has to be
-      // found by attribute rather than by role.
-      await projectCrumb(page).click();
-      await page.getByRole("menu").waitFor();
-      await settleAnimations(page);
-    },
-    highlights: (page) => [
-      { locator: projectCrumb(page) },
-      { locator: page.getByRole("menu") },
-    ],
-  },
-  {
-    id: "icons",
-    plugin: "bb-plugin-icons",
-    outputs: THEME_FILES,
-    async prepare({ page }) {
-      await openFeaturedThread(page);
-      await headerIcon(page).click();
-      await page.getByRole("dialog").waitFor();
-      // bb draws this dialog before its icons arrive: the catalog is a
-      // separate request, and until it returns the picker reads "Loading
-      // icons…". Waiting on the dialog alone caught that message about half
-      // the time. An icon cannot render until the catalog has arrived and been
-      // laid out, so wait for one.
-      await page
-        .getByRole("region", { name: "Icon catalog" })
-        .getByRole("button")
-        .first()
-        .waitFor();
-      await settleAnimations(page);
-    },
-    highlights: (page) => [
-      { locator: headerIcon(page) },
-      { locator: page.getByRole("dialog") },
-    ],
-    // The picker is taller than the card, so the card frames its top: the
-    // header icon it belongs to, the colors, and the search field.
-    focus: (page) => [headerIcon(page), page.getByPlaceholder("Search icons")],
-  },
-  {
-    id: "thread-stages",
-    plugin: "bb-plugin-thread-stages",
-    outputs: THEME_FILES,
-    async prepare({ page }) {
-      await openFeaturedThread(page);
-      // Thread stages is provider-only; its card shows its catalog rendered by
-      // the required Ribbon sidebar.
-      await page
-        .locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]")
-        .waitFor({ timeout: 120000 });
-    },
-    // The provider owns every stage heading and membership shown through
-    // Ribbon, so the shade lifts the complete grouped list out of the window.
-    highlights: (page) => [
-      { locator: page.locator("[data-ribbon-sidebar-root]"), padding: 6 },
-    ],
-    // A sidebar is read from its top, so the card starts at the top of the
-    // provider grouping Ribbon renders.
-    focus: (page) => [page.locator("[data-ribbon-sidebar-root]")],
-    focusAlign: "start",
   },
   {
     id: "missing-keyboard-shortcuts",
@@ -404,8 +303,8 @@ export const SHOTS = [
     },
   },
   {
-    id: "ribbon-sidebar",
-    plugin: "bb-plugin-ribbon-sidebar",
+    id: "thread-stages",
+    plugin: "bb-plugin-thread-stages",
     outputs: THEME_FILES,
     async prepare({ fixture, page }) {
       const featured = fixture.threads.get(FEATURED_THREAD);
@@ -419,9 +318,12 @@ export const SHOTS = [
         .waitFor({ timeout: 120000 });
       await settleAnimations(page);
     },
+    // The plugin owns every stage band, ring, and heading icon in the list,
+    // so the shade lifts the whole list out of the window.
     highlights: (page) => [
       { locator: page.locator("[data-ribbon-sidebar-root]"), padding: 6 },
     ],
+    // A sidebar is read from its top, so the card starts at the top of the list.
     focus: (page) => [page.locator("[data-ribbon-sidebar-root]")],
     focusAlign: "start",
   },
