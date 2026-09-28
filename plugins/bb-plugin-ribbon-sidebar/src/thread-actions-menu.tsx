@@ -84,7 +84,12 @@ export function ThreadActionsContextMenu({
   return (
     <ContextMenu onOpenChange={onOpenChange}>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent aria-label="Thread actions">
+      <ContextMenuContent
+        aria-label="Thread actions"
+        onPointerUpCapture={(event) => {
+          if (event.button === 2) event.preventDefault();
+        }}
+      >
         <ContextItems {...props} />
       </ContextMenuContent>
     </ContextMenu>
