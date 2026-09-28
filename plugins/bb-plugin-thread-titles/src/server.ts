@@ -198,13 +198,26 @@ export default function plugin(bb: BbPluginApi) {
       await sdk.threads.archive({ threadId: job.workerId });
       job.cleaned = true;
     }
-    if (job.state === "done" && job.phase !== "refinement") {
+    // The first-message pass always hands off to the first-turn pass, which
+    // rechecks the title itself; the first-turn pass hands off only on success.
+    const next =
+      job.phase === "message"
+        ? "initial"
+        : job.state === "done" && job.phase !== "refinement"
+          ? "refinement"
+          : null;
+    if (next && (job.state === "done" || job.state === "skipped")) {
       // Save cleanup and the next phase together so restart cannot lose the handoff.
       Object.assign(job, {
-        phase: "refinement",
-        baseline: job.proposed ?? job.baseline,
+        phase: next,
+        baseline:
+          job.state === "done" ? (job.proposed ?? job.baseline) : job.baseline,
         captured: true,
-        initialWorkerId: job.workerId,
+        initialWorkerId: next === "refinement" ? job.workerId : null,
+        pastWorkerIds: [
+          ...(job.pastWorkerIds ?? []),
+          ...(job.workerId ? [job.workerId] : []),
+        ],
         state: "waiting",
         workerId: null,
         cleaned: false,
@@ -389,6 +402,7 @@ export default function plugin(bb: BbPluginApi) {
       const worker = workers.find(
         (worker) => worker.lifecycleOwnerThreadId === job.threadId &&
           worker.id !== job.initialWorkerId &&
+          !job.pastWorkerIds?.includes(worker.id) &&
           !job.failedWorkerIds?.includes(worker.id),
       );
       if (worker) {
@@ -453,11 +467,26 @@ export default function plugin(bb: BbPluginApi) {
     job.count = activity.count;
     store.save(job);
     const limit = await limits();
+    const phase = job.phase ?? "initial";
+    const turnReady =
+      phase !== "refinement" &&
+      activity.count > 0 &&
+      (activity.firstTurnEnded || (await grown(job.threadId, limit.bytes)));
+    // A first turn ready for its own pass supersedes a first-message pass that
+    // has not started.
+    if (phase === "message" && turnReady) job.phase = "initial";
     if (
-      job.phase === "refinement"
-        ? job.count < 3
-        : !activity.firstTurnEnded &&
-          !(activity.count > 0 && (await grown(job.threadId, limit.bytes)))
+      job.phase === "message"
+        ? // Wait for bb's own title so this pass is always the later write.
+          !(
+            activity.count > 0 &&
+            (job.captured ||
+              activity.titleStep === "none" ||
+              (await bbTitlesOff()))
+          )
+        : phase === "refinement"
+          ? job.count < 3
+          : !turnReady
     )
       return;
     if (!thread.environmentId) return;
@@ -532,6 +561,13 @@ export default function plugin(bb: BbPluginApi) {
     job.workerId = worker.id;
     job.state = "running";
     store.save(job);
+  }
+
+  // With bb's own titles off, bb never writes one, so nothing is worth waiting
+  // for. That covers threads bb titles without a provisioning transcript.
+  async function bbTitlesOff() {
+    const services = await sdk.system.aiServices().catch(() => null);
+    return services?.selections["thread-title"].mode === "off";
   }
 
   // Whether a running first turn's transcript has reached EARLY_FRACTION of the

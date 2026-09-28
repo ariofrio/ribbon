@@ -39,6 +39,7 @@ export async function readEvents(
               "client/turn/requested",
               "client/turn/rejected",
               "system/operation",
+              "system/thread-provisioning",
               "turn/completed",
             ],
           }
@@ -63,8 +64,20 @@ export function userActivity(events: Event[]) {
   const seen = new Set<unknown>();
   let count = 0;
   let firstUserSeq: number | undefined;
+  // bb's own title step at creation. Threads bb titles without a provisioning
+  // transcript never leave "pending".
+  let titleStep: "pending" | "generated" | "none" = "pending";
   for (const event of events) {
     const data = record(event.data);
+    if (event.type === "system/thread-provisioning") {
+      for (const entry of Array.isArray(data.entries) ? data.entries : []) {
+        const step = record(entry);
+        if (step.key === "metadata-completed")
+          titleStep =
+            record(step.metadata).titleGenerated === true ? "generated" : "none";
+      }
+      continue;
+    }
     if (
       event.type !== "client/turn/requested" ||
       data.initiator !== "user" ||
@@ -82,6 +95,7 @@ export function userActivity(events: Event[]) {
     firstTurnEnded: firstUserSeq !== undefined && events.some(
       (event) => event.type === "turn/completed" && event.seq > firstUserSeq,
     ),
+    titleStep,
   };
 }
 
