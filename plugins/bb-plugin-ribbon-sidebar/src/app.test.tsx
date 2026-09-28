@@ -1955,6 +1955,14 @@ describe("Ribbon sidebar app", () => {
       await slot.findByRole("button", { name: `Expand ${toggle}` });
       expect(header.querySelector(`[data-icon="${shut}"]`)).not.toBeNull();
       expect(header.querySelector(`[data-icon="${open}"]`)).toBeNull();
+      // It shuts as its group folds, starting from open, and comes to rest
+      // as the icon itself.
+      expect(
+        header.querySelector(`[data-icon="${shut}"]`)!.getAttribute("data-ribbon-icon-opening"),
+      ).toBe("1");
+      await waitFor(() =>
+        expect(header.querySelector("[data-ribbon-icon-opening]")).toBeNull(),
+      );
       // The shut book has no spine line inside its cover, and is drawn at
       // its size rather than scaled, so its stroke is the usual weight.
       expect(header.querySelector('path[d="M8 2V18"]')).toBeNull();
