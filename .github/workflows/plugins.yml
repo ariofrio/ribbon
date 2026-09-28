@@ -78,7 +78,26 @@ jobs:
       - run: npm ci --workspaces=false
       - run: npm run release:check
 
+  # Keep the relevance decision on the hosted runner, for the same reason as
+  # the screenshot gate: the container is most of the cost.
+  relevant:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.relevant.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: relevant
+        name: Decide whether anything can change what the suites see
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/e2e/affects.mjs >> "$GITHUB_OUTPUT"
+
   end-to-end:
+    needs: relevant
+    if: needs.relevant.outputs.run == 'true'
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
@@ -110,7 +129,7 @@ jobs:
   # The one name this workflow is required by. release-check names its jobs
   # from a matrix, so requiring those would break whenever a plugin is renamed.
   plugins:
-    needs: [release-automation, discover, release-check, end-to-end]
+    needs: [release-automation, discover, release-check, relevant, end-to-end]
     # A check skipped along with its dependency never reports, which blocks the
     # pull request requiring it.
     if: always()

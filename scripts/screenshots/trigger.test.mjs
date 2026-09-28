@@ -114,8 +114,8 @@ test("the relevance gate runs outside the renderer container", () => {
   assert.match(relevanceJob, /name: Decide whether anything can have moved/u);
   assert.doesNotMatch(relevanceJob, /container:/u);
   assert.match(relevanceJob, /outputs:\n      capture:/u);
-  assert.match(relevanceJob, /gh api --paginate/u);
-  assert.match(relevanceJob, /CHANGED_FILES/u);
+  assert.match(relevanceJob, /run: node scripts\/screenshots\/affects\.mjs/u);
+  assert.match(relevanceJob, /GH_TOKEN: \$\{\{ github\.token \}\}/u);
   assert.doesNotMatch(relevanceJob, /fetch-depth: 0/u);
   assert.match(captureJob, /needs: relevant/u);
   assert.match(
