@@ -1,5 +1,3 @@
-import { rootThreadIdByThreadId } from "./root-thread-ownership";
-
 export const WORKFLOW_STAGES = [
   "Deferred",
   "Idle",
@@ -70,12 +68,6 @@ export function groupThreadsByStage<Thread extends SidebarThreadLike>(
   const sourceIndex = new Map(
     threads.map((thread, index) => [thread.id, index]),
   );
-  const roots = rootThreadIdByThreadId(
-    threads.map((thread) => ({
-      id: thread.id,
-      parentThreadId: thread.parentThreadId ?? null,
-    })),
-  );
   const groups: Record<WorkflowStage, Thread[]> = {
     Deferred: [],
     Idle: [],
@@ -84,37 +76,21 @@ export function groupThreadsByStage<Thread extends SidebarThreadLike>(
   };
 
   for (const thread of threads) {
-    const rootId = roots.get(thread.id);
     const workflowStage =
       parseWorkflowStage(
-        rootId === null || rootId === undefined
-          ? ""
-          : (assignmentByThread.get(rootId)?.workflowStage ?? ""),
+        assignmentByThread.get(thread.id)?.workflowStage ?? "",
       ) ?? DEFAULT_WORKFLOW_STAGE;
     groups[workflowStage].push(thread);
   }
 
   for (const stage of WORKFLOW_STAGES) {
     groups[stage].sort((left, right) => {
-      const leftRootId = roots.get(left.id);
-      const rightRootId = roots.get(right.id);
-      if (leftRootId === rightRootId) {
-        return (
-          (sourceIndex.get(left.id) ?? 0) - (sourceIndex.get(right.id) ?? 0)
-        );
-      }
-      const leftAssignment =
-        leftRootId === null || leftRootId === undefined
-          ? undefined
-          : assignmentByThread.get(leftRootId);
-      const rightAssignment =
-        rightRootId === null || rightRootId === undefined
-          ? undefined
-          : assignmentByThread.get(rightRootId);
+      const leftAssignment = assignmentByThread.get(left.id);
+      const rightAssignment = assignmentByThread.get(right.id);
       if (leftAssignment && rightAssignment) {
         if (leftAssignment.sortKey < rightAssignment.sortKey) return -1;
         if (leftAssignment.sortKey > rightAssignment.sortKey) return 1;
-        return (leftRootId ?? left.id).localeCompare(rightRootId ?? right.id);
+        return left.id.localeCompare(right.id);
       }
       if (leftAssignment) return -1;
       if (rightAssignment) return 1;

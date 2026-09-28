@@ -98,7 +98,7 @@ export function createStageChangeMessages(
 
   return {
     /**
-     * Message a root whose stage a person or agent changed. Automatic
+     * Message a thread whose stage a person or agent changed. Automatic
      * placement is not announced. Sends in the background so a stage move
      * never waits on delivery.
      */

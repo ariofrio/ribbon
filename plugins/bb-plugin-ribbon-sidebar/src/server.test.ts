@@ -585,7 +585,7 @@ describe("Ribbon sidebar server", () => {
     await fixture.harness.behavior.callRpc("updatePlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
       groupId: "Blocked",
-      threadId: "thr_parent",
+      threadId: "thr_fork_source",
       origin: "ui",
     });
     const fork = makeThreadResponse({
@@ -763,7 +763,7 @@ describe("Ribbon sidebar server", () => {
     expect(unsubscribe).toHaveBeenCalledOnce();
   });
 
-  it("gives an unparented thread provider groups from its former parent hierarchy", async () => {
+  it("preserves an unparented child's stage independently of its former parent", async () => {
     let onThreadChanged: ThreadChangedCallback | undefined;
     const subscribe = vi.fn((args: RealtimeSubscribeArgs) => {
       if (args.event === "thread:changed") onThreadChanged = args.callback;
@@ -816,7 +816,7 @@ describe("Ribbon sidebar server", () => {
         }),
       ).resolves.toMatchObject({
         ok: true,
-        value: { placement: { groupId: "Blocked" } },
+        value: { placement: { groupId: "Idle" } },
       });
     });
     service.controller.abort();
@@ -990,6 +990,57 @@ describe("Ribbon sidebar server", () => {
       ok: true,
       value: { placement: { groupId: "section-a" } },
     });
+  });
+
+  it("sets and lists a child's stage without changing its parent", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    await harness.behavior.callRpc("updatePlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Idle",
+      threadId: "thread-a",
+      origin: "cli",
+    });
+    expect(await harness.behavior.callRpc("updatePlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Blocked",
+      threadId: "thread-child",
+      origin: "cli",
+    })).toMatchObject({ ok: true });
+    expect(await harness.behavior.callRpc("getPlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      threadId: "thread-a",
+    })).toMatchObject({ ok: true, value: { placement: { groupId: "Idle" } } });
+    const listed = await harness.behavior.runCli([
+      "list", "--include-children", "--scope",
+      "plugin:thread-stages:stages/Blocked", "--json",
+    ]);
+    expect(JSON.parse(listed.stdout ?? "")).toEqual([
+      expect.objectContaining({
+        id: "thread-child",
+        parentThreadId: "thread-a",
+        section: { id: "section-a", name: "Release" },
+      }),
+    ]);
+    const shown = await harness.behavior.runCli([
+      "show", "thread-child", "--json",
+    ]);
+    expect(JSON.parse(shown.stdout ?? "")).toMatchObject({
+      threadId: "thread-child",
+      parentThreadId: "thread-a",
+      stage: "Blocked",
+    });
+    expect(await harness.behavior.callRpc("setWorkflowStage", {
+      threadId: "thread-child", workflowStage: "Idle",
+    })).toEqual({ destination: { kind: "stay" } });
+    await harness.behavior.callRpc("reorderThread", {
+      threadId: "thread-child", scope: "stage", direction: 1,
+    });
+    await harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: false });
+    expect(await harness.behavior.callRpc("getPlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      threadId: "thread-child",
+    })).toMatchObject({ ok: true, value: { placement: { groupId: "Blocked" } } });
   });
 
   it("serves canonical built-in names in the standard grouping order", async () => {
@@ -1373,13 +1424,21 @@ describe("Ribbon sidebar server", () => {
       direction: 1,
     });
     expect(await order()).toEqual(["older", "middle", "newer"]);
+    await harness.behavior.callRpc("reorderThread", {
+      threadId: "older",
+      scope: "stage",
+      direction: 1,
+    });
     await expect(
-      harness.behavior.callRpc("reorderThread", {
+      harness.behavior.callRpc("getPlacementV1", {
+        groupingKey: "plugin:thread-stages:stages",
         threadId: "older",
-        scope: "stage",
-        direction: 1,
       }),
-    ).rejects.toThrow(/belongs to root thread root/u);
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { placement: { groupId: "Blocked" } },
+    });
+    expect(await order()).toEqual(["older", "middle", "newer"]);
   });
 
   it("delegates sidebar search to bb's indexed thread search", async () => {
@@ -1728,6 +1787,35 @@ describe("Ribbon sidebar server", () => {
       ]);
       expect(JSON.stringify(request.input[1])).toContain("the user");
       expect(harness.inspection.registrations.mentionProviders).toEqual([]);
+    });
+
+    it("messages a child when its own stage changes", async () => {
+      const threads = stageThreads();
+      const root = threads[0]!;
+      const child = threads[1]!;
+      const { bb, harness, send } = setup({
+        threads: [root, { ...child, parentThreadId: root.id }],
+      });
+      await plugin(bb);
+
+      await expect(moveToStage(harness, child.id, "Blocked")).resolves.toMatchObject(
+        { ok: true },
+      );
+
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+      expect(send.mock.calls[0]![0]).toMatchObject({
+        threadId: child.id,
+        mode: "steer-if-active",
+      });
+      await expect(
+        harness.behavior.callRpc("getPlacementV1", {
+          groupingKey: "plugin:thread-stages:stages",
+          threadId: root.id,
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        value: { placement: { groupId: "Idle" } },
+      });
     });
 
     it("names stages in plain text when Thread stages is not running", async () => {

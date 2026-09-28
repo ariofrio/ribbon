@@ -643,7 +643,7 @@ export default async function plugin(bb: BbPluginApi) {
 
   function reconcileRoot(
     thread: Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>,
-    eligible: boolean,
+    eligible: boolean | "child",
   ) {
     projectByThread.set(thread.id, thread.projectId);
     sectionByThread.set(thread.id, thread.sectionId ?? "unsectioned");
@@ -655,9 +655,9 @@ export default async function plugin(bb: BbPluginApi) {
     }
   }
 
-  async function eligibleRoot(
+  async function threadEligibility(
     thread: Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>,
-  ): Promise<boolean> {
+  ): Promise<boolean | "child"> {
     if (thread.archivedAt !== null || thread.visibility !== "visible") {
       return false;
     }
@@ -666,7 +666,9 @@ export default async function plugin(bb: BbPluginApi) {
       const parent = await bb.sdk.threads.get({
         threadId: thread.parentThreadId,
       });
-      return parent.archivedAt !== null || parent.visibility !== "visible";
+      return parent.archivedAt !== null || parent.visibility !== "visible"
+        ? true
+        : "child";
     } catch {
       return true;
     }
@@ -979,7 +981,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     async placeNewThreadV1({ groupingKey, groupId, threadId }) {
       const thread = await bb.sdk.threads.get({ threadId });
-      reconcileRoot(thread, await eligibleRoot(thread));
+      reconcileRoot(thread, await threadEligibility(thread));
       return updatePlacement(
         {
           groupingKey,
@@ -1043,7 +1045,7 @@ export default async function plugin(bb: BbPluginApi) {
   const cli = defineRibbonSidebarCli({
     store,
     groupings,
-    threads: async ({ includeArchived, includeHidden }) => {
+    threads: async ({ includeArchived, includeHidden, includeChildren }) => {
       const threads =
         includeArchived || includeHidden
           ? await listThreadsForSidebar(bb, {
@@ -1055,7 +1057,7 @@ export default async function plugin(bb: BbPluginApi) {
         projectByThread.set(thread.id, thread.projectId);
         sectionByThread.set(thread.id, thread.sectionId ?? "unsectioned");
       }
-      return sidebarRootThreads(threads);
+      return includeChildren ? threads : sidebarRootThreads(threads);
     },
     updatePlacement,
     async hierarchy() {
@@ -1099,14 +1101,14 @@ export default async function plugin(bb: BbPluginApi) {
     }
   });
   registerThreadGroupInheritance(bb, {
-    eligibleRoot,
+    eligibleRoot: threadEligibility,
     reconcileRoot,
     groupings,
     getPlacement: store.getPlacement,
     updatePlacement,
   });
   bb.events.on("thread.created", async ({ thread }) => {
-    reconcileRoot(thread, await eligibleRoot(thread));
+    reconcileRoot(thread, await threadEligibility(thread));
   });
   bb.events.on("thread.archived", ({ thread }) => {
     reconcileRoot(thread, false);

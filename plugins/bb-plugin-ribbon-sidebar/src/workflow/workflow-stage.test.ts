@@ -85,7 +85,7 @@ describe("thread statuses", () => {
     expect(groups["Idle"].map((thread) => thread.id)).toEqual(["newer-status"]);
   });
 
-  it("groups every descendant under its root workflow stage", () => {
+  it("groups each thread by its own workflow stage", () => {
     const threads = [
       { id: "child", parentThreadId: "parent", updatedAt: 4 },
       { id: "other", parentThreadId: null, updatedAt: 3 },
@@ -116,13 +116,9 @@ describe("thread statuses", () => {
 
     const groups = groupThreadsByStage(threads, assignments);
 
-    expect(groups.Completed.map(({ id }) => id)).toEqual([
-      "child",
-      "grandchild",
-      "parent",
-    ]);
-    expect(groups.Deferred).toEqual([]);
-    expect(groups.Blocked).toEqual([]);
+    expect(groups.Completed.map(({ id }) => id)).toEqual(["parent"]);
+    expect(groups.Deferred.map(({ id }) => id)).toEqual(["child"]);
+    expect(groups.Blocked.map(({ id }) => id)).toEqual(["grandchild"]);
     expect(groups["Idle"].map(({ id }) => id)).toEqual(["other"]);
   });
 

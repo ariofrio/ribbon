@@ -1,6 +1,6 @@
 ---
 name: ribbon-sidebar
-description: Inspect and organize bb root threads across Sections, Projects, and Ribbon workflow stages. Use when selecting threads by sidebar organization, checking group membership before bulk work or messaging, moving and ordering root threads, or ordering child threads among their siblings. Discover the installed CLI rather than assuming its commands.
+description: Inspect and organize bb threads across Sections, Projects, and Ribbon workflow stages. Use when selecting threads by sidebar organization, checking group membership before bulk work or messaging, changing a child's stage, moving and ordering root threads, or ordering child threads among siblings. Discover the installed CLI rather than assuming its commands.
 ---
 
 # Ribbon sidebar
@@ -18,6 +18,7 @@ messaging. It combines bb thread metadata with Section, Project, and workflow st
 applied to that complete view rather than reconstructed from separate partial
 lists.
 
-Ribbon organizes root threads into groups. A child stays under its parent and
-only has an order among its siblings, so resolve a child to its root before
-moving the hierarchy to another group or selecting it for bulk work.
+Ribbon organizes root threads into groups and nests children beneath them. Use
+the child's own thread ID to inspect or change its stage or sibling order;
+resolve it to a root for section, project, or root-order operations. Use
+`--include-children` when listing child stages.
