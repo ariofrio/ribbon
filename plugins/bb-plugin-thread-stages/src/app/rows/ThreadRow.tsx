@@ -62,6 +62,7 @@ import { SidebarRowControls } from "./SidebarRowControls.js";
 import {
   SIDEBAR_CONTROL_BUTTON_CLASS,
   SIDEBAR_CONTROL_STATE_CLASS,
+  SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
   SIDEBAR_ROW_TEXT_CLASS,
   SIDEBAR_ROW_BASE_CLASS,
   SIDEBAR_ROW_GLYPH_SLOT_CLASS,
@@ -100,7 +101,13 @@ import {
 } from "../../ribbon/app/row-shine.js";
 
 /** Ribbon's row buttons: the same 28px box as its headings, all of it hit area. */
-const RIBBON_ROW_BUTTON_CLASS = `relative size-7 shrink-0 cursor-pointer rounded-md p-0 outline-none ring-sidebar-ring focus-visible:ring-2 ${SIDEBAR_CONTROL_STATE_CLASS}`;
+// Shaped like the options button on bb's own sidebar items: a 20px button
+// whose reach is the 28px box it sits in.
+const RIBBON_ROW_BUTTON_CLASS = `${SIDEBAR_MORE_ACTION_TRIGGER_CLASS} shrink-0 cursor-pointer rounded-md p-0 outline-none ring-sidebar-ring focus-visible:ring-2 ${SIDEBAR_CONTROL_STATE_CLASS}`;
+// The same 28px reach for the child toggle, whose 20px box stays where it is.
+// Under a coarse pointer bb already widens it.
+const RIBBON_CHEVRON_HIT_AREA_CLASS =
+  "pointer-fine:after:absolute pointer-fine:after:left-1/2 pointer-fine:after:top-1/2 pointer-fine:after:h-7 pointer-fine:after:w-7 pointer-fine:after:-translate-x-1/2 pointer-fine:after:-translate-y-1/2 pointer-fine:after:content-['']";
 import {
   ThreadActionsContextMenu,
   ThreadActionsMenu,
@@ -731,7 +738,10 @@ function ThreadRowComponent({
         {parentOptions && hasChildren ? (
           <SidebarChildToggleChevron
             disabled={isEditing}
-            className={isEditing ? "hidden" : undefined}
+            className={cn(
+              isEditing && "hidden",
+              ribbon !== null && RIBBON_CHEVRON_HIT_AREA_CLASS,
+            )}
             isCollapsed={isParentCollapsed}
             expandLabel={`Expand ${labelTitle} threads`}
             collapseLabel={`Collapse ${labelTitle} threads`}

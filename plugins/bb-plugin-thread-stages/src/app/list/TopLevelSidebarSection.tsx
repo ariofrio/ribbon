@@ -34,6 +34,7 @@ import {
   SIDEBAR_STANDARD_ROW_PADDING_CLASS,
   SIDEBAR_CONTROL_STATE_CLASS,
   SIDEBAR_GROUP_TEXT_CLASS,
+  SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
 } from "../rows/sidebarRowClasses.js";
 import {
   SectionDropTargetOverlay,
@@ -352,7 +353,9 @@ export function TopLevelSidebarSection({
               className={cn(
                 ribbon
                   ? cn(
-                      "relative z-20 mr-1 inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none ring-sidebar-ring focus-visible:ring-2",
+                      "z-20 inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md outline-none ring-sidebar-ring focus-visible:ring-2",
+                      SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
+                      "mr-2",
                       HEADING_MUTED_CLASS,
                     )
                   : cn(

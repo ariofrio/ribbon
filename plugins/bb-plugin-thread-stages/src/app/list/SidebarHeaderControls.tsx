@@ -15,13 +15,18 @@ import {
   SidebarControlButton,
   SidebarRowControls,
 } from "../rows/SidebarRowControls.js";
-import { SIDEBAR_CONTROL_BUTTON_CLASS } from "../rows/sidebarRowClasses.js";
+import {
+  SIDEBAR_CONTROL_BUTTON_CLASS,
+  SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
+} from "../rows/sidebarRowClasses.js";
 import { cn } from "@/lib/utils";
 import { useRibbonData } from "../../ribbon/app/data.js";
 import { HEADING_ACTION_CLASS } from "../../ribbon/app/heading.js";
 
 /** Ribbon's heading buttons: a 28px box that is all hit area, inked like the heading. */
-export const RIBBON_HEADING_BUTTON_CLASS = `relative size-7 shrink-0 cursor-pointer rounded-md p-0 outline-none ring-sidebar-ring focus-visible:ring-2 ${HEADING_ACTION_CLASS}`;
+// Shaped like the options button on bb's own sidebar items: a 20px button
+// whose reach is the 28px box it sits in.
+export const RIBBON_HEADING_BUTTON_CLASS = `${SIDEBAR_MORE_ACTION_TRIGGER_CLASS} shrink-0 cursor-pointer rounded-md p-0 outline-none ring-sidebar-ring focus-visible:ring-2 ${HEADING_ACTION_CLASS}`;
 import { ThreadListVisibilityMenuItems } from "./ThreadListVisibility.js";
 import { SidebarHeaderMenuContents } from "./SidebarViewItems.js";
 
