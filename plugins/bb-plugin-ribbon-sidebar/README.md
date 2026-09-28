@@ -4,7 +4,7 @@ Keep every section or project visible, with stable thread order and workflow sta
 
 ![Ribbon sidebar](assets/screenshot.png)
 
-Install Ribbon and select **Ribbon sidebar** under **Settings → Appearance → Sidebar** (bb 0.43.4 or newer):
+Install Ribbon and select **Ribbon sidebar** under **Settings → Appearance → Sidebar** (bb 0.44.0 or newer):
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon

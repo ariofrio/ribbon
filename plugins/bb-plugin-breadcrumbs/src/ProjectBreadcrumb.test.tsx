@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { installTestPluginRuntime } from "@get-bb/plugin-sdk/testing/app";
 import {
   cleanup,
   fireEvent,
@@ -8,6 +9,8 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectBreadcrumb } from "./ProjectBreadcrumb";
+
+installTestPluginRuntime();
 
 afterEach(cleanup);
 
