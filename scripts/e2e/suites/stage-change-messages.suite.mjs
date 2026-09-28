@@ -4,7 +4,7 @@ export default {
   // Last, because the notice gives its thread a new turn.
   order: 140,
   id: "stage-change-messages",
-  cases: ["pill"],
+  cases: ["mentions"],
   plugins: ["bb-plugin-ribbon-sidebar"],
   run: verifyStageChangeMessages,
 };

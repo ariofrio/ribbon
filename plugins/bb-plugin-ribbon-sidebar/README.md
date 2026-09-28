@@ -79,12 +79,17 @@ A working row also shimmers across its icon, title, preview, and indicator, in
 place of the shimmer bb draws on the indicator alone. Turn off **Shimmer working
 rows** in Ribbon settings to keep bb's.
 
+Type `@stage:` in the composer to mention a stage, such as `@stage:blocked`.
+A mentioned stage tells the agent to place the thread there, so a message can
+end with "then @stage:blocked", and a queued message can be just the mention.
+
 When you or another thread move a root to a different stage, Ribbon sends that
-thread a stage notice: a Ribbon pill such as **Stage: Idle → Blocked**, with
-agent-only context that tells the agent who moved it. The notice steers a
-running turn or starts one on an idle thread. Automatic placement and a
-thread moving itself through the CLI send nothing. Turn off **Message threads
-when their stage changes** in Ribbon settings to stop the notices.
+thread a message in the same form: "Thread stage updated: @stage:idle →
+@stage:blocked", with agent-only context that tells the agent who moved it.
+The message steers a running turn or starts one on an idle thread. Automatic
+placement and a thread moving itself through the CLI send nothing. Turn off
+**Message threads when their stage changes** in Ribbon settings to stop these
+messages.
 
 Completed hierarchies auto-archive after seven days by default. Ribbon settings
 can select 1 or 30 days, or Never. Completion and subsequent root or descendant

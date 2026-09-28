@@ -27,3 +27,12 @@ A working thread keeps its stage, and Ribbon shows the work by turning the
 stage icon's ring on that row. A collapsed root's ring also turns for work in
 its hidden descendants. A pending question or approval stops the ring, because
 the thread is waiting on the user rather than working.
+
+## Stage mentions
+
+`@stage:deferred`, `@stage:idle`, `@stage:blocked`, and `@stage:completed`
+name a stage. A message that mentions one, in a sentence such as "do this, then
+@stage:blocked" or on its own, asks for the root to be placed in that stage
+once the rest of the message is done. Ribbon also tells a thread when someone
+else changes its stage, as "Thread stage updated: @stage:idle →
+@stage:blocked"; that move has already happened.
