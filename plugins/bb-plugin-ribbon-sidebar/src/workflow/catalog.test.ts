@@ -41,17 +41,16 @@ describe("stage catalog", () => {
       ["BlockedOnThirdParty", "Blocked on third party"],
       ["Completed", "Completed"],
     ]);
-    // A bot's filled head, eyes cut out, for another agent; an arrow coming
-    // in for a third party.
+    // A slash for another agent runs exactly along the third party's arrow.
     const marks = (stage: (typeof WORKFLOW_STAGES)[number]) =>
       STAGE_ICONS[stage].children!.slice(1);
     expect(marks("Active")).toEqual([]);
-    expect(
-      marks("BlockedOnOtherAgent").some(
-        ({ attrs }) =>
-          attrs.fillRule === "evenodd" && attrs.fill === "currentColor",
-      ),
-    ).toBe(true);
+    expect(marks("BlockedOnOtherAgent")).toEqual([
+      expect.objectContaining({
+        tag: "path",
+        attrs: expect.objectContaining({ d: "M9 15 15.5 8.5" }),
+      }),
+    ]);
     expect(marks("BlockedOnThirdParty")).toEqual([
       expect.objectContaining({
         tag: "path",

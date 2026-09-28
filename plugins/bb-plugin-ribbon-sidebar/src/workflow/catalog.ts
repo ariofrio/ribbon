@@ -58,18 +58,8 @@ const STAGE_RINGS = byStage((stage) =>
 const STAGE_MARKS: Record<WorkflowStage, IconDataV1[]> = {
   Deferred: [],
   Active: [],
-  // A bot's head, filled with its eyes cut out so they stay open at 16 pixels.
-  BlockedOnOtherAgent: [
-    strokedPath("M12 5.75v1.5"),
-    {
-      tag: "path",
-      attrs: {
-        d: "M9.25 8.75h5.5a2.5 2.5 0 0 1 2.5 2.5v2.25a2.5 2.5 0 0 1-2.5 2.5h-5.5a2.5 2.5 0 0 1-2.5-2.5v-2.25a2.5 2.5 0 0 1 2.5-2.5ZM8.4 12.4a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0ZM12.6 12.4a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0Z",
-        fill: "currentColor",
-        fillRule: "evenodd",
-      },
-    },
-  ],
+  // A slash along the same diagonal, and as long, as the third party's arrow.
+  BlockedOnOtherAgent: [strokedPath("M9 15 15.5 8.5")],
   // Something coming back in from outside.
   BlockedOnThirdParty: [strokedPath("M15.5 8.5 9 15M9 10.25V15h4.75")],
   Completed: [

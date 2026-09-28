@@ -109,13 +109,12 @@ describe("Thread stages provider contracts", () => {
       }),
     ]);
     expect(iconByStage.get("Active")?.children).toEqual([ring]);
-    // A bot's head, eyes cut out of it, for another agent.
+    // A slash for another agent, along the third party's arrow.
     expect(iconByStage.get("BlockedOnOtherAgent")?.children).toEqual([
       ring,
-      expect.objectContaining({ tag: "path" }),
       expect.objectContaining({
         tag: "path",
-        attrs: expect.objectContaining({ fillRule: "evenodd" }),
+        attrs: expect.objectContaining({ d: "M9 15 15.5 8.5", strokeLinecap: "round" }),
       }),
     ]);
     // An arrow coming in from outside.
