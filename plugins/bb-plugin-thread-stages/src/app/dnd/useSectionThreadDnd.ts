@@ -1404,13 +1404,37 @@ export function useSectionThreadDnd({
                   ?.children.flatMap((child) =>
                     child.kind === "thread" ? [child.node.thread.id] : [],
                   ) ?? []);
-          settle(
-            ribbon.onReorderThread(
+          // The list reorders before the server answers, so nothing is
+          // left projected while the save is in flight.
+          void ribbon
+            .onReorderThread(
               activeThreadForRibbon,
               { thread: overRowForRibbon, placement: reorderTarget.placement },
               siblingIds,
-            ),
-          );
+            )
+            .catch(() => undefined);
+          clearProjectedDrag();
+          return;
+        }
+        // Let go on its own section's heading, a root goes first in it; on
+        // the space beneath its rows, last.
+        const ownParentKey = lookup.parentKeyByItemId.get(activeId);
+        if (
+          decision.kind === "unchanged" &&
+          !overRowForRibbon &&
+          overId !== null &&
+          ownParentKey !== undefined &&
+          activeThreadForRibbon.parentThreadId === null &&
+          resolveSectionThreadDropParentKey(lookup, overId) === ownParentKey
+        ) {
+          void ribbon
+            .onMoveThread(
+              activeThreadForRibbon,
+              lookup.sectionIdByParentKey.get(ownParentKey) ?? null,
+              { edge: sectionEdgeRef.current },
+            )
+            .catch(() => undefined);
+          clearProjectedDrag();
           return;
         }
         if (decision.kind === "move") {

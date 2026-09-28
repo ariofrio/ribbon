@@ -1,43 +1,82 @@
 ---
 name: thread-stages
-description: "Inspect or change the sidebar thread list's layout preferences: organization mode, sort, section order, hidden groups, and collapsed groups."
+description: Inspect and organize bb threads across sections, projects, and the Deferred, Idle, Blocked, and Completed workflow stages. Use when deciding which stage a bb thread belongs in, selecting threads by sidebar organization or stage before bulk work or messaging, changing a thread's or child's stage, moving and ordering root threads, ordering children among siblings, or reading and changing the thread list's layout preferences. Discover the installed CLI rather than assuming its commands.
 ---
 
-# Thread list preferences
+# Thread stages
 
-The Thread stages plugin owns the sidebar's layout state. Read it with
-`bb thread-stages prefs list --json`; keys are `showProviderIcons`, `threadLifecycles`, `organizationMode`,
-`environmentGrouping`, `chronologicalSort`, `sortDirection`, `sectionOrder`,
-`manualSectionOrder`, `machineSectionOrder`, `hiddenGroups` (including the
-built-in `threads` group),
-`collapsedSections`, `collapsedProjects`, `collapsedThreads`,
-`collapsedEnvironments`, `collapsedThreadSections`, and `collapsedMachines`.
+Start by running `bb sidebar`. Its output must identify Thread stages before
+relying on that command, because another installed plugin may have registered
+the same name first. If it is not identified, invoke the plugin explicitly with
+`bb plugin run thread-stages` for the rest of the task.
+
+Discover the available operations and arguments from the CLI's own help as
+needed. Do not rely on a memorized command surface.
+
+## Selecting threads
+
+Use the joined thread view, `bb sidebar list --json`, before selecting roots
+for bulk work or messaging. It combines bb thread metadata with section,
+project, and workflow stage, so selection rules based on organization should
+be applied to that complete view rather than reconstructed from separate
+partial lists.
+
+Root threads are organized into groups with children nested beneath them. Use
+the child's own thread ID to inspect or change its stage or sibling order;
+resolve it to a root for section, project, or root-order operations. Use
+`--include-children` when listing child stages.
+
+## Stages
+
+Thread stages describe the workflow state of each thread:
+
+- **Deferred** is intentionally set aside for later.
+- **Idle** is available or waiting without a blocker.
+- **Blocked** cannot progress until something external changes.
+- **Completed** is finished and should be treated like archived work.
+
+Each child has its own stage and remains nested beneath its parent. A child
+can be reordered among its siblings, while its stage remains independent.
+
+Treat **Completed** threads as out of scope by default. Exclude them from bulk
+operations, messages, and notifications unless the user explicitly includes
+them or intends to resume them. Do not archive a thread merely to mark it
+Completed; Completed threads archive on their own after seven days.
+
+Stages change only when someone sets them; running work never changes a
+stage. A working thread keeps its stage, and the list shows the work by
+turning the stage icon's ring on that row. A collapsed root's ring also turns
+for work in its hidden descendants. A pending question or approval stops the
+ring, because the thread is waiting on the user rather than working.
+
+## Stage mentions
+
+A mention of `@Deferred`, `@Idle`, `@Blocked`, or `@Completed` names a stage.
+A message that mentions one, in a sentence such as "do this, then @Blocked"
+or on its own, asks for the root to be placed in that stage once the rest of
+the message is done. The plugin also tells a thread when someone else changes
+its stage, as "Thread stage updated: @Idle → @Blocked"; that move has already
+happened.
+
+## Layout preferences
+
+The plugin also owns the list's layout state: `organizationMode`,
+`chronologicalSort`, `sortDirection`, `sectionOrder`, `manualSectionOrder`,
+`machineSectionOrder`, `hiddenGroups`, `threadLifecycles`,
+`showProviderIcons`, and the collapsed sections, projects, threads,
+environments, and machines.
 
 ```sh
-bb thread-stages prefs list [--json]
-bb thread-stages prefs get <key> [--json]
-bb thread-stages prefs set <key> <value> [--json]
-bb thread-stages prefs reset <key> [--json]
+bb sidebar prefs list [--json]
+bb sidebar prefs get <key> [--json]
+bb sidebar prefs set <key> <value> [--json]
+bb sidebar prefs reset <key> [--json]
 ```
 
 `set` takes JSON; a bare word is read as a string, so
-`bb thread-stages prefs set organizationMode machine` and
-`bb thread-stages prefs set manualSectionOrder '["pinned","sections","threads"]'`
+`bb sidebar prefs set organizationMode project` and
+`bb sidebar prefs set manualSectionOrder '["pinned","sections","threads"]'`
 both work. A value the key's schema rejects fails with
 `invalid_preference_value` and leaves the stored value alone. Every open
 window applies a change immediately. Sections themselves and a thread's
 section are bb core state: use `bb thread section` and `bb thread update`.
-
-On first load the plugin copies any non-default `sidebar.*` values from
-`bb settings ui` once; after that the two are independent.
-
-The header's Filter menu selects Active, Archived, or both; at least one must
-remain selected. `bb thread-stages prefs set threadLifecycles '["archived"]'`
-shows archived threads, and `'["active","archived"]'` shows both. The default
-is `'["active"]'`. Archived results load in pages; use Show more at the end
-of the list. The same preference is available through `setPreference` RPC.
-
-Organize → Rows → Provider icons toggles the icon before each thread title.
-`showProviderIcons` defaults to `false`; use
-`bb thread-stages prefs set showProviderIcons true` to show them. Unknown
-provider ids have no icon.

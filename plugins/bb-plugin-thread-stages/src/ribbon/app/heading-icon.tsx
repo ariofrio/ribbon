@@ -54,9 +54,11 @@ export function RibbonHeadingIcon({
   }
   if (unorganized || owner === null) return <UnorganizedIcon />;
   const drawn = iconFor(controller?.state ?? null, owner, PERSONAL_PROJECT_ID);
+  // The heading already wears the owner's color as its ink; the icon takes
+  // that ink rather than the palette color it would draw in on its own.
   return (
     <IconGlyph
-      icon={drawn}
+      icon={{ ...drawn, color: null }}
       className="size-4 shrink-0 [color:var(--ribbon-heading-on,currentColor)]"
     />
   );

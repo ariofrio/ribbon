@@ -522,6 +522,12 @@ function ThreadActionsDesktopContextMenu({
       <ContextMenuContent
         aria-label="Thread actions"
         onCloseAutoFocus={onCloseAutoFocus}
+        onPointerUpCapture={(event) => {
+          // Releasing the right click that opened the menu must not pick the
+          // item that opened under it. Temporary until
+          // https://github.com/get-bb/bb/issues/4439 reaches the pinned UI.
+          if (event.button === 2) event.preventDefault();
+        }}
       >
         <ThreadActionsMenuItems
           thread={thread}

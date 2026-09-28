@@ -53,7 +53,10 @@ export function useRibbonRow(
   stage: WorkflowStage;
   muted: boolean;
   status: ThreadStatus;
+  /** The stage ring turns: an agent is at work and nothing waits on the user. */
   working: boolean;
+  /** The row shimmers: as above, or a plugin reports the thread running. */
+  shines: boolean;
   pullRequest: {
     node: React.ReactNode;
     position: "left" | "right";
@@ -80,6 +83,7 @@ export function useRibbonRow(
     muted: stage !== "Idle",
     status,
     working: status.spinsStageRing,
+    shines: status.isWorking && status.indicator !== "waiting-for-input",
     pullRequest:
       visiblePullRequest && signal && lifecycle && position !== "hidden"
         ? {
@@ -88,9 +92,11 @@ export function useRibbonRow(
             node: (
               <span
                 data-ribbon-pull-request=""
+                // Set off from the title, or from the action buttons that
+                // end where it begins.
                 className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ${
-                  ribbon.view.tabularPullRequestDigits ? "tabular-nums" : ""
-                }`}
+                  position === "right" ? "ml-2" : "mr-2"
+                } ${ribbon.view.tabularPullRequestDigits ? "tabular-nums" : ""}`}
                 title={
                   signal.label
                     ? `${visiblePullRequest.title} — ${signal.label}`
@@ -170,11 +176,21 @@ export function RibbonActionButtons({
 }) {
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
   const [measuredWidths, setMeasuredWidths] = useState<Record<string, number>>({});
-  const gap = actions.length > 8 ? "gap-0" : "gap-1";
+  const gapPx = actions.length > 8 ? 0 : 4;
+  const gap = gapPx === 0 ? "gap-0" : "gap-1";
+  // The group asks for every label at full width plus its padding and the
+  // gaps between, so the title beside it gives way before any label clips.
+  const widths = actions.map(({ id, label }) => measuredWidths[`${id}\0${label}`]);
+  const naturalWidth = widths.every((width) => width !== undefined)
+    ? widths.reduce((total, width) => total + width, 0) +
+      actions.length * 16 +
+      Math.max(0, actions.length - 1) * gapPx
+    : null;
   return (
     <span
       data-ribbon-thread-actions=""
       className={`pointer-events-none flex min-w-0 flex-[0_1_max-content] items-center ${gap}`}
+      style={{ flexBasis: naturalWidth === null ? "max-content" : naturalWidth }}
     >
       {actions.map((action) => {
         const widthKey = `${action.id}\0${action.label}`;

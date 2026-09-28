@@ -3,7 +3,12 @@
 bb's thread list with workflow stages, stable thread order, and section and
 project icons.
 
-Install Ribbon and select **Thread stages** under **Settings → Appearance →
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-dark.png">
+  <img src="assets/screenshot-light.png" alt="Thread stages organizing bb threads within sections">
+</picture>
+
+Install it and select **Thread stages** under **Settings → Appearance →
 Sidebar** (bb 0.44.0 or newer):
 
 ```sh
@@ -16,9 +21,11 @@ bb plugin install thread-stages@ribbon
 This plugin is a fork of bb's own sidebar thread list, the built-in
 [`plugins/thread-list`](https://github.com/get-bb/bb/tree/desktop-v0.44.0/plugins/thread-list),
 so it keeps everything bb's list does — pinned threads, custom sections,
-projects, machines, nested threads, drag to reorder, inline rename, and bb's
-own status glyphs — and adds Ribbon's workflow stages, stable manual order,
-and icons on top.
+projects, machines, nested threads, drag to reorder, inline rename, search,
+the Organize, Sort, and Filter menus, and bb's own status glyphs — and adds
+workflow stages, a stable manual order, prompt buttons, pull request marks,
+and icons on top. It replaces the earlier Ribbon sidebar, Thread stages, and
+Icons plugins, and imports their data on first load.
 
 The upstream files keep their upstream-relative paths under `src/`, and
 [`fork.json`](../../fork.json) in the repository root pins the bb release they
@@ -26,25 +33,166 @@ are in step with. `npm run fork:sync -- desktop-v<version>` merges a newer
 release three-way; `npm run fork:diff` prints the fork's own changes in
 upstream paths, so a fix that belongs to bb can travel there as a patch. bb's
 UI components under `src/components/`, `src/lib/`, and `src/hooks/` are
-vendored from bb's component registry by `npm run build:ui`.
+vendored from bb's component registry by `npm run build:ui`. Everything of
+the plugin's own lives under `src/ribbon/` and `src/icons/`.
 
-## Preferences and CLI
+## Grouping and ordering
 
-The list's layout preferences — organization mode, sort, section order,
-hidden groups, and collapsed groups — are stored by the plugin and synced to
-every open window:
+Choose **⋯ menu → Organize → Custom** for sections or **By project** for
+projects. Each keeps its own order and collapsed headings. Inside each group,
+Idle and Blocked share one manually ordered list, followed by Deferred and
+then Completed. New roots enter at the top, and activity leaves positions
+unchanged.
+
+Deferred shows two roots in group order and Completed the two most recent
+completions; **Show N more deferred/completed** expands the rest, and **Show
+fewer** restores the preview. The open thread stays visible even outside the
+preview, and search reveals every matching result.
+
+Drag a root to reorder it within its list, onto its section's heading to put
+it first, or onto another section to move it there. Drag a child to reorder
+it among its siblings; it stays under its parent and keeps its stage.
+Completed stays ordered by completion time. Group rank survives stage
+changes, so returning a deferred or completed root to the main list restores
+its place. bb owns section membership, pins, and lifecycle; project
+membership is bb's under project grouping too.
+
+Each child has its own stage while remaining nested under its parent, and
+each parent keeps its own child order in every grouping; children not yet
+reordered enter at the top, newest first. Forks inherit their source thread's
+stage and hierarchy's section; unparenting preserves the child's stage and
+copies the former root's section placement.
+
+Children hang from their parent by a bar in their own stage-ring column, which
+fills in for a hidden Idle ring and parts around a shown one. Set **Child
+thread lines** to Tree to branch a line from the parent into each child's ring
+instead, or into a small hollow node while that ring is hidden.
+
+## Icons and headings
+
+Every section and project has an icon and an optional color. Use a heading's
+**⋯ menu → Change icon** to search 5,930 [Hugeicons](https://hugeicons.com)
+glyphs by name or synonym, filter by category, and pick one of bb's eight
+favicon colors. Changes save as you click and appear in every window.
+
+A heading with a color is tinted by its hue; every other heading is gray. The
+**Group header icons** setting shows each group's own icon (On), none (Off),
+or Standardized: a book for every section, Unorganized included, and a folder
+for every project, open while the group is. The book's top page turns over on
+its spine and the folder's front falls forward as its group folds.
+
+## Rows
+
+Running work never changes a stage. A working thread's stage icon turns its
+ring in place of bb's spinner, a collapsed root's ring also turns for work in
+its hidden descendants, and a pending question or approval stops the ring. A
+working row shimmers across its icon, title, and indicator; turn off
+**Shimmer working rows** to keep bb's shimmer on the indicator alone.
+
+Use a thread's **⋯ menu → Edit actions** to add labeled prompts. Their
+buttons appear beside the thread title, colored like the section or project,
+and send the saved prompt to that thread when clicked. **Hide thread title**
+gives them the whole row.
+
+A thread's pull request adds its status. Its icon beside the PR number is
+green while open, amber once auto-merge is on or it is in the merge queue,
+purple when merged, red when closed, and muted while a draft. The status
+indicator adds GitHub's marks: a red ✗ when CI fails, changes are requested,
+or the branch conflicts; an amber ● while it waits on CI or a review; and a
+green ✓ when it is ready to merge. A ✗ outranks unread completions, a ✓ waits
+until the thread is read, and a ● shows only when nothing else needs the row.
+Hover the PR number to see what the mark stands for. Auto-merge, reviewers,
+and check counts come from the GitHub CLI (`gh`) signed in on the bb server's
+machine; without it, marks follow bb's own pull request status.
+
+Use a heading's **⋯ menu → PR number** to place the number to the Left or
+Right of each title, or Hidden to also hide its mark. **Equal-width digits**
+lines the numbers up.
+
+## Stages and shortcuts
+
+Type `@` and a stage name in the composer to mention a stage, such as
+`@Blocked`. A mentioned stage tells the agent to place the thread there, so a
+message can end with "then @Blocked", and a queued message can be just the
+mention.
+
+When you or another thread move a thread to a different stage, the plugin
+sends that thread "Thread stage updated: @Idle → @Blocked", with agent-only
+context that tells the agent who moved it. The message steers a running turn
+or starts one on an idle thread. Automatic placement and a thread moving
+itself through the CLI send nothing. Turn off **Message threads when their
+stage changes** to stop these messages.
+
+Completed threads auto-archive after seven days. A hierarchy archives only
+when every descendant is also Completed long enough; a Completed child can
+archive while its parent stays open. Subsequent updates restart the timer,
+and any pinned member prevents archival.
+
+| macOS | Linux / Windows | Action |
+| --- | --- | --- |
+| ⌘. / ⌥⌘. | Ctrl+. / Ctrl+Alt+. | Complete and select the next main-list thread in this section or project |
+| ⇧⌘. | Ctrl+Shift+. | Return to Idle, or undo the latest filing in this section or project |
+| ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked |
+| ⌃⌘. | Ctrl+Alt+, | Defer |
+| ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list, or a child among its siblings |
+| ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to that list's edge |
+| ⌃⌘↑ / ⌃⌘↓ | Ctrl+↑ / Ctrl+↓ | Move to the adjacent stage |
+
+On a child thread, filing shortcuts change that child's stage and stay on it.
+Shortcuts can be rebound in bb; bindings saved for the Ribbon sidebar's
+commands carry over.
+
+## Upgrading from Ribbon
+
+The plugin reads the Ribbon sidebar's and the Icons plugin's databases once
+on first load — placements, stages, thread actions, and icons — and keeps
+its own copy from then on. The Ribbon sidebar's four remaining settings are
+read from its own configuration. The earlier Thread stages compatibility
+plugin's data is taken over in place. Remove the three old plugins once this
+one is installed; they draw nothing bb's list does not.
+
+## CLI
+
+The placement CLI keeps its name and the stored stage key
+`plugin:thread-stages:stages`:
 
 ```sh
-bb thread-stages prefs list [--json]
-bb thread-stages prefs get <key> [--json]
-bb thread-stages prefs set <key> <value> [--json]
-bb thread-stages prefs reset <key> [--json]
+bb sidebar groupings
+bb sidebar groups builtin:sections
+bb sidebar list --scope builtin:sections/<section-id>
+bb sidebar show --self
+bb sidebar place --self --to plugin:thread-stages:stages/Completed
+bb sidebar list --include-children --scope plugin:thread-stages:stages/Blocked
+bb sidebar place <thread> --to builtin:sections/<section-id> --before <thread>
+bb sidebar place <child> --before <sibling>
+bb sidebar children <thread>
+```
+
+Use `bb sidebar` to discover the full command surface. `list --json` joins
+thread metadata, project, section, and stage. Archived and hidden threads are
+excluded unless requested with `--include-archived` or `--include-hidden`.
+Add `--include-children` to list nested threads with their own stages.
+
+The list's layout preferences — organization mode, sort, section order,
+hidden groups, and collapsed groups — are bb's, stored by the plugin and
+synced to every open window:
+
+```sh
+bb sidebar prefs list [--json]
+bb sidebar prefs get <key> [--json]
+bb sidebar prefs set <key> <value> [--json]
+bb sidebar prefs reset <key> [--json]
 ```
 
 ## Development
 
 ```sh
 npm run release:check
+bb plugin reload thread-stages
 ```
+
+`npm run build:catalog` regenerates the icon catalog from Hugeicons'
+published index, and `npm run check:catalog` reports what would change
+without writing.
 
 [MIT](LICENSE)

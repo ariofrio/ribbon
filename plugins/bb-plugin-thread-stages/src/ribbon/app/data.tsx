@@ -128,6 +128,7 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [actionsEditor, setActionsEditor] = useState<string | null>(null);
   const latestRevisions = useRef(new Map<GroupingKey, number>());
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const stageRequest = useRef(0);
   const reconnectPending = useRef(false);
 
@@ -275,27 +276,33 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
           ...rest.slice(index),
         ]);
       });
-      const input = {
-        groupingKey,
-        groupId,
-        threadId,
-        anchor,
-        expectedRevision: latestRevisions.current.get(groupingKey),
-        origin: "ui" as const,
-      };
-      let result = await rpcRef.current.call("updatePlacementV1", input);
-      if (
-        !result.ok &&
-        result.error.code === "REVISION_CONFLICT" &&
-        result.error.revision !== undefined
-      ) {
-        result = await rpcRef.current.call("updatePlacementV1", {
-          ...input,
-          expectedRevision: result.error.revision,
-        });
-      }
-      if (!result.ok) setError(result.error.message);
-      await Promise.all([loadPlacements(), loadStages()]);
+      // Saves go one at a time, so a second drop made while the first is
+      // still in flight lands after it, in gesture order.
+      const save = saveQueue.current.then(async () => {
+        const input = {
+          groupingKey,
+          groupId,
+          threadId,
+          anchor,
+          expectedRevision: latestRevisions.current.get(groupingKey),
+          origin: "ui" as const,
+        };
+        let result = await rpcRef.current.call("updatePlacementV1", input);
+        if (
+          !result.ok &&
+          result.error.code === "REVISION_CONFLICT" &&
+          result.error.revision !== undefined
+        ) {
+          result = await rpcRef.current.call("updatePlacementV1", {
+            ...input,
+            expectedRevision: result.error.revision,
+          });
+        }
+        if (!result.ok) setError(result.error.message);
+        await Promise.all([loadPlacements(), loadStages()]);
+      });
+      saveQueue.current = save.catch(() => undefined);
+      await save;
     },
     [loadPlacements, loadStages],
   );

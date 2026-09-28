@@ -437,6 +437,10 @@ function ThreadRowComponent({
   );
   const ribbonData = useRibbonData();
   const ribbon = useRibbonRow(thread, trailingIndicatorState, pluginThreadRowStatus);
+  // A pull request number on the right keeps its place under the pointer,
+  // so the lane the hover actions take is held open for it at rest.
+  const reserveRowActionSpace =
+    reserveActionSpace || ribbon?.pullRequest?.position === "right";
   const ribbonSettings = useRibbonRowSettings();
   const organizationMode = useAtomValue(sidebarOrganizationModeAtom);
   const ribbonActionColor = useOwnerColor(
@@ -448,7 +452,7 @@ function ThreadRowComponent({
           ? { kind: "section", id: thread.sectionId }
           : null,
   );
-  const ribbonWorking = ribbon?.working ?? false;
+  const ribbonWorking = ribbon?.shines ?? false;
   const ribbonShines = ribbonWorking && ribbonSettings.shimmerWorkingRows;
   const shineRowRef = useRef<HTMLDivElement | null>(null);
   useRowShine(shineRowRef, ribbonShines, ribbonWorking);
@@ -564,7 +568,7 @@ function ThreadRowComponent({
           "group-data-[sidebar-touch-armed=true]/thread-row:hidden",
           !shortcut &&
             !isEditing &&
-            (reserveActionSpace
+            (reserveRowActionSpace
               ? "pr-7.5 max-md:pointer-coarse:pr-0"
               : SIDEBAR_HOVER_ACTIONS_INSET_CLASS),
         )}
@@ -603,7 +607,12 @@ function ThreadRowComponent({
           className={cn(
             "pointer-events-none relative flex min-w-0 items-center self-stretch",
             ((crossProjectLabel === null && (!parentOptions || !hasChildren)) ||
-              isEditing) &&
+              isEditing ||
+              // Action buttons and a right-hand PR number sit at the lane's
+              // end, so the lane spans the row even beside a child toggle.
+              (ribbon !== null &&
+                (ribbon.actions.length > 0 ||
+                  ribbon.pullRequest?.position === "right"))) &&
               "flex-1",
           )}
         >
@@ -661,6 +670,10 @@ function ThreadRowComponent({
                   )}
                   title={labelTitle}
                   onDoubleClick={startTitleEditing}
+                  // Inline, past bb's own rule for the class: the title takes
+                  // only what the buttons and number beside it leave, so it
+                  // is the first to give way as the row narrows.
+                  style={ribbon ? { flex: "1 1 0%" } : undefined}
                   {...(ribbon ? { [SHINE_ATTRIBUTE]: "" } : {})}
                 >
                   {ribbon ? (
@@ -846,6 +859,7 @@ function ThreadRowComponent({
   const row = renderThreadRowContainer({
     attributes: ribbon
       ? {
+          "data-thread-id": thread.id,
           "data-ribbon-stage": ribbon.stage,
           "data-ribbon-depth": String(options.depth),
           ...(ribbonShines ? { [SHINE_ROW_ATTRIBUTE]: "" } : {}),

@@ -393,9 +393,21 @@ function ProjectListNavigationLoadingRow({
 }
 
 export function ProjectListShell({ children }: ProjectListShellProps) {
+  // Ribbon's markers: the list is its root, and ready once the stages and
+  // placements every row is drawn from have loaded. Screenshots and tests
+  // wait for the second before they read the first.
+  const ribbon = useRibbonData();
   return (
     <SidebarContentElementProvider>
-      <SidebarStickyStack data-sidebar-sticky-density="compact-actions">
+      <SidebarStickyStack
+        data-sidebar-sticky-density="compact-actions"
+        {...(ribbon !== null
+          ? {
+              "data-ribbon-sidebar-root": "",
+              ...(ribbon.ready ? { "data-ribbon-sidebar-ready": "" } : {}),
+            }
+          : {})}
+      >
         <SidebarGroupContent>{children}</SidebarGroupContent>
       </SidebarStickyStack>
     </SidebarContentElementProvider>
