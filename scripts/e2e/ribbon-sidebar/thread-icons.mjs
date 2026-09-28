@@ -318,6 +318,40 @@ export async function verifyThreadIcons({ stack, fixture }) {
       await collapse.waitFor();
     }
 
+    // Standardized heading icons: a book for a section, open while the
+    // section is, in the heading's own ink.
+    {
+      fixture.run(["plugin", "config", "ribbon-sidebar", "set", "groupHeaderIcons", "Standardized"]);
+      const standard = (name) => atlas.locator(`svg[data-icon="${name}"]`);
+      await standard("BookOpen").waitFor();
+      const glyph = await standard("BookOpen").evaluate((svg) => {
+        const box = svg.getBoundingClientRect();
+        const label = svg.closest('[data-sidebar="group-label"]').querySelector('span[title="Atlas"]');
+        return { width: box.width, height: box.height, color: getComputedStyle(svg).color, ink: getComputedStyle(label).color };
+      });
+      assert.deepEqual(
+        { width: glyph.width, height: glyph.height, color: glyph.color },
+        { width: 16, height: 16, color: glyph.ink },
+        "A standardized section icon should be a 16px glyph in the heading's ink",
+      );
+      // The shut book reads as the open one folded: exactly as tall.
+      const drawnHeight = (name) => standard(name).evaluate((svg) => {
+        const boxes = [...svg.querySelectorAll("path")].map((path) => path.getBoundingClientRect());
+        return Math.max(...boxes.map((box) => box.bottom)) - Math.min(...boxes.map((box) => box.top));
+      });
+      const openHeight = await drawnHeight("BookOpen");
+      await atlas.getByRole("button", { name: "Collapse Atlas section", exact: true }).click();
+      await standard("BookClosed").waitFor();
+      const shutHeight = await drawnHeight("BookClosed");
+      // Both books are as tall as the folders: 18 of 24 units, 12px at 16px.
+      assert.ok(Math.abs(openHeight - 12) < 0.25, `The open book should be 12px tall: ${openHeight}`);
+      assert.ok(Math.abs(shutHeight - 12) < 0.25, `The shut book should be 12px tall: ${shutHeight}`);
+      await atlas.getByRole("button", { name: "Expand Atlas section", exact: true }).click();
+      await standard("BookOpen").waitFor();
+      fixture.run(["plugin", "config", "ribbon-sidebar", "set", "groupHeaderIcons", "On"]);
+      await atlas.locator("[data-ribbon-sidebar-icon]").waitFor();
+    }
+
     // A heading with no color of its own is a gray bar of the same family.
     const unorganized = await sidebar
       .locator('[data-sidebar="group-label"]')

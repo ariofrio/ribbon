@@ -38,6 +38,7 @@ import {
   HEADING_TOGGLE_CLASS,
   STICKY_HEADING_STYLE,
   HeadingChevron,
+  StandardHeadingIcon,
   headingColorStyle,
 } from "./heading";
 import type { IconDataV1 } from "./contracts";
@@ -735,6 +736,7 @@ function RibbonSidebarList({
   const draftThreadIds = useSidebarThreadDraftIds();
   const threadRowStatuses = useSidebarThreadRowStatuses();
   const settings = useSettings();
+  const headerIcons = settings.values?.groupHeaderIcons ?? "On";
   const connection = useRealtimeConnectionState();
   const [snapshot, setSnapshot] = useState<SidebarSnapshot | null>(null);
   const [preferences, setPreferences] = useState<SidebarPreferences | null>(
@@ -2293,11 +2295,15 @@ function RibbonSidebarList({
                         <span
                           className={`flex min-w-0 items-center gap-2 text-left ${HEADING_TEXT_CLASS}`}
                         >
-                          {settings.values?.showGroupHeaderIcons !== false &&
-                          unorganizedGroup ? (
+                          {headerIcons === "Off" ? null : entityGroupIcon &&
+                            headerIcons === "Standardized" ? (
+                            <StandardHeadingIcon
+                              kind={entityGroupIcon.kind}
+                              collapsed={collapsed}
+                            />
+                          ) : unorganizedGroup ? (
                             <UnorganizedIcon />
-                          ) : settings.values?.showGroupHeaderIcons !== false &&
-                            entityGroupIcon ? (
+                          ) : entityGroupIcon ? (
                             <span
                               aria-hidden
                               {...(entityGroupIcon.kind === "project"
@@ -2308,8 +2314,7 @@ function RibbonSidebarList({
                               }
                               style={HEADING_ICON_STYLE}
                             />
-                          ) : settings.values?.showGroupHeaderIcons !== false &&
-                            group.icon ? (
+                          ) : group.icon ? (
                             <ProviderIcon
                               icon={group.icon}
                               label={`${group.label} group icon`}
