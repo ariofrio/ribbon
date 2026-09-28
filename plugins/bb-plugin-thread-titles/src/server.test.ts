@@ -732,6 +732,74 @@ it("skips the first-message pass when the first turn ends before bb stores a tit
   expect(h.spawned[0]?.pluginMetadata).toMatchObject({ phase: "initial" });
 });
 
+it("skips the first-message pass when it is turned off", async () => {
+  const h = await setup();
+  await h.harness.behavior.setSettings({ titleFirstMessage: false });
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Build a useful calendar application");
+  bbTitle(h, "Build a calendar");
+  h.thread.title = "Build a calendar";
+  await h.emit();
+  expect(h.spawned).toHaveLength(0);
+  h.endTurn();
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  expect(h.spawned[0]?.pluginMetadata).toMatchObject({ phase: "initial" });
+});
+
+it("goes from the first-message pass to the third-message review when the first-turn pass is off", async () => {
+  const h = await setup();
+  await h.harness.behavior.setSettings({ titleFirstTurn: false });
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Build a useful calendar application");
+  bbTitle(h, null);
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  await finishWorker(h, { title: "Build a calendar app" });
+  h.endTurn();
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  h.user("Add sharing");
+  h.user("Include invitations");
+  await h.emit();
+  expect(h.spawned).toHaveLength(2);
+  expect(h.spawned[1]?.pluginMetadata).toMatchObject({ phase: "refinement" });
+  expect(h.spawned[1]?.prompt).toContain('Current title: "Build a calendar app"');
+});
+
+it("waits for the first turn to end when early titling is off", async () => {
+  const h = await setup();
+  await h.harness.behavior.setSettings({ maxTranscriptBytes: 40_000, titleFirstMessage: false, titleLongFirstTurnEarly: false });
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.thread.title = "Build a calendar";
+  h.user("Build a useful calendar application");
+  answers(h, 200);
+  await h.emit();
+  expect(h.spawned).toHaveLength(0);
+  h.endTurn();
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+});
+
+it("never reviews on the third message when that review is off", async () => {
+  const h = await setup();
+  await h.harness.behavior.setSettings({ reviewOnThirdMessage: false });
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Calendar");
+  h.endTurn();
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  await finishWorker(h, { title: "Build a shared calendar" });
+  h.user("Add sharing");
+  h.user("Include invitations");
+  await h.emit();
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(1);
+  expect(h.harness.inspection.logEntries.map((entry) => entry.message)).toContain(
+    "Thread real: title refinement skipped (Third-message review turned off)",
+  );
+});
+
 async function firstTitle(title = "Build a shared calendar") {
   const h = await setup();
   await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });

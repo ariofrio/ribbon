@@ -66,6 +66,13 @@ later. Previously completed jobs are not backfilled.
 
 ## Settings
 
+Each pass can be turned off on the plugin's settings page: **Title the first
+message**, **Title the first turn**, **Title long first turns early**, and
+**Review on the third message**. All are on by default. A thread whose pass is
+off goes straight to the next pass, so turning off the first two leaves only
+the third-message review; turning off the review ends the thread's titling after
+its first turn. A setting applies when a thread reaches that pass.
+
 Choose the title model under **Title model** on the plugin's settings page,
 using bb's own provider, model, and reasoning picker. Every title worker then
 runs that selection on the source thread's machine, whatever the thread's own
