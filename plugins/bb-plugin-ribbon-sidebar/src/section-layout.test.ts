@@ -4,9 +4,9 @@ import { sectionBands } from "./section-layout";
 describe("section layout", () => {
   it("keeps working stages interleaved in retained rank and sorts completions by time", () => {
     const rows = [
-      { id: "blocked", stage: "Blocked", completedAt: 0 },
+      { id: "blocked", stage: "BlockedOnThirdParty", completedAt: 0 },
       { id: "older", stage: "Completed", completedAt: 20 },
-      { id: "idle", stage: "Idle", completedAt: 0 },
+      { id: "idle", stage: "Active", completedAt: 0 },
       { id: "later", stage: "Deferred", completedAt: 0 },
       { id: "active", stage: "Active", completedAt: 0 },
       { id: "newer", stage: "Completed", completedAt: 30 },

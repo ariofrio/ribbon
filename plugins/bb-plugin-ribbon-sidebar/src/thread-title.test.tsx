@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { ThreadTitle } from "./thread-title";
+import { MarqueeText } from "./thread-title";
 
 afterEach(() => {
   cleanup();
@@ -25,7 +25,8 @@ it("uses observed fractional widths for the title pan without synchronous measur
     },
   );
   const measure = vi.spyOn(Element.prototype, "getBoundingClientRect");
-  const { container } = render(<ThreadTitle title="A long thread title" />);
+  const onMeasure = vi.fn();
+  const { container } = render(<MarqueeText text="A long thread title" onMeasure={onMeasure} />);
   expect(measure).not.toHaveBeenCalled();
   const resize = (widths: number[]) =>
     act(() =>
@@ -41,11 +42,12 @@ it("uses observed fractional widths for the title pan without synchronous measur
       ),
     );
   resize([100.25, 220.75]);
-  expect((container.firstChild as HTMLElement).style.getPropertyValue("--ribbon-title-pan")).toBe(
+  expect((container.firstChild as HTMLElement).style.getPropertyValue("--ribbon-marquee-pan")).toBe(
     "-120.5px",
   );
+  expect(onMeasure).toHaveBeenLastCalledWith(220.75);
   resize([250, 220.75]);
-  expect((container.firstChild as HTMLElement).style.getPropertyValue("--ribbon-title-pan")).toBe(
+  expect((container.firstChild as HTMLElement).style.getPropertyValue("--ribbon-marquee-pan")).toBe(
     "0px",
   );
   expect(measure).not.toHaveBeenCalled();

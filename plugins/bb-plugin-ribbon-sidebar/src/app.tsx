@@ -17,9 +17,6 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import {
   Fragment,
-  isValidElement,
-  memo,
-  useLayoutEffect,
   useCallback,
   useEffect,
   useInsertionEffect,
@@ -30,7 +27,6 @@ import {
   type FormEvent,
   type MouseEvent,
   type ReactNode,
-  type SyntheticEvent,
 } from "react";
 import type { z } from "zod";
 import { moveChild, orderChildren, type ChildRank } from "./child-order";
@@ -90,15 +86,18 @@ import {
   RAIL_EDGE_BOTTOM,
   RAIL_EDGE_TOP,
   railSegments,
+  treeLines,
 } from "./thread-rails";
 import {
   resolveThreadStatus,
   withPullRequestSignal,
   type ThreadStatus,
 } from "./thread-status";
-import { ThreadTitle } from "./thread-title";
+import { MarqueeText, ThreadTitle } from "./thread-title";
+import type { ThreadAction, ThreadActionsRecord } from "./thread-actions-store";
 import { UnorganizedIcon } from "./unorganized-icon";
 import { Button } from "./vendor/components/ui/button";
+import { Checkbox } from "./vendor/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -115,6 +114,7 @@ import {
 } from "./pull-request-details-store";
 import { Icon } from "./vendor/components/ui/icon";
 import { Input } from "./vendor/components/ui/input";
+import { Textarea } from "./vendor/components/ui/textarea";
 import {
   loadSidebarPreferences,
   saveSidebarPreferences,
@@ -128,7 +128,11 @@ import {
   WORKING_STAGE_ICONS,
 } from "./workflow/catalog";
 import { registerWorkflowCommands } from "./workflow/commands";
-import { parseWorkflowStage } from "./workflow/workflow-stage";
+import {
+  WORKFLOW_STAGE_LABELS,
+  isBlockedStage,
+  parseWorkflowStage,
+} from "./workflow/workflow-stage";
 
 // bb clears its legacy key during preference hydration; Ribbon owns this key.
 const COLLAPSED_THREADS_STORAGE_KEY =
@@ -167,6 +171,22 @@ function title(thread: Pick<PluginSidebarThread, "title" | "titleFallback">) {
   return thread.title ?? thread.titleFallback ?? "Untitled thread";
 }
 
+function actionButtonStyle(kind?: "project" | "section"): CSSProperties {
+  const color = kind
+    ? `var(--ribbon-icons-${kind}-color-light, oklch(0.5 0 0))`
+    : "oklch(0.5 0 0)";
+  return {
+    ["--ribbon-action-fill" as string]:
+      `light-dark(oklch(from ${color} 0.95 0.025 h), oklch(from ${color} 0.28 0.035 h))`,
+    ["--ribbon-action-ink" as string]:
+      `light-dark(oklch(from ${color} 0.47 0.13 h), oklch(from ${color} 0.82 0.11 h))`,
+    ["--ribbon-action-hover-ink" as string]:
+      `light-dark(oklch(from ${color} 0.34 0.15 h), oklch(from ${color} 0.94 0.13 h))`,
+    ["--ribbon-action-hover-fill" as string]:
+      "color-mix(in srgb, var(--ribbon-action-hover-ink) 26%, var(--ribbon-action-fill))",
+  };
+}
+
 function descendants(
   rootId: string,
   childrenByParent: ReadonlyMap<string, readonly PluginSidebarThread[]>,
@@ -179,10 +199,20 @@ function descendants(
 }
 
 // Every row asks for its root, several times a render, of the same list.
+const threadsById = new WeakMap<
+  readonly PluginSidebarThread[],
+  Map<string, PluginSidebarThread>
+>();
+
 function rootForThread(
   threadId: string,
-  byId: ReadonlyMap<string, PluginSidebarThread>,
+  threads: readonly PluginSidebarThread[],
 ): PluginSidebarThread | undefined {
+  let byId = threadsById.get(threads);
+  if (!byId) {
+    byId = new Map(threads.map((thread) => [thread.id, thread]));
+    threadsById.set(threads, byId);
+  }
   let current = byId.get(threadId);
   const visited = new Set<string>();
   while (
@@ -257,215 +287,78 @@ function supplementalSidebarThread(
   };
 }
 
-type ThreadRowProps = Omit<Parameters<typeof ThreadRowContent>[0], "sortable">;
-type SortableRowProps = ThreadRowProps & {
-  sortable: ReturnType<typeof useSortable>;
-};
+// Hides what stands in for a stage ring while the ring shows: on hover, on
+// keyboard focus, and always under a coarse pointer.
+const UNTIL_RING_SHOWS =
+  "group-hover/thread-row:opacity-0 group-has-[:focus-visible]/thread-row:opacity-0 pointer-coarse:opacity-0";
 
-const NO_IGNORED_FIELDS: ReadonlySet<string> = new Set();
-const ROW_NESTED_FIELDS = new Set([
-  "assignments", "indicatorThread", "icon", "sections", "dragTarget", "sortable", "thread", "endsGroup",
-]);
-const THREAD_NESTED_FIELDS = new Set(["activity", "environment", "host"]);
-const ASSIGNMENT_CALLBACK_FIELDS = new Set(["onSetGroup"]);
-const DRAG_ROOT_FIELDS = new Set(["roots"]);
-
-function sameFields(
-  left: object,
-  right: object,
-  ignored: ReadonlySet<string> = NO_IGNORED_FIELDS,
-): boolean {
-  if (left === right) return true;
-  for (const key in left) {
-    if (!Object.hasOwn(left, key) || ignored.has(key)) continue;
-    if (!Object.hasOwn(right, key) || !Object.is(Reflect.get(left, key), Reflect.get(right, key)))
-      return false;
-  }
-  for (const key in right) {
-    if (Object.hasOwn(right, key) && !ignored.has(key) && !Object.hasOwn(left, key))
-      return false;
-  }
-  return true;
-}
-
-function sameRowProps(
-  previous: SortableRowProps,
-  next: SortableRowProps,
-): boolean {
-  const {
-    assignments: a,
-    indicatorThread: ai,
-    icon: ax,
-    sections: as,
-    dragTarget: ad,
-    sortable: adnd,
-    thread: at,
-  } = previous;
-  const {
-    assignments: b,
-    indicatorThread: bi,
-    icon: bx,
-    sections: bs,
-    dragTarget: bd,
-    sortable: bdnd,
-    thread: bt,
-  } = next;
-  if (
-    adnd.setNodeRef !== bdnd.setNodeRef ||
-    adnd.setActivatorNodeRef !== bdnd.setActivatorNodeRef ||
-    !sameFields(adnd.attributes, bdnd.attributes) ||
-    !sameFields(adnd.listeners ?? {}, bdnd.listeners ?? {})
-  )
-    return false;
-  if (at !== bt) {
-    const { activity: aa, environment: ae, host: ah } = at;
-    const { activity: ba, environment: be, host: bh } = bt;
-    if (
-      !sameFields(at, bt, THREAD_NESTED_FIELDS) ||
-      !sameFields(aa, ba) ||
-      (ae !== be && (!ae || !be || !sameFields(ae, be))) ||
-      (ah !== bh && (!ah || !bh || !sameFields(ah, bh)))
-    )
-      return false;
-  }
-  if (
-    previous.endsGroup.length !== next.endsGroup.length ||
-    previous.endsGroup.some((ends, index) => ends !== next.endsGroup[index])
-  ) return false;
-  if (!sameFields(previous, next, ROW_NESTED_FIELDS) || !sameFields(ai, bi)) return false;
-  if (
-    ax !== bx &&
-    !(
-      isValidElement<object>(ax) &&
-      isValidElement<object>(bx) &&
-      ax.type === bx.type &&
-      ax.key === bx.key &&
-      sameFields(ax.props, bx.props)
-    )
-  )
-    return false;
-  if (
-    as !== bs &&
-    (as.length !== bs.length ||
-      as.some((section, i) => !sameFields(section, bs[i]!)))
-  )
-    return false;
-  if (
-    a.length !== b.length ||
-    a.some((item, i) => !sameFields(item, b[i]!, ASSIGNMENT_CALLBACK_FIELDS))
-  )
-    return false;
-  if (ad !== bd) {
-    if (!ad || !bd) return false;
-    const ar = ad.roots;
-    const br = bd.roots;
-    if (
-      !sameFields(ad, bd, DRAG_ROOT_FIELDS) ||
-      ar.length !== br.length ||
-      ar.some((root, index) => root.id !== br[index]?.id)
-    )
-      return false;
-  }
-  return true;
-}
-
-const MemoThreadRow = memo(ThreadRowContent, sameRowProps);
-
-function ThreadRow(props: ThreadRowProps) {
-  const sortable = useSortable({
-    id: props.thread.id,
-    disabled: !props.reorderable,
-    data: { target: props.dragTarget, label: title(props.thread) },
+function ThreadTree({
+  depth,
+  lastAtDepth,
+  ring,
+  showsChildren,
+}: {
+  depth: number;
+  lastAtDepth: readonly boolean[];
+  ring: "shown" | "hidden-at-rest" | "absent";
+  showsChildren: boolean;
+}) {
+  const { always, whileRingHidden, node } = treeLines({
+    depth,
+    lastAtDepth,
+    showsChildren,
+    ring,
   });
-  const current = useRef(props);
-  const currentSortable = useRef(sortable);
-  useLayoutEffect(() => {
-    current.current = props;
-    currentSortable.current = sortable;
-  });
-  const listenerKeys = Object.keys(sortable.listeners ?? {})
-    .sort()
-    .join(",");
-  const listeners = useMemo(
-    () =>
-      Object.fromEntries(
-        listenerKeys
-          .split(",")
-          .filter(Boolean)
-          .map((key) => [
-            key,
-            (event: SyntheticEvent) => currentSortable.current.listeners?.[key]?.(event),
-          ]),
-      ),
-    [listenerKeys],
-  );
-  const handlers = useMemo(
-    () => ({
-      onNewSection: () => current.current.onNewSection(),
-      onOpen: (split: boolean) => current.current.onOpen(split),
-      onRename: () => current.current.onRename(),
-      onSetSection: (sectionId: string | null) =>
-        current.current.onSetSection(sectionId),
-      onToggleChildren: () => current.current.onToggleChildren(),
-      actions: {
-        open: (...args: Parameters<ThreadRowProps["actions"]["open"]>) =>
-          current.current.actions.open(...args),
-        openNewThread: (
-          ...args: Parameters<ThreadRowProps["actions"]["openNewThread"]>
-        ) => current.current.actions.openNewThread(...args),
-        setPinned: (
-          ...args: Parameters<ThreadRowProps["actions"]["setPinned"]>
-        ) => current.current.actions.setPinned(...args),
-        setRead: (...args: Parameters<ThreadRowProps["actions"]["setRead"]>) =>
-          current.current.actions.setRead(...args),
-        rename: (...args: Parameters<ThreadRowProps["actions"]["rename"]>) =>
-          current.current.actions.rename(...args),
-        archive: (...args: Parameters<ThreadRowProps["actions"]["archive"]>) =>
-          current.current.actions.archive(...args),
-        requestDelete: (
-          ...args: Parameters<ThreadRowProps["actions"]["requestDelete"]>
-        ) => current.current.actions.requestDelete(...args),
-      },
-    }),
-    [],
-  );
-  const assignments = props.assignments.map((assignment) => ({
-    ...assignment,
-    onSetGroup: (groupId: string) =>
-      current.current.assignments
-        .find((item) => item.groupingKey === assignment.groupingKey)
-        ?.onSetGroup(groupId),
-  }));
+  if (!always && !node) return null;
+  // A 5px hollow node: radius 2 with a 1px stroke.
+  const nodeCircle = node ? <circle cx={node.cx} cy={node.cy} r={2} /> : null;
   return (
-    <MemoThreadRow
-      {...props}
-      {...handlers}
-      assignments={assignments}
-      sortable={{ ...sortable, listeners }}
-    />
+    <svg
+      aria-hidden="true"
+      className="pointer-events-none absolute left-0 top-0 z-[1] h-full overflow-visible text-border-hairline opacity-70 [clip-path:inset(0_0_-1px_0)]"
+      data-ribbon-sidebar-tree=""
+      width={24 + 24 * depth}
+    >
+      <g
+        fill="none"
+        stroke="currentColor"
+        style={{ transform: "translateY(var(--ribbon-ring-y))" }}
+      >
+        {always ? <path d={always} /> : null}
+        {ring === "absent" ? nodeCircle : null}
+        {ring === "hidden-at-rest" ? (
+          <g className={UNTIL_RING_SHOWS}>
+            <path d={whileRingHidden} />
+            {nodeCircle}
+          </g>
+        ) : null}
+      </g>
+    </svg>
   );
 }
 
-function ThreadRowContent({
-  sortable,
+function ThreadRow({
   active,
   alignAdornmentsToEntireItem,
   actions,
   assignments,
+  childLines,
   childrenCollapsed,
   depth,
-  endsGroup,
   firstChild,
   hasChildren,
   indicatorThread,
   hasUnsubmittedDraft,
-  hideIdleStageIconAtRest,
+  hideActiveStageIconAtRest,
   icon,
+  lastAtDepth,
   dragging,
   dragTarget,
   projected,
   muted,
   onNewSection,
+  onEditActions,
+  onRunAction,
   onOpen,
   onRename,
   onSetSection,
@@ -475,11 +368,14 @@ function ThreadRowContent({
   pullRequestNumberPosition,
   tabularPullRequestDigits,
   reorderable,
+  rowActions,
+  hideTitle,
+  groupColor,
   sections,
   shimmerRow,
+  showsChildren,
   thread,
 }: {
-  sortable: ReturnType<typeof useSortable>;
   active: boolean;
   alignAdornmentsToEntireItem: boolean;
   actions: ReturnType<typeof experimental_useSidebarThreadActions>;
@@ -491,21 +387,24 @@ function ThreadRowContent({
     singularLabel: string;
     onSetGroup(groupId: string): void;
   }[];
+  childLines: "Bar" | "Tree";
   childrenCollapsed: boolean;
   depth: number;
-  /** For each depth from 1 through `depth`, whether that sibling group's last row is this one. */
-  endsGroup: readonly boolean[];
   firstChild: boolean;
   hasChildren: boolean;
   indicatorThread: ThreadStatus;
   hasUnsubmittedDraft: boolean;
-  hideIdleStageIconAtRest: boolean;
+  hideActiveStageIconAtRest: boolean;
   icon: ReactNode;
+  /** For each depth from 1 through `depth`, whether this row's ancestor there (itself, last) is the last of its siblings. */
+  lastAtDepth: readonly boolean[];
   dragging: boolean;
   dragTarget?: ThreadDragTarget;
   projected: boolean;
   muted: boolean;
   onNewSection(): void;
+  onEditActions(): void;
+  onRunAction(actionId: string): Promise<void>;
   onOpen(split: boolean): void;
   onRename(): void;
   onSetSection(sectionId: string | null): void;
@@ -515,9 +414,13 @@ function ThreadRowContent({
   pullRequestNumberPosition: PullRequestNumberPosition;
   tabularPullRequestDigits: boolean;
   reorderable: boolean;
+  rowActions: readonly ThreadAction[];
+  hideTitle: boolean;
+  groupColor: { kind: "project" | "section"; id: string } | null;
   sections: readonly { id: string; label: string }[];
   /** Shimmer the working row rather than its indicator. */
   shimmerRow: boolean;
+  showsChildren: boolean;
   thread: PluginSidebarThread;
 }) {
   const {
@@ -541,10 +444,29 @@ function ThreadRowContent({
   const shines = shimmerRow && working;
   const rowRef = useRef<HTMLDivElement | null>(null);
   useRowShine(rowRef, shines, working);
-  const [keyboardFocus, setKeyboardFocus] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
+  const [runningActionId, setRunningActionId] = useState<string | null>(null);
+  const [measuredActionWidths, setMeasuredActionWidths] = useState<
+    Record<string, number>
+  >({});
   const rowTitle = title(thread);
+  const hasVisibleActions = !thread.isArchived && rowActions.length > 0;
+  const showThreadTitle = !hasVisibleActions || !hideTitle;
+  const actionGap = rowActions.length > 8 ? 0 : 4;
+  const actionWidths = rowActions.map(
+    (action) => measuredActionWidths[`${action.id}\0${action.label}`],
+  );
+  const actionsNaturalWidth = actionWidths.every((width) => width !== undefined)
+    ? actionWidths.reduce((total, width) => total + width, 0) +
+      rowActions.length * 16 +
+      Math.max(0, rowActions.length - 1) * actionGap
+    : null;
+  const sortable = useSortable({
+    id: thread.id,
+    disabled: !reorderable,
+    data: { target: dragTarget, label: rowTitle },
+  });
   const accessibleTitle = preview ? `${rowTitle} — ${preview}` : rowTitle;
   const showPullRequest =
     visiblePullRequest !== null && pullRequestStatus !== null;
@@ -556,7 +478,7 @@ function ThreadRowContent({
       <span
         className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ${
           tabularPullRequestDigits ? "tabular-nums" : ""
-        } ${pullRequestNumberPosition === "right" ? "ml-auto" : ""}`}
+        } ${hasVisibleActions ? "ml-2" : pullRequestNumberPosition === "right" ? "ml-auto" : ""}`}
         title={
           pullRequestStatus.label
             ? `${visiblePullRequest.title} — ${pullRequestStatus.label}`
@@ -579,6 +501,11 @@ function ThreadRowContent({
     showChildToggleAtRest ||
     (pullRequestNumber !== null && pullRequestNumberPosition === "right");
   const hasIcon = icon !== null;
+  const ring = !hasIcon
+    ? "absent"
+    : hideActiveStageIconAtRest
+      ? "hidden-at-rest"
+      : "shown";
   const iconSpansEntireItem = alignAdornmentsToEntireItem && preview !== null;
   const hasTrailingIndicator =
     layout !== null ||
@@ -594,6 +521,7 @@ function ThreadRowContent({
     assignments,
     disabled: placementDisabled,
     onNewSection,
+    onEditActions,
     onRename,
     onSetSection,
     sections,
@@ -627,7 +555,11 @@ function ThreadRowContent({
           reservesTrailingLane
             ? "grid-cols-[minmax(0,1fr)_auto] gap-x-1"
             : "grid-cols-1"
-        } ${active ? "bg-sidebar-accent" : "cursor-pointer hover:bg-sidebar-accent"} ${
+        } ${
+          active
+            ? "bg-sidebar-accent"
+            : "cursor-pointer hover:bg-sidebar-accent"
+        } ${
           muted
             ? "text-subtle-foreground/75"
             : active
@@ -643,23 +575,11 @@ function ThreadRowContent({
           sortable.setNodeRef(node);
           rowRef.current = node;
         }}
+        {...(groupColor
+          ? { [`data-ribbon-icons-${groupColor.kind}`]: groupColor.id }
+          : {})}
         {...(shines ? { [SHINE_ROW_ATTRIBUTE]: "" } : {})}
         {...(working ? { [ACTIVE_ROW_ATTRIBUTE]: "" } : {})}
-        data-ribbon-keyboard-focus={keyboardFocus}
-        data-ribbon-actions-open={actionsOpen}
-        onFocusCapture={(event) =>
-          setKeyboardFocus(event.target.matches(":focus-visible"))
-        }
-        onBlurCapture={(event) => {
-          if (
-            !(event.relatedTarget instanceof Node) ||
-            !event.currentTarget.contains(event.relatedTarget)
-          ) setKeyboardFocus(false);
-        }}
-        onKeyDownCapture={(event) => {
-          if (!event.altKey && !event.ctrlKey && !event.metaKey)
-            setKeyboardFocus(true);
-        }}
         // Until the row can say what its pull request is waiting on, it is
         // still being drawn; screenshots and tests wait for this to clear.
         {...(pullRequestLoading || pullRequestDetailsPending
@@ -668,32 +588,38 @@ function ThreadRowContent({
         onDragStart={(event) => event.preventDefault()}
         style={{ paddingLeft: 8 + depth * 24 }}
       >
-        {railSegments({
-          depth,
-          firstChild,
-          endsGroup,
-          ring: !hasIcon
-            ? "absent"
-            : hideIdleStageIconAtRest
-              ? "hidden-at-rest"
-              : "shown",
-        }).map(({ level, from, to, whileRingHidden }) => (
-          <span
-            aria-hidden="true"
-            className={`pointer-events-none absolute z-[1] w-px bg-border-hairline opacity-70 ${
-              whileRingHidden
-                ? "group-hover/thread-row:opacity-0 group-has-[:focus-visible]/thread-row:opacity-0 pointer-coarse:opacity-0"
-                : ""
-            }`}
-            data-ribbon-sidebar-rail={level}
-            key={`${level}:${from}`}
-            style={{
-              left: 16 + level * 24,
-              top: RAIL_EDGE_TOP[from],
-              bottom: RAIL_EDGE_BOTTOM[to],
-            }}
+        {childLines === "Tree" ? (
+          <ThreadTree
+            depth={depth}
+            lastAtDepth={lastAtDepth}
+            ring={ring}
+            showsChildren={showsChildren}
           />
-        ))}
+        ) : (
+          railSegments({
+            depth,
+            firstChild,
+            endsGroup: lastAtDepth.map(
+              (_, index) =>
+                !showsChildren && lastAtDepth.slice(index).every(Boolean),
+            ),
+            ring,
+          }).map(({ level, from, to, whileRingHidden }) => (
+            <span
+              aria-hidden="true"
+              className={`pointer-events-none absolute z-[1] w-px bg-border-hairline opacity-70 ${
+                whileRingHidden ? UNTIL_RING_SHOWS : ""
+              }`}
+              data-ribbon-sidebar-rail={level}
+              key={`${level}:${from}`}
+              style={{
+                left: 16 + level * 24,
+                top: RAIL_EDGE_TOP[from],
+                bottom: RAIL_EDGE_BOTTOM[to],
+              }}
+            />
+          ))
+        )}
         <a
           {...splitProps}
           {...(reorderable ? sortable.attributes : {})}
@@ -723,7 +649,7 @@ function ThreadRowContent({
           {hasIcon ? (
             <span
               className={`col-start-1 row-start-1 flex self-center ${
-                hideIdleStageIconAtRest
+                hideActiveStageIconAtRest
                   ? "opacity-0 group-hover/thread-row:opacity-100 group-has-[:focus-visible]/thread-row:opacity-100 pointer-coarse:opacity-100"
                   : ""
               }`}
@@ -740,9 +666,11 @@ function ThreadRowContent({
           <span
             className={`row-start-1 flex min-w-0 items-center ${
               !hasTrailingIndicator && !thread.isArchived
-                ? reservesIndicatorLaneAtRest
+                ? hasVisibleActions
+                  ? "pr-8 max-md:pointer-coarse:pr-9"
+                  : reservesIndicatorLaneAtRest
                   ? "pr-8 max-md:pointer-coarse:pr-2!"
-                  : "pr-2 group-hover/thread-row:pr-8 group-data-[ribbon-keyboard-focus=true]/thread-row:pr-8 group-data-[ribbon-actions-open=true]/thread-row:pr-8 max-md:pointer-coarse:pr-2!"
+                  : "pr-2 group-hover/thread-row:pr-8 group-has-[:focus-visible]/thread-row:pr-8 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-8 max-md:pointer-coarse:pr-2!"
                 : ""
             }`}
             style={{
@@ -751,17 +679,85 @@ function ThreadRowContent({
                 !hasTrailingIndicator && thread.isArchived ? 8 : undefined,
             }}
           >
-            <span
-              className="flex min-w-0 flex-1"
-              {...{ [SHINE_ATTRIBUTE]: "" }}
-              title={accessibleTitle}
-            >
-              <ShineContent className="flex items-center gap-2">
-                {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
-                <ThreadTitle title={rowTitle} />
-                {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
-              </ShineContent>
-            </span>
+            {!hasVisibleActions ? (
+              <span
+                className="flex min-w-0 flex-1"
+                {...{ [SHINE_ATTRIBUTE]: "" }}
+                title={accessibleTitle}
+              >
+                <ShineContent className="flex items-center gap-2">
+                  {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
+                  <ThreadTitle title={rowTitle} />
+                  {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
+                </ShineContent>
+              </span>
+            ) : (
+              <span className="pointer-events-none flex min-w-0 flex-1 items-center gap-2">
+                {showThreadTitle ? (
+                  <span
+                    className="flex min-w-0 flex-1"
+                    {...{ [SHINE_ATTRIBUTE]: "" }}
+                    title={accessibleTitle}
+                  >
+                    <ShineContent className="flex items-center">
+                      <ThreadTitle title={rowTitle} />
+                    </ShineContent>
+                  </span>
+                ) : (
+                  <span className="min-w-0 flex-1" />
+                )}
+                <span
+                  className={`flex min-w-0 flex-[0_1_max-content] items-center ${rowActions.length > 8 ? "gap-0" : "gap-1"}`}
+                  style={{
+                    flexBasis: actionsNaturalWidth === null
+                      ? "max-content"
+                      : actionsNaturalWidth,
+                  }}
+                >
+                  {rowActions.map((action) => {
+                    const widthKey = `${action.id}\0${action.label}`;
+                    return (
+                      <Button
+                        key={action.id}
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`${action.label} in ${rowTitle}`}
+                        disabled={runningActionId !== null}
+                        className="pointer-events-auto relative z-20 h-5 min-w-0 flex-[0_1_max-content] overflow-hidden rounded-md bg-[color:var(--ribbon-action-fill)] text-[11px] font-medium leading-none text-[color:var(--ribbon-action-ink)] ring-sidebar-ring hover:bg-[color:var(--ribbon-action-hover-fill)] hover:text-[color:var(--ribbon-action-hover-ink)] focus-visible:bg-[color:var(--ribbon-action-hover-fill)] focus-visible:text-[color:var(--ribbon-action-hover-ink)] focus-visible:ring-2 active:bg-[color:var(--ribbon-action-hover-fill)]"
+                        style={{
+                          ...actionButtonStyle(groupColor?.kind),
+                          flexBasis: measuredActionWidths[widthKey] === undefined
+                            ? "max-content"
+                            : measuredActionWidths[widthKey] + 16,
+                          paddingInline: `min(8px, ${20 / rowActions.length}%)`,
+                        }}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setRunningActionId(action.id);
+                          void onRunAction(action.id).finally(() => {
+                            setRunningActionId(null);
+                          });
+                        }}
+                        onPointerDown={(event) => event.stopPropagation()}
+                      >
+                        <MarqueeText
+                          text={action.label}
+                          onMeasure={(width) => {
+                            setMeasuredActionWidths((current) =>
+                              current[widthKey] === width
+                                ? current
+                                : { ...current, [widthKey]: width });
+                          }}
+                        />
+                      </Button>
+                    );
+                  })}
+                </span>
+                {pullRequestNumber}
+              </span>
+            )}
             {hasChildren ? (
               <Button
                 aria-expanded={!childrenCollapsed}
@@ -775,12 +771,12 @@ function ThreadRowContent({
                 className={`relative z-20 size-5 shrink-0 overflow-hidden p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3 ${
                   showChildToggleAtRest
                     ? "ml-2"
-                    : "bb-sidebar-hover-actions w-0 group-hover/thread-row:ml-2 group-hover/thread-row:w-5 group-data-[ribbon-keyboard-focus=true]/thread-row:ml-2 group-data-[ribbon-keyboard-focus=true]/thread-row:w-5 max-md:pointer-coarse:group-data-[ribbon-keyboard-focus=false]/thread-row:ml-0! max-md:pointer-coarse:group-data-[ribbon-keyboard-focus=false]/thread-row:w-0!"
+                    : "bb-sidebar-hover-actions w-0 group-hover/thread-row:ml-2 group-hover/thread-row:w-5 group-has-[:focus-visible]/thread-row:ml-2 group-has-[:focus-visible]/thread-row:w-5 max-md:pointer-coarse:group-[:not(:has(:focus-visible))]/thread-row:ml-0! max-md:pointer-coarse:group-[:not(:has(:focus-visible))]/thread-row:w-0!"
                 } ${
                   !thread.isArchived
                     ? showChildToggleAtRest
                       ? "-mr-1 max-md:pointer-coarse:mr-0!"
-                      : "group-hover/thread-row:-mr-1 group-data-[ribbon-keyboard-focus=true]/thread-row:-mr-1 max-md:pointer-coarse:mr-0!"
+                      : "group-hover/thread-row:-mr-1 group-has-[:focus-visible]/thread-row:-mr-1 max-md:pointer-coarse:mr-0!"
                     : ""
                 }`}
                 onClick={(event) => {
@@ -999,6 +995,16 @@ function RibbonSidebarList({
   const [previews, setPreviews] = useState<ReadonlyMap<string, string | null>>(
     new Map(),
   );
+  const [threadActions, setThreadActions] = useState<
+    ReadonlyMap<string, ThreadActionsRecord>
+  >(new Map());
+  const [threadActionsLoaded, setThreadActionsLoaded] = useState(false);
+  const [actionsEditor, setActionsEditor] = useState<{
+    threadId: string;
+    actions: ThreadAction[];
+    hideTitle: boolean;
+  } | null>(null);
+  const [actionsEditorPending, setActionsEditorPending] = useState(false);
   const [supplementalThreads, setSupplementalThreads] = useState<
     readonly SupplementalThread[]
   >([]);
@@ -1119,6 +1125,31 @@ function RibbonSidebarList({
     );
     setPlacementsLoaded(true);
   }, [rpc]);
+
+  const loadThreadActions = useCallback(async () => {
+    const { threads } = await rpc.call("listThreadActionsV1", null);
+    setThreadActions(
+      new Map(threads.map((record) => [record.threadId, record])),
+    );
+    setThreadActionsLoaded(true);
+  }, [rpc]);
+
+  useEffect(() => {
+    if (connection !== "connected") return;
+    void loadThreadActions().catch((error: unknown) => {
+      setMutationError(
+        error instanceof Error ? error.message : "Could not load thread actions",
+      );
+    });
+  }, [connection, loadThreadActions]);
+
+  useRealtime("thread-actions-changed", () => {
+    void loadThreadActions().catch((error: unknown) => {
+      setMutationError(
+        error instanceof Error ? error.message : "Could not load thread actions",
+      );
+    });
+  });
 
   const loadAssignmentPlacements = useCallback(async () => {
     const request = ++assignmentRequest.current;
@@ -1260,10 +1291,6 @@ function RibbonSidebarList({
         : !preferences.view.hide.visible;
     });
   }, [preferences, sidebar.threads, supplementalThreads]);
-  const liveThreadsById = useMemo(
-    () => new Map(liveThreads.map((thread) => [thread.id, thread])),
-    [liveThreads],
-  );
   const liveThreadIds = useMemo(
     () => new Set(liveThreads.map(({ id }) => id)),
     [liveThreads],
@@ -1804,12 +1831,11 @@ function RibbonSidebarList({
   }
 
   function threadStage(thread: PluginSidebarThread) {
-    const root = rootForThread(thread.id, liveThreadsById) ?? thread;
     return (
       parseWorkflowStage(
-        assignmentPlacements.get(THREAD_STAGES_GROUPING_KEY)?.get(root.id)
-          ?.groupId ?? "Idle",
-      ) ?? "Idle"
+        assignmentPlacements.get(THREAD_STAGES_GROUPING_KEY)?.get(thread.id)
+          ?.groupId ?? "Active",
+      ) ?? "Active"
     );
   }
   function threadBand(thread: PluginSidebarThread) {
@@ -1828,13 +1854,13 @@ function RibbonSidebarList({
     return working ? (
       <WorkingStageIcon
         {...WORKING_STAGE_ICONS[stage]}
-        label={`${stage} stage, working`}
+        label={`${WORKFLOW_STAGE_LABELS[stage]} stage, working`}
         className="text-subtle-foreground/75"
       />
     ) : (
       <ProviderIcon
         icon={STAGE_ICONS[stage]}
-        label={`${stage} stage`}
+        label={`${WORKFLOW_STAGE_LABELS[stage]} stage`}
         className="text-subtle-foreground/75"
       />
     );
@@ -1861,6 +1887,8 @@ function RibbonSidebarList({
       firstChild: false,
       lastAtDepth: [],
     },
+    inheritedGroupColor: { kind: "project" | "section"; id: string } | null =
+      null,
   ) => {
     const children = childrenByParent.get(root.id) ?? [];
     const childrenCollapsed = collapsedThreadIds.has(root.id);
@@ -1877,17 +1905,27 @@ function RibbonSidebarList({
       threadRowStatuses.get(root.id),
       { showRuntime: false },
     );
-    const stageOwner = root.parentThreadId
-      ? (rootForThread(root.id, liveThreadsById) ?? root)
-      : root;
     const stage = assignmentPlacements
-      .get("plugin:thread-stages:stages")
-      ?.get(stageOwner.id)?.groupId;
+      .get(THREAD_STAGES_GROUPING_KEY)
+      ?.get(root.id)?.groupId;
     const reorderable =
       !normalizedSearch &&
       !root.isArchived &&
       rowContext !== undefined &&
       (depth === 0 || rowContext.kind === "children");
+    const groupColor =
+      rowContext?.kind === "placement" &&
+      rowContext.groupId &&
+      (selectedGroupingKey === "builtin:sections" ||
+        selectedGroupingKey === "builtin:projects")
+        ? {
+            kind:
+              selectedGroupingKey === "builtin:sections"
+                ? ("section" as const)
+                : ("project" as const),
+            id: rowContext.groupId,
+          }
+        : inheritedGroupColor;
     return (
       <Fragment key={root.id}>
         {dragDestination?.indicatorBefore === root.id ? (
@@ -1904,59 +1942,83 @@ function RibbonSidebarList({
           }
           shimmerRow={settings.values?.shimmerWorkingRows !== false}
           actions={actions}
-          assignments={
-            depth === 0
-              ? orderedGroupings(snapshot.groupings).flatMap((candidate) => {
-                  if (
-                    !candidate.available ||
-                    !candidate.membershipWritable ||
-                    candidate.groupingKey === "builtin:sections"
-                  ) {
-                    return [];
-                  }
-                  const current = assignmentPlacements
-                    .get(candidate.groupingKey)
-                    ?.get(root.id);
-                  if (!current) return [];
-                  return [
-                    {
-                      groupingKey: candidate.groupingKey,
-                      currentGroupId: current.groupId,
-                      groups: candidate.groups,
-                      icon: candidate.icon,
-                      singularLabel: candidate.singularLabel,
-                      onSetGroup: (groupId: string) => {
-                        void updateAssignment(
-                          candidate.groupingKey as GroupingKey,
-                          root.id,
-                          groupId,
-                        );
-                      },
-                    },
-                  ];
-                })
-              : []
+          rowActions={threadActions.get(root.id)?.actions ?? []}
+          hideTitle={threadActions.get(root.id)?.hideTitle ?? false}
+          groupColor={groupColor}
+          onEditActions={() =>
+            setActionsEditor({
+              threadId: root.id,
+              actions: [...(threadActions.get(root.id)?.actions ?? [])],
+              hideTitle: threadActions.get(root.id)?.hideTitle ?? false,
+            })
           }
+          onRunAction={async (actionId) => {
+            try {
+              await rpc.call("runThreadActionV1", {
+                threadId: root.id,
+                actionId,
+              });
+            } catch (error) {
+              setMutationError(
+                error instanceof Error
+                  ? error.message
+                  : "Could not run thread action",
+              );
+            }
+          }}
+          assignments={orderedGroupings(snapshot.groupings).flatMap((candidate) => {
+            if (depth > 0 && candidate.groupingKey !== THREAD_STAGES_GROUPING_KEY)
+              return [];
+            if (
+              !candidate.available ||
+              !candidate.membershipWritable ||
+              candidate.groupingKey === "builtin:sections"
+            ) {
+              return [];
+            }
+            const current = assignmentPlacements
+              .get(candidate.groupingKey)
+              ?.get(root.id);
+            if (!current) return [];
+            return [
+              {
+                groupingKey: candidate.groupingKey,
+                currentGroupId: current.groupId,
+                groups: candidate.groups,
+                icon: candidate.icon,
+                singularLabel: candidate.singularLabel,
+                onSetGroup: (groupId: string) => {
+                  void updateAssignment(
+                    candidate.groupingKey as GroupingKey,
+                    root.id,
+                    groupId,
+                  );
+                },
+              },
+            ];
+          })}
           childrenCollapsed={childrenCollapsed}
           depth={depth}
+          childLines={
+            settings.values?.childThreadLines === "Tree" ? "Tree" : "Bar"
+          }
           firstChild={lineage.firstChild}
-          endsGroup={lineage.lastAtDepth.map(
-            (_, index) =>
-              !showsChildren &&
-              lineage.lastAtDepth.slice(index).every(Boolean),
-          )}
+          lastAtDepth={lineage.lastAtDepth}
+          showsChildren={showsChildren}
           hasChildren={children.length > 0}
           indicatorThread={indicatorThread}
           hasUnsubmittedDraft={draftThreadIds.has(root.id)}
-          hideIdleStageIconAtRest={
-            threadStage(root) === "Idle" &&
+          hideActiveStageIconAtRest={
+            threadStage(root) === "Active" &&
             !indicatorThread.spinsStageRing &&
             activeThreadId !== root.id
           }
           icon={threadIcon(root, indicatorThread.spinsStageRing)}
           dragging={draggingThreadId === root.id}
           muted={
-            stage === "Deferred" || stage === "Blocked" || stage === "Completed"
+            stage === "Deferred" ||
+            isBlockedStage(stage) ||
+            stage === "Completed"
           }
           dragTarget={
             rowContext
@@ -2019,6 +2081,7 @@ function RibbonSidebarList({
                     index === children.length - 1,
                   ],
                 },
+                groupColor,
               ),
             )}
           </SortableContext>
@@ -2172,7 +2235,8 @@ function RibbonSidebarList({
             placementsLoaded &&
             stagesLoaded &&
             previewsLoaded &&
-            childOrderLoaded
+            childOrderLoaded &&
+            threadActionsLoaded
               ? ""
               : undefined
           }
@@ -2315,6 +2379,131 @@ function RibbonSidebarList({
                       type="submit"
                     >
                       Rename
+                    </Button>
+                  </DialogFooter>
+                </form>
+              ) : null}
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={actionsEditor !== null}
+            onOpenChange={(open) => {
+              if (!open && !actionsEditorPending) setActionsEditor(null);
+            }}
+          >
+            <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit thread actions</DialogTitle>
+                <DialogDescription>
+                  Add buttons that send prompts to this thread.
+                </DialogDescription>
+              </DialogHeader>
+              {actionsEditor ? (
+                <form
+                  className="space-y-4"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const { threadId, actions: edited } = actionsEditor;
+                    const next = edited.map((action) => ({
+                      ...action,
+                      label: action.label.trim(),
+                      prompt: action.prompt.trim(),
+                    }));
+                    if (next.some(({ label, prompt }) => !label || !prompt)) return;
+                    setActionsEditorPending(true);
+                    const hideTitle = next.length > 0 && actionsEditor.hideTitle;
+                    void rpc.call("saveThreadActionsV1", { threadId, actions: next, hideTitle })
+                      .then(() => {
+                        setThreadActions((current) => {
+                          const updated = new Map(current);
+                          if (next.length > 0) updated.set(threadId, { threadId, actions: next, hideTitle });
+                          else updated.delete(threadId);
+                          return updated;
+                        });
+                        setActionsEditor(null);
+                      })
+                      .catch((error: unknown) => {
+                        setMutationError(error instanceof Error ? error.message : "Could not save thread actions");
+                      })
+                      .finally(() => setActionsEditorPending(false));
+                  }}
+                >
+                  {actionsEditor.actions.map((action, index) => (
+                    <div className="space-y-2 rounded-md border border-border p-3" key={action.id}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium">Action {index + 1}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={actionsEditorPending}
+                          onClick={() => setActionsEditor((current) => current && ({
+                            ...current,
+                            actions: current.actions.filter(({ id }) => id !== action.id),
+                          }))}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                      <Input
+                        aria-label={`Action ${index + 1} button label`}
+                        maxLength={24}
+                        placeholder="Button label"
+                        disabled={actionsEditorPending}
+                        value={action.label}
+                        onChange={(event) => setActionsEditor((current) => current && ({
+                          ...current,
+                          actions: current.actions.map((item) => item.id === action.id
+                            ? { ...item, label: event.target.value }
+                            : item),
+                        }))}
+                      />
+                      <Textarea
+                        aria-label={`Action ${index + 1} prompt`}
+                        maxLength={10000}
+                        placeholder="Prompt to send to this thread"
+                        disabled={actionsEditorPending}
+                        value={action.prompt}
+                        onChange={(event) => setActionsEditor((current) => current && ({
+                          ...current,
+                          actions: current.actions.map((item) => item.id === action.id
+                            ? { ...item, prompt: event.target.value }
+                            : item),
+                        }))}
+                      />
+                    </div>
+                  ))}
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={actionsEditor.actions.length > 0 && actionsEditor.hideTitle}
+                      disabled={actionsEditorPending || actionsEditor.actions.length === 0}
+                      onCheckedChange={(checked) => setActionsEditor((current) => current && ({
+                        ...current,
+                        hideTitle: checked === true,
+                      }))}
+                    />
+                    Hide thread title
+                  </label>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={actionsEditorPending}
+                      onClick={() => setActionsEditor((current) => current && ({
+                        ...current,
+                        actions: [...current.actions, {
+                          id: crypto.randomUUID(), label: "", prompt: "",
+                        }],
+                      }))}
+                    >
+                      Add action
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={actionsEditorPending || actionsEditor.actions.some(({ label, prompt }) => !label.trim() || !prompt.trim())}
+                    >
+                      Save actions
                     </Button>
                   </DialogFooter>
                 </form>
@@ -2512,7 +2701,7 @@ function RibbonSidebarList({
                         }
                       : undefined;
                 const selectedRootId = activeThreadId
-                  ? (rootForThread(activeThreadId, liveThreadsById)?.id ??
+                  ? (rootForThread(activeThreadId, liveThreads)?.id ??
                     activeThreadId)
                   : null;
                 const renderSectionRow = (root: PluginSidebarThread) =>

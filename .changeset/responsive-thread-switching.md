@@ -3,4 +3,4 @@
 "bb-plugin-icons": patch
 ---
 
-Keep thread switching responsive by reusing sidebar rows and hierarchy lookups, observing row geometry after layout, and preserving unchanged icon stylesheets.
+Avoid synchronous sidebar geometry reads and preserve unchanged icon stylesheets.

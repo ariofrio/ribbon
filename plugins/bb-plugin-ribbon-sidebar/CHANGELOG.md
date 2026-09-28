@@ -1,5 +1,37 @@
 # bb-plugin-ribbon-sidebar
 
+## 0.8.3
+
+### Patch Changes
+
+- f624869: Install the sidebar checkbox dependency in production so bb can build the plugin from its release.
+
+## 0.8.2
+
+### Patch Changes
+
+- 3942ee0: Stop building thread timelines for message previews, reducing work on bb's server event loop. Previews now use small pages of message events, reuse persisted results for unchanged threads, and stop background work while "Show message previews" is off.
+
+## 0.8.1
+
+### Patch Changes
+
+- 7710f1b: End a sidebar drag that bb cancels as the thread leaves the sidebar. Dragging a thread toward the main view or composer and back could leave the row hidden and the cursor grabbing until the window was reloaded.
+
+## 0.8.0
+
+### Minor Changes
+
+- 8bfea6b: Rename the Idle stage to Active and split Blocked into Blocked on other agent, marked with a slash, and Blocked on third party, marked with an incoming arrow along the same line. Waiting on the user is Active, so agents no longer file a thread as Blocked after asking the user something. On upgrade, Idle threads become Active and Blocked threads become Blocked on third party. A new shortcut files a thread as Blocked on other agent (⌃⌥⌘. on macOS, Ctrl+Alt+Shift+. elsewhere), and **Enable Blocked stages** turns both Blocked stages on or off. Stage mentions follow the new names, and `@Idle` and `@Blocked` in older messages still resolve. Stage mentions no longer tell agents to place a child's root instead of the child, since children now have their own stage.
+
+## 0.7.0
+
+### Minor Changes
+
+- e528e7a: Give child threads persistent, independent workflow stages in Ribbon. Show and change a child's stage in the sidebar and CLI, preserve it when the thread is reparented, and auto-archive only Completed subtrees.
+- a037ffa: Add a **Child thread lines** setting that can draw child threads as a tree, whose branches reach each child's stage ring, or a small hollow node while that ring is hidden.
+- 3581a02: Let each thread keep prompt buttons edited from its thread menu. Buttons align to the right of the title on one row, shrink and fade long labels when space runs out, and use the section or project color. Hovering the row pans clipped labels. The editor can hide the title while actions are present. Clicking a button sends its saved prompt to the thread.
+
 ## 0.6.0
 
 ### Minor Changes

@@ -25,7 +25,7 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
   const browser = await chromium.launch({ args: ["--mute-audio"] });
   try {
     setMessages(true);
-    place("Idle");
+    place("Active");
 
     const context = await browser.newContext({
       viewport: { width: 1280, height: 900 },
@@ -63,27 +63,28 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
           });
         }),
     );
-    const pills = await notice
-      .locator('[data-prompt-mention]')
-      .evaluateAll((nodes) =>
-        nodes.map((node) => {
-          const style = getComputedStyle(node);
-          const icon = node.firstElementChild;
-          return {
-            label: node.textContent,
-            display: style.display,
-            radius: parseFloat(style.borderTopLeftRadius),
-            width: node.getBoundingClientRect().width,
-            icon:
-              icon !== null &&
-              icon.getBoundingClientRect().width > 0 &&
-              getComputedStyle(icon).maskImage.includes("thread-stages"),
-          };
-        }),
-      );
+    const mentions = notice.locator('[data-prompt-mention]');
+    await mentions.first().waitFor({ state: "visible" });
+    await mentions.last().waitFor({ state: "visible" });
+    const pills = await mentions.evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const style = getComputedStyle(node);
+        const icon = node.firstElementChild;
+        return {
+          label: node.textContent,
+          display: style.display,
+          radius: parseFloat(style.borderTopLeftRadius),
+          width: node.getBoundingClientRect().width,
+          icon:
+            icon !== null &&
+            icon.getBoundingClientRect().width > 0 &&
+            getComputedStyle(icon).maskImage.includes("thread-stages"),
+        };
+      }),
+    );
     assert.deepEqual(
       pills.map(({ label }) => label),
-      ["Completed", "Idle"],
+      ["Completed", "Active"],
     );
     for (const pill of pills) {
       assert.notEqual(pill.display, "none");
@@ -99,14 +100,14 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
     await page.keyboard.type("then @bl");
     // Only Thread stages' provider supplies this subtitle to the menu.
     await page
-      .getByText("Stage · cannot progress until something external changes", {
+      .getByText("Stage · waiting for another agent's thread to finish or deliver something", {
         exact: true,
       })
       .waitFor();
     await page.keyboard.press("Enter");
     const inserted = page
       .locator('[data-app-composer-role="primary"] [data-prompt-mention]')
-      .filter({ hasText: "Blocked" });
+      .filter({ hasText: "Blocked on other agent" });
     await inserted.waitFor();
     assert.equal(
       (await composer.innerText()).includes("@bl"),
@@ -122,12 +123,12 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
     const serialized = JSON.stringify(events);
     assert.ok(
       serialized.includes(
-        "this thread's stage changed from Completed to Idle",
+        "this thread's stage changed from Completed to Active",
       ),
       "The agent must receive the notice's agent-only context",
     );
     assert.ok(
-      serialized.includes("@Idle is the Idle workflow stage"),
+      serialized.includes("@Active is the Active workflow stage"),
       "The agent must receive each stage mention's resolved context",
     );
     await context.close();

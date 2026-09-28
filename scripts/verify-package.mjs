@@ -1,6 +1,7 @@
 // Packs a plugin, checks that the tarball holds exactly the publishable files,
 // then installs it in a temporary prefix and validates the installed manifest
-// and build metadata. Usage: node scripts/verify-package.mjs [pluginDir]
+// and build metadata. Also builds the source with production-only dependencies.
+// Usage: node scripts/verify-package.mjs [pluginDir]
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import {
@@ -69,6 +70,12 @@ const expectedFiles = [
 const temporaryDirectory = mkdtempSync(join(tmpdir(), `${pluginId}-pack-`));
 
 try {
+  execFileSync(
+    process.execPath,
+    [resolve(import.meta.dirname, "verify-production-build.mjs"), pluginDirectory],
+    { stdio: "inherit" },
+  );
+
   const packOutput = execFileSync(
     "npm",
     [

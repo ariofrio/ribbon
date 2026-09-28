@@ -17,12 +17,12 @@ export async function verifyNoPaging({ stack, fixture }) {
     await page.goto(stack.serverUrl);
     const sidebar = page.locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]");
     await sidebar.waitFor({ timeout: 120_000 });
-    const group = sidebar.getByRole("region", { name: `${SECTION.name} group`, exact: true });
+    const group = sidebar.locator(`[data-sidebar-sticky-group][aria-label="${SECTION.name} group"]`);
     const featured = group.locator(`a[data-sidebar-thread-id="${fixture.threads.get(FEATURED_THREAD).id}"]`);
     const otherProject = group.locator(`a[data-sidebar-thread-id="${fixture.threads.get("Investigate webhook retries").id}"]`);
     await featured.waitFor();
     await otherProject.waitFor();
-    assert.equal(await sidebar.getByRole("region", { name: /^(Idle|Active|Blocked|Deferred|Completed) group$/ }).count(), 0);
+    assert.equal(await sidebar.getByRole("region", { name: /^(Active|Blocked on other agent|Blocked on third party|Deferred|Completed) group$/ }).count(), 0);
     const heading = group.locator('[data-sidebar="group-label"]');
     // The whole heading is the toggle, so clicking the section's name folds it.
     const name = await heading.getByText(SECTION.name, { exact: true }).boundingBox();
@@ -110,9 +110,9 @@ export async function verifyNoPaging({ stack, fixture }) {
     await webHeading.getByRole("button", { name: "Expand atlas-web project", exact: true }).click();
     await webThread.waitFor();
     const second = fixture.threads.get("Replace the legacy filter drawer").id;
-    fixture.run(["sidebar", "place", second, "--to", "plugin:thread-stages:stages/Idle"]);
+    fixture.run(["sidebar", "place", second, "--to", "plugin:thread-stages:stages/Active"]);
     const secondRow = web.locator(`a[data-sidebar-thread-id="${second}"]`);
-    await web.locator(`li[data-thread-id="${second}"]`).getByLabel("Idle stage", { exact: true }).waitFor();
+    await web.locator(`li[data-thread-id="${second}"]`).getByLabel("Active stage", { exact: true }).waitFor();
     const ids = new Set([second, fixture.threads.get(FEATURED_THREAD).id]);
     const order = async (region) => (await region.locator("li[data-thread-id]")
       .evaluateAll(nodes => nodes.map(node => node.dataset.threadId))).filter(id => ids.has(id));

@@ -95,6 +95,26 @@ test("the required gate waits for every other job in Plugins", () => {
   );
 });
 
+test("the end-to-end suites wait for a relevance gate outside their container", () => {
+  const workflow = readFileSync(join(workflows, "plugins.yml"), "utf8");
+  const relevanceJob = workflow.slice(
+    workflow.indexOf("\n  relevant:"),
+    workflow.indexOf("\n  end-to-end:"),
+  );
+  const endToEndJob = workflow.slice(
+    workflow.indexOf("\n  end-to-end:"),
+    workflow.indexOf("\n  plugins:"),
+  );
+
+  assert.doesNotMatch(relevanceJob, /container:/u);
+  assert.match(relevanceJob, /pull-requests: read/u);
+  assert.match(relevanceJob, /run: node scripts\/e2e\/affects\.mjs/u);
+  assert.match(endToEndJob, /needs: relevant/u);
+  assert.match(endToEndJob, /if: needs\.relevant\.outputs\.run == 'true'/u);
+  // A skipped end-to-end job hides a failed gate, so the gate waits on both.
+  assert.ok(jobs(workflow).get("plugins").includes("relevant"));
+});
+
 test("no workflow runs twice for one push to a branch here", () => {
   assert.ok(files.length > 0, "no workflows found");
   for (const file of files) {

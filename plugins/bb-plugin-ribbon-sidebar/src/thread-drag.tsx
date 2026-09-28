@@ -7,6 +7,7 @@ import {
   MouseSensor,
   pointerWithin,
   TouchSensor,
+  useDndContext,
   useDroppable,
   useSensor,
   useSensors,
@@ -246,16 +247,11 @@ export function ThreadDragGroup({
   const id =
     target.kind === "pinned" ? "pinned" : `placement:${target.groupId}`;
   const { setNodeRef } = useDroppable({ id, disabled, data: { target } });
-  const [items, setItems] = useState(() => target.roots.map(({ id }) => id));
-  if (
-    items.length !== target.roots.length ||
-    items.some((id, index) => id !== target.roots[index]?.id)
-  ) {
-    setItems(target.roots.map(({ id }) => id));
-  }
   return (
     <section {...props} ref={setNodeRef}>
-      <SortableContext items={items}>{children}</SortableContext>
+      <SortableContext items={target.roots.map(({ id }) => id)}>
+        {children}
+      </SortableContext>
     </section>
   );
 }
@@ -276,6 +272,26 @@ export function ThreadDragHeader({
     data: { target: { ...target, atStart: true } },
   });
   return <div {...props} ref={setNodeRef} />;
+}
+
+/**
+ * dnd-kit reports a cancel only for a drag it has committed. bb's split
+ * gesture cancels with a synthetic Escape as soon as a row leaves the sidebar,
+ * and a full sidebar can still be rendering the drag's start by then; the drag
+ * then ends without a callback.
+ */
+function EndUncommittedDrag({
+  dragging,
+  onEnded,
+}: {
+  dragging: boolean;
+  onEnded(): void;
+}) {
+  const { active } = useDndContext();
+  useEffect(() => {
+    if (dragging && active === null) onEnded();
+  }, [active, dragging, onEnded]);
+  return null;
 }
 
 export function ThreadDragProvider({
@@ -346,6 +362,11 @@ export function ThreadDragProvider({
     resetTimer.current = setTimeout(() => {
       suppressed.current = false;
     }, 350);
+  }
+  function cancel() {
+    finish();
+    destination.current = null;
+    onCancel();
   }
   function move(event: DragMoveEvent) {
     const pointer = hit.current?.pointer;
@@ -468,11 +489,7 @@ export function ThreadDragProvider({
       }}
       onDragMove={move}
       onDragOver={move}
-      onDragCancel={() => {
-        finish();
-        destination.current = null;
-        onCancel();
-      }}
+      onDragCancel={cancel}
       onDragEnd={({ active }) => {
         finish();
         const target = destination.current;
@@ -517,6 +534,7 @@ export function ThreadDragProvider({
       >
         {children}
       </div>
+      <EndUncommittedDrag dragging={label !== null} onEnded={cancel} />
       {createPortal(
         <DragOverlay dropAnimation={null} modifiers={modifiers}>
           {label !== null ? (

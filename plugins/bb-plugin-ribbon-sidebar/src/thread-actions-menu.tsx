@@ -65,6 +65,7 @@ interface CommonMenuProps {
     onSetGroup(groupId: string): void;
   }[];
   disabled: boolean;
+  onEditActions(): void;
   onNewSection(): void;
   onRename(): void;
   onSetSection(sectionId: string | null): void;
@@ -154,6 +155,7 @@ function ContextItems(props: CommonMenuProps) {
         {thread.isPinned ? "Unpin" : "Pin"}
       </ContextItem>
       <ContextItem icon="Edit" onSelect={props.onRename}>Rename</ContextItem>
+      <ContextItem icon="Edit" onSelect={props.onEditActions}>Edit actions</ContextItem>
       <ContextMenuSeparator />
       <ContextSectionMenu {...props} />
       {props.assignments.map((assignment) => (
@@ -209,6 +211,7 @@ function DropdownItems(props: CommonMenuProps) {
         {thread.isPinned ? "Unpin" : "Pin"}
       </DropdownItem>
       <DropdownItem icon="Edit" onSelect={props.onRename}>Rename</DropdownItem>
+      <DropdownItem icon="Edit" onSelect={props.onEditActions}>Edit actions</DropdownItem>
       <DropdownMenuSeparator />
       <DropdownSectionMenu {...props} />
       {props.assignments.map((assignment) => (

@@ -29,9 +29,9 @@ function assignment(
 
 const threads = [thread("thr_open"), thread("thr_next"), thread("thr_later")];
 const assignments = [
-  assignment("thr_open", "Idle", "a"),
-  assignment("thr_next", "Idle", "b"),
-  assignment("thr_later", "Idle", "c"),
+  assignment("thr_open", "Active", "a"),
+  assignment("thr_next", "Active", "b"),
+  assignment("thr_later", "Active", "c"),
 ];
 
 describe("resolveStageChord", () => {
@@ -85,7 +85,7 @@ describe("resolveStageChord", () => {
     ).toMatchObject({ next: { kind: "thread", threadId: "thr_later" } });
   });
 
-  it("starts at the top when the filed task was not in Idle", () => {
+  it("starts at the top when the filed task was not in Active", () => {
     expect(
       resolveStageChord({
         threadId: "thr_open",
@@ -93,8 +93,8 @@ describe("resolveStageChord", () => {
         threads,
         assignments: [
           assignment("thr_open", "Deferred", "a"),
-          assignment("thr_next", "Idle", "b"),
-          assignment("thr_later", "Idle", "c"),
+          assignment("thr_next", "Active", "b"),
+          assignment("thr_later", "Active", "c"),
         ],
         undoCandidates: [],
       }),
@@ -112,8 +112,8 @@ describe("resolveStageChord", () => {
           thread("thr_next"),
         ],
         assignments: [
-          assignment("thr_open", "Idle", "a"),
-          assignment("thr_next", "Idle", "c"),
+          assignment("thr_open", "Active", "a"),
+          assignment("thr_next", "Active", "c"),
         ],
         undoCandidates: [],
       }),
@@ -133,11 +133,11 @@ describe("resolveStageChord", () => {
           thread("thr_next"),
         ],
         assignments: [
-          assignment("thr_open", "Idle", "a"),
-          assignment("thr_pinned", "Idle", "b"),
-          assignment("thr_hidden", "Idle", "c"),
-          assignment("thr_archived", "Idle", "d"),
-          assignment("thr_next", "Idle", "e"),
+          assignment("thr_open", "Active", "a"),
+          assignment("thr_pinned", "Active", "b"),
+          assignment("thr_hidden", "Active", "c"),
+          assignment("thr_archived", "Active", "d"),
+          assignment("thr_next", "Active", "e"),
         ],
         undoCandidates: [],
       }),
@@ -150,7 +150,7 @@ describe("resolveStageChord", () => {
         threadId: "thr_open",
         workflowStage: "Completed",
         threads: [thread("thr_open")],
-        assignments: [assignment("thr_open", "Idle", "a")],
+        assignments: [assignment("thr_open", "Active", "a")],
         undoCandidates: [],
       }),
     ).toEqual({
@@ -160,42 +160,42 @@ describe("resolveStageChord", () => {
     });
   });
 
-  it("brings a task back to Idle and stays put", () => {
+  it("brings a task back to Active and stays put", () => {
     expect(
       resolveStageChord({
         threadId: "thr_open",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         threads,
         assignments: [
           assignment("thr_open", "Deferred", "a"),
-          assignment("thr_next", "Idle", "b"),
+          assignment("thr_next", "Active", "b"),
         ],
         undoCandidates: [],
       }),
     ).toEqual({
       kind: "file",
-      workflowStage: "Idle",
+      workflowStage: "Active",
       next: { kind: "stay" },
     });
   });
 
-  it("undoes the most recent filing when the open task is already Idle", () => {
+  it("undoes the most recent filing when the open task is already Active", () => {
     expect(
       resolveStageChord({
         threadId: "thr_open",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         threads,
         assignments,
         undoCandidates: [
           {
             threadId: "thr_later",
-            previousStage: "Idle",
+            previousStage: "Active",
             previousSortKey: "c",
             updatedAt: 20,
           },
           {
             threadId: "thr_next",
-            previousStage: "Blocked",
+            previousStage: "BlockedOnThirdParty",
             previousSortKey: "b",
             updatedAt: 10,
           },
@@ -209,17 +209,17 @@ describe("resolveStageChord", () => {
     });
   });
 
-  it("appends a restored task that never sat in Idle", () => {
+  it("appends a restored task that never sat in Active", () => {
     expect(
       resolveStageChord({
         threadId: "thr_open",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         threads,
         assignments,
         undoCandidates: [
           {
             threadId: "thr_next",
-            previousStage: "Blocked",
+            previousStage: "BlockedOnThirdParty",
             previousSortKey: "b",
             updatedAt: 10,
           },
@@ -232,13 +232,13 @@ describe("resolveStageChord", () => {
     expect(
       resolveStageChord({
         threadId: "thr_open",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         threads: [thread("thr_open"), thread("thr_gone", { archivedAt: 3 })],
         assignments,
         undoCandidates: [
           {
             threadId: "thr_gone",
-            previousStage: "Idle",
+            previousStage: "Active",
             previousSortKey: "z",
             updatedAt: 30,
           },
@@ -251,7 +251,7 @@ describe("resolveStageChord", () => {
     expect(
       resolveStageChord({
         threadId: "thr_open",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         threads,
         assignments,
         undoCandidates: [],

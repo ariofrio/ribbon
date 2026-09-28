@@ -31,9 +31,9 @@ function assignment(
 
 const threads = [thread("thr_a"), thread("thr_b"), thread("thr_c")];
 const assignments = [
-  assignment("thr_a", "Idle", "a"),
-  assignment("thr_b", "Idle", "b"),
-  assignment("thr_c", "Idle", "c"),
+  assignment("thr_a", "Active", "a"),
+  assignment("thr_b", "Active", "b"),
+  assignment("thr_c", "Active", "c"),
 ];
 
 describe("resolveWorkflowReorder", () => {
@@ -43,12 +43,12 @@ describe("resolveWorkflowReorder", () => {
         threads,
         assignments,
         threadId: "thr_c",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         intent: { scope: "step", direction: -1 },
       }),
     ).toEqual({
       kind: "order",
-      workflowStage: "Idle",
+      workflowStage: "Active",
       previousThreadId: "thr_a",
       nextThreadId: "thr_b",
     });
@@ -60,12 +60,12 @@ describe("resolveWorkflowReorder", () => {
         threads,
         assignments,
         threadId: "thr_a",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         intent: { scope: "edge", direction: 1 },
       }),
     ).toEqual({
       kind: "order",
-      workflowStage: "Idle",
+      workflowStage: "Active",
       previousThreadId: "thr_c",
       nextThreadId: null,
     });
@@ -77,7 +77,7 @@ describe("resolveWorkflowReorder", () => {
         threads,
         assignments,
         threadId: "thr_a",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         intent: { scope: "step", direction: -1 },
       }),
     ).toEqual({ kind: "none" });
@@ -89,7 +89,7 @@ describe("resolveWorkflowReorder", () => {
         threads,
         assignments,
         threadId: "thr_b",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         intent: { scope: "stage", direction: -1 },
       }),
     ).toEqual({ kind: "stage", workflowStage: "Deferred" });
@@ -119,8 +119,8 @@ describe("resolveWorkflowReorder", () => {
         threads,
         assignments,
         threadId: "thr_b",
-        workflowStage: "Idle",
-        enabledStages: ["Idle", "Completed"],
+        workflowStage: "Active",
+        enabledStages: ["Active", "Completed"],
         intent: { scope: "stage", direction: 1 },
       }),
     ).toEqual({ kind: "stage", workflowStage: "Completed" });
@@ -129,8 +129,8 @@ describe("resolveWorkflowReorder", () => {
         threads,
         assignments,
         threadId: "thr_b",
-        workflowStage: "Idle",
-        enabledStages: ["Idle", "Completed"],
+        workflowStage: "Active",
+        enabledStages: ["Active", "Completed"],
         intent: { scope: "stage", direction: -1 },
       }),
     ).toEqual({ kind: "none" });
@@ -144,10 +144,10 @@ describe("resolveWorkflowReorder", () => {
       thread("thr_c"),
     ];
     const nestedAssignments = [
-      assignment("thr_a", "Idle", "a"),
-      assignment("thr_a1", "Idle", "b"),
-      assignment("thr_b", "Idle", "c"),
-      assignment("thr_c", "Idle", "d"),
+      assignment("thr_a", "Active", "a"),
+      assignment("thr_a1", "Active", "b"),
+      assignment("thr_b", "Active", "c"),
+      assignment("thr_c", "Active", "d"),
     ];
 
     expect(
@@ -155,12 +155,12 @@ describe("resolveWorkflowReorder", () => {
         threads: nested,
         assignments: nestedAssignments,
         threadId: "thr_b",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         intent: { scope: "step", direction: -1 },
       }),
     ).toEqual({
       kind: "order",
-      workflowStage: "Idle",
+      workflowStage: "Active",
       previousThreadId: null,
       nextThreadId: "thr_a",
     });
@@ -169,13 +169,13 @@ describe("resolveWorkflowReorder", () => {
         threads: nested,
         assignments: nestedAssignments,
         threadId: "thr_a1",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         intent: { scope: "step", direction: 1 },
       }),
     ).toEqual({ kind: "none" });
   });
 
-  it("does not reorder or change status for a child thread", () => {
+  it("changes a child's own stage without reordering its hierarchy", () => {
     const nested = [
       thread("thr_parent"),
       thread("thr_child", { parentThreadId: "thr_parent" }),
@@ -184,10 +184,19 @@ describe("resolveWorkflowReorder", () => {
     expect(
       resolveWorkflowReorder({
         threads: nested,
-        assignments: [assignment("thr_parent", "Idle", "a")],
+        assignments: [assignment("thr_parent", "Active", "a")],
         threadId: "thr_child",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         intent: { scope: "stage", direction: 1 },
+      }),
+    ).toEqual({ kind: "stage", workflowStage: "BlockedOnOtherAgent" });
+    expect(
+      resolveWorkflowReorder({
+        threads: nested,
+        assignments: [assignment("thr_parent", "Active", "a")],
+        threadId: "thr_child",
+        workflowStage: "Active",
+        intent: { scope: "step", direction: 1 },
       }),
     ).toEqual({ kind: "none" });
   });
@@ -205,7 +214,7 @@ describe("resolveWorkflowReorder", () => {
         threads: pinned,
         assignments,
         threadId: "thr_c",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         intent: { scope: "edge", direction: -1 },
       }),
     ).toEqual({
@@ -223,10 +232,10 @@ describe("resolveWorkflowReorder", () => {
       thread("thr_c"),
     ];
     const mixedAssignments = [
-      assignment("thr_a", "Idle", "a"),
-      assignment("thr_hidden", "Idle", "b"),
-      assignment("thr_archived", "Idle", "c"),
-      assignment("thr_c", "Idle", "d"),
+      assignment("thr_a", "Active", "a"),
+      assignment("thr_hidden", "Active", "b"),
+      assignment("thr_archived", "Active", "c"),
+      assignment("thr_c", "Active", "d"),
     ];
 
     expect(
@@ -234,12 +243,12 @@ describe("resolveWorkflowReorder", () => {
         threads: mixed,
         assignments: mixedAssignments,
         threadId: "thr_c",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         intent: { scope: "step", direction: -1 },
       }),
     ).toEqual({
       kind: "order",
-      workflowStage: "Idle",
+      workflowStage: "Active",
       previousThreadId: null,
       nextThreadId: "thr_a",
     });
@@ -248,7 +257,7 @@ describe("resolveWorkflowReorder", () => {
         threads: mixed,
         assignments: mixedAssignments,
         threadId: "thr_missing",
-        workflowStage: "Idle",
+        workflowStage: "Active",
         intent: { scope: "step", direction: -1 },
       }),
     ).toEqual({ kind: "none" });

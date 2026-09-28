@@ -18,6 +18,7 @@ afterEach(async () => {
     expect(clicked).toHaveBeenCalled();
   });
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   document.body.innerHTML = "";
   window.localStorage.clear();
 });
@@ -296,13 +297,13 @@ const snapshot: {
         attrs: { viewBox: "0 0 24 24" },
         children: [{ tag: "path", attrs: { d: "M8 5v14l11-7z" } }],
       },
-      defaultGroupId: "Idle",
+      defaultGroupId: "Active",
       available: true,
       membershipWritable: true,
       groups: [
         {
-          id: "Idle",
-          label: "Idle",
+          id: "Active",
+          label: "Active",
           icon: {
             tag: "svg",
             attrs: { viewBox: "0 0 24 24" },
@@ -313,8 +314,8 @@ const snapshot: {
           defaultCollapsed: false,
         },
         {
-          id: "Blocked",
-          label: "Blocked",
+          id: "BlockedOnThirdParty",
+          label: "Blocked on third party",
           icon: {
             tag: "svg",
             attrs: { viewBox: "0 0 24 24" },
@@ -361,8 +362,8 @@ function options(overrides: Record<string, unknown> = {}) {
                     ? "section-b"
                     : "section-a"
                   : index === 0
-                    ? "Idle"
-                    : "Blocked",
+                    ? "Active"
+                    : "BlockedOnThirdParty",
             threadId,
             enteredAtMs: groupingKey.startsWith("plugin:") ? 1 : null,
             ...(groupingKey.startsWith("plugin:") ? { origin: "auto" } : {}),
@@ -412,6 +413,13 @@ function options(overrides: Record<string, unknown> = {}) {
     async (): Promise<{ threads: ListedThread[] }> => ({ threads: [] }),
   );
   const updateSettingsV1 = vi.fn(async () => ({ ok: true as const }));
+  const listThreadActionsV1 = vi.fn(async () => ({ threads: [] as Array<{
+    threadId: string;
+    actions: Array<{ id: string; label: string; prompt: string }>;
+    hideTitle: boolean;
+  }> }));
+  const saveThreadActionsV1 = vi.fn(async () => ({ ok: true as const }));
+  const runThreadActionV1 = vi.fn(async () => ({ ok: true as const }));
   return {
     synchronizeV1,
     listPlacementsV1,
@@ -428,6 +436,9 @@ function options(overrides: Record<string, unknown> = {}) {
     listProjectActionStatesV1,
     listThreadsV1,
     updateSettingsV1,
+    listThreadActionsV1,
+    saveThreadActionsV1,
+    runThreadActionV1,
     value: {
       settings: {
         showProjectsAndSections: true,
@@ -463,6 +474,9 @@ function options(overrides: Record<string, unknown> = {}) {
         renameEntityV1,
         deleteEntityV1,
         updateSettingsV1,
+        listThreadActionsV1,
+        saveThreadActionsV1,
+        runThreadActionV1,
       },
       sidebarThreads: {
         projects: [
@@ -507,27 +521,66 @@ function useManualSort(groupingKey = "plugin:thread-stages:stages") {
   );
 }
 
-it("uses the latest navigation callback after an unchanged row is memoized", async () => {
-  const app = await loadPluginApp(() => import("./app"));
-  const Component = app.threadLists[0]!.component;
-  const first = vi.fn();
-  const next = vi.fn();
-  const slot = renderSlot(
-    app.threadLists[0]!,
-    { ...props, onNavigate: first },
-    options().value,
-  );
-  await slot.findByText("Design migration");
-  slot.rerender(<Component {...props} onNavigate={next} />);
-  fireEvent.click(slot.getByRole("link", { name: /Design migration/ }));
-  expect(next).toHaveBeenCalledOnce();
-  expect(first).not.toHaveBeenCalled();
-  expect(slot.inspection.sidebarActionCalls).toContainEqual(
-    expect.objectContaining({ method: "open", threadId: "thread-a" }),
-  );
-});
-
 describe("Ribbon sidebar app", () => {
+  it("shows group-tinted thread actions and dispatches the selected prompt", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    fixture.listThreadActionsV1.mockResolvedValue({
+      threads: [{ threadId: "thread-a", hideTitle: false, actions: [
+        { id: "review", label: "Review", prompt: "Review this thread." },
+      ] }],
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const row = (await slot.findByText("Design migration")).closest<HTMLElement>(
+      '[data-thread-id="thread-a"]',
+    )!;
+    const button = await within(row).findByRole("button", {
+      name: "Review in Design migration",
+    });
+    fireEvent.click(button);
+    await waitFor(() => expect(fixture.runThreadActionV1).toHaveBeenCalledWith({
+      threadId: "thread-a", actionId: "review",
+    }));
+    slot.lifecycle.unmount();
+  }, 15_000);
+
+  it("edits thread actions from the thread menu", async () => {
+    vi.stubGlobal("ResizeObserver", class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    });
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const row = (await slot.findByText("Design migration")).closest<HTMLElement>(
+      '[data-thread-id="thread-a"]',
+    )!;
+    fireEvent.keyDown(row.querySelector('[aria-label="Thread actions"]')!, { key: "Enter" });
+    fireEvent.click(await slot.findByText("Edit actions"));
+    const dialog = await slot.findByRole("dialog", { name: "Edit thread actions" });
+    const hideTitle = within(dialog).getByRole("checkbox", { name: "Hide thread title" });
+    expect(hideTitle.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add action" }));
+    expect(hideTitle.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(hideTitle);
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Action 1 button label" }), {
+      target: { value: "Review" },
+    });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Action 1 prompt" }), {
+      target: { value: "Review this thread." },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save actions" }));
+    await waitFor(() => expect(fixture.saveThreadActionsV1).toHaveBeenCalledWith({
+      threadId: "thread-a",
+      actions: [expect.objectContaining({ label: "Review", prompt: "Review this thread." })],
+      hideTitle: true,
+    }));
+    expect(await within(row).findByRole("button", { name: "Review in Design migration" })).toBeTruthy();
+    expect(within(row).queryByText("Design migration")).toBeNull();
+    slot.lifecycle.unmount();
+  }, 15_000);
+
   it.each([
     ["builtin:sections", "Release"],
     ["builtin:projects", "Storefront"],
@@ -810,8 +863,8 @@ describe("Ribbon sidebar app", () => {
       },
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    const working = await slot.findByLabelText("Idle stage, working");
-    expect(slot.getByLabelText("Blocked stage")).toBeTruthy();
+    const working = await slot.findByLabelText("Active stage, working");
+    expect(slot.getByLabelText("Blocked on third party stage")).toBeTruthy();
     expect(slot.queryByLabelText("Thread working")).toBeNull();
     // Only the ring turns; the stage's own marks stay upright.
     const [ring, marks] = Array.from(working.querySelectorAll("svg"));
@@ -900,7 +953,7 @@ describe("Ribbon sidebar app", () => {
       },
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    const working = (await slot.findByLabelText("Idle stage, working")).closest(
+    const working = (await slot.findByLabelText("Active stage, working")).closest(
       "[data-ribbon-shine-row]",
     )!;
     expect(working).not.toBeNull();
@@ -920,7 +973,7 @@ describe("Ribbon sidebar app", () => {
     );
     const shining = Array.from(working.querySelectorAll("[data-ribbon-shine]"));
     expect(
-      shining.some((node) => node.querySelector("[aria-label='Idle stage, working']")),
+      shining.some((node) => node.querySelector("[aria-label='Active stage, working']")),
     ).toBe(true);
     expect(
       shining.some((node) =>
@@ -957,7 +1010,7 @@ describe("Ribbon sidebar app", () => {
       },
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    const icon = await slot.findByLabelText("Idle stage, working");
+    const icon = await slot.findByLabelText("Active stage, working");
     expect(icon.closest("[data-ribbon-shine-row]")).toBeNull();
     expect(
       slot.getByLabelText("Background command running").getAttribute("class"),
@@ -981,7 +1034,7 @@ describe("Ribbon sidebar app", () => {
       },
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    expect(await slot.findByLabelText("Idle stage, working")).toBeTruthy();
+    expect(await slot.findByLabelText("Active stage, working")).toBeTruthy();
     expect(slot.getByLabelText("Background command running")).toBeTruthy();
     expect(slot.queryByLabelText("Thread working")).toBeNull();
     slot.lifecycle.unmount();
@@ -1015,7 +1068,7 @@ describe("Ribbon sidebar app", () => {
     fireEvent.click(
       slot.getByRole("button", { name: "Expand thread-a threads" }),
     );
-    expect(slot.getByLabelText("Idle stage, working")).toBeTruthy();
+    expect(slot.getByLabelText("Active stage, working")).toBeTruthy();
     expect(slot.queryByLabelText("Thread working")).toBeNull();
     expect(
       slot.getByRole("link", { name: "Open child (unsubmitted draft)" }),
@@ -1141,7 +1194,7 @@ describe("Ribbon sidebar app", () => {
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     await slot.findByText("thread-a");
-    expect(slot.getByLabelText("Idle stage, working")).toBeTruthy();
+    expect(slot.getByLabelText("Active stage, working")).toBeTruthy();
     expect(slot.queryByLabelText("Thread working")).toBeNull();
     expect(await slot.findByLabelText("Waiting on CI")).toBeTruthy();
     slot.lifecycle.unmount();
@@ -1394,7 +1447,7 @@ describe("Ribbon sidebar app", () => {
       name: "Open Design migration — A useful preview",
     });
     expect(open).toBeTruthy();
-    expect(slot.getByLabelText("Idle stage, working")).toBeTruthy();
+    expect(slot.getByLabelText("Active stage, working")).toBeTruthy();
     expect(
       open.parentElement?.querySelector("[data-ribbon-sidebar-icon-slot] svg"),
     ).not.toBeNull();
@@ -1406,7 +1459,7 @@ describe("Ribbon sidebar app", () => {
     expect(slot.queryByText("Verify child flow")).toBeNull();
     expect(slot.getByLabelText("Needs input")).toBeTruthy();
     // A question outranks work, so the collapsed row's ring stops.
-    expect(slot.queryByLabelText("Idle stage, working")).toBeNull();
+    expect(slot.queryByLabelText("Active stage, working")).toBeNull();
     expect(
       JSON.parse(
         window.localStorage.getItem("bb.plugin.ribbon-sidebar.collapsedThreads") ?? "[]",
@@ -1416,7 +1469,7 @@ describe("Ribbon sidebar app", () => {
       slot.getByRole("button", { name: "Expand Design migration threads" }),
     );
     expect(slot.getByText("Verify child flow")).toBeTruthy();
-    expect(slot.getByLabelText("Idle stage, working")).toBeTruthy();
+    expect(slot.getByLabelText("Active stage, working")).toBeTruthy();
     expect(slot.getByText("Child preview")).toBeTruthy();
     expect(fixture.value.rpc.listPreviewsV1).toHaveBeenCalledWith({
       threadIds: ["thread-a", "thread-child", "thread-b"],
@@ -1427,11 +1480,11 @@ describe("Ribbon sidebar app", () => {
       ),
     ).toEqual([]);
 
-    expect(slot.getAllByLabelText("Idle stage").length).toBeGreaterThan(0);
+    expect(slot.getAllByLabelText("Active stage").length).toBeGreaterThan(0);
     expect(
       slot.getByRole("button", { name: "Collapse Release section" }),
     ).toBeTruthy();
-    expect(slot.queryByText("Stage: Idle")).toBeNull();
+    expect(slot.queryByText("Stage: Active")).toBeNull();
 
     fireEvent.keyDown(
       slot
@@ -1511,6 +1564,11 @@ describe("Ribbon sidebar app", () => {
   it("preserves released archived-thread search results", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
+    fixture.listThreadActionsV1.mockResolvedValue({
+      threads: [{ threadId: "thread-archived", hideTitle: false, actions: [
+        { id: "review", label: "Review", prompt: "Review this thread." },
+      ] }],
+    });
     fixture.value.rpc.searchThreadIdsV1 = vi.fn(async () => ({
       threadIds: ["thread-archived"],
       threads: [
@@ -1534,6 +1592,7 @@ describe("Ribbon sidebar app", () => {
 
     expect(await slot.findByText("Archived migration")).toBeTruthy();
     expect(slot.queryByRole("button", { name: "Thread actions" })).toBeNull();
+    expect(slot.queryByRole("button", { name: "Review in Archived migration" })).toBeNull();
     fireEvent.click(
       slot.getByRole("link", { name: "Open Archived migration" }),
     );
@@ -1688,8 +1747,8 @@ describe("Ribbon sidebar app", () => {
                   ? "section-b"
                   : "section-a"
                 : threadId === "thread-b"
-                  ? "Blocked"
-                  : "Idle",
+                  ? "BlockedOnThirdParty"
+                  : "Active",
             threadId,
             enteredAtMs: groupingKey.startsWith("plugin:") ? 1 : null,
             ...(groupingKey.startsWith("plugin:")
@@ -1778,7 +1837,7 @@ describe("Ribbon sidebar app", () => {
         items: [
           {
             groupingKey: "plugin:thread-stages:stages",
-            groupId: "Idle",
+            groupId: "Active",
             threadId: "thread-orphan",
             enteredAtMs: 1,
             origin: "auto" as const,
@@ -2039,11 +2098,11 @@ describe("Ribbon sidebar app", () => {
   });
 
   it.each([
-    ["Blocked", "preserve"],
-    ["Completed", "start"],
+    ["BlockedOnThirdParty", "Blocked on third party", "preserve"],
+    ["Completed", "Completed", "start"],
   ])(
     "moves to %s from any thread menu with the group's placement policy",
-    async (stage, anchor) => {
+    async (stage, label, anchor) => {
       window.localStorage.setItem(
         "bb.plugin.ribbon-sidebar.preferences.v1",
         JSON.stringify({
@@ -2081,7 +2140,7 @@ describe("Ribbon sidebar app", () => {
       expect(slot.getByText("Move to stage")).toBeTruthy();
       expect(slot.queryByText("Move to project")).toBeNull();
       fireEvent.click(slot.getByText("Move to stage"));
-      fireEvent.click(await slot.findByText(stage));
+      fireEvent.click(await slot.findByText(label));
 
       await waitFor(() =>
         expect(fixture.updatePlacementV1).toHaveBeenCalledWith({
@@ -2095,6 +2154,43 @@ describe("Ribbon sidebar app", () => {
       slot.lifecycle.unmount();
     },
   );
+
+  it("shows a child's own stage and lets its menu change that stage", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const originalList = fixture.listPlacementsV1.getMockImplementation()!;
+    fixture.listPlacementsV1.mockImplementation(async (input: unknown) => {
+      const result = await originalList(input);
+      if ((input as { groupingKey: string }).groupingKey === "plugin:thread-stages:stages") {
+        result.value.items.push({
+          groupingKey: "plugin:thread-stages:stages",
+          groupId: "BlockedOnThirdParty",
+          threadId: "thread-child",
+          enteredAtMs: 1,
+          origin: "auto",
+        });
+      }
+      return result;
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const child = (await slot.findByText("thread-child")).closest("[data-thread-id]")!;
+    expect(child.querySelector('[aria-label="Blocked on third party stage"]')).toBeTruthy();
+    const parent = slot.getByText("Design migration").closest("[data-thread-id]")!;
+    expect(parent.querySelector('[aria-label="Blocked on third party stage"]')).toBeNull();
+    fireEvent.keyDown(child.querySelector('[aria-label="Thread actions"]')!, {
+      key: "Enter",
+    });
+    fireEvent.click(await slot.findByText("Move to stage"));
+    fireEvent.click(await slot.findByText("Active"));
+    await waitFor(() => expect(fixture.updatePlacementV1).toHaveBeenCalledWith({
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Active",
+      threadId: "thread-child",
+      anchor: { kind: "preserve" },
+      origin: "ui",
+    }));
+    slot.lifecycle.unmount();
+  });
 
   it("moves a thread through the group surface without separate drag handles", async () => {
     useManualSort();
@@ -2117,7 +2213,7 @@ describe("Ribbon sidebar app", () => {
     );
     expect(slot.queryByRole("button", { name: "Move Ship UI" })).toBeNull();
     expect(
-      slot.queryByRole("button", { name: "Move to end of Idle" }),
+      slot.queryByRole("button", { name: "Move to end of Active" }),
     ).toBeNull();
     const idleGroup = slot.getByRole("region", { name: "Release group" });
     drag.hover(idleGroup);
@@ -2501,6 +2597,45 @@ describe("Ribbon sidebar app", () => {
     fireEvent.click(slot.getByRole("button", { name: "Retry" }));
     expect(await slot.findByText("No matching threads")).toBeTruthy();
     expect(slot.queryByRole("region", { name: "Release group" })).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("ends a drag that bb cancels before it is committed", async () => {
+    useManualSort();
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Ship UI");
+    const row = slot.getByText("Ship UI").closest("li")!;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      x: 0, y: 0, top: 0, left: 0, width: 250, height: 50, right: 250, bottom: 50,
+      toJSON() {},
+    });
+    fireEvent.mouseDown(row.querySelector("a")!, {
+      button: 0,
+      clientX: 50,
+      clientY: 25,
+    });
+    // bb's split gesture engages in the same task that activated the drag and
+    // cancels it with a synthetic Escape before React commits the drag.
+    act(() => {
+      document.dispatchEvent(
+        new MouseEvent("mousemove", { clientX: 60, clientY: 25, bubbles: true }),
+      );
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          code: "Escape",
+          bubbles: true,
+        }),
+      );
+    });
+    fireEvent.mouseUp(document);
+
+    await waitFor(() => {
+      expect(document.body.dataset.sidebarDragging).toBeUndefined();
+      expect(getComputedStyle(row).opacity).not.toBe("0");
+    });
     slot.lifecycle.unmount();
   });
 

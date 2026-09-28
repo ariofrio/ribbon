@@ -9,9 +9,7 @@ describe("row shimmer styles", () => {
     expect(activeAnimationDelay(999.5)).toBe("-999.5ms");
     const css = shineStyles();
     expect(css).toContain("animation-delay:var(--ribbon-active-animation-delay)");
-    expect(css).toMatch(
-      /\[data-ribbon-active-row\] \[class\*="animate-spin"\]\{animation-delay:var\(--ribbon-active-animation-delay\)\}/,
-    );
+    expect(css).toMatch(/\[data-ribbon-active-row\] \[class\*="animate-spin"\]\{animation-delay:var\(--ribbon-active-animation-delay\)\}/);
   });
 
   it("moves the wave by translation alone, which the compositor runs", () => {

@@ -423,6 +423,7 @@ describe("Ribbon sidebar CLI", () => {
       .toEqual(["thread-a", "thread-b"]);
     expect(threads).toHaveBeenLastCalledWith({
       includeArchived: false,
+      includeChildren: false,
       includeHidden: false,
     });
 
@@ -614,6 +615,7 @@ describe("Ribbon sidebar CLI", () => {
       parentThreadId: "thread-a",
       position: 2,
       siblingThreadIds: ["child-old", "child-new"],
+      stage: "Idle",
     });
 
     const children = await runRibbonSidebarCli(fixture.context, [
@@ -680,6 +682,33 @@ describe("Ribbon sidebar CLI", () => {
     expect(fixture.childOrder.list()).toEqual([]);
   });
 
+  it("changes a child's stage without moving it from its parent", async () => {
+    const fixture = setup();
+    databases.push(fixture.database);
+
+    const placed = await runRibbonSidebarCli(fixture.context, [
+      "place",
+      "child-old",
+      "--to",
+      `${stages.groupingKey}/Completed`,
+      "--json",
+    ]);
+    expect(placed.exitCode).toBe(0);
+    expect(JSON.parse(placed.stdout ?? "")).toMatchObject({
+      placement: { threadId: "child-old", groupId: "Completed" },
+    });
+    const shown = await runRibbonSidebarCli(fixture.context, [
+      "show",
+      "child-old",
+      "--json",
+    ]);
+    expect(JSON.parse(shown.stdout ?? "")).toMatchObject({
+      parentThreadId: "thread-a",
+      stage: "Completed",
+    });
+    expect(fixture.childOrder.list()).toEqual([]);
+  });
+
   it("explicitly migrates Thread stages placement", async () => {
     const fixture = setup();
     databases.push(fixture.database);
@@ -716,7 +745,7 @@ describe("Ribbon sidebar CLI", () => {
     expect(JSON.parse(rekeyed.stdout ?? "")).toEqual({
       from: stages.groupingKey,
       to: renamed.groupingKey,
-      assignments: 2,
+      assignments: 4,
       orders: 0,
       revision: 1,
     });

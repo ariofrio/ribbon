@@ -42,7 +42,7 @@ export interface ResolveStageChordInput {
 
 /**
  * Decides what a `.` chord does: file the open thread and move on to the next
- * one, bring the open thread back to Idle, or — when it is already Idle —
+ * one, bring the open thread back to Active, or — when it is already Active —
  * undo the user's most recent filing.
  */
 export function resolveStageChord({
@@ -55,6 +55,13 @@ export function resolveStageChord({
 }: ResolveStageChordInput): StageChord {
   const listed = listedThreads(threads);
   const rootThreads = partitionWorkflowThreads(listed).rootThreads;
+  if (listed.some((thread) => thread.id === threadId) &&
+      !rootThreads.some((thread) => thread.id === threadId)) {
+    const current = assignments.find((assignment) => assignment.threadId === threadId);
+    return current?.workflowStage === workflowStage
+      ? { kind: "none" }
+      : { kind: "file", workflowStage, next: { kind: "stay" } };
+  }
   if (!rootThreads.some((thread) => thread.id === threadId)) {
     return { kind: "none" };
   }
@@ -62,8 +69,8 @@ export function resolveStageChord({
     (assignment) => assignment.threadId === threadId,
   )?.workflowStage;
 
-  if (workflowStage === "Idle") {
-    if (openStage !== "Idle") {
+  if (workflowStage === "Active") {
+    if (openStage !== "Active") {
       return { kind: "file", workflowStage, next: { kind: "stay" } };
     }
     const candidate = undoCandidates.find((item) =>
@@ -74,7 +81,7 @@ export function resolveStageChord({
       kind: "restore",
       threadId: candidate.threadId,
       sortKey:
-        candidate.previousStage === "Idle" ? candidate.previousSortKey : null,
+        candidate.previousStage === "Active" ? candidate.previousSortKey : null,
       next: { kind: "thread", threadId: candidate.threadId },
     };
   }

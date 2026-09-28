@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { STAGE_ICONS, WORKING_STAGE_ICONS } from "./catalog";
+import {
+  STAGE_ICONS,
+  WORKING_STAGE_ICONS,
+  createGroupingCatalog,
+} from "./catalog";
 import { WORKFLOW_STAGES } from "./workflow-stage";
 
 describe("sidebar stage icons", () => {
@@ -23,5 +27,45 @@ describe("sidebar stage icons", () => {
         expect(workingRing.attrs.d).toContain("M20.75 12a8.75 8.75");
       }
     }
+  });
+});
+
+describe("stage catalog", () => {
+  it("labels the stages and marks the two Blocked stages apart", () => {
+    const [grouping] = createGroupingCatalog({}).groupings;
+    expect(grouping!.defaultGroupId).toBe("Active");
+    expect(grouping!.groups.map(({ id, label }) => [id, label])).toEqual([
+      ["Deferred", "Deferred"],
+      ["Active", "Active"],
+      ["BlockedOnOtherAgent", "Blocked on other agent"],
+      ["BlockedOnThirdParty", "Blocked on third party"],
+      ["Completed", "Completed"],
+    ]);
+    // A slash for another agent runs exactly along the third party's arrow.
+    const marks = (stage: (typeof WORKFLOW_STAGES)[number]) =>
+      STAGE_ICONS[stage].children!.slice(1);
+    expect(marks("Active")).toEqual([]);
+    expect(marks("BlockedOnOtherAgent")).toEqual([
+      expect.objectContaining({
+        tag: "path",
+        attrs: expect.objectContaining({ d: "M9 15 15.5 8.5" }),
+      }),
+    ]);
+    expect(marks("BlockedOnThirdParty")).toEqual([
+      expect.objectContaining({
+        tag: "path",
+        attrs: expect.objectContaining({ d: "M15.5 8.5 9 15M9 10.25V15h4.75" }),
+      }),
+    ]);
+  });
+
+  it("hides both Blocked stages behind one setting", () => {
+    const [grouping] = createGroupingCatalog({ showBlockedStage: false })
+      .groupings;
+    expect(
+      grouping!.groups
+        .filter(({ acceptsAssignments }) => !acceptsAssignments)
+        .map(({ id }) => id),
+    ).toEqual(["BlockedOnOtherAgent", "BlockedOnThirdParty"]);
   });
 });

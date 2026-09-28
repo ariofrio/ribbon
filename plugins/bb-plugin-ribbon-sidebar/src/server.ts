@@ -22,13 +22,14 @@ import { orderedGroupings } from "./grouping-order";
 import { migrateThreadStages } from "./migration";
 import {
   createPlacementStore,
-  RIBBON_SIDEBAR_MIGRATIONS,
   type GroupingDescriptor,
   type GroupingKey,
 } from "./placement-store";
 import { createPreviewStore } from "./preview-store";
 import { sidebarThreadsFromSearchResult } from "./search-results";
 import { registerThreadPreviews } from "./thread-previews";
+import { sidebarMigrations } from "./sidebar-migrations";
+import { createThreadActionsStore } from "./thread-actions-store";
 import { AUTO_ARCHIVE_OPTIONS } from "./workflow/auto-archive";
 import {
   createGroupingCatalog,
@@ -92,9 +93,51 @@ const ribbonThreadSchema = z
     latestAttentionAt: z.number(),
   })
   .strict();
+const threadActionSchema = z
+  .object({
+    id: z.string().min(1).max(64),
+    label: z.string().trim().min(1).max(24),
+    prompt: z.string().trim().min(1).max(10000),
+  })
+  .strict();
+const threadActionsSchema = z.array(threadActionSchema).refine(
+  (actions) => new Set(actions.map(({ id }) => id)).size === actions.length,
+  "Action IDs must be unique.",
+);
 
 export const rpcContract = defineRpcContract({
   ...workflowRpcMethods,
+  listThreadActionsV1: {
+    input: z.null(),
+    output: z
+      .object({
+        threads: z.array(
+          z
+            .object({ threadId: z.string(), actions: threadActionsSchema, hideTitle: z.boolean() })
+            .strict(),
+        ),
+      })
+      .strict(),
+  },
+  saveThreadActionsV1: {
+    input: z
+      .object({
+        threadId: z.string().min(1).max(256),
+        actions: threadActionsSchema,
+        hideTitle: z.boolean(),
+      })
+      .strict(),
+    output: z.object({ ok: z.literal(true) }).strict(),
+  },
+  runThreadActionV1: {
+    input: z
+      .object({
+        threadId: z.string().min(1).max(256),
+        actionId: z.string().min(1).max(64),
+      })
+      .strict(),
+    output: z.object({ ok: z.literal(true) }).strict(),
+  },
   addProjectLocalPathV1: {
     input: z.object({ projectId: z.string().min(1).max(256) }).strict(),
     output: z.object({ added: z.boolean() }).strict(),
@@ -386,7 +429,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     showBlockedStage: {
       type: "boolean",
-      label: "Enable Blocked stage",
+      label: "Enable Blocked stages",
       default: true,
     },
     autoArchiveCompletedAfter: {
@@ -415,6 +458,14 @@ export default async function plugin(bb: BbPluginApi) {
         "Align thread icons and indicators with the title row or center them across the entire item.",
       options: ["Title row", "Entire item"],
       default: "Title row",
+    },
+    childThreadLines: {
+      type: "select",
+      label: "Child thread lines",
+      description:
+        "Run one bar beside child threads' titles, or branch a tree into each child's stage ring.",
+      options: ["Bar", "Tree"],
+      default: "Bar",
     },
     showCollapsedGroupIndicators: {
       type: "boolean",
@@ -446,10 +497,11 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
   const database = bb.storage.database();
-  bb.storage.migrate(database, RIBBON_SIDEBAR_MIGRATIONS);
+  bb.storage.migrate(database, sidebarMigrations(database));
   const previews = createPreviewStore(database);
+  const threadActions = createThreadActionsStore(database);
   const childOrder = createChildOrderStore(database);
-  registerThreadPreviews(bb, previews);
+  registerThreadPreviews(bb, previews, settings);
 
   let projectGroups: GroupingDescriptor["groups"] = [];
   let personalProjectId: string | null = null;
@@ -643,7 +695,7 @@ export default async function plugin(bb: BbPluginApi) {
 
   function reconcileRoot(
     thread: Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>,
-    eligible: boolean,
+    eligible: boolean | "child",
   ) {
     projectByThread.set(thread.id, thread.projectId);
     sectionByThread.set(thread.id, thread.sectionId ?? "unsectioned");
@@ -655,9 +707,9 @@ export default async function plugin(bb: BbPluginApi) {
     }
   }
 
-  async function eligibleRoot(
+  async function threadEligibility(
     thread: Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>,
-  ): Promise<boolean> {
+  ): Promise<boolean | "child"> {
     if (thread.archivedAt !== null || thread.visibility !== "visible") {
       return false;
     }
@@ -666,7 +718,9 @@ export default async function plugin(bb: BbPluginApi) {
       const parent = await bb.sdk.threads.get({
         threadId: thread.parentThreadId,
       });
-      return parent.archivedAt !== null || parent.visibility !== "visible";
+      return parent.archivedAt !== null || parent.visibility !== "visible"
+        ? true
+        : "child";
     } catch {
       return true;
     }
@@ -857,6 +911,28 @@ export default async function plugin(bb: BbPluginApi) {
 
   bb.rpc.register(rpcContract, {
     ...workflow,
+    listThreadActionsV1() {
+      return { threads: threadActions.list() };
+    },
+    async saveThreadActionsV1({ threadId, actions, hideTitle }) {
+      const thread = await bb.sdk.threads.get({ threadId });
+      if (thread.archivedAt !== null) {
+        throw new Error("Archived threads cannot have actions.");
+      }
+      threadActions.save(threadId, actions, hideTitle);
+      bb.realtime.publish("thread-actions-changed", { threadId });
+      return { ok: true as const };
+    },
+    async runThreadActionV1({ threadId, actionId }) {
+      const action = threadActions.get(threadId, actionId);
+      if (!action) throw new Error("This thread action no longer exists.");
+      await bb.sdk.threads.send({
+        threadId,
+        input: [{ type: "text", text: action.prompt, mentions: [] }],
+        mode: "auto",
+      });
+      return { ok: true as const };
+    },
 
     async addProjectLocalPathV1({ projectId }) {
       const { primaryHostId } = await bb.sdk.system.config();
@@ -979,7 +1055,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     async placeNewThreadV1({ groupingKey, groupId, threadId }) {
       const thread = await bb.sdk.threads.get({ threadId });
-      reconcileRoot(thread, await eligibleRoot(thread));
+      reconcileRoot(thread, await threadEligibility(thread));
       return updatePlacement(
         {
           groupingKey,
@@ -1043,7 +1119,7 @@ export default async function plugin(bb: BbPluginApi) {
   const cli = defineRibbonSidebarCli({
     store,
     groupings,
-    threads: async ({ includeArchived, includeHidden }) => {
+    threads: async ({ includeArchived, includeHidden, includeChildren }) => {
       const threads =
         includeArchived || includeHidden
           ? await listThreadsForSidebar(bb, {
@@ -1055,7 +1131,7 @@ export default async function plugin(bb: BbPluginApi) {
         projectByThread.set(thread.id, thread.projectId);
         sectionByThread.set(thread.id, thread.sectionId ?? "unsectioned");
       }
-      return sidebarRootThreads(threads);
+      return includeChildren ? threads : sidebarRootThreads(threads);
     },
     updatePlacement,
     async hierarchy() {
@@ -1086,6 +1162,7 @@ export default async function plugin(bb: BbPluginApi) {
 
   bb.events.on("thread.deleted", ({ thread }) => {
     previews.delete(thread.id);
+    threadActions.delete(thread.id);
     if (childOrder.deleteThread(thread.id)) {
       bb.realtime.publish("child-order-changed", null);
     }
@@ -1099,14 +1176,14 @@ export default async function plugin(bb: BbPluginApi) {
     }
   });
   registerThreadGroupInheritance(bb, {
-    eligibleRoot,
+    eligibleRoot: threadEligibility,
     reconcileRoot,
     groupings,
     getPlacement: store.getPlacement,
     updatePlacement,
   });
   bb.events.on("thread.created", async ({ thread }) => {
-    reconcileRoot(thread, await eligibleRoot(thread));
+    reconcileRoot(thread, await threadEligibility(thread));
   });
   bb.events.on("thread.archived", ({ thread }) => {
     reconcileRoot(thread, false);

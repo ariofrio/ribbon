@@ -1,16 +1,65 @@
-export interface PreviewRow {
-  kind: string;
-  sourceSeqEnd: number;
-  role?: "user" | "assistant";
-  text?: string;
-  children?: readonly PreviewRow[] | null;
+export interface PreviewEvent {
+  seq: number;
+  type: string;
+  data: Record<string, unknown>;
 }
 
-function flatten(rows: readonly PreviewRow[]): PreviewRow[] {
-  return rows.flatMap((row) => [
-    row,
-    ...(row.children ? flatten(row.children) : []),
-  ]);
+export const PREVIEW_USER_EVENT_TYPES = [
+  "client/turn/requested",
+  "system/manager/user_message",
+] as const;
+export const PREVIEW_ITEM_EVENT_TYPE = "item/completed";
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function joinTextParts(parts: unknown, hidden: (part: Record<string, unknown>) => boolean) {
+  if (!Array.isArray(parts)) return "";
+  return parts
+    .flatMap((part) => {
+      const item = record(part);
+      return item && item.type === "text" && typeof item.text === "string" && !hidden(item)
+        ? [item.text]
+        : [];
+    })
+    .join("");
+}
+
+// Mirrors which stored events bb's timeline projects as user or assistant
+// conversation rows, so previews keep matching the transcript.
+function messageText(event: PreviewEvent): string {
+  const data = event.data;
+  switch (event.type) {
+    case "client/turn/requested": {
+      const subject = record(data.systemMessageSubject);
+      if (
+        data.initiator === "system" &&
+        subject?.kind === "tool-call" &&
+        subject.suppress === true
+      )
+        return "";
+      return joinTextParts(data.input, (part) => part.visibility === "agent-only");
+    }
+    case "system/manager/user_message":
+      return typeof data.text === "string" ? data.text : "";
+    case PREVIEW_ITEM_EVENT_TYPE: {
+      const item = record(data.item);
+      if (item?.type === "agentMessage")
+        return typeof item.text === "string" ? item.text : "";
+      if (item?.type === "userMessage") return joinTextParts(item.content, () => false);
+      return "";
+    }
+    default:
+      return "";
+  }
+}
+
+export function previewMessageText(event: PreviewEvent): string | null {
+  const text = messageText(event);
+  return text.length > 0 ? text : null;
 }
 
 function plainText(value: string) {
@@ -42,14 +91,12 @@ function plainText(value: string) {
     .slice(0, 500);
 }
 
-export function derivePreview(rows: readonly PreviewRow[]): string | null {
-  const message = flatten(rows)
-    .filter(
-      (row) =>
-        row.kind === "conversation" &&
-        (row.role === "user" || row.role === "assistant"),
-    )
-    .sort((left, right) => right.sourceSeqEnd - left.sourceSeqEnd)[0];
-  if (!message?.text) return null;
-  return plainText(message.text) || null;
+export function derivePreviewFromEvents(
+  events: readonly PreviewEvent[],
+): string | null {
+  const message = [...events]
+    .sort((left, right) => right.seq - left.seq)
+    .map((event) => previewMessageText(event))
+    .find((text) => text !== null);
+  return message ? plainText(message) || null : null;
 }
