@@ -194,12 +194,16 @@ export function TopLevelSidebarSection({
   );
   const handleHeadingClick = useCallback<MouseEventHandler<HTMLDivElement>>(
     (event) => {
-      // Every click toggles at once; a double click on the name toggles
-      // twice and then renames, with nothing waiting to tell them apart.
+      // Every click toggles at once, with nothing waiting to tell a double
+      // click apart. The name is the rename hotspot, so clicks there toggle
+      // nothing: a double click on it would otherwise fold and unfold the
+      // group on its way to the editor.
       if (!ribbon || !collapseControl || labelEditor) return;
       if (
         event.target instanceof Element &&
-        event.target.closest("button, a, input, textarea, [data-sidebar-trailing-controls]")
+        event.target.closest(
+          "button, a, input, textarea, [data-sidebar-trailing-controls], [data-sidebar-heading-name]",
+        )
       ) {
         return;
       }
@@ -276,7 +280,13 @@ export function TopLevelSidebarSection({
           ) : null}
           {labelEditor ?? (
             <span
-              className="min-w-0 truncate"
+              // In Ribbon's heading the name is a hotspot the full height of
+              // the row, so a double click anywhere level with it renames.
+              className={cn(
+                "min-w-0 truncate",
+                ribbon && "flex min-w-0 items-center self-stretch",
+              )}
+              data-sidebar-heading-name={ribbon ? "" : undefined}
               title={label}
               onDoubleClick={
                 onRename
@@ -288,7 +298,7 @@ export function TopLevelSidebarSection({
                   : undefined
               }
             >
-              {label}
+              {ribbon ? <span className="min-w-0 truncate">{label}</span> : label}
             </span>
           )}
           {collapseControl ? (
