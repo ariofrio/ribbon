@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type BetterSqlite3 from "better-sqlite3";
 import { RIBBON_SIDEBAR_MIGRATIONS } from "./placement-store";
+import { THREAD_PREVIEW_SOURCE_MIGRATION } from "./preview-store";
 import {
   THREAD_ACTIONS_DISPLAY_MIGRATION,
   THREAD_ACTIONS_MIGRATION,
@@ -26,11 +27,13 @@ export function sidebarMigrations(database: BetterSqlite3.Database): string[] {
       THREAD_ACTIONS_MIGRATION,
       THREAD_ACTIONS_DISPLAY_MIGRATION,
       ...RIBBON_SIDEBAR_MIGRATIONS.slice(4),
+      THREAD_PREVIEW_SOURCE_MIGRATION,
     ];
   }
   return [
     ...RIBBON_SIDEBAR_MIGRATIONS,
     THREAD_ACTIONS_MIGRATION,
     THREAD_ACTIONS_DISPLAY_MIGRATION,
+    THREAD_PREVIEW_SOURCE_MIGRATION,
   ];
 }

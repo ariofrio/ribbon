@@ -5,25 +5,35 @@ export interface StoredPreview {
   preview: string | null;
 }
 
+export interface PreviewSource {
+  preview: string | null;
+  sourceSeq: number | null;
+}
+
 export interface PreviewStore {
   list(threadIds: readonly string[]): StoredPreview[];
-  set(threadId: string, preview: string | null): boolean;
+  get(threadId: string): PreviewSource | undefined;
+  set(threadId: string, preview: string | null, sourceSeq: number): boolean;
   delete(threadId: string): boolean;
 }
 
+export const THREAD_PREVIEW_SOURCE_MIGRATION =
+  "ALTER TABLE thread_preview ADD COLUMN source_seq INTEGER;";
+
 export function createPreviewStore(database: BetterSqlite3.Database): PreviewStore {
   const get = database.prepare(
-    "SELECT preview FROM thread_preview WHERE thread_id = ?",
+    "SELECT preview, source_seq FROM thread_preview WHERE thread_id = ?",
   );
   const list = database.prepare(
     "SELECT thread_id, preview FROM thread_preview ORDER BY thread_id",
   );
   const upsert = database.prepare(`
-    INSERT INTO thread_preview(thread_id, preview, updated_at_ms)
-    VALUES (?, ?, ?)
+    INSERT INTO thread_preview(thread_id, preview, updated_at_ms, source_seq)
+    VALUES (?, ?, ?, ?)
     ON CONFLICT(thread_id) DO UPDATE SET
       preview = excluded.preview,
-      updated_at_ms = excluded.updated_at_ms
+      updated_at_ms = excluded.updated_at_ms,
+      source_seq = excluded.source_seq
   `);
   const remove = database.prepare(
     "DELETE FROM thread_preview WHERE thread_id = ?",
@@ -38,13 +48,18 @@ export function createPreviewStore(database: BetterSqlite3.Database): PreviewSto
         .filter(({ thread_id }) => requested.has(thread_id))
         .map(({ thread_id, preview }) => ({ threadId: thread_id, preview }));
     },
-    set(threadId, preview) {
+    get(threadId) {
+      const row = get.get(threadId) as
+        | { preview: string | null; source_seq: number | null }
+        | undefined;
+      return row ? { preview: row.preview, sourceSeq: row.source_seq } : undefined;
+    },
+    set(threadId, preview, sourceSeq) {
       const existing = get.get(threadId) as
         | { preview: string | null }
         | undefined;
-      if (existing?.preview === preview) return false;
-      upsert.run(threadId, preview, Date.now());
-      return true;
+      upsert.run(threadId, preview, Date.now(), sourceSeq);
+      return existing === undefined || existing.preview !== preview;
     },
     delete(threadId) {
       return remove.run(threadId).changes > 0;
