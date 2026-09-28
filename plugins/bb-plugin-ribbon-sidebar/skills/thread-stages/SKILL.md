@@ -12,9 +12,9 @@ Thread stages describe the workflow state of root threads:
 - **Blocked** cannot progress until something external changes.
 - **Completed** is finished and should be treated like archived work.
 
-Only root threads have a stage and position. A child appears beneath its parent
-and inherits that root's stage, so act on the root when moving or selecting a
-thread hierarchy.
+Only root threads have a stage and a position in their group. A child appears
+beneath its parent and inherits that root's stage, so act on the root when
+moving or selecting a thread hierarchy.
 
 Treat **Completed** roots as out of scope by default. Exclude them from bulk
 operations, messages, and notifications unless the user explicitly includes

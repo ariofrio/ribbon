@@ -36,7 +36,8 @@ button creates a thread in that section or project. Headings, icons, menus, row 
 treatments use Ribbon's existing bb components and theme tokens.
 
 Drag a root to reorder it within its list, or onto another section's header to
-move it there. Dragging preserves its stage. Change stages through the thread
+move it there. Drag a child to reorder it among its siblings; it stays under
+its parent. Dragging preserves its stage. Change stages through the thread
 menu, CLI, or keyboard shortcuts. Completed stays ordered by completion time.
 Project grouping supports reordering within a project; bb owns project membership.
 Group rank survives stage changes, so returning a deferred or completed root
@@ -44,7 +45,8 @@ to the main list restores its place.
 
 bb owns section membership, pins, pinned order, and lifecycle. Ribbon stores
 section and project ranks separately from workflow stage. Children inherit
-their root's stage and remain nested. Forks inherit their source hierarchy's
+their root's stage and remain nested. Each parent keeps its own child order in
+every grouping; children not yet reordered enter at the top, newest first. Forks inherit their source hierarchy's
 section and stage; unparenting copies the former root's placement.
 
 Thread status indicators retain bb's priority for errors, input requests, active
