@@ -5,6 +5,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fetchFromStack } from "./fetch.mjs";
 
 /**
  * One product in two repositories, which is the shape a section exists for:
@@ -470,7 +471,7 @@ export async function applyPluginState({ stack, projects, section }) {
   ];
   for (const [name, owner] of owners) {
     const { kind, id, icon, color } = owner;
-    const response = await fetch(
+    const response = await fetchFromStack(
       new URL(
         `/api/v1/plugins/icons/rpc/setIcon`,
         stack.serverUrl,

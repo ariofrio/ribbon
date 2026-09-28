@@ -17,6 +17,7 @@ import { mkdir, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { fetchFromStack } from "./fetch.mjs";
 
 const APP_DIR = fileURLToPath(
   new URL("../../node_modules/bb-app", import.meta.url),
@@ -125,7 +126,7 @@ export async function startStack({ dataDir, logStream, prepare }) {
   await waitFor(
     async () => {
       try {
-        return (await fetch(serverUrl)).ok;
+        return (await fetchFromStack(serverUrl)).ok;
       } catch {
         return false;
       }
@@ -135,7 +136,7 @@ export async function startStack({ dataDir, logStream, prepare }) {
 
   // The daemon needs bootstrap material; the server mints it for loopback
   // callers, the same path the desktop app takes when it first runs.
-  const enrollment = await fetch(
+  const enrollment = await fetchFromStack(
     new URL("/internal/hosts/enroll-key", serverUrl),
     {
       method: "POST",
@@ -165,7 +166,7 @@ export async function startStack({ dataDir, logStream, prepare }) {
 
   await waitFor(
     async () => {
-      const response = await fetch(new URL("/api/v1/hosts", serverUrl)).catch(
+      const response = await fetchFromStack(new URL("/api/v1/hosts", serverUrl)).catch(
         () => null,
       );
       if (!response?.ok) return false;
@@ -191,7 +192,7 @@ export async function startStack({ dataDir, logStream, prepare }) {
       });
       await waitFor(
         async () => {
-          const response = await fetch(new URL("/api/v1/hosts", serverUrl)).catch(
+          const response = await fetchFromStack(new URL("/api/v1/hosts", serverUrl)).catch(
             () => null,
           );
           if (!response?.ok) return false;
