@@ -877,10 +877,15 @@ describe("Ribbon sidebar app", () => {
         "--ribbon-active-animation-delay",
       ),
     ).toMatch(/^-?\d+(?:\.\d+)?ms$/);
-    const shining = Array.from(working.querySelectorAll("[data-ribbon-shine]"));
-    expect(shining.map((node) => node.textContent)).toEqual(
-      expect.arrayContaining(["thread-a", "A useful preview"]),
+    // The preview arrives after the row does.
+    await waitFor(() =>
+      expect(
+        Array.from(working.querySelectorAll("[data-ribbon-shine]")).map(
+          (node) => node.textContent,
+        ),
+      ).toEqual(expect.arrayContaining(["thread-a", "A useful preview"])),
     );
+    const shining = Array.from(working.querySelectorAll("[data-ribbon-shine]"));
     expect(
       shining.some((node) => node.querySelector("[aria-label='Idle stage, working']")),
     ).toBe(true);
