@@ -17,7 +17,7 @@ export async function verifyNoPaging({ stack, fixture }) {
     await page.goto(stack.serverUrl);
     const sidebar = page.locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]");
     await sidebar.waitFor({ timeout: 120_000 });
-    const group = sidebar.getByRole("region", { name: `${SECTION.name} group`, exact: true });
+    const group = sidebar.locator(`[data-sidebar-sticky-group][aria-label="${SECTION.name} group"]`);
     const featured = group.locator(`a[data-sidebar-thread-id="${fixture.threads.get(FEATURED_THREAD).id}"]`);
     const otherProject = group.locator(`a[data-sidebar-thread-id="${fixture.threads.get("Investigate webhook retries").id}"]`);
     await featured.waitFor();

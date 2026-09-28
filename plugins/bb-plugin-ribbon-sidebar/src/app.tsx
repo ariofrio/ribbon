@@ -92,9 +92,11 @@ import {
   withPullRequestSignal,
   type ThreadStatus,
 } from "./thread-status";
-import { ThreadTitle } from "./thread-title";
+import { MarqueeText, ThreadTitle } from "./thread-title";
+import type { ThreadAction, ThreadActionsRecord } from "./thread-actions-store";
 import { UnorganizedIcon } from "./unorganized-icon";
 import { Button } from "./vendor/components/ui/button";
+import { Checkbox } from "./vendor/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -111,6 +113,7 @@ import {
 } from "./pull-request-details-store";
 import { Icon } from "./vendor/components/ui/icon";
 import { Input } from "./vendor/components/ui/input";
+import { Textarea } from "./vendor/components/ui/textarea";
 import {
   loadSidebarPreferences,
   saveSidebarPreferences,
@@ -161,6 +164,22 @@ type EntityDialog =
 
 function title(thread: Pick<PluginSidebarThread, "title" | "titleFallback">) {
   return thread.title ?? thread.titleFallback ?? "Untitled thread";
+}
+
+function actionButtonStyle(kind?: "project" | "section"): CSSProperties {
+  const color = kind
+    ? `var(--ribbon-icons-${kind}-color-light, oklch(0.5 0 0))`
+    : "oklch(0.5 0 0)";
+  return {
+    ["--ribbon-action-fill" as string]:
+      `light-dark(oklch(from ${color} 0.95 0.025 h), oklch(from ${color} 0.28 0.035 h))`,
+    ["--ribbon-action-ink" as string]:
+      `light-dark(oklch(from ${color} 0.47 0.13 h), oklch(from ${color} 0.82 0.11 h))`,
+    ["--ribbon-action-hover-ink" as string]:
+      `light-dark(oklch(from ${color} 0.34 0.15 h), oklch(from ${color} 0.94 0.13 h))`,
+    ["--ribbon-action-hover-fill" as string]:
+      "color-mix(in srgb, var(--ribbon-action-hover-ink) 26%, var(--ribbon-action-fill))",
+  };
 }
 
 function descendants(
@@ -282,6 +301,8 @@ function ThreadRow({
   projected,
   muted,
   onNewSection,
+  onEditActions,
+  onRunAction,
   onOpen,
   onRename,
   onSetSection,
@@ -291,6 +312,9 @@ function ThreadRow({
   pullRequestNumberPosition,
   tabularPullRequestDigits,
   reorderable,
+  rowActions,
+  hideTitle,
+  groupColor,
   sections,
   shimmerRow,
   thread,
@@ -321,6 +345,8 @@ function ThreadRow({
   projected: boolean;
   muted: boolean;
   onNewSection(): void;
+  onEditActions(): void;
+  onRunAction(actionId: string): Promise<void>;
   onOpen(split: boolean): void;
   onRename(): void;
   onSetSection(sectionId: string | null): void;
@@ -330,6 +356,9 @@ function ThreadRow({
   pullRequestNumberPosition: PullRequestNumberPosition;
   tabularPullRequestDigits: boolean;
   reorderable: boolean;
+  rowActions: readonly ThreadAction[];
+  hideTitle: boolean;
+  groupColor: { kind: "project" | "section"; id: string } | null;
   sections: readonly { id: string; label: string }[];
   /** Shimmer the working row rather than its indicator. */
   shimmerRow: boolean;
@@ -358,7 +387,22 @@ function ThreadRow({
   useRowShine(rowRef, shines, working);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
+  const [runningActionId, setRunningActionId] = useState<string | null>(null);
+  const [measuredActionWidths, setMeasuredActionWidths] = useState<
+    Record<string, number>
+  >({});
   const rowTitle = title(thread);
+  const hasVisibleActions = !thread.isArchived && rowActions.length > 0;
+  const showThreadTitle = !hasVisibleActions || !hideTitle;
+  const actionGap = rowActions.length > 8 ? 0 : 4;
+  const actionWidths = rowActions.map(
+    (action) => measuredActionWidths[`${action.id}\0${action.label}`],
+  );
+  const actionsNaturalWidth = actionWidths.every((width) => width !== undefined)
+    ? actionWidths.reduce((total, width) => total + width, 0) +
+      rowActions.length * 16 +
+      Math.max(0, rowActions.length - 1) * actionGap
+    : null;
   const sortable = useSortable({
     id: thread.id,
     disabled: !reorderable,
@@ -375,7 +419,7 @@ function ThreadRow({
       <span
         className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ${
           tabularPullRequestDigits ? "tabular-nums" : ""
-        } ${pullRequestNumberPosition === "right" ? "ml-auto" : ""}`}
+        } ${hasVisibleActions ? "ml-2" : pullRequestNumberPosition === "right" ? "ml-auto" : ""}`}
         title={
           pullRequestStatus.label
             ? `${visiblePullRequest.title} — ${pullRequestStatus.label}`
@@ -413,6 +457,7 @@ function ThreadRow({
     assignments,
     disabled: placementDisabled,
     onNewSection,
+    onEditActions,
     onRename,
     onSetSection,
     sections,
@@ -466,6 +511,9 @@ function ThreadRow({
           sortable.setNodeRef(node);
           rowRef.current = node;
         }}
+        {...(groupColor
+          ? { [`data-ribbon-icons-${groupColor.kind}`]: groupColor.id }
+          : {})}
         {...(shines ? { [SHINE_ROW_ATTRIBUTE]: "" } : {})}
         {...(working ? { [ACTIVE_ROW_ATTRIBUTE]: "" } : {})}
         // Until the row can say what its pull request is waiting on, it is
@@ -548,7 +596,9 @@ function ThreadRow({
           <span
             className={`row-start-1 flex min-w-0 items-center ${
               !hasTrailingIndicator && !thread.isArchived
-                ? reservesIndicatorLaneAtRest
+                ? hasVisibleActions
+                  ? "pr-8 max-md:pointer-coarse:pr-9"
+                  : reservesIndicatorLaneAtRest
                   ? "pr-8 max-md:pointer-coarse:pr-2!"
                   : "pr-2 group-hover/thread-row:pr-8 group-has-[:focus-visible]/thread-row:pr-8 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-8 max-md:pointer-coarse:pr-2!"
                 : ""
@@ -559,17 +609,85 @@ function ThreadRow({
                 !hasTrailingIndicator && thread.isArchived ? 8 : undefined,
             }}
           >
-            <span
-              className="flex min-w-0 flex-1"
-              {...{ [SHINE_ATTRIBUTE]: "" }}
-              title={accessibleTitle}
-            >
-              <ShineContent className="flex items-center gap-2">
-                {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
-                <ThreadTitle title={rowTitle} />
-                {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
-              </ShineContent>
-            </span>
+            {!hasVisibleActions ? (
+              <span
+                className="flex min-w-0 flex-1"
+                {...{ [SHINE_ATTRIBUTE]: "" }}
+                title={accessibleTitle}
+              >
+                <ShineContent className="flex items-center gap-2">
+                  {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
+                  <ThreadTitle title={rowTitle} />
+                  {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
+                </ShineContent>
+              </span>
+            ) : (
+              <span className="pointer-events-none flex min-w-0 flex-1 items-center gap-2">
+                {showThreadTitle ? (
+                  <span
+                    className="flex min-w-0 flex-1"
+                    {...{ [SHINE_ATTRIBUTE]: "" }}
+                    title={accessibleTitle}
+                  >
+                    <ShineContent className="flex items-center">
+                      <ThreadTitle title={rowTitle} />
+                    </ShineContent>
+                  </span>
+                ) : (
+                  <span className="min-w-0 flex-1" />
+                )}
+                <span
+                  className={`flex min-w-0 flex-[0_1_max-content] items-center ${rowActions.length > 8 ? "gap-0" : "gap-1"}`}
+                  style={{
+                    flexBasis: actionsNaturalWidth === null
+                      ? "max-content"
+                      : actionsNaturalWidth,
+                  }}
+                >
+                  {rowActions.map((action) => {
+                    const widthKey = `${action.id}\0${action.label}`;
+                    return (
+                      <Button
+                        key={action.id}
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`${action.label} in ${rowTitle}`}
+                        disabled={runningActionId !== null}
+                        className="pointer-events-auto relative z-20 h-5 min-w-0 flex-[0_1_max-content] overflow-hidden rounded-md bg-[color:var(--ribbon-action-fill)] text-[11px] font-medium leading-none text-[color:var(--ribbon-action-ink)] ring-sidebar-ring hover:bg-[color:var(--ribbon-action-hover-fill)] hover:text-[color:var(--ribbon-action-hover-ink)] focus-visible:bg-[color:var(--ribbon-action-hover-fill)] focus-visible:text-[color:var(--ribbon-action-hover-ink)] focus-visible:ring-2 active:bg-[color:var(--ribbon-action-hover-fill)]"
+                        style={{
+                          ...actionButtonStyle(groupColor?.kind),
+                          flexBasis: measuredActionWidths[widthKey] === undefined
+                            ? "max-content"
+                            : measuredActionWidths[widthKey] + 16,
+                          paddingInline: `min(8px, ${20 / rowActions.length}%)`,
+                        }}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setRunningActionId(action.id);
+                          void onRunAction(action.id).finally(() => {
+                            setRunningActionId(null);
+                          });
+                        }}
+                        onPointerDown={(event) => event.stopPropagation()}
+                      >
+                        <MarqueeText
+                          text={action.label}
+                          onMeasure={(width) => {
+                            setMeasuredActionWidths((current) =>
+                              current[widthKey] === width
+                                ? current
+                                : { ...current, [widthKey]: width });
+                          }}
+                        />
+                      </Button>
+                    );
+                  })}
+                </span>
+                {pullRequestNumber}
+              </span>
+            )}
             {hasChildren ? (
               <Button
                 aria-expanded={!childrenCollapsed}
@@ -807,6 +925,16 @@ function RibbonSidebarList({
   const [previews, setPreviews] = useState<ReadonlyMap<string, string | null>>(
     new Map(),
   );
+  const [threadActions, setThreadActions] = useState<
+    ReadonlyMap<string, ThreadActionsRecord>
+  >(new Map());
+  const [threadActionsLoaded, setThreadActionsLoaded] = useState(false);
+  const [actionsEditor, setActionsEditor] = useState<{
+    threadId: string;
+    actions: ThreadAction[];
+    hideTitle: boolean;
+  } | null>(null);
+  const [actionsEditorPending, setActionsEditorPending] = useState(false);
   const [supplementalThreads, setSupplementalThreads] = useState<
     readonly SupplementalThread[]
   >([]);
@@ -927,6 +1055,31 @@ function RibbonSidebarList({
     );
     setPlacementsLoaded(true);
   }, [rpc]);
+
+  const loadThreadActions = useCallback(async () => {
+    const { threads } = await rpc.call("listThreadActionsV1", null);
+    setThreadActions(
+      new Map(threads.map((record) => [record.threadId, record])),
+    );
+    setThreadActionsLoaded(true);
+  }, [rpc]);
+
+  useEffect(() => {
+    if (connection !== "connected") return;
+    void loadThreadActions().catch((error: unknown) => {
+      setMutationError(
+        error instanceof Error ? error.message : "Could not load thread actions",
+      );
+    });
+  }, [connection, loadThreadActions]);
+
+  useRealtime("thread-actions-changed", () => {
+    void loadThreadActions().catch((error: unknown) => {
+      setMutationError(
+        error instanceof Error ? error.message : "Could not load thread actions",
+      );
+    });
+  });
 
   const loadAssignmentPlacements = useCallback(async () => {
     const request = ++assignmentRequest.current;
@@ -1664,6 +1817,8 @@ function RibbonSidebarList({
       firstChild: false,
       lastAtDepth: [],
     },
+    inheritedGroupColor: { kind: "project" | "section"; id: string } | null =
+      null,
   ) => {
     const children = childrenByParent.get(root.id) ?? [];
     const childrenCollapsed = collapsedThreadIds.has(root.id);
@@ -1688,6 +1843,19 @@ function RibbonSidebarList({
       !root.isArchived &&
       rowContext !== undefined &&
       (depth === 0 || rowContext.kind === "children");
+    const groupColor =
+      rowContext?.kind === "placement" &&
+      rowContext.groupId &&
+      (selectedGroupingKey === "builtin:sections" ||
+        selectedGroupingKey === "builtin:projects")
+        ? {
+            kind:
+              selectedGroupingKey === "builtin:sections"
+                ? ("section" as const)
+                : ("project" as const),
+            id: rowContext.groupId,
+          }
+        : inheritedGroupColor;
     return (
       <Fragment key={root.id}>
         {dragDestination?.indicatorBefore === root.id ? (
@@ -1704,6 +1872,30 @@ function RibbonSidebarList({
           }
           shimmerRow={settings.values?.shimmerWorkingRows !== false}
           actions={actions}
+          rowActions={threadActions.get(root.id)?.actions ?? []}
+          hideTitle={threadActions.get(root.id)?.hideTitle ?? false}
+          groupColor={groupColor}
+          onEditActions={() =>
+            setActionsEditor({
+              threadId: root.id,
+              actions: [...(threadActions.get(root.id)?.actions ?? [])],
+              hideTitle: threadActions.get(root.id)?.hideTitle ?? false,
+            })
+          }
+          onRunAction={async (actionId) => {
+            try {
+              await rpc.call("runThreadActionV1", {
+                threadId: root.id,
+                actionId,
+              });
+            } catch (error) {
+              setMutationError(
+                error instanceof Error
+                  ? error.message
+                  : "Could not run thread action",
+              );
+            }
+          }}
           assignments={orderedGroupings(snapshot.groupings).flatMap((candidate) => {
             if (depth > 0 && candidate.groupingKey !== THREAD_STAGES_GROUPING_KEY)
               return [];
@@ -1817,6 +2009,7 @@ function RibbonSidebarList({
                     index === children.length - 1,
                   ],
                 },
+                groupColor,
               ),
             )}
           </SortableContext>
@@ -1970,7 +2163,8 @@ function RibbonSidebarList({
             placementsLoaded &&
             stagesLoaded &&
             previewsLoaded &&
-            childOrderLoaded
+            childOrderLoaded &&
+            threadActionsLoaded
               ? ""
               : undefined
           }
@@ -2113,6 +2307,131 @@ function RibbonSidebarList({
                       type="submit"
                     >
                       Rename
+                    </Button>
+                  </DialogFooter>
+                </form>
+              ) : null}
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={actionsEditor !== null}
+            onOpenChange={(open) => {
+              if (!open && !actionsEditorPending) setActionsEditor(null);
+            }}
+          >
+            <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit thread actions</DialogTitle>
+                <DialogDescription>
+                  Add buttons that send prompts to this thread.
+                </DialogDescription>
+              </DialogHeader>
+              {actionsEditor ? (
+                <form
+                  className="space-y-4"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const { threadId, actions: edited } = actionsEditor;
+                    const next = edited.map((action) => ({
+                      ...action,
+                      label: action.label.trim(),
+                      prompt: action.prompt.trim(),
+                    }));
+                    if (next.some(({ label, prompt }) => !label || !prompt)) return;
+                    setActionsEditorPending(true);
+                    const hideTitle = next.length > 0 && actionsEditor.hideTitle;
+                    void rpc.call("saveThreadActionsV1", { threadId, actions: next, hideTitle })
+                      .then(() => {
+                        setThreadActions((current) => {
+                          const updated = new Map(current);
+                          if (next.length > 0) updated.set(threadId, { threadId, actions: next, hideTitle });
+                          else updated.delete(threadId);
+                          return updated;
+                        });
+                        setActionsEditor(null);
+                      })
+                      .catch((error: unknown) => {
+                        setMutationError(error instanceof Error ? error.message : "Could not save thread actions");
+                      })
+                      .finally(() => setActionsEditorPending(false));
+                  }}
+                >
+                  {actionsEditor.actions.map((action, index) => (
+                    <div className="space-y-2 rounded-md border border-border p-3" key={action.id}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium">Action {index + 1}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={actionsEditorPending}
+                          onClick={() => setActionsEditor((current) => current && ({
+                            ...current,
+                            actions: current.actions.filter(({ id }) => id !== action.id),
+                          }))}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                      <Input
+                        aria-label={`Action ${index + 1} button label`}
+                        maxLength={24}
+                        placeholder="Button label"
+                        disabled={actionsEditorPending}
+                        value={action.label}
+                        onChange={(event) => setActionsEditor((current) => current && ({
+                          ...current,
+                          actions: current.actions.map((item) => item.id === action.id
+                            ? { ...item, label: event.target.value }
+                            : item),
+                        }))}
+                      />
+                      <Textarea
+                        aria-label={`Action ${index + 1} prompt`}
+                        maxLength={10000}
+                        placeholder="Prompt to send to this thread"
+                        disabled={actionsEditorPending}
+                        value={action.prompt}
+                        onChange={(event) => setActionsEditor((current) => current && ({
+                          ...current,
+                          actions: current.actions.map((item) => item.id === action.id
+                            ? { ...item, prompt: event.target.value }
+                            : item),
+                        }))}
+                      />
+                    </div>
+                  ))}
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={actionsEditor.actions.length > 0 && actionsEditor.hideTitle}
+                      disabled={actionsEditorPending || actionsEditor.actions.length === 0}
+                      onCheckedChange={(checked) => setActionsEditor((current) => current && ({
+                        ...current,
+                        hideTitle: checked === true,
+                      }))}
+                    />
+                    Hide thread title
+                  </label>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={actionsEditorPending}
+                      onClick={() => setActionsEditor((current) => current && ({
+                        ...current,
+                        actions: [...current.actions, {
+                          id: crypto.randomUUID(), label: "", prompt: "",
+                        }],
+                      }))}
+                    >
+                      Add action
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={actionsEditorPending || actionsEditor.actions.some(({ label, prompt }) => !label.trim() || !prompt.trim())}
+                    >
+                      Save actions
                     </Button>
                   </DialogFooter>
                 </form>

@@ -58,7 +58,13 @@ export async function verifyThreadTitles({ stack, fixture }) {
       );
     };
     const settled = (count) => async () => {
-      const all = await workers();
+      let all;
+      try {
+        all = await workers();
+      } catch (error) {
+        if (error instanceof TypeError && error.message === "fetch failed") return false;
+        throw error;
+      }
       return all.length === count && all.every((worker) => worker.archivedAt !== null);
     };
     await until(settled(1), "first-message pass and cleanup");

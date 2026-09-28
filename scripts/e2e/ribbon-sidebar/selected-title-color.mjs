@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
+import { FEATURED_PROJECT, FEATURED_THREAD, THREADS } from "../../screenshots/fixture.mjs";
 
 export async function verifySelectedTitleColor({ stack, fixture }) {
   fixture.run(["theme", "set", "plugin:chatgpt-theme:chatgpt"]);
   const thread = fixture.threads.get(FEATURED_THREAD);
+  const inactiveThread = fixture.threads.get(THREADS.find((candidate) => candidate.stage === null).title);
   const project = fixture.projects.get(FEATURED_PROJECT);
   const browser = await chromium.launch({ args: ["--mute-audio"] });
   try {
@@ -26,7 +27,7 @@ export async function verifySelectedTitleColor({ stack, fixture }) {
           getComputedStyle(document.documentElement).getPropertyValue("--chatgpt-panel-surface").trim() !== "",
         );
         const active = sidebar.locator(`a[data-sidebar-thread-id="${thread.id}"]`);
-        const inactive = sidebar.locator('a[data-sidebar-thread-id]:not([aria-current="page"])').first();
+        const inactive = sidebar.locator(`a[data-sidebar-thread-id="${inactiveThread.id}"]`);
 
         async function assertTitleColor(link, selected) {
           const colors = await link.evaluate(async (link, selected) => {

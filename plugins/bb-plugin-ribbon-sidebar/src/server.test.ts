@@ -285,6 +285,35 @@ function setup({
 }
 
 describe("Ribbon sidebar server", () => {
+  it("saves prompt actions and sends the selected prompt to its thread", async () => {
+    const { bb, harness, send } = setup();
+    await plugin(bb);
+    try {
+      const actions = ["Review", "Test", "Explain", "Summarize"].map((label) => ({
+        id: label.toLowerCase(), label, prompt: `${label} this change.`,
+      }));
+      await harness.behavior.callRpc("saveThreadActionsV1", { threadId: "thread-a", actions, hideTitle: true });
+      expect(await harness.behavior.callRpc("listThreadActionsV1", null)).toEqual({
+        threads: [{ threadId: "thread-a", actions, hideTitle: true }],
+      });
+      await harness.behavior.callRpc("runThreadActionV1", {
+        threadId: "thread-a", actionId: "review",
+      });
+      expect(send).toHaveBeenCalledWith({
+        threadId: "thread-a",
+        input: [{ type: "text", text: "Review this change.", mentions: [] }],
+        mode: "auto",
+      });
+      await expect(harness.behavior.callRpc("runThreadActionV1", {
+        threadId: "thread-a", actionId: "missing",
+      })).rejects.toThrow();
+      await harness.behavior.callRpc("saveThreadActionsV1", { threadId: "thread-a", actions: [], hideTitle: true });
+      expect(await harness.behavior.callRpc("listThreadActionsV1", null)).toEqual({ threads: [] });
+    } finally {
+      await harness.dispose();
+    }
+  });
+
   it.each(["builtin:sections", "builtin:projects"] as const)(
     "reorders and completes the mixed main list in %s order",
     async (groupingKey) => {
@@ -1091,6 +1120,9 @@ describe("Ribbon sidebar server", () => {
     expect(harness.inspection.registrations.rpcMethods).toEqual([
       "setWorkflowStage",
       "reorderThread",
+      "listThreadActionsV1",
+      "saveThreadActionsV1",
+      "runThreadActionV1",
       "addProjectLocalPathV1",
       "createProjectV1",
       "createSectionV1",
