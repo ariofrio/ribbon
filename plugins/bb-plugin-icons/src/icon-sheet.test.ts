@@ -10,6 +10,29 @@ const view = {
 };
 
 describe("publishIconStylesheet", () => {
+  it("preserves the stylesheet when a refresh returns unchanged icons", async () => {
+    let refresh = () => {};
+    const load = vi.fn(async () => structuredClone(view));
+    const stop = publishIconStylesheet({
+      load,
+      subscribe: (onChange) => {
+        refresh = onChange;
+        return () => {};
+      },
+    });
+    await vi.waitFor(() =>
+      expect(document.head.querySelector("style[data-ribbon-icons]")?.textContent).toContain(
+        "proj_a",
+      ),
+    );
+    const style = document.head.querySelector("style[data-ribbon-icons]")!;
+    const cssNode = style.firstChild;
+    refresh();
+    await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(style.firstChild).toBe(cssNode);
+    stop();
+  });
+
   it("publishes what consumers read, and says when it is there", async () => {
     const stop = publishIconStylesheet({ load: async () => view });
 
@@ -23,9 +46,7 @@ describe("publishIconStylesheet", () => {
 
   it("takes the sheet and the marker away with it", async () => {
     const stop = publishIconStylesheet({ load: async () => view });
-    await vi.waitFor(() =>
-      expect(document.documentElement.dataset.ribbonIconsReady).toBe(""),
-    );
+    await vi.waitFor(() => expect(document.documentElement.dataset.ribbonIconsReady).toBe(""));
 
     stop();
 

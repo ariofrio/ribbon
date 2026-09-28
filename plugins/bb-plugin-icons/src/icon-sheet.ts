@@ -40,7 +40,8 @@ export function publishIconStylesheet({
   const refresh = async () => {
     const view = await load();
     if (disposed || view === null) return;
-    style.textContent = `${decorationStylesheet(view.defaults)}\n${iconStylesheet(view)}`;
+    const css = `${decorationStylesheet(view.defaults)}\n${iconStylesheet(view)}`;
+    if (style.textContent !== css) style.textContent = css;
     if (style.parentNode === null) target.head.append(style);
     // Only once the sheet is there: a consumer keys off this to decide whether
     // to draw at all, and an early marker would show it empty boxes.
