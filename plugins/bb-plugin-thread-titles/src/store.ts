@@ -3,8 +3,13 @@ import type { Thread } from "./history";
 
 export interface Job {
   threadId: string;
-  phase?: "initial" | "refinement";
+  // "message" titles the first message once bb's own title has landed;
+  // "initial" titles the first turn; "refinement" assesses the third message.
+  // Jobs saved without a phase are "initial".
+  phase?: "message" | "initial" | "refinement";
   initialWorkerId?: string | null;
+  // Workers of earlier phases, never recovered as a later phase's worker.
+  pastWorkerIds?: string[];
   baseline: string | null;
   fallback: string | null;
   captured: boolean;
@@ -59,7 +64,7 @@ export function createStore(bb: BbPluginApi) {
         return;
       const job: Job = {
         threadId: thread.id,
-        phase: "initial",
+        phase: "message",
         initialWorkerId: null,
         baseline: thread.title,
         fallback: thread.titleFallback,

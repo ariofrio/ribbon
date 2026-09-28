@@ -38,7 +38,20 @@ it("counts accepted user submissions, including grouped messages, without retrie
       event(5, "client/turn/rejected", { requestId: "4" }),
       request(6, { inputGroups: [[], []] }),
     ]),
-  ).toEqual({ count: 3, firstTurnEnded: false });
+  ).toEqual({ count: 3, firstTurnEnded: false, titleStep: "pending" });
+});
+
+it("reads whether bb generated a title from its provisioning step", () => {
+  const step = (seq: number, titleGenerated: boolean) =>
+    event(seq, "system/thread-provisioning", {
+      entries: [{ type: "step", key: "metadata-completed", status: "completed", metadata: { titleGenerated } }],
+    });
+  const started = event(1, "system/thread-provisioning", {
+    entries: [{ type: "step", key: "metadata-started", status: "started" }],
+  });
+  expect(userActivity([started]).titleStep).toBe("pending");
+  expect(userActivity([started, step(2, true)]).titleStep).toBe("generated");
+  expect(userActivity([started, step(2, false)]).titleStep).toBe("none");
 });
 
 it("includes streamed assistant text and command output before completion", () => {
