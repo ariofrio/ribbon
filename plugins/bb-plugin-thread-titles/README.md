@@ -35,12 +35,13 @@ first message alone often cannot say what a thread is about, such as a prompt
 that is only an issue link. Completion and size are read from durable history,
 so a missed event or restart does not lose the trigger.
 
-After a successful second pass, the third accepted user message triggers one
-assessment of the title. If the title has changed since the second pass, the
-assessment is permanently cancelled. Otherwise, the worker keeps it unless it
+After a successful second pass, or one exhausted by temporary provider failures,
+the third accepted user message triggers one assessment of the title. An untitled
+thread receives a fresh title instead. If the title has changed since the second
+pass, the assessment is permanently cancelled. Otherwise, the worker keeps it unless it
 is generic, materially inaccurate, or longer than the title length limit. New details, alternative wording, and
 stylistic preferences are not reasons to rewrite an accurate, specific title.
-Retries and agent messages do not count. Elapsed time never triggers an update.
+Retries and agent messages do not count. Elapsed time alone never starts a new phase.
 Each worker is stopped and archived afterward.
 
 The plugin saves the first stored title it observes before the first pass.
@@ -58,11 +59,15 @@ events, including across restarts, but never repeats an ambiguous worker creatio
 or title write. If the initial stored title appeared
 while the plugin was offline and its baseline is unknown, the update is skipped.
 A destructive history edit or context clear during generation cancels the job.
-Each pass starts at most one worker, plus a single retry, and
-recovery never adopts an earlier pass's worker or a failed one. Each completed
-pass saves the resulting title as the baseline for the next. A completed
-assessment, or a skipped second or third pass, ends the job; nothing is retried
-later. Previously completed jobs are not backfilled.
+Each pass attempts each distinct model in its fallback stack once, with at most
+one additional attempt to correct an overlong title. Recovery never adopts an
+earlier pass's worker or a failed one. Each completed pass saves the resulting
+title as the baseline for the next. The final assessment ends the job. Exhausting
+temporary failures in the second pass still allows the third-message pass; other
+terminal second-pass failures end it. Previously
+completed jobs are not backfilled. Older untitled jobs skipped after a selected
+model failed are checked once against their owned worker's recorded errors; only
+confirmed temporary failures become eligible for third-message recovery.
 
 ## Settings
 
@@ -74,9 +79,9 @@ the third-message review; turning off the review ends the thread's titling after
 its first turn. A setting applies when a thread reaches that pass.
 
 Choose the title model under **Title model** on the plugin's settings page,
-using bb's own provider, model, and reasoning picker. Every title worker then
-runs that selection on the source thread's machine, whatever the thread's own
-provider. A machine without the selected model skips the thread.
+using bb's own provider, model, and reasoning picker. That selection heads each
+pass's fallback stack on the source thread's machine, whatever the thread's own
+provider. A machine without the selected model starts with the automatic model.
 
 **Use automatic** clears the selection. Automatic titling runs what bb's own
 Codex title service runs: the newest Luna model in the Codex catalog of the
@@ -101,15 +106,30 @@ Titles are at most 40 characters by default. Configure a limit between 20 and
 bb plugin config thread-titles set maxTitleLength 40
 ```
 
-Workers that fail, request an interaction, attempt tools, return invalid JSON,
-or exceed two minutes of observed execution time are skipped. Waiting for bb's
-concurrency admission does not consume that execution timeout. As in bb's own
-Codex title service, an automatic worker that times out or fails with a rate
-limit, overload, or lost connection is retried once on the next newest Luna
-model; a selected model is never retried after a failure. A worker that returns
-a title over the length limit, or keeps a current title over it, is retried once
-on the same model, automatic or selected. A second overlong title skips the
-phase.
+The fallback stack is the selected model (if any), then bb's automatic model,
+then its fallback, with duplicate provider/model pairs removed. Ribbon mirrors
+bb's Codex text-service chain using the two newest Luna models available on the
+thread's host. The SDK does not currently expose the service's internal model
+list. Each pass snapshots its stack; fallback never changes the saved selection.
+
+A timeout, rate limit, overload, or lost connection advances to the next model.
+A different provider can run immediately. Before another attempt on the same
+provider, rate limits wait until the latest blocked window resets plus 15 seconds;
+without a structured reset, they wait 15 minutes. Other temporary provider errors
+wait one minute. These deadlines survive restart and carry into later phases.
+Two minutes of observed execution times out a worker; admission wait is excluded.
+
+Permanent provider errors skip the remaining models on that provider for the
+phase; a different provider in the stack can still run. Unclassified failures,
+interactions, tool use, and invalid JSON stop the phase. An overlong title gets
+one correction attempt on the same model per phase;
+it does not reset the fallback budget. Once the final phase exhausts its budget,
+the job stops and records its reason in plugin logs.
+
+Workers are stopped and archived before replacement. bb's provider-retry plugin
+may have queued a retry for the failed worker, but bb excludes archived threads
+from automatic queue dispatch. Ribbon persists retirement before cleanup so a
+restart completes cleanup before creating another worker.
 
 Inspect outcomes with `bb plugin logs thread-titles`.
 
