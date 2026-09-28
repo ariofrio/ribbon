@@ -25,7 +25,8 @@ a title within the title length limit, without tools.
 The first pass titles the first message. bb titles a new thread from the first
 80 columns of its prompt, so this pass waits until bb has stored that title, or
 recorded that it generated none, and then replaces or keeps it. Waiting makes
-the plugin's title the later write. If the first turn ends before bb's title
+the plugin's title the later write. With bb's own titles turned off
+(`bb settings ai-services set thread-title off`), it starts right away. If the first turn ends before bb's title
 arrives, this pass is skipped. Whatever its outcome, the second pass follows.
 
 The second pass titles the first turn: when it ends, or while it is still

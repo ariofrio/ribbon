@@ -478,7 +478,12 @@ export default function plugin(bb: BbPluginApi) {
     if (
       job.phase === "message"
         ? // Wait for bb's own title so this pass is always the later write.
-          !(activity.count > 0 && (job.captured || activity.titleStep === "none"))
+          !(
+            activity.count > 0 &&
+            (job.captured ||
+              activity.titleStep === "none" ||
+              (await bbTitlesOff()))
+          )
         : phase === "refinement"
           ? job.count < 3
           : !turnReady
@@ -556,6 +561,13 @@ export default function plugin(bb: BbPluginApi) {
     job.workerId = worker.id;
     job.state = "running";
     store.save(job);
+  }
+
+  // With bb's own titles off, bb never writes one, so nothing is worth waiting
+  // for. That covers threads bb titles without a provisioning transcript.
+  async function bbTitlesOff() {
+    const services = await sdk.system.aiServices().catch(() => null);
+    return services?.selections["thread-title"].mode === "off";
   }
 
   // Whether a running first turn's transcript has reached EARLY_FRACTION of the

@@ -41,6 +41,7 @@ async function setup() {
     "claude-code": ["claude-haiku-4-5", "claude-sonnet-5"],
   };
   const modelQueries: Array<{ hostId?: string; providerId?: string }> = [];
+  const bbTitles = { mode: "automatic" as "automatic" | "off" };
   const host = createFakePluginHost({
     pluginId: "thread-titles",
     sdk: {
@@ -82,6 +83,16 @@ async function setup() {
         interactions: { list: async () => [] as never },
       },
       environments: { get: async () => ({ hostId: "host" }) as never },
+      system: {
+        aiServices: async () => ({
+          selections: {
+            "thread-title": { mode: bbTitles.mode },
+            "commit-message": { mode: "automatic" },
+            voice: { mode: "automatic" },
+          },
+          services: [],
+        }) as never,
+      },
       projects: {
         list: async () => [{ id: "personal", kind: "personal" }] as never,
       },
@@ -152,6 +163,7 @@ async function setup() {
     updates,
     catalogs,
     modelQueries,
+    bbTitles,
     emit,
     user,
     endTurn,
@@ -695,6 +707,19 @@ it("never titles again after a rename during the first-message pass", async () =
   await h.harness.behavior.runSchedule("title-reconciliation");
   expect(h.updates).toHaveLength(0);
   expect(h.spawned).toHaveLength(1);
+});
+
+it("titles the first message right away when bb's own titles are off", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Build a useful calendar application");
+  await h.emit();
+  expect(h.spawned).toHaveLength(0);
+  h.bbTitles.mode = "off";
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  expect(h.spawned[0]?.pluginMetadata).toMatchObject({ phase: "message" });
+  expect(h.spawned[0]?.prompt).toContain('Current title: "Build a useful calendar application"');
 });
 
 it("skips the first-message pass when the first turn ends before bb stores a title", async () => {
