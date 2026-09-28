@@ -18,7 +18,7 @@ export const HEADING_TEXT_CLASS =
   "text-[color:var(--ribbon-heading-on,currentColor)]";
 export const HEADING_MUTED_CLASS =
   "text-[color:var(--ribbon-heading-on,var(--subtle-foreground))]";
-export const HEADING_ACTION_CLASS = `${HEADING_MUTED_CLASS} hover:bg-white/15 hover:text-[color:var(--ribbon-heading-hover-on)] focus-visible:bg-white/15 focus-visible:text-[color:var(--ribbon-heading-hover-on)] data-[state=open]:bg-white/15 data-[state=open]:text-[color:var(--ribbon-heading-hover-on)] data-[state=open]:hover:bg-white/15`;
+export const HEADING_ACTION_CLASS = `${HEADING_MUTED_CLASS} hover:bg-[color:var(--ribbon-heading-hover-fill)] hover:text-[color:var(--ribbon-heading-hover-on)] focus-visible:bg-[color:var(--ribbon-heading-hover-fill)] focus-visible:text-[color:var(--ribbon-heading-hover-on)] data-[state=open]:bg-[color:var(--ribbon-heading-hover-fill)] data-[state=open]:text-[color:var(--ribbon-heading-hover-on)] data-[state=open]:hover:bg-[color:var(--ribbon-heading-hover-fill)]`;
 
 /**
  * Every heading is a faint wash with ink on it. A project or section whose icon
@@ -36,6 +36,7 @@ export function headingColorStyle(kind?: "project" | "section"): CSSProperties {
       backgroundColor: GRAY.fill,
       ["--ribbon-heading-on" as string]: GRAY.ink,
       ["--ribbon-heading-hover-on" as string]: GRAY.hoverInk,
+      ["--ribbon-heading-hover-fill" as string]: HOVER_FILL,
     };
   }
   const color = `var(--ribbon-icons-${kind}-color-light)`;
@@ -48,17 +49,19 @@ export function headingColorStyle(kind?: "project" | "section"): CSSProperties {
     backgroundColor: `var(--ribbon-heading-fill, ${GRAY.fill})`,
     ["--ribbon-heading-on" as string]: `var(--ribbon-heading-ink, ${GRAY.ink})`,
     ["--ribbon-heading-hover-on" as string]: `var(--ribbon-heading-hover-ink, ${GRAY.hoverInk})`,
+    ["--ribbon-heading-hover-fill" as string]: HOVER_FILL,
   };
 }
 
 /** Lightness and chroma per mode; the hue is the palette color's own. */
 const FILL = { light: "0.95 0.025", dark: "0.28 0.035" };
 const INK = { light: "0.47 0.13", dark: "0.82 0.11" };
-const HOVER_INK = { light: "0.53 0.16", dark: "0.94 0.13" };
+const HOVER_INK = { light: "0.34 0.15", dark: "0.94 0.13" };
+const HOVER_FILL = "color-mix(in srgb, var(--ribbon-heading-hover-on) 15%, transparent)";
 const GRAY = {
   fill: "light-dark(oklch(0.95 0 0), oklch(0.28 0 0))",
   ink: "light-dark(oklch(0.47 0 0), oklch(0.82 0 0))",
-  hoverInk: "light-dark(oklch(0.53 0 0), oklch(0.94 0 0))",
+  hoverInk: "light-dark(oklch(0.34 0 0), oklch(0.94 0 0))",
 };
 
 /**

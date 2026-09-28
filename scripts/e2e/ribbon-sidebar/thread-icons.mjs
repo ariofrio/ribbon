@@ -160,18 +160,26 @@ export async function verifyThreadIcons({ stack, fixture }) {
           const context = canvas.getContext("2d");
           context.fillStyle = style.backgroundColor;
           context.fillRect(0, 0, 1, 1);
+          const fill = [...context.getImageData(0, 0, 1, 1).data];
+          context.clearRect(0, 0, 1, 1);
+          context.fillStyle = style.color;
+          context.fillRect(0, 0, 1, 1);
           return {
             color: style.color,
-            fill: [...context.getImageData(0, 0, 1, 1).data],
+            fill,
+            ink: [...context.getImageData(0, 0, 1, 1).data],
           };
         });
         const [lightness, , hue] = oklch(hover.color);
-        assert.ok(lightness > labelLightness,
-          `${scheme} heading button ink should be brighter than the label`);
+        assert.ok(scheme === "light" ? lightness < labelLightness : lightness > labelLightness,
+          `${scheme} heading button ink should move away from the heading fill`);
         assert.ok(Math.abs(hue - labelHue) < 0.5,
           `${scheme} heading button ink should keep the section hue`);
-        assert.deepEqual(hover.fill, [255, 255, 255, 38],
-          `${scheme} heading button hover should use 15% white`);
+        assert.ok(hover.fill.slice(0, 3).every((channel, index) =>
+          Math.abs(channel - hover.ink[index]) <= 3),
+        `${scheme} heading button fill should use its hover ink's hue: ${JSON.stringify(hover)}`);
+        assert.equal(hover.fill[3], 38,
+          `${scheme} heading button hover should use a 15% ink tint`);
       }
     }
     await page.evaluate(() => {

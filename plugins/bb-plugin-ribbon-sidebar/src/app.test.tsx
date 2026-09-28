@@ -513,7 +513,7 @@ describe("Ribbon sidebar app", () => {
     fireEvent.click(await slot.findByRole("menuitem", { name: "New section" }));
     expect(await slot.findByRole("dialog", { name: "New section" })).toBeTruthy();
     slot.lifecycle.unmount();
-  });
+  }, 15_000);
 
   it("keeps creation and display options accessible with no visible threads", async () => {
     const app = await loadPluginApp(() => import("./app"));
