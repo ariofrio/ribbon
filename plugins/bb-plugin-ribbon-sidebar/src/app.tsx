@@ -265,6 +265,7 @@ function ThreadRow({
   hasChildren,
   indicatorThread,
   hasUnsubmittedDraft,
+  hideIdleStageIconAtRest,
   icon,
   dragging,
   dragTarget,
@@ -300,6 +301,7 @@ function ThreadRow({
   hasChildren: boolean;
   indicatorThread: ThreadStatus;
   hasUnsubmittedDraft: boolean;
+  hideIdleStageIconAtRest: boolean;
   icon: ReactNode;
   dragging: boolean;
   dragTarget?: ThreadDragTarget;
@@ -485,7 +487,11 @@ function ThreadRow({
         >
           {hasIcon ? (
             <span
-              className="col-start-1 row-start-1 flex self-center"
+              className={`col-start-1 row-start-1 flex self-center ${
+                hideIdleStageIconAtRest
+                  ? "opacity-0 group-hover/thread-row:opacity-100 group-has-[:focus-visible]/thread-row:opacity-100 pointer-coarse:opacity-100"
+                  : ""
+              }`}
               data-ribbon-sidebar-icon-slot=""
               {...{ [SHINE_ATTRIBUTE]: "" }}
               style={{
@@ -1619,6 +1625,11 @@ function RibbonSidebarList({
           hasChildren={children.length > 0}
           indicatorThread={indicatorThread}
           hasUnsubmittedDraft={draftThreadIds.has(root.id)}
+          hideIdleStageIconAtRest={
+            threadStage(root) === "Idle" &&
+            !indicatorThread.spinsStageRing &&
+            activeThreadId !== root.id
+          }
           icon={threadIcon(root, indicatorThread.spinsStageRing)}
           dragging={draggingThreadId === root.id}
           muted={

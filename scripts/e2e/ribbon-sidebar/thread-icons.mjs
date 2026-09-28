@@ -30,6 +30,13 @@ export async function verifyThreadIcons({ stack, fixture }) {
     const sidebar = page.locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]");
     await sidebar.waitFor({ timeout: 120_000 });
     const row = sidebar.locator("li").filter({ has: page.locator(`a[data-sidebar-thread-id="${thread.id}"]`) });
+    await page.waitForFunction(({ threadId, title }) => {
+      const rowNode = document.querySelector(`[data-ribbon-sidebar-root] li[data-thread-id="${threadId}"]`);
+      const icon = rowNode?.querySelector("[data-ribbon-sidebar-icon-slot] > *");
+      const titleNode = rowNode?.querySelector(`[title="${CSS.escape(title)}"] > span`);
+      if (!(icon instanceof HTMLElement) || !(titleNode instanceof HTMLElement)) return false;
+      return Math.abs(titleNode.getBoundingClientRect().left - icon.getBoundingClientRect().right - 8) <= 0.5;
+    }, { threadId: thread.id, title: thread.title }, { timeout: 30_000 });
 
     const alignment = await row.evaluate((rowNode, title) => {
       const icon = rowNode.querySelector("[data-ribbon-sidebar-icon-slot] > *");
@@ -94,6 +101,44 @@ export async function verifyThreadIcons({ stack, fixture }) {
     assert.equal(view.iconGroupingKey, "plugin:thread-stages:stages");
     assert.equal(view.groupingKey, "builtin:sections");
     assert.equal(view.filterGroupingKey, null);
+
+    const iconOpacity = (target) =>
+      target.locator("[data-ribbon-sidebar-icon-slot]").evaluate((node) =>
+        getComputedStyle(node).opacity);
+    await page.mouse.move(1200, 780);
+    assert.equal(await iconOpacity(row), "1", "The selected Idle thread keeps its stage icon");
+    assert.equal(await iconOpacity(workingRow), "1", "A working thread keeps its stage icon");
+
+    const home = await context.newPage();
+    try {
+      await home.goto(stack.serverUrl);
+      const homeSidebar = home.locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]");
+      await homeSidebar.waitFor({ timeout: 120_000 });
+      const idleRow = homeSidebar.locator(`li[data-thread-id="${thread.id}"]`);
+      await idleRow.locator('[aria-label="Idle stage"]').waitFor();
+      await home.mouse.move(1200, 780);
+      assert.equal(await iconOpacity(idleRow), "0", "An unselected Idle icon is hidden at rest");
+      const titleLeft = await idleRow.getByText(thread.title, { exact: true }).evaluate((node) =>
+        node.getBoundingClientRect().left);
+      await idleRow.hover();
+      assert.equal(await iconOpacity(idleRow), "1", "Hover reveals the Idle icon");
+      assert.equal(await idleRow.getByText(thread.title, { exact: true }).evaluate((node) =>
+        node.getBoundingClientRect().left), titleLeft, "Hover does not shift the title");
+      await home.mouse.move(1200, 780);
+      assert.equal(await iconOpacity(idleRow), "0", "Leaving the row hides the Idle icon again");
+
+      const link = idleRow.locator(`a[data-sidebar-thread-id="${thread.id}"]`);
+      let focused = false;
+      for (let index = 0; index < 100; index += 1) {
+        await home.keyboard.press("Tab");
+        focused = await link.evaluate((node) => document.activeElement === node);
+        if (focused) break;
+      }
+      assert.ok(focused, "Keyboard navigation reaches the Idle thread");
+      assert.equal(await iconOpacity(idleRow), "1", "Keyboard focus reveals the Idle icon");
+    } finally {
+      await home.close();
+    }
 
     // A section with a picked color fills its heading with that color's hue,
     // at the lightness and chroma headings share in the current mode, and
