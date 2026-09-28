@@ -5,6 +5,7 @@ import { applyPluginState, FEATURED_PROJECT, FEATURED_THREAD } from "../../scree
 export async function verifyThreadActions({ stack, fixture }) {
   await applyPluginState({ stack, ...fixture });
   const browser = await chromium.launch({ args: ["--mute-audio"] });
+  let cleanup = null;
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     await context.addInitScript(() => {
@@ -12,6 +13,13 @@ export async function verifyThreadActions({ stack, fixture }) {
     });
     const page = await context.newPage();
     const thread = fixture.threads.get(FEATURED_THREAD);
+    cleanup = async () => {
+      const response = await page.request.post(
+        new URL("/api/v1/plugins/ribbon-sidebar/rpc/saveThreadActionsV1", stack.serverUrl).href,
+        { data: { threadId: thread.id, actions: [] } },
+      );
+      assert.equal(response.status(), 200, "The action fixture is removed after the test");
+    };
     const project = fixture.projects.get(FEATURED_PROJECT);
     await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
     const sidebar = page.locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]");
@@ -45,13 +53,23 @@ export async function verifyThreadActions({ stack, fixture }) {
     assert.notEqual(colors.tinted, colors.neutral, "The painted button follows its group color");
 
     const before = page.url();
+    await row.getByRole("link", { name: `Open ${thread.title}` }).hover();
+    const submissions = [];
+    await page.route("**/plugins/ribbon-sidebar/rpc/runThreadActionV1", (route) => {
+      submissions.push(route.request().postDataJSON());
+      return route.fulfill({ json: { ok: true, result: { ok: true } } });
+    });
     const response = page.waitForResponse((candidate) =>
       candidate.url().endsWith("/plugins/ribbon-sidebar/rpc/runThreadActionV1"));
     await action.click();
     assert.equal((await response).status(), 200);
+    assert.equal(submissions.length, 1, "A real click dispatches one action");
     assert.equal(page.url(), before, "Running an action does not open another thread");
-    await context.close();
   } finally {
-    await browser.close();
+    try {
+      await cleanup?.();
+    } finally {
+      await browser.close();
+    }
   }
 }

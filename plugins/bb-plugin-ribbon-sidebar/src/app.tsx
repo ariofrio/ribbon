@@ -619,7 +619,7 @@ function ThreadRow({
           ) : null}
           {!thread.isArchived && rowActions.length > 0 ? (
             <span
-              className="relative z-20 row-start-3 flex min-w-0 flex-wrap gap-1 pb-1.5"
+              className="pointer-events-none relative z-20 row-start-3 flex min-w-0 flex-wrap gap-1 pb-1.5"
               style={{
                 gridColumnStart: hasIcon ? 2 : 1,
                 gridColumnEnd: alignsTrailingIndicatorToTitle
@@ -635,7 +635,7 @@ function ThreadRow({
                   variant="ghost"
                   aria-label={`${action.label} in ${rowTitle}`}
                   disabled={runningActionId !== null}
-                  className="h-5 max-w-full rounded px-1.5 text-[11px] leading-none ring-sidebar-ring hover:brightness-95 focus-visible:ring-2 active:brightness-90"
+                  className="pointer-events-auto h-5 max-w-full rounded px-1.5 text-[11px] leading-none ring-sidebar-ring hover:brightness-95 focus-visible:ring-2 active:brightness-90"
                   style={actionButtonStyle(groupColor?.kind)}
                   onClick={(event) => {
                     event.preventDefault();
