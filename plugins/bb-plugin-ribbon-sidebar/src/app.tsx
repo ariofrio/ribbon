@@ -58,6 +58,7 @@ import {
   publishShineStyles,
   SHINE_ATTRIBUTE,
   SHINE_ROW_ATTRIBUTE,
+  ShineContent,
   useRowShine,
 } from "./row-shine";
 import { sectionBands } from "./section-layout";
@@ -500,7 +501,7 @@ function ThreadRow({
                 gridRowStart: 1,
               }}
             >
-              {icon}
+              <ShineContent className="flex">{icon}</ShineContent>
             </span>
           ) : null}
           <span
@@ -518,13 +519,15 @@ function ThreadRow({
             }}
           >
             <span
-              className="flex min-w-0 flex-1 items-center gap-2"
+              className="flex min-w-0 flex-1"
               {...{ [SHINE_ATTRIBUTE]: "" }}
               title={accessibleTitle}
             >
-              {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
-              <ThreadTitle title={rowTitle} />
-              {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
+              <ShineContent className="flex items-center gap-2">
+                {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
+                <ThreadTitle title={rowTitle} />
+                {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
+              </ShineContent>
             </span>
             {hasChildren ? (
               <Button
@@ -585,7 +588,7 @@ function ThreadRow({
               }}
               title={preview}
             >
-              {preview}
+              <ShineContent className="truncate">{preview}</ShineContent>
             </span>
           ) : null}
         </span>
@@ -613,15 +616,17 @@ function ThreadRow({
                   data-sidebar-thread-trailing-indicator=""
                   {...{ [SHINE_ATTRIBUTE]: "" }}
                 >
-                  <SplitPaneMiniMap
-                    active={!shimmerRow && status.isWorking}
-                    label={
-                      status.indicatorLabel
-                        ? `${rowTitle} — open in split; ${status.indicatorLabel}`
-                        : `${rowTitle} — open in split`
-                    }
-                    layout={layout}
-                  />
+                  <ShineContent className="inline-flex items-center justify-center">
+                    <SplitPaneMiniMap
+                      active={!shimmerRow && status.isWorking}
+                      label={
+                        status.indicatorLabel
+                          ? `${rowTitle} — open in split; ${status.indicatorLabel}`
+                          : `${rowTitle} — open in split`
+                      }
+                      layout={layout}
+                    />
+                  </ShineContent>
                 </span>
               ) : (
                 <span
@@ -629,14 +634,16 @@ function ThreadRow({
                   data-sidebar-thread-trailing-indicator=""
                   {...{ [SHINE_ATTRIBUTE]: "" }}
                 >
-                  <ThreadIndicator
-                    indicator={status.indicator}
-                    label={status.indicatorLabel}
-                    pluginStatus={status.pluginStatus}
-                    pullRequestMark={status.pullRequestMark}
-                    hideIdleDraftLabel={!(hasChildren && childrenCollapsed)}
-                    shine={!shimmerRow}
-                  />
+                  <ShineContent className="inline-flex items-center justify-center">
+                    <ThreadIndicator
+                      indicator={status.indicator}
+                      label={status.indicatorLabel}
+                      pluginStatus={status.pluginStatus}
+                      pullRequestMark={status.pullRequestMark}
+                      hideIdleDraftLabel={!(hasChildren && childrenCollapsed)}
+                      shine={!shimmerRow}
+                    />
+                  </ShineContent>
                 </span>
               )}
             </span>
