@@ -93,6 +93,21 @@ export async function verifyPrNumber({ stack, fixture }) {
     }
 
     await placement("right");
+    const digitWidths = await row.getByText("#12345", { exact: true }).evaluate((number) => {
+      const walker = document.createTreeWalker(number, NodeFilter.SHOW_TEXT);
+      let digits;
+      while ((digits = walker.nextNode()) && !digits.textContent.includes("12345")) {}
+      if (!digits) throw new Error("PR number text is missing");
+      const start = digits.textContent.indexOf("12345");
+      return Array.from({ length: 5 }, (_, index) => {
+        const range = document.createRange();
+        range.setStart(digits, start + index);
+        range.setEnd(digits, start + index + 1);
+        return range.getBoundingClientRect().width;
+      });
+    });
+    assert.ok(Math.max(...digitWidths) - Math.min(...digitWidths) < 0.1,
+      `PR digits should have equal rendered widths: ${digitWidths.join(", ")}`);
     // A right-aligned number keeps the indicator lane free at rest, so it
     // lines up with rows that draw an indicator and does not move on hover.
     await page.mouse.move(1000, 700);
