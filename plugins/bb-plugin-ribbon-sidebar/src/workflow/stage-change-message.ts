@@ -1,84 +1,69 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import { THREAD_STAGES_GROUPING_KEY } from "./catalog";
-import {
-  enabledWorkflowStages,
-  parseWorkflowStage,
-  type WorkflowStage,
-  type WorkflowStageVisibilitySettings,
-} from "./workflow-stage";
-
-export const STAGE_MENTION_PROVIDER_ID = "stage";
+import { parseWorkflowStage, type WorkflowStage } from "./workflow-stage";
 
 type StageChangeOrigin = "ui" | "cli";
+
+interface StageChange {
+  origin: StageChangeOrigin;
+  from: WorkflowStage;
+  to: WorkflowStage;
+}
 
 type PromptInput = Parameters<
   BbPluginApi["sdk"]["threads"]["send"]
 >[0]["input"][number];
 type PromptMention = Extract<PromptInput, { type: "text" }>["mentions"][number];
 
-const STAGE_MEANINGS: Record<WorkflowStage, string> = {
-  Deferred: "intentionally set aside for later",
-  Idle: "available or waiting without a blocker",
-  Blocked: "cannot progress until something external changes",
-  Completed: "finished, and treated like archived work",
-};
-
 const ORIGIN_DESCRIPTIONS: Record<StageChangeOrigin, string> = {
   ui: "the user, in the Ribbon sidebar",
   cli: "someone using the bb CLI",
 };
 
-/** The mention's title, which bb also uses as its label and, after `@`, its text. */
-function stageTitle(stage: WorkflowStage): string {
-  return `stage:${stage.toLowerCase()}`;
-}
-
-function stageMention(
-  pluginId: string,
-  stage: WorkflowStage,
-  start: number,
-): PromptMention {
-  const title = stageTitle(stage);
+/**
+ * Thread stages owns stage mentions, so they draw with its icon; it resolves
+ * `stage:<stage in lowercase>` from its `stage` mention provider.
+ */
+function stageMention(stage: WorkflowStage, start: number): PromptMention {
   return {
     start,
-    end: start + 1 + title.length,
+    end: start + 1 + stage.length,
     resource: {
       kind: "plugin",
-      pluginId,
-      itemId: `${STAGE_MENTION_PROVIDER_ID}:${stage.toLowerCase()}`,
-      label: title,
+      pluginId: "thread-stages",
+      itemId: `stage:${stage.toLowerCase()}`,
+      label: stage,
     },
   };
 }
 
-export function stageContext(stage: WorkflowStage): string {
-  return [
-    `@${stageTitle(stage)} is Ribbon's ${stage} workflow stage for root bb threads: ${STAGE_MEANINGS[stage]}.`,
-    `When a message asks for a thread to be put in this stage, whether in a sentence such as "do this, then @${stageTitle(stage)}" or with the mention alone, finish any work it asks for first, then run \`bb sidebar place <thread> --to ${THREAD_STAGES_GROUPING_KEY}/${stage}\`, with \`--self\` in place of <thread> for the current thread. A child thread has no stage of its own; place its root instead.`,
-  ].join(" ");
-}
-
 /**
- * "Thread stage updated: @stage:idle → @stage:blocked", with each stage a
- * mention exactly as the composer would insert it, plus an agent-only note
- * that the move has already happened.
+ * "Thread stage updated: @Idle → @Blocked", with each stage a Thread stages
+ * mention exactly as its composer menu would insert it, plus an agent-only note
+ * that the move has already happened. Without Thread stages running, nothing
+ * could resolve the mentions, so the stages are named in plain text.
  */
 export function stageChangeInput(
-  pluginId: string,
-  change: { origin: StageChangeOrigin; from: WorkflowStage; to: WorkflowStage },
+  change: StageChange,
+  withMentions: boolean,
 ): PromptInput[] {
   const prefix = "Thread stage updated: ";
   const separator = " → ";
-  const from = `@${stageTitle(change.from)}`;
-  const toStart = prefix.length + from.length + separator.length;
+  const at = withMentions ? "@" : "";
+  const from = `${at}${change.from}`;
+  const text = `${prefix}${from}${separator}${at}${change.to}`;
   return [
     {
       type: "text",
-      text: `${prefix}${from}${separator}@${stageTitle(change.to)}`,
-      mentions: [
-        stageMention(pluginId, change.from, prefix.length),
-        stageMention(pluginId, change.to, toStart),
-      ],
+      text,
+      mentions: withMentions
+        ? [
+            stageMention(change.from, prefix.length),
+            stageMention(
+              change.to,
+              prefix.length + from.length + separator.length,
+            ),
+          ]
+        : [],
     },
     {
       type: "text",
@@ -89,52 +74,20 @@ export function stageChangeInput(
   ];
 }
 
-function matchingStages(
-  stages: readonly WorkflowStage[],
-  query: string,
-): WorkflowStage[] {
-  const needle = query.trim().toLowerCase();
-  if (needle.length === 0) return [];
-  return stages.filter((stage) => {
-    const name = stage.toLowerCase();
-    return stageTitle(stage).startsWith(needle) || name.startsWith(needle);
-  });
-}
-
-export function createStageMentions(
+export function createStageChangeMessages(
   bb: BbPluginApi,
-  getSettings: () => Promise<
-    WorkflowStageVisibilitySettings & { messageOnStageChange?: unknown }
-  >,
+  options: {
+    enabled: () => Promise<boolean>;
+    threadStagesRunning: () => boolean;
+  },
 ) {
-  bb.ui.registerMentionProvider({
-    id: STAGE_MENTION_PROVIDER_ID,
-    label: "Ribbon stages",
-    async search({ query }) {
-      const stages = enabledWorkflowStages(await getSettings());
-      return matchingStages(stages, query).map((stage) => ({
-        id: stage.toLowerCase(),
-        title: stageTitle(stage),
-        subtitle: `${stage}: ${STAGE_MEANINGS[stage]}`,
-      }));
-    },
-    resolve(id) {
-      const stage = parseWorkflowStage(id);
-      if (stage === null) throw new Error(`Unknown stage: ${id}`);
-      return { context: stageContext(stage) };
-    },
-  });
-
-  async function send(
-    threadId: string,
-    change: { origin: StageChangeOrigin; from: WorkflowStage; to: WorkflowStage },
-  ) {
+  async function send(threadId: string, change: StageChange) {
     try {
-      if ((await getSettings()).messageOnStageChange === false) return;
+      if (!(await options.enabled())) return;
       await bb.sdk.threads.send({
         threadId,
         mode: "steer-if-active",
-        input: stageChangeInput(bb.pluginId, change),
+        input: stageChangeInput(change, options.threadStagesRunning()),
       });
     } catch (error) {
       bb.log.warn(

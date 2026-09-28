@@ -1611,11 +1611,8 @@ describe("Ribbon sidebar server", () => {
         origin,
       });
 
-    it("messages a root with stage mentions when its stage changes", async () => {
-      const { bb, harness, send } = setup({
-        threads: stageThreads(),
-        includeThreadStages: false,
-      });
+    it("messages a root with Thread stages mentions when its stage changes", async () => {
+      const { bb, harness, send } = setup({ threads: stageThreads() });
       await plugin(bb);
 
       await expect(moveToStage(harness, "first", "Blocked")).resolves.toMatchObject(
@@ -1628,22 +1625,22 @@ describe("Ribbon sidebar server", () => {
         threadId: "first",
         mode: "steer-if-active",
       });
-      const text = "Thread stage updated: @stage:idle → @stage:blocked";
+      const text = "Thread stage updated: @Idle → @Blocked";
       const mention = (stage: string) => ({
-        start: text.indexOf(`@stage:${stage}`),
-        end: text.indexOf(`@stage:${stage}`) + `@stage:${stage}`.length,
+        start: text.indexOf(`@${stage}`),
+        end: text.indexOf(`@${stage}`) + stage.length + 1,
         resource: {
           kind: "plugin",
-          pluginId: "ribbon-sidebar",
-          itemId: `stage:${stage}`,
-          label: `stage:${stage}`,
+          pluginId: "thread-stages",
+          itemId: `stage:${stage.toLowerCase()}`,
+          label: stage,
         },
       });
       expect(request.input).toEqual([
         {
           type: "text",
           text,
-          mentions: [mention("idle"), mention("blocked")],
+          mentions: [mention("Idle"), mention("Blocked")],
         },
         {
           type: "text",
@@ -1653,49 +1650,24 @@ describe("Ribbon sidebar server", () => {
         },
       ]);
       expect(JSON.stringify(request.input[1])).toContain("the user");
+      expect(harness.inspection.registrations.mentionProviders).toEqual([]);
     });
 
-    it("offers enabled stages as searchable mentions", async () => {
-      const { bb, harness } = setup({
+    it("names stages in plain text when Thread stages is not running", async () => {
+      const { bb, harness, send } = setup({
         threads: stageThreads(),
         includeThreadStages: false,
-        settings: { showDeferredStage: false },
       });
       await plugin(bb);
-      const provider = harness.inspection.registrations.mentionProviders.find(
-        ({ id }) => id === "stage",
-      );
-      expect(provider).toBeDefined();
-      const search = async (query: string) =>
-        (
-          await provider!.search({
-            trigger: "@",
-            query,
-            projectId: null,
-            threadId: null,
-          })
-        ).map(({ id, title }) => ({ id, title }));
 
-      expect(await search("")).toEqual([]);
-      expect(await search("bl")).toEqual([
-        { id: "blocked", title: "stage:blocked" },
-      ]);
-      expect(await search("stage:")).toEqual([
-        { id: "idle", title: "stage:idle" },
-        { id: "blocked", title: "stage:blocked" },
-        { id: "completed", title: "stage:completed" },
-      ]);
-      expect(await search("stage:c")).toEqual([
-        { id: "completed", title: "stage:completed" },
-      ]);
-      expect(await search("def")).toEqual([]);
+      await moveToStage(harness, "first", "Blocked");
 
-      const { context } = await provider!.resolve("blocked");
-      expect(context).toContain("Blocked");
-      expect(context).toContain(
-        "bb sidebar place <thread> --to plugin:thread-stages:stages/Blocked",
-      );
-      expect(() => provider!.resolve("nowhere")).toThrow();
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+      expect(send.mock.calls[0]![0].input[0]).toEqual({
+        type: "text",
+        text: "Thread stage updated: Idle → Blocked",
+        mentions: [],
+      });
     });
 
     it("messages only for an actual stage change a person or agent made", async () => {
@@ -1728,7 +1700,7 @@ describe("Ribbon sidebar server", () => {
         threadId: "second",
         input: [
           expect.objectContaining({
-            text: "Thread stage updated: @stage:deferred → @stage:completed",
+            text: "Thread stage updated: Deferred → Completed",
           }),
           expect.objectContaining({ text: expect.stringContaining("bb CLI") }),
         ],
@@ -1752,7 +1724,7 @@ describe("Ribbon sidebar server", () => {
         threadId: "first",
         input: [
           expect.objectContaining({
-            text: "Thread stage updated: @stage:idle → @stage:completed",
+            text: "Thread stage updated: Idle → Completed",
           }),
           expect.anything(),
         ],

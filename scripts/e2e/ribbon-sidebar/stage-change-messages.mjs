@@ -33,8 +33,7 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
     context.setDefaultTimeout(30_000);
     const page = await context.newPage();
     await page.goto(new URL(`/threads/${thread.id}`, stack.serverUrl).href);
-    // Only the notice's paragraph holds both labels; nothing else bb draws
-    // puts a Ribbon pill beside this text.
+    // Only the notice's paragraph holds this text beside a mention pill.
     const notice = page
       .locator("p, div")
       .filter({ hasText: /^Thread stage updated:/ })
@@ -48,7 +47,7 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
           const done = () =>
             [...node.querySelectorAll("[data-prompt-mention]")].every((pill) =>
               getComputedStyle(pill.firstElementChild).maskImage.includes(
-                "ribbon-sidebar",
+                "thread-stages",
               ),
             );
           if (done()) return resolve();
@@ -78,39 +77,39 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
             icon:
               icon !== null &&
               icon.getBoundingClientRect().width > 0 &&
-              getComputedStyle(icon).maskImage.includes("ribbon-sidebar"),
+              getComputedStyle(icon).maskImage.includes("thread-stages"),
           };
         }),
       );
     assert.deepEqual(
       pills.map(({ label }) => label),
-      ["stage:completed", "stage:idle"],
+      ["Completed", "Idle"],
     );
     for (const pill of pills) {
       assert.notEqual(pill.display, "none");
       assert.ok(pill.width > 0, `${pill.label} must take up space`);
       assert.ok(pill.radius > 0, `${pill.label} must draw as a pill`);
-      assert.ok(pill.icon, `${pill.label} must carry Ribbon's icon`);
+      assert.ok(pill.icon, `${pill.label} must carry Thread stages' icon`);
     }
 
     const composer = page.locator(
       '[data-app-composer-role="primary"] [contenteditable="true"]',
     );
     await composer.click();
-    await page.keyboard.type("then @stage:bl");
-    // Only Ribbon's stage provider supplies this subtitle to the menu.
+    await page.keyboard.type("then @bl");
+    // Only Thread stages' provider supplies this subtitle to the menu.
     await page
-      .getByText("Blocked: cannot progress until something external changes", {
+      .getByText("Stage · cannot progress until something external changes", {
         exact: true,
       })
       .waitFor();
     await page.keyboard.press("Enter");
     const inserted = page
       .locator('[data-app-composer-role="primary"] [data-prompt-mention]')
-      .filter({ hasText: "stage:blocked" });
+      .filter({ hasText: "Blocked" });
     await inserted.waitFor();
     assert.equal(
-      (await composer.innerText()).includes("@stage:bl"),
+      (await composer.innerText()).includes("@bl"),
       false,
       "Picking the stage must replace the typed query with its pill",
     );
@@ -128,7 +127,7 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
       "The agent must receive the notice's agent-only context",
     );
     assert.ok(
-      serialized.includes("is Ribbon's Idle workflow stage"),
+      serialized.includes("@Idle is the Idle workflow stage"),
       "The agent must receive each stage mention's resolved context",
     );
     await context.close();

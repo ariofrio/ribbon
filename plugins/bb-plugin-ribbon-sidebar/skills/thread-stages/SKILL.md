@@ -30,9 +30,9 @@ the thread is waiting on the user rather than working.
 
 ## Stage mentions
 
-`@stage:deferred`, `@stage:idle`, `@stage:blocked`, and `@stage:completed`
-name a stage. A message that mentions one, in a sentence such as "do this, then
-@stage:blocked" or on its own, asks for the root to be placed in that stage
-once the rest of the message is done. Ribbon also tells a thread when someone
-else changes its stage, as "Thread stage updated: @stage:idle →
-@stage:blocked"; that move has already happened.
+A mention of `@Deferred`, `@Idle`, `@Blocked`, or `@Completed` from the Thread
+stages plugin names a stage. A message that mentions one, in a sentence such as
+"do this, then @Blocked" or on its own, asks for the root to be placed in that
+stage once the rest of the message is done. Ribbon also tells a thread when
+someone else changes its stage, as "Thread stage updated: @Idle → @Blocked";
+that move has already happened.

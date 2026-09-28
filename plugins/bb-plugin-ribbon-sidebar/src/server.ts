@@ -35,7 +35,7 @@ import {
 } from "./workflow/catalog";
 import { workflowRpcMethods } from "./workflow/contract";
 import { createWorkflowRuntime } from "./workflow/runtime";
-import { createStageMentions } from "./workflow/stage-mentions";
+import { createStageChangeMessages } from "./workflow/stage-change-message";
 import {
   createGhGraphqlRunner,
   createPullRequestDetailsService,
@@ -475,7 +475,10 @@ export default async function plugin(bb: BbPluginApi) {
   const groupings = (): GroupingDescriptor[] =>
     orderedGroupings([projectGrouping(), sectionGrouping(), stageGrouping()]);
   const store = createPlacementStore(database, { grouping, groupings });
-  const stageMentions = createStageMentions(bb, () => settings.get());
+  const stageChangeMessages = createStageChangeMessages(bb, {
+    enabled: async () => (await settings.get()).messageOnStageChange !== false,
+    threadStagesRunning: () => threadStagesInstalled,
+  });
   let sidebarThreads: ThreadSummary[] = [];
   let threadStagesInstalled = false;
   let mountedMigrationPending = false;
@@ -711,7 +714,7 @@ export default async function plugin(bb: BbPluginApi) {
           before.ok &&
           actorThreadId !== input.threadId
         ) {
-          stageMentions.announce(input.threadId, {
+          stageChangeMessages.announce(input.threadId, {
             origin: input.origin,
             from: before.value.placement.groupId,
             to: result.value.placement.groupId,
