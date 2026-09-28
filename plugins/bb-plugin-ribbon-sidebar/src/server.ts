@@ -35,6 +35,7 @@ import {
 } from "./workflow/catalog";
 import { workflowRpcMethods } from "./workflow/contract";
 import { createWorkflowRuntime } from "./workflow/runtime";
+import { createStageChangeMessages } from "./workflow/stage-change-message";
 import {
   createGhGraphqlRunner,
   createPullRequestDetailsService,
@@ -414,6 +415,13 @@ export default async function plugin(bb: BbPluginApi) {
         "Shimmer a working thread's whole row instead of its activity indicator.",
       default: true,
     },
+    messageOnStageChange: {
+      type: "boolean",
+      label: "Message threads when their stage changes",
+      description:
+        "Send a thread a stage notice when you or another thread move it to a different stage.",
+      default: true,
+    },
   });
   const database = bb.storage.database();
   bb.storage.migrate(database, RIBBON_SIDEBAR_MIGRATIONS);
@@ -467,6 +475,10 @@ export default async function plugin(bb: BbPluginApi) {
   const groupings = (): GroupingDescriptor[] =>
     orderedGroupings([projectGrouping(), sectionGrouping(), stageGrouping()]);
   const store = createPlacementStore(database, { grouping, groupings });
+  const stageChangeMessages = createStageChangeMessages(
+    bb,
+    async () => (await settings.get()).messageOnStageChange !== false,
+  );
   let sidebarThreads: ThreadSummary[] = [];
   let threadStagesInstalled = false;
   let mountedMigrationPending = false;
@@ -675,6 +687,10 @@ export default async function plugin(bb: BbPluginApi) {
 
   async function updatePlacement(
     input: z.infer<typeof updatePlacementInputSchema>,
+    {
+      announceStageChange = true,
+      actorThreadId,
+    }: { announceStageChange?: boolean; actorThreadId?: string } = {},
   ) {
     const groupingKey = input.groupingKey as GroupingKey;
     const descriptor = grouping(groupingKey);
@@ -692,6 +708,18 @@ export default async function plugin(bb: BbPluginApi) {
         bb.realtime.publish("placements-changed", {
           groupingKeys: [input.groupingKey],
         });
+        if (
+          announceStageChange &&
+          groupingKey === THREAD_STAGES_GROUPING_KEY &&
+          before.ok &&
+          actorThreadId !== input.threadId
+        ) {
+          stageChangeMessages.announce(input.threadId, {
+            origin: input.origin,
+            from: before.value.placement.groupId,
+            to: result.value.placement.groupId,
+          });
+        }
       }
       return result;
     }
@@ -917,12 +945,15 @@ export default async function plugin(bb: BbPluginApi) {
     async placeNewThreadV1({ groupingKey, groupId, threadId }) {
       const thread = await bb.sdk.threads.get({ threadId });
       reconcileRoot(thread, await eligibleRoot(thread));
-      return updatePlacement({
-        groupingKey,
-        groupId,
-        threadId,
-        origin: "ui",
-      });
+      return updatePlacement(
+        {
+          groupingKey,
+          groupId,
+          threadId,
+          origin: "ui",
+        },
+        { announceStageChange: false },
+      );
     },
     async pullRequestDetailsV1({ requests }) {
       return { details: await pullRequestDetails.get(requests) };

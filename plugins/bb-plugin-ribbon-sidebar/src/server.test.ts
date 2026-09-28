@@ -12,6 +12,7 @@ type ThreadChangedCallback = Extract<
   { event: "thread:changed" }
 >["callback"];
 type ThreadGet = BbPluginApi["sdk"]["threads"]["get"];
+type ThreadSend = BbPluginApi["sdk"]["threads"]["send"];
 type ThreadUpdate = BbPluginApi["sdk"]["threads"]["update"];
 
 const threadStagesCatalog = {
@@ -47,7 +48,9 @@ function setup({
   includeThreadStages = true,
   migrationSnapshotFails = false,
   subscribe: subscribeOverride,
+  settings,
   threadGet,
+  threadSend,
   threadUpdate,
   threads = [
     makeThreadResponse({
@@ -70,8 +73,10 @@ function setup({
   includePersonalProject?: boolean;
   includeThreadStages?: boolean;
   migrationSnapshotFails?: boolean;
+  settings?: Record<string, boolean | string>;
   subscribe?: BbPluginApi["sdk"]["subscribe"];
   threadGet?: ThreadGet;
+  threadSend?: ThreadSend;
   threadUpdate?: ThreadUpdate;
   threads?: ReturnType<typeof makeThreadResponse>[];
 } = {}) {
@@ -113,6 +118,9 @@ function setup({
           id: threadId,
           sectionId: sectionId ?? null,
         })),
+  );
+  const send = vi.fn(
+    threadSend ?? (async () => ({ status: "sent" as const }) as never),
   );
   const subscribe = vi.fn(subscribeOverride ?? (() => () => undefined));
   const list = vi.fn(
@@ -187,6 +195,7 @@ function setup({
   );
   const host = createFakePluginHost({
     pluginId: "ribbon-sidebar",
+    ...(settings ? { settings } : {}),
     sdk: {
       subscribe,
       system: {
@@ -202,6 +211,7 @@ function setup({
             active: { results: [{ thread: threads[1] }] },
             archived: { results: [] },
           }) as never,
+        send,
         update,
         reorderPinned: async () => ({}) as never,
       },
@@ -258,6 +268,7 @@ function setup({
     callRpc,
     get,
     list,
+    send,
     subscribe,
     update,
     timeline,
@@ -1573,5 +1584,174 @@ describe("Ribbon sidebar server", () => {
     });
     expect(callRpc).not.toHaveBeenCalled();
     expect(list).not.toHaveBeenCalled();
+  });
+
+  describe("stage change messages", () => {
+    const stageThreads = () =>
+      ["first", "second"].map((id) =>
+        makeThreadResponse({
+          id,
+          projectId: "project-a",
+          sectionId: "section-a",
+          parentThreadId: null,
+          visibility: "visible",
+          archivedAt: null,
+        }),
+      );
+    const moveToStage = (
+      harness: ReturnType<typeof setup>["harness"],
+      threadId: string,
+      groupId: string,
+      origin: "ui" | "cli" | "auto" = "ui",
+    ) =>
+      harness.behavior.callRpc("updatePlacementV1", {
+        groupingKey: "plugin:thread-stages:stages",
+        threadId,
+        groupId,
+        origin,
+      });
+
+    it("messages a root with a Ribbon stage pill when its stage changes", async () => {
+      const { bb, harness, send } = setup({
+        threads: stageThreads(),
+        includeThreadStages: false,
+      });
+      await plugin(bb);
+
+      await expect(moveToStage(harness, "first", "Blocked")).resolves.toMatchObject(
+        { ok: true },
+      );
+
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+      const request = send.mock.calls[0]![0];
+      expect(request).toMatchObject({
+        threadId: "first",
+        mode: "steer-if-active",
+      });
+      const [input] = request.input;
+      expect(input).toEqual({
+        type: "text",
+        text: "Stage: Idle → Blocked",
+        mentions: [
+          {
+            start: 0,
+            end: "Stage: Idle → Blocked".length,
+            resource: {
+              kind: "plugin",
+              pluginId: "ribbon-sidebar",
+              itemId: "stage-change:ui.Idle.Blocked",
+              label: "Stage: Idle → Blocked",
+            },
+          },
+        ],
+      });
+      const provider = harness.inspection.registrations.mentionProviders.find(
+        ({ id }) => id === "stage-change",
+      );
+      expect(provider).toBeDefined();
+      expect(await provider!.search({} as never)).toEqual([]);
+      const { context } = await provider!.resolve("ui.Idle.Blocked");
+      expect(context).toContain("from Idle to Blocked");
+      expect(context).toContain("the user");
+      expect(() => provider!.resolve("ui.Idle.Nowhere")).toThrow();
+    });
+
+    it("messages only for an actual stage change a person or agent made", async () => {
+      const { bb, harness, send } = setup({
+        threads: stageThreads(),
+        includeThreadStages: false,
+      });
+      await plugin(bb);
+
+      await moveToStage(harness, "first", "Idle");
+      await moveToStage(harness, "first", "Blocked", "auto");
+      await harness.behavior.callRpc("placeNewThreadV1", {
+        groupingKey: "plugin:thread-stages:stages",
+        groupId: "Deferred",
+        threadId: "second",
+      });
+      await harness.behavior.runCli(
+        ["place", "first", "--to", "plugin:thread-stages:stages/Completed"],
+        { threadId: "first" },
+      );
+      await harness.behavior.runCli([
+        "place",
+        "second",
+        "--to",
+        "plugin:thread-stages:stages/Completed",
+      ]);
+
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+      expect(send.mock.calls[0]![0]).toMatchObject({
+        threadId: "second",
+        input: [
+          expect.objectContaining({ text: "Stage: Deferred → Completed" }),
+        ],
+      });
+      const provider = harness.inspection.registrations.mentionProviders.find(
+        ({ id }) => id === "stage-change",
+      );
+      const { context } = await provider!.resolve("cli.Deferred.Completed");
+      expect(context).toContain("bb CLI");
+    });
+
+    it("messages when a stage shortcut moves a root", async () => {
+      const { bb, harness, send } = setup({
+        threads: stageThreads(),
+        includeThreadStages: false,
+      });
+      await plugin(bb);
+
+      await harness.behavior.callRpc("setWorkflowStage", {
+        threadId: "first",
+        workflowStage: "Completed",
+      });
+
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+      expect(send.mock.calls[0]![0]).toMatchObject({
+        threadId: "first",
+        input: [expect.objectContaining({ text: "Stage: Idle → Completed" })],
+      });
+    });
+
+    it("stays quiet when the setting is off", async () => {
+      const { bb, harness, send } = setup({
+        threads: stageThreads(),
+        includeThreadStages: false,
+        settings: { messageOnStageChange: false },
+      });
+      await plugin(bb);
+
+      await moveToStage(harness, "first", "Blocked");
+      await harness.behavior.setSettings({ messageOnStageChange: true });
+      await moveToStage(harness, "second", "Blocked");
+
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+      expect(send.mock.calls[0]![0]).toMatchObject({ threadId: "second" });
+    });
+
+    it("keeps the stage change when the message cannot be delivered", async () => {
+      const { bb, harness, send } = setup({
+        threads: stageThreads(),
+        includeThreadStages: false,
+        threadSend: async () => {
+          throw new Error("workspace destroyed");
+        },
+      });
+      await plugin(bb);
+
+      await expect(moveToStage(harness, "first", "Blocked")).resolves.toMatchObject(
+        { ok: true, value: { placement: { groupId: "Blocked" } } },
+      );
+      await vi.waitFor(() =>
+        expect(harness.inspection.logEntries).toContainEqual(
+          expect.objectContaining({
+            level: "warn",
+            message: expect.stringContaining("workspace destroyed"),
+          }),
+        ),
+      );
+      expect(send).toHaveBeenCalledTimes(1);
+    });
   });
 });

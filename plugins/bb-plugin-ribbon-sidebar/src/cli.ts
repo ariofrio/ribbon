@@ -30,6 +30,7 @@ export interface RibbonSidebarCliContext {
     | Promise<readonly RibbonSidebarThread[]>;
   updatePlacement(
     input: Parameters<PlacementStore["updatePlacement"]>[0],
+    options?: { actorThreadId?: string },
   ):
     | ReturnType<PlacementStore["updatePlacement"]>
     | Promise<ReturnType<PlacementStore["updatePlacement"]>>;
@@ -506,16 +507,19 @@ export function defineRibbonSidebarCli(
             invocation,
           );
           const destination = groupRef(options.to);
-          const result = await context.updatePlacement({
-            ...destination,
-            threadId,
-            origin: "cli",
-            ...(options.before
-              ? { anchor: { kind: "before" as const, threadId: options.before } }
-              : options.after
-                ? { anchor: { kind: "after" as const, threadId: options.after } }
-                : {}),
-          });
+          const result = await context.updatePlacement(
+            {
+              ...destination,
+              threadId,
+              origin: "cli",
+              ...(options.before
+                ? { anchor: { kind: "before" as const, threadId: options.before } }
+                : options.after
+                  ? { anchor: { kind: "after" as const, threadId: options.after } }
+                  : {}),
+            },
+            { actorThreadId: invocation.threadId },
+          );
           if (!result.ok) return domainFailure(result);
           return success(
             result.value,
