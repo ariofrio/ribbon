@@ -87,6 +87,7 @@ import {
 } from "../../ribbon/app/row.js";
 import { useRibbonData } from "../../ribbon/app/data.js";
 import { useOwnerColor } from "../../ribbon/app/icons.js";
+import { RailBars, RailTree, useRowLineage } from "../../ribbon/app/rails.js";
 import { sidebarOrganizationModeAtom } from "../preferences/atoms.js";
 import {
   ACTIVE_ROW_ATTRIBUTE,
@@ -451,6 +452,7 @@ function ThreadRowComponent({
   const ribbonShines = ribbonWorking && ribbonSettings.shimmerWorkingRows;
   const shineRowRef = useRef<HTMLDivElement | null>(null);
   useRowShine(shineRowRef, ribbonShines, ribbonWorking);
+  const lineage = useRowLineage();
   const trailingIndicatorKind = trailingIndicatorResolution.indicatorKind;
   const splitIndicatorIsWorking = hasThreadListWorkingActivity(
     trailingIndicatorState,
@@ -491,7 +493,11 @@ function ThreadRowComponent({
     nestTargetState && NEST_TARGET_STATE_CLASS[nestTargetState],
     reorderPlacement && REORDER_PLACEMENT_CLASS[reorderPlacement],
   );
-  const rowStyle = getThreadRowStyle(options.depth);
+  const rowStyle = {
+    ...getThreadRowStyle(options.depth),
+    // Where the stage ring's centre sits, for the rails to meet it.
+    ...(ribbon ? { ["--ribbon-ring-y" as string]: "50%" } : {}),
+  };
   const parentGuideLeft =
     options.depth > 0 ? getSidebarThreadGroupLineLeft(options.depth - 1) : null;
   const isActionsOpen = isDropdownActionsOpen || isContextActionsOpen;
@@ -518,9 +524,34 @@ function ThreadRowComponent({
     },
     [],
   );
+  const ribbonRing: "shown" | "hidden-at-rest" | "absent" =
+    ribbon === null
+      ? "absent"
+      : ribbon.stage === "Idle" && !ribbon.working && !showActive
+        ? "hidden-at-rest"
+        : "shown";
+  const ribbonRails =
+    ribbon !== null && options.depth > 0 ? (
+      ribbonSettings.childThreadLines === "Tree" ? (
+        <RailTree
+          depth={options.depth}
+          lineage={lineage}
+          ring={ribbonRing}
+          showsChildren={isParentRow && hasChildren && !isParentCollapsed}
+        />
+      ) : (
+        <RailBars
+          depth={options.depth}
+          lineage={lineage}
+          ring={ribbonRing}
+          showsChildren={isParentRow && hasChildren && !isParentCollapsed}
+        />
+      )
+    ) : null;
   const rowContent = (
     <>
-      {parentOptions?.stickyLevel !== undefined && parentGuideLeft !== null ? (
+      {ribbonRails}
+      {parentOptions?.stickyLevel !== undefined && parentGuideLeft !== null && ribbon === null ? (
         <span
           aria-hidden="true"
           className="pointer-events-none absolute -bottom-0.5 top-0 z-[1] w-px bg-border-hairline opacity-70"
@@ -816,6 +847,7 @@ function ThreadRowComponent({
     attributes: ribbon
       ? {
           "data-ribbon-stage": ribbon.stage,
+          "data-ribbon-depth": String(options.depth),
           ...(ribbonShines ? { [SHINE_ROW_ATTRIBUTE]: "" } : {}),
           ...(ribbonWorking ? { [ACTIVE_ROW_ATTRIBUTE]: "" } : {}),
           // Until the row can say what its pull request is waiting on, it is

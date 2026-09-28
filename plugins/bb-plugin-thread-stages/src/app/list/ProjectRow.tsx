@@ -169,6 +169,7 @@ import {
 } from "../../ribbon/app/heading-icon.js";
 import { useRibbonData } from "../../ribbon/app/data.js";
 import { ActionMenuItem } from "../ui/action-menu-items.js";
+import { SiblingLineage } from "../../ribbon/app/rails.js";
 import {
   renderBuiltInSidebarSection,
   type BuiltInSidebarSectionOptions,
@@ -1724,6 +1725,8 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
       options={options}
     />
   );
+  // Ribbon draws each child's own rails through its ring column.
+  const ribbonRails = useRibbonData() !== null;
 
   if (!hasChildren && !sortableRef && nestPreviewThread === null) {
     return row;
@@ -1740,7 +1743,9 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
       {row}
       {showChildren || nestPreviewThread !== null ? (
         <div className="relative space-y-px">
-          <ThreadTreeGroupLine parentRowDepth={parentRowDepth} />
+          {ribbonRails ? null : (
+            <ThreadTreeGroupLine parentRowDepth={parentRowDepth} />
+          )}
           {showChildren ? (
             <SidebarWindowedItems
               itemKeys={itemKeys}
@@ -1762,21 +1767,23 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
                         thread={nestPreviewThread}
                       />
                     ) : null}
-                    <SectionDndItemRow
-                      projectId={rowProjectId}
-                      item={item}
-                      depthOffset={depthOffset}
-                      selectedThreadId={selectedThreadId}
-                      collapsedThreadIds={collapsedThreadIds}
-                      collapsedEnvironmentIds={collapsedEnvironmentIds}
-                      variant={variant}
-                      onProjectSelect={onProjectSelect}
-                      onToggleThreadCollapsed={onToggleThreadCollapsed}
-                      onToggleEnvironmentCollapsed={
-                        onToggleEnvironmentCollapsed
-                      }
-                      sectionDnd={sectionDnd ?? undefined}
-                    />
+                    <SiblingLineage index={index} count={node.children.length}>
+                      <SectionDndItemRow
+                        projectId={rowProjectId}
+                        item={item}
+                        depthOffset={depthOffset}
+                        selectedThreadId={selectedThreadId}
+                        collapsedThreadIds={collapsedThreadIds}
+                        collapsedEnvironmentIds={collapsedEnvironmentIds}
+                        variant={variant}
+                        onProjectSelect={onProjectSelect}
+                        onToggleThreadCollapsed={onToggleThreadCollapsed}
+                        onToggleEnvironmentCollapsed={
+                          onToggleEnvironmentCollapsed
+                        }
+                        sectionDnd={sectionDnd ?? undefined}
+                      />
+                    </SiblingLineage>
                   </Fragment>
                 );
               }}
