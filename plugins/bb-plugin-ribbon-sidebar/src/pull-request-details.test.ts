@@ -149,6 +149,30 @@ describe("createPullRequestDetailsService", () => {
     expect(left).toEqual(right);
   });
 
+  it("batches different pull requests from concurrent callers", async () => {
+    const secondUrl = "https://github.com/acme/app/pull/2";
+    const run = vi.fn(async (_host: string, query: string) => {
+      expect(query).toContain("pullRequest(number: 1)");
+      expect(query).toContain("pullRequest(number: 2)");
+      return JSON.stringify({
+        data: {
+          p0: { pullRequest: node() },
+          p1: { pullRequest: node({ url: secondUrl }) },
+        },
+      });
+    });
+    const service = createPullRequestDetailsService({ run });
+
+    const [first, second] = await Promise.all([
+      service.get([{ url, stamp: "open" }]),
+      service.get([{ url: secondUrl, stamp: "open" }]),
+    ]);
+
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(first.map(({ url }) => url)).toEqual([url]);
+    expect(second.map(({ url }) => url)).toEqual([secondUrl]);
+  });
+
   it("keeps the last known details when GitHub cannot be reached", async () => {
     let now = 0;
     const run = vi.fn(async () => response);

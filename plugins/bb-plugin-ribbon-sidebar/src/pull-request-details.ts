@@ -170,6 +170,8 @@ export function createPullRequestDetailsService({
 }) {
   const cache = new Map<string, CacheEntry>();
   const inFlight = new Map<string, Promise<void>>();
+  const queued = new Map<string, PullRequestDetailsRequest>();
+  let scheduled: Promise<void> | null = null;
 
   async function refresh(requests: readonly PullRequestDetailsRequest[]) {
     const fetchedAt = now();
@@ -190,23 +192,39 @@ export function createPullRequestDetailsService({
     }
   }
 
+  function scheduleRefresh(requests: readonly PullRequestDetailsRequest[]) {
+    for (const request of requests) queued.set(request.url, request);
+    if (scheduled === null) {
+      const pending = Promise.resolve().then(async () => {
+        const batch = [...queued.values()];
+        queued.clear();
+        scheduled = null;
+        try {
+          await refresh(batch);
+        } finally {
+          for (const { url } of batch) {
+            if (inFlight.get(url) === pending) inFlight.delete(url);
+          }
+        }
+      });
+      scheduled = pending;
+    }
+    for (const { url } of requests) inFlight.set(url, scheduled);
+  }
+
   return {
     async get(
       requests: readonly PullRequestDetailsRequest[],
     ): Promise<PullRequestDetailsV1[]> {
       const stale = requests.filter(({ url, stamp }) => {
+        if (queued.has(url)) {
+          queued.set(url, { url, stamp });
+          return false;
+        }
         const entry = cache.get(url);
         return !inFlight.has(url) && (!entry || entry.stamp !== stamp || now() - entry.fetchedAt > ttlMs);
       });
-      if (stale.length > 0) {
-        const pending = refresh(stale);
-        for (const { url } of stale) inFlight.set(url, pending);
-        void pending.finally(() => {
-          for (const { url } of stale) {
-            if (inFlight.get(url) === pending) inFlight.delete(url);
-          }
-        });
-      }
+      if (stale.length > 0) scheduleRefresh(stale);
       await Promise.all(requests.map(({ url }) => inFlight.get(url)));
       return requests.flatMap(({ url }) => {
         const found = cache.get(url)?.details;
