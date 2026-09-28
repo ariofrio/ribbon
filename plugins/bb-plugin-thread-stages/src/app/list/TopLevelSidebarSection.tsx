@@ -288,7 +288,7 @@ export function TopLevelSidebarSection({
         className={cn(
           SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
           ribbon
-            ? cn(COARSE_POINTER_ROW_HEIGHT_CLASS, CHROME_GROUP_HEADING_CLASS, HEADING_TEXT_CLASS, "cursor-pointer")
+            ? cn(COARSE_POINTER_ROW_HEIGHT_CLASS, CHROME_GROUP_HEADING_CLASS, "cursor-pointer")
             : cn(
                 CHROME_SECTION_LABEL_CLASS,
                 headingStyle
@@ -305,9 +305,17 @@ export function TopLevelSidebarSection({
         {...dragBindings?.attributes}
         {...(dragBindings?.listeners ?? {})}
       >
-        <span className="relative z-10 flex min-w-0 flex-1 items-center gap-1 text-left">
+        <span
+          className={cn(
+            "relative z-10 flex min-w-0 flex-1 items-center gap-1 text-left",
+            // The name reads in the heading's ink, as Ribbon's did; the
+            // dark-mode title color on the tier would otherwise win.
+            ribbon && HEADING_TEXT_CLASS,
+          )}
+        >
           {leading ? (
-            <span className={cn("inline-flex shrink-0 items-center", ribbon ? "mr-2" : "mr-1")} aria-hidden="true">
+            // With the gap, the icon sits 6px before the name, as a row's glyph does before its title.
+            <span className={cn("inline-flex shrink-0 items-center", ribbon ? "mr-0.5" : "mr-1")} aria-hidden="true">
               {leading}
             </span>
           ) : null}

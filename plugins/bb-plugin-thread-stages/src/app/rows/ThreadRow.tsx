@@ -104,10 +104,10 @@ import {
 // Shaped like the options button on bb's own sidebar items: a 20px button
 // whose reach is the 28px box it sits in.
 const RIBBON_ROW_BUTTON_CLASS = `${SIDEBAR_MORE_ACTION_TRIGGER_CLASS} shrink-0 cursor-pointer rounded-md p-0 outline-none ring-sidebar-ring focus-visible:ring-2 ${SIDEBAR_CONTROL_STATE_CLASS}`;
-// The same 28px reach for the child toggle, whose 20px box stays where it is.
-// Under a coarse pointer bb already widens it.
+// The same 28px reach for the child toggle, which sits against the actions
+// so the two reaches meet. Under a coarse pointer bb already widens it.
 const RIBBON_CHEVRON_HIT_AREA_CLASS =
-  "pointer-fine:after:absolute pointer-fine:after:left-1/2 pointer-fine:after:top-1/2 pointer-fine:after:h-7 pointer-fine:after:w-7 pointer-fine:after:-translate-x-1/2 pointer-fine:after:-translate-y-1/2 pointer-fine:after:content-['']";
+  "-mr-1 pointer-fine:after:absolute pointer-fine:after:left-1/2 pointer-fine:after:top-1/2 pointer-fine:after:h-7 pointer-fine:after:w-7 pointer-fine:after:-translate-x-1/2 pointer-fine:after:-translate-y-1/2 pointer-fine:after:content-['']";
 import {
   ThreadActionsContextMenu,
   ThreadActionsMenu,
@@ -627,11 +627,9 @@ function ThreadRowComponent({
             "pointer-events-none relative flex min-w-0 items-center self-stretch",
             ((crossProjectLabel === null && (!parentOptions || !hasChildren)) ||
               isEditing ||
-              // Action buttons and a right-hand PR number sit at the lane's
-              // end, so the lane spans the row even beside a child toggle.
-              (ribbon !== null &&
-                (ribbon.actions.length > 0 ||
-                  ribbon.pullRequest?.position === "right"))) &&
+              // Ribbon's lane spans the row: its child toggle sits against
+              // the actions, as do action buttons and a right-hand PR number.
+              ribbon !== null) &&
               "flex-1",
           )}
         >
