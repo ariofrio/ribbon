@@ -63,24 +63,25 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
           });
         }),
     );
-    const pills = await notice
-      .locator('[data-prompt-mention]')
-      .evaluateAll((nodes) =>
-        nodes.map((node) => {
-          const style = getComputedStyle(node);
-          const icon = node.firstElementChild;
-          return {
-            label: node.textContent,
-            display: style.display,
-            radius: parseFloat(style.borderTopLeftRadius),
-            width: node.getBoundingClientRect().width,
-            icon:
-              icon !== null &&
-              icon.getBoundingClientRect().width > 0 &&
-              getComputedStyle(icon).maskImage.includes("thread-stages"),
-          };
-        }),
-      );
+    const mentions = notice.locator('[data-prompt-mention]');
+    await mentions.first().waitFor({ state: "visible" });
+    await mentions.last().waitFor({ state: "visible" });
+    const pills = await mentions.evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const style = getComputedStyle(node);
+        const icon = node.firstElementChild;
+        return {
+          label: node.textContent,
+          display: style.display,
+          radius: parseFloat(style.borderTopLeftRadius),
+          width: node.getBoundingClientRect().width,
+          icon:
+            icon !== null &&
+            icon.getBoundingClientRect().width > 0 &&
+            getComputedStyle(icon).maskImage.includes("thread-stages"),
+        };
+      }),
+    );
     assert.deepEqual(
       pills.map(({ label }) => label),
       ["Completed", "Idle"],
