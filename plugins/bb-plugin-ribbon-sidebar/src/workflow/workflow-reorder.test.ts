@@ -175,7 +175,7 @@ describe("resolveWorkflowReorder", () => {
     ).toEqual({ kind: "none" });
   });
 
-  it("does not reorder or change status for a child thread", () => {
+  it("changes a child's own stage without reordering its hierarchy", () => {
     const nested = [
       thread("thr_parent"),
       thread("thr_child", { parentThreadId: "thr_parent" }),
@@ -188,6 +188,15 @@ describe("resolveWorkflowReorder", () => {
         threadId: "thr_child",
         workflowStage: "Idle",
         intent: { scope: "stage", direction: 1 },
+      }),
+    ).toEqual({ kind: "stage", workflowStage: "Blocked" });
+    expect(
+      resolveWorkflowReorder({
+        threads: nested,
+        assignments: [assignment("thr_parent", "Idle", "a")],
+        threadId: "thr_child",
+        workflowStage: "Idle",
+        intent: { scope: "step", direction: 1 },
       }),
     ).toEqual({ kind: "none" });
   });

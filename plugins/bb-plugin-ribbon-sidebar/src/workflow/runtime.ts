@@ -12,7 +12,6 @@ import { THREAD_STAGES_GROUPING_KEY } from "./catalog";
 import { workflowRpcMethods, type ChordDestination } from "./contract";
 import { listAllThreads } from "./list-all-threads";
 import {
-  partitionWorkflowThreads,
   rootThreadIdByThreadId,
   type WorkflowHierarchyThread,
 } from "./root-thread-ownership";
@@ -112,7 +111,7 @@ export function createWorkflowRuntime(
     if (rootId === threadId) return;
     throw new Error(
       rootId
-        ? `Child thread ${threadId} has no stage; its stage belongs to root thread ${rootId}.`
+        ? `Child thread ${threadId} cannot be reordered outside its stage through this shortcut.`
         : `Thread ${threadId} is not a root thread.`,
     );
   }
@@ -132,10 +131,7 @@ export function createWorkflowRuntime(
       const threads = await listAllThreads(({ limit, offset }) =>
         bb.sdk.threads.list({ archived: false, limit, offset }),
       );
-      requireRootThread(threadId, threads);
-      const rootThreadIds = partitionWorkflowThreads(threads).rootThreads.map(
-        ({ id }) => id,
-      );
+      const rootThreadIds = threads.map(({ id }) => id);
       const placementState = await ribbonAssignments(
         rootThreadIds,
         groupingKey,
@@ -232,9 +228,9 @@ export function createWorkflowRuntime(
         if (threadIds) children.reorder(parentThreadId, threadIds);
         return { assignments: [] };
       }
-      requireRootThread(threadId, threads);
+      if (scope !== "stage") requireRootThread(threadId, threads);
       const placementState = await ribbonAssignments(
-        partitionWorkflowThreads(threads).rootThreads.map(({ id }) => id),
+        threads.map(({ id }) => id),
         groupingKey,
       );
       const groupId = placementState.orderPlacements.find(
@@ -245,9 +241,11 @@ export function createWorkflowRuntime(
           .filter((item) => item.groupId === groupId)
           .map((item) => item.threadId),
       );
-      const assignments = placementState.assignments.filter((item) =>
-        scopedIds.has(item.threadId),
-      );
+      const assignments = scope === "stage"
+        ? placementState.assignments
+        : placementState.assignments.filter((item) =>
+            scopedIds.has(item.threadId),
+          );
       if (
         scope !== "stage" &&
         assignments.find((item) => item.threadId === threadId)

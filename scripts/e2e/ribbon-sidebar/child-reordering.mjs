@@ -35,6 +35,15 @@ export async function verifyChildReordering({ stack, fixture }) {
         (nodes, ids) => nodes.map((node) => node.dataset.threadId).filter((id) => ids.includes(id)),
         [older.id, newer.id],
       );
+    const waitForChildOrder = (first, second) =>
+      page.waitForFunction(
+        ([firstId, secondId]) => {
+          const ids = [...document.querySelectorAll("[data-ribbon-sidebar-root] li[data-thread-id]")]
+            .map((node) => node.dataset.threadId);
+          return ids.indexOf(firstId) >= 0 && ids.indexOf(firstId) < ids.indexOf(secondId);
+        },
+        [first, second],
+      );
     const olderRow = sidebar.locator(`a[data-sidebar-thread-id="${older.id}"]`);
     const newerRow = sidebar.locator(`a[data-sidebar-thread-id="${newer.id}"]`);
     await olderRow.waitFor();
@@ -53,6 +62,7 @@ export async function verifyChildReordering({ stack, fixture }) {
     await sidebar.locator("[data-ribbon-thread-drop-preview]").waitFor();
     await page.mouse.up();
     assert.ok((await saved).ok());
+    await waitForChildOrder(older.id, newer.id);
     assert.deepEqual(await childOrder(), [older.id, newer.id]);
     assert.equal(page.url(), url, "dropping a child must not open it");
 
@@ -62,14 +72,7 @@ export async function verifyChildReordering({ stack, fixture }) {
     assert.deepEqual(await childOrder(), [older.id, newer.id], "child order survives reload");
 
     fixture.run(["sidebar", "place", newer.id, "--before", older.id]);
-    await page.waitForFunction(
-      ([first, second]) => {
-        const ids = [...document.querySelectorAll("[data-ribbon-sidebar-root] li[data-thread-id]")]
-          .map((node) => node.dataset.threadId);
-        return ids.indexOf(first) >= 0 && ids.indexOf(first) < ids.indexOf(second);
-      },
-      [newer.id, older.id],
-    );
+    await waitForChildOrder(newer.id, older.id);
     const listed = fixture.runJson(["sidebar", "children", parent.id]);
     assert.deepEqual(
       listed.map(({ id }) => id).filter((id) => id === older.id || id === newer.id),

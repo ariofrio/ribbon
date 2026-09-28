@@ -101,7 +101,7 @@ export function resolveWorkflowReorder({
 }: ResolveWorkflowReorderInput): WorkflowReorder {
   const listed = listedThreads(threads);
   const roots = rootThreadIdByThreadId(listed);
-  if (roots.get(threadId) !== threadId) return { kind: "none" };
+  if (!roots.has(threadId)) return { kind: "none" };
 
   if (intent.scope === "stage") {
     const currentIndex = enabledStages.indexOf(workflowStage);
@@ -121,6 +121,7 @@ export function resolveWorkflowReorder({
       ? { kind: "none" }
       : { kind: "stage", workflowStage: nextStage };
   }
+  if (roots.get(threadId) !== threadId) return { kind: "none" };
 
   const pinnedState = buildPinnedThreadState(
     listed.map((thread) => ({

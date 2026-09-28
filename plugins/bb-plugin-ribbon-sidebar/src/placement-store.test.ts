@@ -165,7 +165,7 @@ describe("placement persistence", () => {
     });
   });
 
-  it("retains absent placement but removes placement from new children", () => {
+  it("retains a thread's stage when it becomes a child while keeping other groups root-only", () => {
     const database = new Database(":memory:");
     databases.push(database);
     for (const migration of RIBBON_SIDEBAR_MIGRATIONS) database.exec(migration);
@@ -210,10 +210,12 @@ describe("placement persistence", () => {
     });
 
     expect(store.reconcileRoots([], ["thread-a"])).toEqual({
-      changedGroupingKeys: [stages.groupingKey],
+      changedGroupingKeys: [],
     });
+    expect(store.getPlacement({ groupingKey: stages.groupingKey, threadId: "thread-a" }))
+      .toMatchObject({ ok: true, value: { placement: { enteredAtMs: 1_000 } } });
     expect(store.reconcileRoots(["thread-a"], [])).toEqual({
-      changedGroupingKeys: [stages.groupingKey],
+      changedGroupingKeys: [],
     });
     expect(
       store.getPlacement({
@@ -223,16 +225,61 @@ describe("placement persistence", () => {
     ).toEqual({
       ok: true,
       value: {
-        revision: 3,
+        revision: 1,
         placement: {
           groupingKey: stages.groupingKey,
           groupId: "Idle",
           threadId: "thread-a",
-          enteredAtMs: 2_000,
+          enteredAtMs: 1_000,
           origin: "auto",
         },
       },
     });
+  });
+
+  it("persists independent child stages and excludes children from section placements", () => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    for (const migration of RIBBON_SIDEBAR_MIGRATIONS) database.exec(migration);
+    const sections: GroupingDescriptor = {
+      groupingKey: "builtin:sections",
+      singularLabel: "Section",
+      pluralLabel: "Sections",
+      defaultGroupId: "work",
+      groups: [{ id: "work", label: "Work", acceptsAssignments: true }],
+      membership: {
+        kind: "external",
+        writable: true,
+        groupIdForThread: () => "work",
+        setGroupIdForThread: () => {},
+      },
+    };
+    const store = createPlacementStore(database, {
+      grouping: (key) => [stages, sections].find((group) => group.groupingKey === key) ?? null,
+      groupings: () => [stages, sections],
+      now: () => 100,
+    });
+    store.reconcileRoots(["parent"], ["child"]);
+    expect(store.updatePlacement({
+      groupingKey: stages.groupingKey,
+      groupId: "Active",
+      threadId: "child",
+      origin: "cli",
+    })).toMatchObject({ ok: true });
+    expect(store.getPlacement({ groupingKey: stages.groupingKey, threadId: "parent" }))
+      .toMatchObject({ ok: true, value: { placement: { groupId: "Idle" } } });
+    expect(store.getPlacement({ groupingKey: stages.groupingKey, threadId: "child" }))
+      .toMatchObject({ ok: true, value: { placement: { groupId: "Active" } } });
+    expect(store.listPlacements({ groupingKey: stages.groupingKey }))
+      .toMatchObject({ ok: true, value: { items: [
+        { threadId: "parent", groupId: "Idle" },
+        { threadId: "child", groupId: "Active" },
+      ] } });
+    expect(store.getPlacement({ groupingKey: sections.groupingKey, threadId: "child" }))
+      .toMatchObject({ ok: false, error: { code: "THREAD_INELIGIBLE" } });
+    store.reconcileRoots(["parent"], ["child"]);
+    expect(store.getPlacement({ groupingKey: stages.groupingKey, threadId: "child" }))
+      .toMatchObject({ ok: true, value: { placement: { groupId: "Active" } } });
   });
 
   it("atomically rekeys provider assignments, retained order, and revision", () => {

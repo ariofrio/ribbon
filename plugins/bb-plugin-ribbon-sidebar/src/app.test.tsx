@@ -2155,6 +2155,43 @@ describe("Ribbon sidebar app", () => {
     },
   );
 
+  it("shows a child's own stage and lets its menu change that stage", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const originalList = fixture.listPlacementsV1.getMockImplementation()!;
+    fixture.listPlacementsV1.mockImplementation(async (input: unknown) => {
+      const result = await originalList(input);
+      if ((input as { groupingKey: string }).groupingKey === "plugin:thread-stages:stages") {
+        result.value.items.push({
+          groupingKey: "plugin:thread-stages:stages",
+          groupId: "Blocked",
+          threadId: "thread-child",
+          enteredAtMs: 1,
+          origin: "auto",
+        });
+      }
+      return result;
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const child = (await slot.findByText("thread-child")).closest("[data-thread-id]")!;
+    expect(child.querySelector('[aria-label="Blocked stage"]')).toBeTruthy();
+    const parent = slot.getByText("Design migration").closest("[data-thread-id]")!;
+    expect(parent.querySelector('[aria-label="Blocked stage"]')).toBeNull();
+    fireEvent.keyDown(child.querySelector('[aria-label="Thread actions"]')!, {
+      key: "Enter",
+    });
+    fireEvent.click(await slot.findByText("Move to stage"));
+    fireEvent.click(await slot.findByText("Idle"));
+    await waitFor(() => expect(fixture.updatePlacementV1).toHaveBeenCalledWith({
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Idle",
+      threadId: "thread-child",
+      anchor: { kind: "preserve" },
+      origin: "ui",
+    }));
+    slot.lifecycle.unmount();
+  });
+
   it("moves a thread through the group surface without separate drag handles", async () => {
     useManualSort();
     const app = await loadPluginApp(() => import("./app"));

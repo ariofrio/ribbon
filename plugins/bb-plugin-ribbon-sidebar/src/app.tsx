@@ -1761,10 +1761,9 @@ function RibbonSidebarList({
   }
 
   function threadStage(thread: PluginSidebarThread) {
-    const root = rootForThread(thread.id, liveThreads) ?? thread;
     return (
       parseWorkflowStage(
-        assignmentPlacements.get(THREAD_STAGES_GROUPING_KEY)?.get(root.id)
+        assignmentPlacements.get(THREAD_STAGES_GROUPING_KEY)?.get(thread.id)
           ?.groupId ?? "Idle",
       ) ?? "Idle"
     );
@@ -1836,12 +1835,9 @@ function RibbonSidebarList({
       threadRowStatuses.get(root.id),
       { showRuntime: false },
     );
-    const stageOwner = root.parentThreadId
-      ? (rootForThread(root.id, liveThreads) ?? root)
-      : root;
     const stage = assignmentPlacements
-      .get("plugin:thread-stages:stages")
-      ?.get(stageOwner.id)?.groupId;
+      .get(THREAD_STAGES_GROUPING_KEY)
+      ?.get(root.id)?.groupId;
     const reorderable =
       !normalizedSearch &&
       !root.isArchived &&
@@ -1900,39 +1896,37 @@ function RibbonSidebarList({
               );
             }
           }}
-          assignments={
-            depth === 0
-              ? orderedGroupings(snapshot.groupings).flatMap((candidate) => {
-                  if (
-                    !candidate.available ||
-                    !candidate.membershipWritable ||
-                    candidate.groupingKey === "builtin:sections"
-                  ) {
-                    return [];
-                  }
-                  const current = assignmentPlacements
-                    .get(candidate.groupingKey)
-                    ?.get(root.id);
-                  if (!current) return [];
-                  return [
-                    {
-                      groupingKey: candidate.groupingKey,
-                      currentGroupId: current.groupId,
-                      groups: candidate.groups,
-                      icon: candidate.icon,
-                      singularLabel: candidate.singularLabel,
-                      onSetGroup: (groupId: string) => {
-                        void updateAssignment(
-                          candidate.groupingKey as GroupingKey,
-                          root.id,
-                          groupId,
-                        );
-                      },
-                    },
-                  ];
-                })
-              : []
-          }
+          assignments={orderedGroupings(snapshot.groupings).flatMap((candidate) => {
+            if (depth > 0 && candidate.groupingKey !== THREAD_STAGES_GROUPING_KEY)
+              return [];
+            if (
+              !candidate.available ||
+              !candidate.membershipWritable ||
+              candidate.groupingKey === "builtin:sections"
+            ) {
+              return [];
+            }
+            const current = assignmentPlacements
+              .get(candidate.groupingKey)
+              ?.get(root.id);
+            if (!current) return [];
+            return [
+              {
+                groupingKey: candidate.groupingKey,
+                currentGroupId: current.groupId,
+                groups: candidate.groups,
+                icon: candidate.icon,
+                singularLabel: candidate.singularLabel,
+                onSetGroup: (groupId: string) => {
+                  void updateAssignment(
+                    candidate.groupingKey as GroupingKey,
+                    root.id,
+                    groupId,
+                  );
+                },
+              },
+            ];
+          })}
           childrenCollapsed={childrenCollapsed}
           depth={depth}
           firstChild={lineage.firstChild}

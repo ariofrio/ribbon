@@ -18,6 +18,8 @@ import {
   type ChildRank,
 } from "./child-order";
 import { orderedGroupings } from "./grouping-order";
+import { THREAD_STAGES_GROUPING_KEY } from "./workflow/catalog";
+import { rootThreadIdByThreadId } from "./workflow/root-thread-ownership";
 
 interface CliResult {
   exitCode: number;
@@ -31,6 +33,7 @@ export interface RibbonSidebarCliContext {
   threads(options: {
     includeArchived: boolean;
     includeHidden: boolean;
+    includeChildren: boolean;
   }):
     | readonly RibbonSidebarThread[]
     | Promise<readonly RibbonSidebarThread[]>;
@@ -231,6 +234,7 @@ function richThreadRows(
   threadIds: readonly string[],
 ) {
   const threads = new Map(candidates.map((thread) => [thread.id, thread]));
+  const rootIds = rootThreadIdByThreadId(candidates);
   const groupIds = new Map<GroupingKey, Map<string, string>>();
   for (const grouping of groupings) {
     const listed = context.store.listPlacements({
@@ -243,6 +247,11 @@ function richThreadRows(
     );
     for (const threadId of threadIds) {
       if (ids.has(threadId)) continue;
+      const rootId = rootIds.get(threadId);
+      if (grouping.groupingKey.startsWith("builtin:") && rootId && ids.has(rootId)) {
+        ids.set(threadId, ids.get(rootId)!);
+        continue;
+      }
       const groupId = grouping.membership.kind === "ribbon"
         ? grouping.defaultGroupId
         : grouping.membership.groupIdForThread(threadId);
@@ -379,11 +388,15 @@ export function defineRibbonSidebarCli(
           },
           "include-archived": {
             type: "boolean",
-            description: "Include archived roots",
+            description: "Include archived threads",
           },
           "include-hidden": {
             type: "boolean",
-            description: "Include hidden roots",
+            description: "Include hidden threads",
+          },
+          "include-children": {
+            type: "boolean",
+            description: "Include child threads with their own stages",
           },
           ...JSON_OPTION,
         },
@@ -418,6 +431,7 @@ export function defineRibbonSidebarCli(
           const candidates = await context.threads({
             includeArchived: options["include-archived"],
             includeHidden: options["include-hidden"],
+            includeChildren: options["include-children"],
           });
           const candidateIds = new Set(candidates.map(({ id }) => id));
           const orderedIds = listed.value.items
@@ -494,7 +508,17 @@ export function defineRibbonSidebarCli(
           );
           const child = await childPosition(context, threadId);
           if (child) {
-            return success(child, humanChildPosition(child), options.json);
+            const stage = context.store.getPlacement({
+              groupingKey: THREAD_STAGES_GROUPING_KEY,
+              threadId,
+            });
+            if (!stage.ok) return domainFailure(stage);
+            const stageName = stage.value.placement.groupId;
+            return success(
+              { ...child, stage: stageName },
+              `${humanChildPosition(child)}  Stage: ${stageName}\n`,
+              options.json,
+            );
           }
           const values = availableGroupings().map((descriptor) =>
             context.store.getPlacement({
@@ -502,11 +526,17 @@ export function defineRibbonSidebarCli(
               threadId,
             }),
           );
-          const failure = values.find((result) => !result.ok);
+          const failure = values.find(
+            (result) => !result.ok && result.error.code !== "THREAD_INELIGIBLE",
+          );
           if (failure && !failure.ok) return domainFailure(failure);
           const successful = values
             .filter((result) => result.ok)
             .map(({ value }) => value);
+          if (successful.length === 0) {
+            const ineligible = values.find((result) => !result.ok);
+            if (ineligible && !ineligible.ok) return domainFailure(ineligible);
+          }
           return success(
             successful,
             humanPlacements(
@@ -561,7 +591,7 @@ export function defineRibbonSidebarCli(
           },
           to: {
             type: "string",
-            description: "Destination group; omit for a child thread",
+            description: "Destination group; omit when reordering a child",
             placeholder: "group-ref",
           },
           before: {
@@ -589,12 +619,7 @@ export function defineRibbonSidebarCli(
             invocation,
           );
           const child = await childPosition(context, threadId);
-          if (child) {
-            if (options.to !== undefined) {
-              throw new PluginCliError(
-                `Child thread ${threadId} stays under its parent ${child.parentThreadId}; omit --to.`,
-              );
-            }
+          if (child && options.to === undefined) {
             const anchor = options.before ?? options.after;
             if (anchor === undefined) {
               throw new PluginCliError(
@@ -634,6 +659,16 @@ export function defineRibbonSidebarCli(
             throw new PluginCliError(`Missing --to for root thread ${threadId}.`);
           }
           const destination = groupRef(options.to);
+          if (child && destination.groupingKey !== THREAD_STAGES_GROUPING_KEY) {
+            throw new PluginCliError(
+              `Child thread ${threadId} stays under its parent ${child.parentThreadId}; use --to only for stages.`,
+            );
+          }
+          if (child && (options.before || options.after)) {
+            throw new PluginCliError(
+              `Omit --to when reordering child thread ${threadId} among siblings.`,
+            );
+          }
           const result = await context.updatePlacement(
             {
               ...destination,

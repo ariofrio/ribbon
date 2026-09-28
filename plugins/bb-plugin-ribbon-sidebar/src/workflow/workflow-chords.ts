@@ -55,6 +55,13 @@ export function resolveStageChord({
 }: ResolveStageChordInput): StageChord {
   const listed = listedThreads(threads);
   const rootThreads = partitionWorkflowThreads(listed).rootThreads;
+  if (listed.some((thread) => thread.id === threadId) &&
+      !rootThreads.some((thread) => thread.id === threadId)) {
+    const current = assignments.find((assignment) => assignment.threadId === threadId);
+    return current?.workflowStage === workflowStage
+      ? { kind: "none" }
+      : { kind: "file", workflowStage, next: { kind: "stay" } };
+  }
   if (!rootThreads.some((thread) => thread.id === threadId)) {
     return { kind: "none" };
   }
