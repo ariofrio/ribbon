@@ -1,5 +1,19 @@
 # bb-plugin-ribbon-sidebar
 
+## 0.5.2
+
+### Patch Changes
+
+- 50cb3ca: Update the shared UI and Plugin SDK to bb 0.44.0 and SDK 0.5.29. These releases require bb 0.44.0 or newer.
+- 2960f67: Run the working-row shimmer and the working stage ring's spin on the compositor, so working threads no longer keep bb's main thread busy every frame and delay clicks and typing.
+- 3e36f42: Let sidebar display options switch between equal-width and proportional PR digits. Equal-width remains the default.
+- 7c232d1: Standardized heading icons open and shut the way a book and a folder do. The
+  book's top page turns over on its rounded spine to lie open beside the other,
+  the spine uncurling beneath it; the folder's front falls forward from its fold
+  and stands back up. Both are drawn in the icon style from a small 3D
+  model, one size throughout, with whatever a nearer part covers hidden.
+- 9240e2c: Keep the thread context menu open when the right mouse button is released over a menu item, so the user can choose an action with a separate click.
+
 ## 0.5.1
 
 ### Patch Changes
