@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import PencilEdit01Icon from "@hugeicons/core-free-icons/PencilEdit01Icon";
 import { chromium } from "playwright";
 import { FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
 
@@ -103,6 +104,10 @@ export async function verifyThreadIndicators({ stack, fixture }) {
           console.error(await glyph.evaluate(node => node.outerHTML));
           throw error;
         });
+        if (provider !== "__builtin__" && (label === null || label === "Thread working with unsubmitted draft")) {
+          const paths = await glyph.locator("svg path").evaluateAll(nodes => nodes.map(node => node.getAttribute("d")));
+          assert.deepEqual(paths, PencilEdit01Icon.map(([, attributes]) => attributes.d));
+        }
         const observation = await glyph.evaluate((node) => {
           const svg = node.querySelector("svg");
           const style = getComputedStyle(svg);
@@ -127,7 +132,7 @@ export async function verifyThreadIndicators({ stack, fixture }) {
           assert.equal(observation.glyphMasked, false, `${label}: Ribbon's glyph should not shimmer alone`);
         }
         delete observation.glyphMasked;
-        observations.push(observation);
+        observations.push({ label: label ?? "idle draft", ...observation });
       }
       await ready();
       for (const state of ["waiting", "failed"]) {
@@ -224,7 +229,19 @@ export async function verifyThreadIndicators({ stack, fixture }) {
       await page.unrouteAll({ behavior: "ignoreErrors" });
       await context.close();
     }
-    assert.deepEqual(results[1], results[0], "Ribbon glyph geometry, colors, and animations should match bb");
+    const ribbonDraftShapes = results[1].find(({ label }) => label === "idle draft").shapes;
+    for (let index = 0; index < results[0].length; index += 1) {
+      const builtin = results[0][index];
+      const ribbon = results[1][index];
+      const { shapes: builtinShapes, ...builtinAppearance } = builtin;
+      const { shapes: ribbonShapes, ...ribbonAppearance } = ribbon;
+      assert.deepEqual(ribbonAppearance, builtinAppearance, `${builtin.label}: Ribbon color, size, and animation should match bb`);
+      if (builtin.label === "idle draft" || builtin.label === "Thread working with unsubmitted draft") {
+        assert.deepEqual(ribbonShapes, ribbonDraftShapes, `${builtin.label}: Ribbon draft glyph should keep the same geometry`);
+      } else {
+        assert.deepEqual(ribbonShapes, builtinShapes, `${builtin.label}: Ribbon glyph geometry should match bb`);
+      }
+    }
   } finally {
     await browser.close();
     fixture.run(["plugin", "disable", "indicator-fixture"]);
