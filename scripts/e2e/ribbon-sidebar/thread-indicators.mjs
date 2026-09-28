@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import PencilEdit01Icon from "@hugeicons/core-free-icons/PencilEdit01Icon";
 import { chromium } from "playwright";
 import { FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
 
 export async function verifyThreadIndicators({ stack, fixture }) {
+  const { default: PencilEdit01Icon } = await import("@hugeicons/core-free-icons/PencilEdit01Icon");
   const thread = fixture.threads.get(FEATURED_THREAD);
   const project = fixture.projects.get(FEATURED_PROJECT);
   const pluginDir = resolve(".scratch/work/indicator-fixture");
