@@ -179,7 +179,8 @@ const JSON_OPTION = {
   description: "Emit machine-readable JSON",
 } as const;
 
-export default async function threadListPlugin(bb: BbPluginApi) {
+/** The preference store and its RPC, shared by the CLI this file registers and by any CLI that folds these commands in. */
+export function registerPreferences(bb: BbPluginApi) {
   const store = createPreferenceStore(bb);
 
   bb.rpc.register(threadListRpcContract, {
@@ -193,6 +194,112 @@ export default async function threadListPlugin(bb: BbPluginApi) {
       return { key, value: await store.reset(key) };
     },
   });
+  return store;
+}
+
+/** The `prefs …` commands, as a plain map so another CLI can register them under its own name. */
+export function preferenceCliCommands(store: ReturnType<typeof createPreferenceStore>) {
+  return {
+    "prefs list": cliCommand({
+      summary: "List every preference and its current value",
+      options: { json: JSON_OPTION },
+      async run(input) {
+        const values = await store.readAll();
+        if (input.options.json) {
+          return { exitCode: 0, stdout: JSON.stringify(values) };
+        }
+        return {
+          exitCode: 0,
+          stdout: PREFERENCE_KEYS.map(
+            (key) =>
+              `${key}\t${JSON.stringify(values[key])}\t${describePreference(key)}`,
+          ).join("\n"),
+        };
+      },
+    }),
+    "prefs get": cliCommand({
+      summary: "Print one preference",
+      positionals: [
+        { name: "key", description: "Preference name", required: true },
+      ],
+      options: { json: JSON_OPTION },
+      async run(input) {
+        const key = requireCliPreferenceKey(input.positionals.key);
+        const value = await store.read(key);
+        return {
+          exitCode: 0,
+          stdout: input.options.json
+            ? JSON.stringify({ key, value })
+            : JSON.stringify(value),
+        };
+      },
+    }),
+    "prefs set": cliCommand({
+      summary: "Set one preference",
+      positionals: [
+        { name: "key", description: "Preference name", required: true },
+        {
+          name: "value",
+          description: 'JSON value, e.g. \'"machine"\' or \'["pinned","threads"]\'',
+          required: true,
+        },
+      ],
+      options: { json: JSON_OPTION },
+      async run(input) {
+        const key = requireCliPreferenceKey(input.positionals.key);
+        try {
+          const value = await store.write(
+            key,
+            parseCliValue(input.positionals.value),
+          );
+          return {
+            exitCode: 0,
+            stdout: input.options.json
+              ? JSON.stringify({ key, value })
+              : `${key} = ${JSON.stringify(value)}`,
+          };
+        } catch (error) {
+          if (error instanceof PreferenceValidationError) {
+            throw new PluginCliError(error.message, {
+              code: "invalid_preference_value",
+              hint: describePreference(key),
+            });
+          }
+          throw error;
+        }
+      },
+    }),
+    "prefs reset": cliCommand({
+      summary: "Restore one preference to its default",
+      positionals: [
+        { name: "key", description: "Preference name", required: true },
+      ],
+      options: { json: JSON_OPTION },
+      async run(input) {
+        const key = requireCliPreferenceKey(input.positionals.key);
+        const value = await store.reset(key);
+        return {
+          exitCode: 0,
+          stdout: input.options.json
+            ? JSON.stringify({ key, value })
+            : `${key} = ${JSON.stringify(value)}`,
+        };
+      },
+    }),
+  };
+}
+
+export async function migratePreferences(bb: BbPluginApi) {
+  const { migrated } = await migrateFromUiPreferences(bb);
+  if (migrated.length > 0) {
+    bb.log.info(
+      `migrated sidebar preferences from bb settings: ${migrated.join(", ")}`,
+    );
+  }
+}
+
+export default async function threadListPlugin(bb: BbPluginApi) {
+  const store = registerPreferences(bb);
 
   bb.cli.register(
     defineCli({
@@ -200,101 +307,9 @@ export default async function threadListPlugin(bb: BbPluginApi) {
       summary: "Inspect and change the sidebar thread list's layout preferences",
       description:
         "Organization mode, sort, section order, hidden groups, and collapsed groups for bb's sidebar thread list. Values are JSON; a bare word is read as a string.",
-      commands: {
-        "prefs list": cliCommand({
-          summary: "List every preference and its current value",
-          options: { json: JSON_OPTION },
-          async run(input) {
-            const values = await store.readAll();
-            if (input.options.json) {
-              return { exitCode: 0, stdout: JSON.stringify(values) };
-            }
-            return {
-              exitCode: 0,
-              stdout: PREFERENCE_KEYS.map(
-                (key) =>
-                  `${key}\t${JSON.stringify(values[key])}\t${describePreference(key)}`,
-              ).join("\n"),
-            };
-          },
-        }),
-        "prefs get": cliCommand({
-          summary: "Print one preference",
-          positionals: [
-            { name: "key", description: "Preference name", required: true },
-          ],
-          options: { json: JSON_OPTION },
-          async run(input) {
-            const key = requireCliPreferenceKey(input.positionals.key);
-            const value = await store.read(key);
-            return {
-              exitCode: 0,
-              stdout: input.options.json
-                ? JSON.stringify({ key, value })
-                : JSON.stringify(value),
-            };
-          },
-        }),
-        "prefs set": cliCommand({
-          summary: "Set one preference",
-          positionals: [
-            { name: "key", description: "Preference name", required: true },
-            {
-              name: "value",
-              description: 'JSON value, e.g. \'"machine"\' or \'["pinned","threads"]\'',
-              required: true,
-            },
-          ],
-          options: { json: JSON_OPTION },
-          async run(input) {
-            const key = requireCliPreferenceKey(input.positionals.key);
-            try {
-              const value = await store.write(
-                key,
-                parseCliValue(input.positionals.value),
-              );
-              return {
-                exitCode: 0,
-                stdout: input.options.json
-                  ? JSON.stringify({ key, value })
-                  : `${key} = ${JSON.stringify(value)}`,
-              };
-            } catch (error) {
-              if (error instanceof PreferenceValidationError) {
-                throw new PluginCliError(error.message, {
-                  code: "invalid_preference_value",
-                  hint: describePreference(key),
-                });
-              }
-              throw error;
-            }
-          },
-        }),
-        "prefs reset": cliCommand({
-          summary: "Restore one preference to its default",
-          positionals: [
-            { name: "key", description: "Preference name", required: true },
-          ],
-          options: { json: JSON_OPTION },
-          async run(input) {
-            const key = requireCliPreferenceKey(input.positionals.key);
-            const value = await store.reset(key);
-            return {
-              exitCode: 0,
-              stdout: input.options.json
-                ? JSON.stringify({ key, value })
-                : `${key} = ${JSON.stringify(value)}`,
-            };
-          },
-        }),
-      },
+      commands: preferenceCliCommands(store),
     }),
   );
 
-  const { migrated } = await migrateFromUiPreferences(bb);
-  if (migrated.length > 0) {
-    bb.log.info(
-      `migrated sidebar preferences from bb settings: ${migrated.join(", ")}`,
-    );
-  }
+  await migratePreferences(bb);
 }
