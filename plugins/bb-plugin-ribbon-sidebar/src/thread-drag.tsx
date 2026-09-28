@@ -277,7 +277,8 @@ export function ThreadDragHeader({
 /**
  * dnd-kit reports a cancel only for a drag it has committed. bb's split
  * gesture cancels with a synthetic Escape as soon as a row leaves the sidebar,
- * which can land before that commit; the drag then ends without a callback.
+ * and a full sidebar can still be rendering the drag's start by then; the drag
+ * then ends without a callback.
  */
 function EndUncommittedDrag({
   dragging,

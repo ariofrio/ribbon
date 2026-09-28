@@ -49,8 +49,10 @@ export async function verifyExternalDrop({ stack, fixture, cases }) {
       await page.mouse.move(box.x + 40, box.y + box.height / 2);
       await page.mouse.down();
       if (target === "race") {
-        // Ribbon's drag activates and bb's gesture engages before React
-        // commits: bb's Escape then cancels a drag dnd-kit has not recorded.
+        // A full sidebar takes hundreds of milliseconds to commit a drag it
+        // started, long enough for a steady drag to cross into bb's gesture.
+        // Playwright waits out that render between moves, so fire both moves
+        // in one task: bb's Escape then cancels a drag dnd-kit has not recorded.
         await page.evaluate(({ start, end }) => {
           const move = (x, y) => {
             window.dispatchEvent(new PointerEvent("pointermove", { clientX: x, clientY: y, bubbles: true, pointerType: "mouse", buttons: 1 }));
