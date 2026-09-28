@@ -562,21 +562,34 @@ function ThreadRow({
                 !hasTrailingIndicator && thread.isArchived ? 8 : undefined,
             }}
           >
-            <span className="pointer-events-none flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-              {showThreadTitle || pullRequestNumber !== null ? (
-                <span
-                  className={`${rowActions.length > 0 && !thread.isArchived ? "w-max max-w-full shrink-0" : "w-full"} flex min-w-0 items-center gap-2`}
-                  {...{ [SHINE_ATTRIBUTE]: "" }}
-                  title={accessibleTitle}
-                >
-                  <ShineContent className="flex items-center gap-2">
-                    {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
-                    {showThreadTitle ? <ThreadTitle title={rowTitle} /> : null}
-                    {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
-                  </ShineContent>
-                </span>
-              ) : null}
-              {!thread.isArchived ? rowActions.map((action) => (
+            {thread.isArchived || rowActions.length === 0 ? (
+              <span
+                className="flex min-w-0 flex-1"
+                {...{ [SHINE_ATTRIBUTE]: "" }}
+                title={accessibleTitle}
+              >
+                <ShineContent className="flex items-center gap-2">
+                  {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
+                  <ThreadTitle title={rowTitle} />
+                  {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
+                </ShineContent>
+              </span>
+            ) : (
+              <span className="pointer-events-none flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                {showThreadTitle || pullRequestNumber !== null ? (
+                  <span
+                    className="flex w-max max-w-full min-w-0 shrink-0 items-center gap-2"
+                    {...{ [SHINE_ATTRIBUTE]: "" }}
+                    title={accessibleTitle}
+                  >
+                    <ShineContent className="flex items-center gap-2">
+                      {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
+                      {showThreadTitle ? <ThreadTitle title={rowTitle} /> : null}
+                      {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
+                    </ShineContent>
+                  </span>
+                ) : null}
+                {rowActions.map((action) => (
                 <Button
                   key={action.id}
                   type="button"
@@ -598,8 +611,9 @@ function ThreadRow({
                 >
                   <span className="truncate">{action.label}</span>
                 </Button>
-              )) : null}
-            </span>
+                ))}
+              </span>
+            )}
             {hasChildren ? (
               <Button
                 aria-expanded={!childrenCollapsed}
