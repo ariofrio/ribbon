@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fetchFromStack } from "../screenshots/fetch.mjs";
 
 async function until(check, label) {
   const deadline = Date.now() + 120_000;
@@ -13,7 +14,7 @@ async function until(check, label) {
 export async function verifyThreadTitles({ stack, fixture }) {
   const { run, runJson } = fixture;
   const transcriptsPath = join(stack.dataDir, "transcripts.json");
-  const selected = await fetch(
+  const selected = await fetchFromStack(
     new URL("/api/v1/plugins/thread-titles/rpc/selection.set", stack.serverUrl),
     {
       method: "POST",
@@ -47,13 +48,9 @@ export async function verifyThreadTitles({ stack, fixture }) {
       "--model", "fixture", "--permission-mode", "accept-edits", "--prompt", "Calendar",
     ]);
     const workers = async () => {
-      const url = new URL(
+      const response = await fetchFromStack(new URL(
         "/api/v1/threads?includeHidden=true&originPluginId=thread-titles&limit=100", stack.serverUrl,
-      );
-      // The synchronous CLI calls between reads can hold a pooled connection
-      // past the server's keep-alive timeout, so the next read finds it closed.
-      // The read is idempotent; retry it once on a fresh connection.
-      const response = await fetch(url).catch(() => fetch(url));
+      ));
       assert.ok(response.ok, await response.clone().text());
       const body = await response.json();
       return (Array.isArray(body) ? body : body.threads).filter(

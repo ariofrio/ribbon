@@ -1,4 +1,4 @@
-import { useSortable } from "@dnd-kit/sortable";
+import { SortableContext, useSortable } from "@dnd-kit/sortable";
 import {
   definePluginApp,
   experimental_useSidebarThreadActions,
@@ -29,6 +29,7 @@ import {
   type ReactNode,
 } from "react";
 import type { z } from "zod";
+import { moveChild, orderChildren, type ChildRank } from "./child-order";
 import { CHROME_GROUP_HEADING_CLASS } from "./chrome-style-tokens";
 import { GroupBody } from "./group-body";
 import {
@@ -58,6 +59,7 @@ import {
   publishShineStyles,
   SHINE_ATTRIBUTE,
   SHINE_ROW_ATTRIBUTE,
+  ShineContent,
   useRowShine,
 } from "./row-shine";
 import { sectionBands } from "./section-layout";
@@ -80,6 +82,11 @@ import {
   type ThreadDragTarget,
 } from "./thread-drag";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
+import {
+  RAIL_EDGE_BOTTOM,
+  RAIL_EDGE_TOP,
+  railSegments,
+} from "./thread-rails";
 import {
   resolveThreadStatus,
   withPullRequestSignal,
@@ -263,6 +270,8 @@ function ThreadRow({
   assignments,
   childrenCollapsed,
   depth,
+  endsGroup,
+  firstChild,
   hasChildren,
   indicatorThread,
   hasUnsubmittedDraft,
@@ -282,7 +291,6 @@ function ThreadRow({
   pullRequestNumberPosition,
   tabularPullRequestDigits,
   reorderable,
-  rootThreadId,
   sections,
   shimmerRow,
   thread,
@@ -300,6 +308,9 @@ function ThreadRow({
   }[];
   childrenCollapsed: boolean;
   depth: number;
+  /** For each depth from 1 through `depth`, whether that sibling group's last row is this one. */
+  endsGroup: readonly boolean[];
+  firstChild: boolean;
   hasChildren: boolean;
   indicatorThread: ThreadStatus;
   hasUnsubmittedDraft: boolean;
@@ -319,7 +330,6 @@ function ThreadRow({
   pullRequestNumberPosition: PullRequestNumberPosition;
   tabularPullRequestDigits: boolean;
   reorderable: boolean;
-  rootThreadId: string;
   sections: readonly { id: string; label: string }[];
   /** Shimmer the working row rather than its indicator. */
   shimmerRow: boolean;
@@ -419,7 +429,7 @@ function ThreadRow({
     <li
       className="relative list-none"
       data-thread-id={thread.id}
-      data-ribbon-root-id={rootThreadId}
+      data-ribbon-depth={depth}
       style={
         dragging
           ? {
@@ -446,7 +456,12 @@ function ThreadRow({
             : active
               ? "text-sidebar-foreground"
               : "text-sidebar-foreground/85 hover:text-sidebar-accent-foreground dark:text-sidebar-foreground"
-        } ${layout !== null && !active ? "bg-sidebar-accent/50" : ""} ${reorderable ? "select-none" : ""}`}
+        } ${layout !== null && !active ? "bg-sidebar-accent/50" : ""} ${reorderable ? "select-none" : ""} ${
+          // Where the stage ring's centre sits, for the rails to meet it.
+          iconSpansEntireItem
+            ? "[--ribbon-ring-y:50%]"
+            : "[--ribbon-ring-y:calc(var(--bb-sidebar-row-height)/2)] max-md:pointer-coarse:[--ribbon-ring-y:calc(var(--bb-sidebar-row-height-coarse)/2)]"
+        }`}
         ref={(node) => {
           sortable.setNodeRef(node);
           rowRef.current = node;
@@ -461,12 +476,30 @@ function ThreadRow({
         onDragStart={(event) => event.preventDefault()}
         style={{ paddingLeft: 8 + depth * 24 }}
       >
-        {Array.from({ length: depth }, (_, level) => (
+        {railSegments({
+          depth,
+          firstChild,
+          endsGroup,
+          ring: !hasIcon
+            ? "absent"
+            : hideIdleStageIconAtRest
+              ? "hidden-at-rest"
+              : "shown",
+        }).map(({ level, from, to, whileRingHidden }) => (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 z-[1] w-px bg-border-hairline opacity-70"
-            key={level}
-            style={{ left: 16 + level * 24 }}
+            className={`pointer-events-none absolute z-[1] w-px bg-border-hairline opacity-70 ${
+              whileRingHidden
+                ? "group-hover/thread-row:opacity-0 group-has-[:focus-visible]/thread-row:opacity-0 pointer-coarse:opacity-0"
+                : ""
+            }`}
+            data-ribbon-sidebar-rail={level}
+            key={`${level}:${from}`}
+            style={{
+              left: 16 + level * 24,
+              top: RAIL_EDGE_TOP[from],
+              bottom: RAIL_EDGE_BOTTOM[to],
+            }}
           />
         ))}
         <a
@@ -509,7 +542,7 @@ function ThreadRow({
                 gridRowStart: 1,
               }}
             >
-              {icon}
+              <ShineContent className="flex">{icon}</ShineContent>
             </span>
           ) : null}
           <span
@@ -527,13 +560,15 @@ function ThreadRow({
             }}
           >
             <span
-              className="flex min-w-0 flex-1 items-center gap-2"
+              className="flex min-w-0 flex-1"
               {...{ [SHINE_ATTRIBUTE]: "" }}
               title={accessibleTitle}
             >
-              {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
-              <ThreadTitle title={rowTitle} />
-              {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
+              <ShineContent className="flex items-center gap-2">
+                {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
+                <ThreadTitle title={rowTitle} />
+                {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
+              </ShineContent>
             </span>
             {hasChildren ? (
               <Button
@@ -594,7 +629,7 @@ function ThreadRow({
               }}
               title={preview}
             >
-              {preview}
+              <ShineContent className="truncate">{preview}</ShineContent>
             </span>
           ) : null}
         </span>
@@ -622,15 +657,17 @@ function ThreadRow({
                   data-sidebar-thread-trailing-indicator=""
                   {...{ [SHINE_ATTRIBUTE]: "" }}
                 >
-                  <SplitPaneMiniMap
-                    active={!shimmerRow && status.isWorking}
-                    label={
-                      status.indicatorLabel
-                        ? `${rowTitle} — open in split; ${status.indicatorLabel}`
-                        : `${rowTitle} — open in split`
-                    }
-                    layout={layout}
-                  />
+                  <ShineContent className="inline-flex items-center justify-center">
+                    <SplitPaneMiniMap
+                      active={!shimmerRow && status.isWorking}
+                      label={
+                        status.indicatorLabel
+                          ? `${rowTitle} — open in split; ${status.indicatorLabel}`
+                          : `${rowTitle} — open in split`
+                      }
+                      layout={layout}
+                    />
+                  </ShineContent>
                 </span>
               ) : (
                 <span
@@ -638,14 +675,16 @@ function ThreadRow({
                   data-sidebar-thread-trailing-indicator=""
                   {...{ [SHINE_ATTRIBUTE]: "" }}
                 >
-                  <ThreadIndicator
-                    indicator={status.indicator}
-                    label={status.indicatorLabel}
-                    pluginStatus={status.pluginStatus}
-                    pullRequestMark={status.pullRequestMark}
-                    hideIdleDraftLabel={!(hasChildren && childrenCollapsed)}
-                    shine={!shimmerRow}
-                  />
+                  <ShineContent className="inline-flex items-center justify-center">
+                    <ThreadIndicator
+                      indicator={status.indicator}
+                      label={status.indicatorLabel}
+                      pluginStatus={status.pluginStatus}
+                      pullRequestMark={status.pullRequestMark}
+                      hideIdleDraftLabel={!(hasChildren && childrenCollapsed)}
+                      shine={!shimmerRow}
+                    />
+                  </ShineContent>
                 </span>
               )}
             </span>
@@ -780,6 +819,8 @@ function RibbonSidebarList({
     name: string;
   } | null>(null);
   const [threadRenamePending, setThreadRenamePending] = useState(false);
+  const [childRanks, setChildRanks] = useState<readonly ChildRank[]>([]);
+  const [childOrderLoaded, setChildOrderLoaded] = useState(false);
   const [placementsLoaded, setPlacementsLoaded] = useState(false);
   const [stagesLoaded, setStagesLoaded] = useState(false);
   const [previewsLoaded, setPreviewsLoaded] = useState(false);
@@ -924,6 +965,22 @@ function RibbonSidebarList({
       ),
     );
   }, [loadAssignmentPlacements]);
+
+  const loadChildOrder = useCallback(async () => {
+    const { items } = await rpc.call("listChildOrderV1", null);
+    setChildRanks(items);
+    setChildOrderLoaded(true);
+  }, [rpc]);
+  useEffect(() => {
+    void loadChildOrder().catch((error: unknown) =>
+      setFatalError(
+        error instanceof Error ? error.message : "Could not load child order",
+      ),
+    );
+  }, [loadChildOrder]);
+  useRealtime("child-order-changed", () => {
+    void loadChildOrder().catch(() => undefined);
+  });
 
   useRealtime("placements-changed", () => {
     void loadPlacements();
@@ -1092,8 +1149,11 @@ function RibbonSidebarList({
       list.push(child);
       result.set(child.parentThreadId!, list);
     }
+    for (const [parentThreadId, children] of result) {
+      result.set(parentThreadId, orderChildren(children, childRanks));
+    }
     return result;
-  }, [liveThreadIds, liveThreads, preferences]);
+  }, [childRanks, liveThreadIds, liveThreads, preferences]);
   useEffect(() => {
     if (!normalizedSearch) {
       setSearchResult({
@@ -1411,6 +1471,39 @@ function RibbonSidebarList({
     setDragDestination(null);
   }, []);
 
+  const reorderChildren = useCallback(
+    async (
+      parentThreadId: string,
+      threadId: string,
+      beforeThreadId: string | null,
+    ) => {
+      const threadIds = moveChild(
+        (childrenByParent.get(parentThreadId) ?? []).map(({ id }) => id),
+        threadId,
+        beforeThreadId,
+      );
+      if (!threadIds) return;
+      setMutationError(null);
+      const moved = new Set(threadIds);
+      setChildRanks((current) => [
+        ...current.filter(
+          (rank) =>
+            rank.parentThreadId !== parentThreadId && !moved.has(rank.threadId),
+        ),
+        ...threadIds.map((id) => ({ parentThreadId, threadId: id })),
+      ]);
+      try {
+        await rpc.call("reorderChildrenV1", { parentThreadId, threadIds });
+      } catch (error) {
+        setMutationError(
+          error instanceof Error ? error.message : "Could not reorder thread",
+        );
+        await loadChildOrder().catch(() => undefined);
+      }
+    },
+    [childrenByParent, loadChildOrder, rpc],
+  );
+
   if (fatalError) {
     return (
       <div>
@@ -1555,14 +1648,31 @@ function RibbonSidebarList({
     root: PluginSidebarThread,
     depth = 0,
     includeDescendants = true,
-    rowContext?: {
-      kind: "pinned" | "placement";
-      roots: readonly PluginSidebarThread[];
-      groupId?: string;
+    rowContext?:
+      | {
+          kind: "pinned" | "placement";
+          roots: readonly PluginSidebarThread[];
+          groupId?: string;
+        }
+      | {
+          kind: "children";
+          roots: readonly PluginSidebarThread[];
+          parentThreadId: string;
+        },
+    // Whether this row is the first of its siblings, and whether it and each
+    // ancestor below the root are the last of theirs.
+    lineage: { firstChild: boolean; lastAtDepth: readonly boolean[] } = {
+      firstChild: false,
+      lastAtDepth: [],
     },
   ) => {
     const children = childrenByParent.get(root.id) ?? [];
     const childrenCollapsed = collapsedThreadIds.has(root.id);
+    const showsChildren =
+      includeDescendants &&
+      !childrenCollapsed &&
+      draggingThreadId !== root.id &&
+      children.length > 0;
     const indicatorThread = resolveThreadStatus(
       childrenCollapsed
         ? [root, ...descendants(root.id, childrenByParent)]
@@ -1578,10 +1688,10 @@ function RibbonSidebarList({
       .get("plugin:thread-stages:stages")
       ?.get(stageOwner.id)?.groupId;
     const reorderable =
-      depth === 0 &&
       !normalizedSearch &&
       !root.isArchived &&
-      rowContext !== undefined;
+      rowContext !== undefined &&
+      (depth === 0 || rowContext.kind === "children");
     return (
       <Fragment key={root.id}>
         {dragDestination?.indicatorBefore === root.id ? (
@@ -1590,7 +1700,6 @@ function RibbonSidebarList({
           </li>
         ) : null}
         <ThreadRow
-          rootThreadId={stageOwner.id}
           pullRequestNumberPosition={preferences.view.pullRequestNumberPosition}
           tabularPullRequestDigits={preferences.view.tabularPullRequestDigits}
           active={activeThreadId === root.id}
@@ -1634,6 +1743,12 @@ function RibbonSidebarList({
           }
           childrenCollapsed={childrenCollapsed}
           depth={depth}
+          firstChild={lineage.firstChild}
+          endsGroup={lineage.lastAtDepth.map(
+            (_, index) =>
+              !showsChildren &&
+              lineage.lastAtDepth.slice(index).every(Boolean),
+          )}
           hasChildren={children.length > 0}
           indicatorThread={indicatorThread}
           hasUnsubmittedDraft={draftThreadIds.has(root.id)}
@@ -1689,11 +1804,29 @@ function RibbonSidebarList({
           sections={sections}
           thread={root}
         />
-        {includeDescendants &&
-        !childrenCollapsed &&
-        draggingThreadId !== root.id
-          ? children.map((child) => renderRoot(child, depth + 1))
-          : null}
+        {showsChildren ? (
+          <SortableContext items={children.map(({ id }) => id)}>
+            {children.map((child, index) =>
+              renderRoot(
+                child,
+                depth + 1,
+                true,
+                {
+                  kind: "children",
+                  roots: children,
+                  parentThreadId: root.id,
+                },
+                {
+                  firstChild: index === 0,
+                  lastAtDepth: [
+                    ...lineage.lastAtDepth,
+                    index === children.length - 1,
+                  ],
+                },
+              ),
+            )}
+          </SortableContext>
+        ) : null}
         {dragDestination?.indicatorAfter === root.id ? (
           <li className="list-none">
             <ThreadDropPreview />
@@ -1753,6 +1886,13 @@ function RibbonSidebarList({
     <PullRequestDetailsProvider load={loadPullRequestDetails}>
       <ThreadDragProvider
         canDrop={(sourceId, target) => {
+          if (target.kind === "children") {
+            return (
+              !normalizedSearch &&
+              liveThreads.find(({ id }) => id === sourceId)?.parentThreadId ===
+                target.parentThreadId
+            );
+          }
           const source = rootThreads.find(({ id }) => id === sourceId);
           if (!source || normalizedSearch) return false;
           if (target.kind === "pinned") return source.isPinned;
@@ -1773,6 +1913,14 @@ function RibbonSidebarList({
         onDestination={setDragDestination}
         onCancel={clearDrag}
         onDrop={(threadId, destination) => {
+          if (destination.kind === "children") {
+            clearDrag();
+            const { parentThreadId, beforeThreadId } = destination;
+            moveQueue.current = moveQueue.current.then(() =>
+              reorderChildren(parentThreadId, threadId, beforeThreadId),
+            );
+            return;
+          }
           const id = ++moveSequence.current;
           setOptimisticMoves((current) => [
             ...current,
@@ -1825,7 +1973,12 @@ function RibbonSidebarList({
             } as CSSProperties
           }
           data-ribbon-sidebar-ready={
-            placementsLoaded && stagesLoaded && previewsLoaded ? "" : undefined
+            placementsLoaded &&
+            stagesLoaded &&
+            previewsLoaded &&
+            childOrderLoaded
+              ? ""
+              : undefined
           }
           data-ribbon-sidebar-root=""
         >

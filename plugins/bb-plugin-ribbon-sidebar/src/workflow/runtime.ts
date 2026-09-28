@@ -1,5 +1,11 @@
 import { type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import {
+  liveChildren,
+  liveParentId,
+  stepChild,
+  type ChildRank,
+} from "../child-order";
 import type { PlacementStore } from "../placement-store";
 import { registerCompletedAutoArchive } from "./auto-archive";
 import { THREAD_STAGES_GROUPING_KEY } from "./catalog";
@@ -29,6 +35,10 @@ export function createWorkflowRuntime(
       showBlockedStage?: boolean | string;
       autoArchiveCompletedAfter?: boolean | string;
     }>;
+  },
+  children: {
+    ranks(): readonly ChildRank[];
+    reorder(parentThreadId: string, threadIds: string[]): void;
   },
 ) {
   async function updatePlacement(
@@ -210,6 +220,18 @@ export function createWorkflowRuntime(
       const threads = await listAllThreads(({ limit, offset }) =>
         bb.sdk.threads.list({ archived: false, limit, offset }),
       );
+      const parentThreadId =
+        scope === "stage" ? null : liveParentId(threads, threadId);
+      if (parentThreadId !== null && scope !== "stage") {
+        const siblingIds = liveChildren(
+          threads,
+          children.ranks(),
+          parentThreadId,
+        ).map(({ id }) => id);
+        const threadIds = stepChild(siblingIds, threadId, scope, direction);
+        if (threadIds) children.reorder(parentThreadId, threadIds);
+        return { assignments: [] };
+      }
       requireRootThread(threadId, threads);
       const placementState = await ribbonAssignments(
         partitionWorkflowThreads(threads).rootThreads.map(({ id }) => id),

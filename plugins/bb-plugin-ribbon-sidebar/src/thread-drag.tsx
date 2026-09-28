@@ -12,6 +12,8 @@ import {
   useSensors,
   type CollisionDetection,
   type DragMoveEvent,
+  type DroppableContainer,
+  type KeyboardCoordinateGetter,
   type Modifier,
 } from "@dnd-kit/core";
 import {
@@ -32,7 +34,8 @@ import {
 
 export type ThreadDragGroup =
   | { kind: "pinned" }
-  | { kind: "placement"; groupId: string };
+  | { kind: "placement"; groupId: string }
+  | { kind: "children"; parentThreadId: string };
 export type ThreadDragTarget = ThreadDragGroup & {
   threadId?: string;
   atStart?: boolean;
@@ -40,6 +43,8 @@ export type ThreadDragTarget = ThreadDragGroup & {
   startPreview?: { before: string | null; after: string | null };
   endPreview?: { before: string | null; after: string | null };
 };
+/** A pinned or grouped list of roots, with a heading to drop onto. */
+type RootDragTarget = ThreadDragTarget & { kind: "pinned" | "placement" };
 export type ThreadDragDestination = ThreadDragGroup & {
   beforeThreadId: string | null;
   atStart?: boolean;
@@ -47,7 +52,48 @@ export type ThreadDragDestination = ThreadDragGroup & {
   indicatorAfter: string | null;
 };
 
-const collisionDetection: CollisionDetection = (args) => {
+/** A child moves only among its siblings, and a root only among roots. */
+function accepts(
+  active: ThreadDragTarget | undefined,
+  container: DroppableContainer,
+) {
+  const target = container.data.current?.target as
+    | ThreadDragTarget
+    | undefined;
+  if (active?.kind === "children") {
+    return (
+      target?.kind === "children" &&
+      target.parentThreadId === active.parentThreadId
+    );
+  }
+  return target?.kind !== "children";
+}
+
+const keyboardCoordinates: KeyboardCoordinateGetter = (event, args) => {
+  const { active, droppableContainers } = args.context;
+  const source = active?.data.current?.target as ThreadDragTarget | undefined;
+  return sortableKeyboardCoordinates(event, {
+    ...args,
+    context: {
+      ...args.context,
+      droppableContainers: {
+        get: (id) => droppableContainers.get(id),
+        getEnabled: () =>
+          droppableContainers
+            .getEnabled()
+            .filter((container) => accepts(source, container)),
+      } as typeof droppableContainers,
+    },
+  });
+};
+
+const collisionDetection: CollisionDetection = (allArgs) => {
+  const args = {
+    ...allArgs,
+    droppableContainers: allArgs.droppableContainers.filter((container) =>
+      accepts(allArgs.active.data.current?.target, container),
+    ),
+  };
   const headers = args.droppableContainers.filter(
     (container) => container.data.current?.target?.atStart,
   );
@@ -95,10 +141,13 @@ const collisionDetection: CollisionDetection = (args) => {
       const node = candidate.node.current;
       const rect = node.getBoundingClientRect();
       let bottom = rect.bottom;
-      let sibling = node.closest("li")?.nextElementSibling;
+      const row = node.closest("li");
+      const depth = Number(row?.dataset.ribbonDepth ?? 0);
+      let sibling = row?.nextElementSibling;
+      // A row's area runs on through its descendants.
       while (
         sibling instanceof HTMLElement &&
-        sibling.dataset.ribbonRootId === String(candidate.id)
+        Number(sibling.dataset.ribbonDepth) > depth
       ) {
         bottom = Math.max(bottom, sibling.getBoundingClientRect().bottom);
         sibling = sibling.nextElementSibling;
@@ -191,7 +240,7 @@ export function ThreadDragGroup({
   children,
   ...props
 }: Omit<ComponentProps<"section">, "ref"> & {
-  target: ThreadDragTarget;
+  target: RootDragTarget;
   disabled: boolean;
 }) {
   const id =
@@ -211,7 +260,7 @@ export function ThreadDragHeader({
   disabled,
   ...props
 }: ComponentProps<"div"> & {
-  target: ThreadDragTarget;
+  target: RootDragTarget;
   disabled: boolean;
 }) {
   const groupId =
@@ -262,7 +311,7 @@ export function ThreadDragProvider({
       activationConstraint: { delay: 200, tolerance: 6 },
     }),
     useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
+      coordinateGetter: keyboardCoordinates,
       keyboardCodes: {
         start: [KeyboardCode.Space],
         cancel: [KeyboardCode.Esc],
@@ -367,7 +416,12 @@ export function ThreadDragProvider({
       next = {
         ...(target.kind === "pinned"
           ? { kind: "pinned" as const }
-          : { kind: "placement" as const, groupId: target.groupId }),
+          : target.kind === "children"
+            ? {
+                kind: "children" as const,
+                parentThreadId: target.parentThreadId,
+              }
+            : { kind: "placement" as const, groupId: target.groupId }),
         beforeThreadId,
         ...(target.atStart && !target.startPreview ? { atStart: true } : {}),
         indicatorBefore:
@@ -430,8 +484,12 @@ export function ThreadDragProvider({
           target &&
           source.kind === target.kind &&
           (source.kind === "pinned" ||
-            (target.kind === "placement" &&
-              source.groupId === target.groupId)) &&
+            (source.kind === "placement" &&
+              target.kind === "placement" &&
+              source.groupId === target.groupId) ||
+            (source.kind === "children" &&
+              target.kind === "children" &&
+              source.parentThreadId === target.parentThreadId)) &&
           target.beforeThreadId === nextThreadId
         ) {
           onCancel();

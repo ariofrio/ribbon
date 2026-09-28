@@ -149,7 +149,7 @@
     {
       "id": "thread-stages",
       "displayName": "Thread stages",
-      "description": "Preserve existing stage shortcuts and migrate saved state to Ribbon sidebar.",
+      "description": "Mention stages in the composer, and preserve existing stage shortcuts and saved state for Ribbon sidebar.",
       "icon": {
         "url": "./plugins/bb-plugin-thread-stages/assets/icon.svg"
       },
