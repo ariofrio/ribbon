@@ -60,6 +60,22 @@ export async function verifyChildReordering({ stack, fixture }) {
     await sidebar.waitFor({ timeout: 120_000 });
     await olderRow.waitFor();
     assert.deepEqual(await childOrder(), [older.id, newer.id], "child order survives reload");
+
+    fixture.run(["sidebar", "place", newer.id, "--before", older.id]);
+    await page.waitForFunction(
+      ([first, second]) => {
+        const ids = [...document.querySelectorAll("[data-ribbon-sidebar-root] li[data-thread-id]")]
+          .map((node) => node.dataset.threadId);
+        return ids.indexOf(first) >= 0 && ids.indexOf(first) < ids.indexOf(second);
+      },
+      [newer.id, older.id],
+    );
+    const listed = fixture.runJson(["sidebar", "children", parent.id]);
+    assert.deepEqual(
+      listed.map(({ id }) => id).filter((id) => id === older.id || id === newer.id),
+      [newer.id, older.id],
+      "the CLI lists children in sidebar order",
+    );
     await context.close();
   } finally {
     await browser.close();

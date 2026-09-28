@@ -1,3 +1,5 @@
+import { reorderTargetId } from "./workflow/workflow-shortcuts";
+
 export interface ChildRank {
   parentThreadId: string;
   threadId: string;
@@ -43,4 +45,60 @@ export function moveChild(
     beforeThreadId === null ? remaining.length : remaining.indexOf(beforeThreadId);
   if (index < 0) return null;
   return [...remaining.slice(0, index), threadId, ...remaining.slice(index)];
+}
+
+export interface HierarchyThread {
+  id: string;
+  parentThreadId: string | null;
+  visibility: "visible" | "hidden";
+  archivedAt: number | null;
+  createdAt: number;
+}
+
+function isLive(thread: HierarchyThread | undefined) {
+  return thread?.visibility === "visible" && thread.archivedAt === null;
+}
+
+/** The parent a live thread is nested under, or null for a root. */
+export function liveParentId(
+  threads: readonly HierarchyThread[],
+  threadId: string,
+): string | null {
+  const byId = new Map(threads.map((thread) => [thread.id, thread]));
+  const thread = byId.get(threadId);
+  if (!isLive(thread) || thread?.parentThreadId == null) return null;
+  return isLive(byId.get(thread.parentThreadId)) ? thread.parentThreadId : null;
+}
+
+/** A parent's live children, in the order the sidebar shows them. */
+export function liveChildren<T extends HierarchyThread>(
+  threads: readonly T[],
+  ranks: readonly ChildRank[],
+  parentThreadId: string,
+): T[] {
+  return orderChildren(
+    threads.filter(
+      (thread) => thread.parentThreadId === parentThreadId && isLive(thread),
+    ),
+    ranks,
+  );
+}
+
+/** The sibling order after a move-shortcut step, or null at the edge. */
+export function stepChild(
+  siblingIds: readonly string[],
+  threadId: string,
+  scope: "step" | "edge",
+  direction: -1 | 1,
+): string[] | null {
+  const target = reorderTargetId(
+    siblingIds,
+    siblingIds,
+    threadId,
+    scope,
+    direction,
+  );
+  return target === null
+    ? null
+    : moveChild(siblingIds, threadId, target.beforeThreadId);
 }

@@ -806,11 +806,20 @@ export default async function plugin(bb: BbPluginApi) {
     return result;
   }
 
+  function reorderChildren(parentThreadId: string, threadIds: string[]) {
+    if (childOrder.setOrder(parentThreadId, threadIds)) {
+      bb.realtime.publish("child-order-changed", null);
+    }
+  }
+
   await refreshCatalogsAndRoots();
   mountedMigrationPending = true;
   await attemptMountedMigration();
   await migrateWorkflowShortcuts(bb, database, threadStagesInstalled);
-  const workflow = createWorkflowRuntime(bb, store, updatePlacement, settings);
+  const workflow = createWorkflowRuntime(bb, store, updatePlacement, settings, {
+    ranks: () => childOrder.list(),
+    reorder: reorderChildren,
+  });
   const pullRequestDetails = createPullRequestDetailsService({
     run: createGhGraphqlRunner(),
     onError(error) {
@@ -954,9 +963,7 @@ export default async function plugin(bb: BbPluginApi) {
       return { details: await pullRequestDetails.get(requests) };
     },
     reorderChildrenV1({ parentThreadId, threadIds }) {
-      if (childOrder.setOrder(parentThreadId, threadIds)) {
-        bb.realtime.publish("child-order-changed", null);
-      }
+      reorderChildren(parentThreadId, threadIds);
       return { ok: true as const };
     },
     async reorderPinnedV1({ threadId, previousThreadId, nextThreadId }) {
@@ -1020,6 +1027,13 @@ export default async function plugin(bb: BbPluginApi) {
       return sidebarRootThreads(threads);
     },
     updatePlacement,
+    async hierarchy() {
+      return {
+        threads: await listAllThreads(bb),
+        ranks: childOrder.list(),
+      };
+    },
+    reorderChildren,
     migrateThreadStages: migrateFromThreadStages,
   });
   bb.cli.register({

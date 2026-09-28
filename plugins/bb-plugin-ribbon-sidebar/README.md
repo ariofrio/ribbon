@@ -91,7 +91,7 @@ updates restart the timer. Any pinned member prevents archival.
 | ⇧⌘. | Ctrl+Shift+. | Return to Idle, or undo the latest filing in this section or project |
 | ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked |
 | ⌃⌘. | Ctrl+Alt+, | Defer |
-| ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list |
+| ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list, or a child among its siblings |
 | ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to that list's edge |
 | ⌃⌘↑ / ⌃⌘↓ | Ctrl+↑ / Ctrl+↓ | Move to the adjacent enabled stage |
 
@@ -117,6 +117,8 @@ bb sidebar list --scope builtin:sections/<section-id>
 bb sidebar show --self
 bb sidebar place --self --to plugin:thread-stages:stages/Completed
 bb sidebar place <thread> --to builtin:sections/<section-id> --before <thread>
+bb sidebar place <child> --before <sibling>
+bb sidebar children <thread>
 bb sidebar migrate thread-stages
 ```
 
