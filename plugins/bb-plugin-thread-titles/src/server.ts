@@ -635,18 +635,17 @@ export default function plugin(bb: BbPluginApi) {
     if (!job.choices) {
       const selected = await readSelection();
       const automatic = await automaticModels(environment.hostId);
-      if (automatic === "unknown") return;
       const model = selected
         ? await selectedModel(selected, environment.hostId)
         : null;
-      if (model === "unknown") return;
+      if (model === "unknown" || (!model && automatic === "unknown")) return;
       if (selected && !model)
         bb.log.info(
           `Thread ${job.threadId}: selected model ${selected.model} unavailable; using automatic fallback`,
         );
       const choices: Selection[] = [
         ...(selected && model ? [{ ...selected, model: model.model }] : []),
-        ...automatic.map((model) => ({
+        ...(automatic === "unknown" ? [] : automatic).map((model) => ({
           providerId: "codex",
           model: model.model,
           reasoningLevel: lowestEffort(model),

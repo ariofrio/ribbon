@@ -40,6 +40,7 @@ async function setup() {
     codex: ["gpt-5.4-mini", "gpt-5.6-luna", "gpt-6-luna"],
     "claude-code": ["claude-haiku-4-5", "claude-sonnet-5"],
   };
+  const catalogFailures: Record<string, "error" | "throw"> = {};
   const modelQueries: Array<{ hostId?: string; providerId?: string }> = [];
   const bbTitles = { mode: "automatic" as "automatic" | "off" };
   const host = createFakePluginHost({
@@ -99,6 +100,10 @@ async function setup() {
       providers: {
         models: async ({ hostId, providerId }: { hostId?: string; providerId?: string } = {}) => {
           modelQueries.push({ hostId, providerId });
+          if (catalogFailures[providerId ?? ""] === "throw") throw new Error("Provider unavailable");
+          if (catalogFailures[providerId ?? ""] === "error") return {
+            models: [], selectedOnlyModels: [], modelLoadError: { code: "missing_executable" },
+          } as never;
           return {
             providers: [],
             permissionCeiling: "accept-edits",
@@ -162,6 +167,7 @@ async function setup() {
     spawned,
     updates,
     catalogs,
+    catalogFailures,
     modelQueries,
     bbTitles,
     emit,
@@ -1484,4 +1490,18 @@ it("finishes a first-message fallback before starting a fresh first-turn stack",
   h.worker.id = "initial-worker";
   await h.harness.behavior.runSchedule("title-reconciliation");
   expect(h.spawned[2]).toMatchObject({ model: "claude-sonnet-5", pluginMetadata: { phase: "initial" } });
+});
+
+
+it.each(["error", "throw"] as const)("runs the selected model when the automatic catalog fails with %s", async (failure) => {
+  const h = await setup();
+  h.catalogFailures.codex = failure;
+  await h.harness.behavior.callRpc("selection.set", {
+    selection: { providerId: "claude-code", model: "claude-sonnet-5", reasoningLevel: "low" },
+  });
+  await firstTurn(h);
+  expect(h.spawned).toHaveLength(1);
+  expect(h.spawned[0].model).toBe("claude-sonnet-5");
+  await finishWorker(h, { title: "Build a shared calendar" });
+  expect(h.thread.title).toBe("Build a shared calendar");
 });

@@ -111,6 +111,7 @@ then its fallback, with duplicate provider/model pairs removed. Ribbon mirrors
 bb's Codex text-service chain using the two newest Luna models available on the
 thread's host. The SDK does not currently expose the service's internal model
 list. Each pass snapshots its stack; fallback never changes the saved selection.
+An unavailable automatic catalog does not block an available selected model.
 
 A timeout, rate limit, overload, or lost connection advances to the next model.
 A different provider can run immediately. Before another attempt on the same
