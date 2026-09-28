@@ -21,32 +21,52 @@ export async function verifyThreadContextMenu({ stack, fixture }) {
       await sidebar.waitFor({ timeout: 120_000 });
       const row = sidebar.locator(`a[data-sidebar-thread-id="${thread.id}"]`);
       const menu = page.getByRole("menu", { name: "Thread actions" });
-      let reproducedAtBottom = false;
-      for (const height of [450, 400, 350, 500, 550]) {
+      await page.evaluate(() => {
+        window.__selectedActions = [];
+        document.addEventListener("pointerup", (event) => {
+          const item = event.target?.closest?.('[role="menuitem"]');
+          window.__pointerUpAction = item && !item.hasAttribute("aria-haspopup") &&
+            !item.hasAttribute("data-disabled")
+            ? item.textContent
+            : null;
+        }, true);
+        document.addEventListener("menu.itemSelect", (event) => {
+          window.__selectedActions.push(event.target?.textContent ?? "");
+        }, true);
+      });
+      let foundActionAtOpeningPoint = false;
+      // Popper collision placement varies with viewport height and font metrics.
+      for (const height of [550, 525, 575, 500, 600, 450, 400, 350]) {
         await page.setViewportSize({ width: 1280, height });
         await row.evaluate((node) => node.scrollIntoView({ block: "end" }));
         const box = await row.boundingBox();
-        const openingPoint = { x: box.x + 12, y: box.y + box.height / 2 };
-        await page.mouse.move(openingPoint.x, openingPoint.y);
-        await page.mouse.down({ button: "right" });
-        await menu.waitFor();
-        const itemAtOpeningPoint = await page.evaluate(({ x, y }) =>
-          document.elementFromPoint(x, y)?.closest('[role="menuitem"]')?.textContent ?? null,
-        openingPoint);
-        await page.mouse.up({ button: "right" });
-        assert.equal(await menu.isVisible(), true,
-          "a stationary right click near the bottom should leave the menu open");
-        if (itemAtOpeningPoint) {
-          reproducedAtBottom = true;
-          break;
+        for (const offset of [12, 30, 60]) {
+          const openingPoint = { x: box.x + offset, y: box.y + box.height / 2 };
+          await page.evaluate(() => {
+            window.__pointerUpAction = null;
+            window.__selectedActions = [];
+          });
+          await page.mouse.move(openingPoint.x, openingPoint.y);
+          await page.mouse.down({ button: "right" });
+          await menu.waitFor();
+          await page.mouse.up({ button: "right" });
+          const pointerUpAction = await page.evaluate(() => window.__pointerUpAction);
+          assert.deepEqual(await page.evaluate(() => window.__selectedActions), [],
+            `releasing the opening right click should not select ${pointerUpAction ?? "an action"}`);
+          assert.equal(await menu.isVisible(), true,
+            "releasing the opening right click should leave the menu open");
+          if (pointerUpAction) {
+            foundActionAtOpeningPoint = true;
+            break;
+          }
+          await page.keyboard.press("Escape");
+          await menu.waitFor({ state: "hidden" });
         }
-        await page.keyboard.press("Escape");
-        await menu.waitFor({ state: "hidden" });
+        if (foundActionAtOpeningPoint) break;
       }
-      assert.ok(reproducedAtBottom,
-        "the fixture should place a menu item at the stationary right-click point");
-      const rename = menu.getByRole("menuitem", { name: "Rename" });
-      await rename.click();
+      assert.ok(foundActionAtOpeningPoint,
+        "the fixture should place a selectable action under a stationary right click");
+      await menu.getByRole("menuitem", { name: "Rename" }).click();
       await page.getByRole("dialog").waitFor();
     } finally {
       await context.close();
