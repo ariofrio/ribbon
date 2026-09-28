@@ -3,6 +3,8 @@ import type {
   PluginSidebarThreadIndicator,
   PluginSidebarThreadRowStatus,
 } from "@get-bb/plugin-sdk/app";
+import PencilEdit01Icon from "@hugeicons/core-free-icons/PencilEdit01Icon";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { Icon } from "./vendor/components/ui/icon";
 import type { PullRequestMark } from "./pull-request-status";
 import { resolveThreadStatus, type ThreadStatus } from "./thread-status";
@@ -105,16 +107,20 @@ export function ThreadIndicator({
       return <ActiveIcon name="Target" label={ariaLabel} shine={shine} />;
     case "draft":
       return (
-        <Icon
-          name="Edit"
+        <HugeiconsIcon
+          icon={PencilEdit01Icon}
+          data-icon="PencilEdit01"
+          data-icon-root=""
           {...(hideIdleDraftLabel ? { "aria-hidden": true } : { "aria-label": ariaLabel })}
           className={`${className} text-muted-foreground`}
         />
       );
     case "working-draft":
       return (
-        <Icon
-          name="Edit"
+        <HugeiconsIcon
+          icon={PencilEdit01Icon}
+          data-icon="PencilEdit01"
+          data-icon-root=""
           aria-label={ariaLabel}
           className={`${className} ${shineClass} text-muted-foreground/50`}
         />
