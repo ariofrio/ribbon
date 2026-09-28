@@ -94,6 +94,34 @@ export default function plugin(bb: BbPluginApi) {
   const store = createStore(bb);
   const sdk = bb.sdk;
   const settings = bb.settings.define({
+    titleFirstMessage: {
+      type: "boolean",
+      label: "Title the first message",
+      description:
+        "Once bb has written its own title, replace or keep it using the whole first message.",
+      default: true,
+    },
+    titleFirstTurn: {
+      type: "boolean",
+      label: "Title the first turn",
+      description:
+        "Retitle the thread once its first turn ends, with the agent's work in view.",
+      default: true,
+    },
+    titleLongFirstTurnEarly: {
+      type: "boolean",
+      label: "Title long first turns early",
+      description:
+        "Start the first-turn title once the transcript reaches a quarter of its size limit, without waiting for the turn to end.",
+      default: true,
+    },
+    reviewOnThirdMessage: {
+      type: "boolean",
+      label: "Review on the third message",
+      description:
+        "Once, on the third user message, rename a title that is generic, inaccurate, or over the length limit.",
+      default: true,
+    },
     maxTranscriptBytes: {
       type: "number",
       label: "Transcript size limit",
@@ -465,16 +493,26 @@ export default function plugin(bb: BbPluginApi) {
     }
     const activity = userActivity(await readEvents(sdk, job.threadId, true));
     job.count = activity.count;
-    store.save(job);
+    const passes = await settings.get();
     const limit = await limits();
-    const phase = job.phase ?? "initial";
     const turnReady =
-      phase !== "refinement" &&
+      (job.phase ?? "initial") !== "refinement" &&
       activity.count > 0 &&
-      (activity.firstTurnEnded || (await grown(job.threadId, limit.bytes)));
+      (activity.firstTurnEnded ||
+        (passes.titleLongFirstTurnEarly &&
+          (await grown(job.threadId, limit.bytes))));
     // A first turn ready for its own pass supersedes a first-message pass that
-    // has not started.
-    if (phase === "message" && turnReady) job.phase = "initial";
+    // has not started, and a pass turned off hands the job to the next one.
+    if (job.phase === "message" && (turnReady || !passes.titleFirstMessage))
+      job.phase = "initial";
+    if ((job.phase ?? "initial") === "initial" && !passes.titleFirstTurn)
+      job.phase = "refinement";
+    store.save(job);
+    if (job.phase === "refinement" && !passes.reviewOnThirdMessage) {
+      finish(job, "skipped", "Third-message review turned off");
+      return;
+    }
+    const phase = job.phase ?? "initial";
     if (
       job.phase === "message"
         ? // Wait for bb's own title so this pass is always the later write.
