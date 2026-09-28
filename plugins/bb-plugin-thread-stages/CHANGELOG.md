@@ -1,5 +1,11 @@
 # bb-plugin-thread-stages
 
+## 0.13.1
+
+### Patch Changes
+
+- 50cb3ca: Update the shared UI and Plugin SDK to bb 0.44.0 and SDK 0.5.29. These releases require bb 0.44.0 or newer.
+
 ## 0.13.0
 
 ### Minor Changes
