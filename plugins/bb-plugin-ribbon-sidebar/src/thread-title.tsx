@@ -26,10 +26,25 @@ export function ThreadTitle({ title }: { title: string }) {
     // Fractional widths, so the pan stops exactly at the end. A translation
     // leaves them alone, where scrollWidth would shrink as the title pans.
     const measure = () =>
-      setOverflow(Math.max(0, text.getBoundingClientRect().width - container.getBoundingClientRect().width));
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
+      setOverflow(
+        Math.max(0, text.getBoundingClientRect().width - container.getBoundingClientRect().width),
+      );
+    if (typeof ResizeObserver === "undefined") {
+      measure();
+      return;
+    }
+    let containerWidth: number | null = null;
+    let textWidth: number | null = null;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = entry.borderBoxSize[0]?.inlineSize ?? entry.contentRect.width;
+        if (entry.target === container) containerWidth = width;
+        if (entry.target === text) textWidth = width;
+      }
+      if (containerWidth !== null && textWidth !== null) {
+        setOverflow(Math.max(0, textWidth - containerWidth));
+      }
+    });
     observer.observe(container);
     observer.observe(text);
     return () => observer.disconnect();
@@ -48,15 +63,17 @@ export function ThreadTitle({ title }: { title: string }) {
     <span
       ref={containerRef}
       className="pointer-events-none min-w-0 overflow-hidden whitespace-nowrap [mask-position:-16px_0] motion-safe:group-hover/thread-row:[mask-position:var(--ribbon-title-fade-end)_0] motion-safe:group-hover/thread-row:[transition:mask-position_var(--ribbon-title-trailing-fade)_linear_var(--ribbon-title-trailing-fade-delay)] motion-safe:group-has-[:focus-visible]/thread-row:[mask-position:var(--ribbon-title-fade-end)_0] motion-safe:group-has-[:focus-visible]/thread-row:[transition:mask-position_var(--ribbon-title-trailing-fade)_linear_var(--ribbon-title-trailing-fade-delay)]"
-      style={{
-        ...fadeStyle(`linear-gradient(to right, black calc(100% - ${fadePx}px), transparent)`),
-        "--ribbon-title-pan": `${-overflow}px`,
-        "--ribbon-title-pan-duration": `${panSeconds}s`,
-        "--ribbon-title-fade-end": overflowing ? "0px" : `-${FADE_PX}px`,
-        "--ribbon-title-leading-fade": `${FADE_SECONDS}s`,
-        "--ribbon-title-trailing-fade": `${trailingFadeSeconds}s`,
-        "--ribbon-title-trailing-fade-delay": `${PAN_DELAY_SECONDS + panSeconds - trailingFadeSeconds}s`,
-      } as CSSProperties}
+      style={
+        {
+          ...fadeStyle(`linear-gradient(to right, black calc(100% - ${fadePx}px), transparent)`),
+          "--ribbon-title-pan": `${-overflow}px`,
+          "--ribbon-title-pan-duration": `${panSeconds}s`,
+          "--ribbon-title-fade-end": overflowing ? "0px" : `-${FADE_PX}px`,
+          "--ribbon-title-leading-fade": `${FADE_SECONDS}s`,
+          "--ribbon-title-trailing-fade": `${trailingFadeSeconds}s`,
+          "--ribbon-title-trailing-fade-delay": `${PAN_DELAY_SECONDS + panSeconds - trailingFadeSeconds}s`,
+        } as CSSProperties
+      }
     >
       <span
         className="block [mask-position:-16px_0] motion-safe:group-hover/thread-row:[mask-position:var(--ribbon-title-fade-end)_0] motion-safe:group-hover/thread-row:[transition:mask-position_var(--ribbon-title-leading-fade)_linear_300ms] motion-safe:group-has-[:focus-visible]/thread-row:[mask-position:var(--ribbon-title-fade-end)_0] motion-safe:group-has-[:focus-visible]/thread-row:[transition:mask-position_var(--ribbon-title-leading-fade)_linear_300ms]"
