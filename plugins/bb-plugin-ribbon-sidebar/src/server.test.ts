@@ -504,6 +504,14 @@ describe("Ribbon sidebar server", () => {
         options: ["Title row", "Entire item"],
         default: "Title row",
       },
+      childThreadLines: {
+        type: "select",
+        label: "Child thread lines",
+        description:
+          "Run one bar beside child threads' titles, or branch a tree into each child's stage ring.",
+        options: ["Bar", "Tree"],
+        default: "Bar",
+      },
       showCollapsedGroupIndicators: {
         type: "boolean",
         label: "Show collapsed-group indicators (experimental)",

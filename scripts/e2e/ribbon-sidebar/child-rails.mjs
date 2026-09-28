@@ -4,9 +4,10 @@ import { AGENT } from "../../screenshots/fixture.mjs";
 
 const PARENT = "Replace the legacy filter drawer";
 
-// The bar beside a group of child threads runs through the children's own
-// ring column. It stands in for a hidden Idle ring and parts around a shown one.
-export async function verifyChildRails({ stack, fixture }) {
+// Child threads hang from their parent by a bar in their own ring column,
+// which stands in for a hidden Idle ring and parts around a shown one, or by a
+// tree whose branches reach each ring, or a small hollow node while it hides.
+export async function verifyChildRails({ stack, fixture, cases }) {
   const parent = fixture.threads.get(PARENT);
   const project = fixture.projects.get("atlas-web");
   fixture.run(["sidebar", "place", parent.id, "--to", "plugin:thread-stages:stages/Idle"]);
@@ -46,7 +47,18 @@ export async function verifyChildRails({ stack, fixture }) {
     await page.waitForFunction((id) => getComputedStyle(
       document.querySelector(`[data-ribbon-sidebar-root] li[data-thread-id="${id}"] [data-ribbon-sidebar-icon-slot]`),
     ).opacity === "1", last.id);
+    const threads = { page, sidebar, fixture, parent, first, last };
+    if (cases.includes("bar")) await verifyBar(threads);
+    if (cases.includes("tree")) await verifyTree(threads);
+    await context.close();
+  } finally {
+    await browser.close();
+    for (const child of children) fixture.run(["thread", "archive", child.id]);
+    fixture.run(["sidebar", "place", parent.id, "--to", "plugin:thread-stages:stages/Deferred"]);
+  }
+}
 
+async function verifyBar({ page, sidebar, fixture, parent, first, last }) {
     const measure = () => page.evaluate(({ parentId, ids }) => {
       const box = (node) => {
         const { top, bottom, left, right } = node.getBoundingClientRect();
@@ -159,10 +171,72 @@ export async function verifyChildRails({ stack, fixture }) {
     } finally {
       fixture.run(["plugin", "config", "ribbon-sidebar", "set", "threadAdornmentAlignment", "Title row"]);
     }
-    await context.close();
+    await page.evaluate(() => document.activeElement?.blur());
+}
+
+async function verifyTree({ page, sidebar, fixture, parent, first, last }) {
+  fixture.run(["plugin", "config", "ribbon-sidebar", "set", "childThreadLines", "Tree"]);
+  try {
+    await page.waitForFunction((ids) => ids.every((id) =>
+      document.querySelector(`[data-ribbon-sidebar-root] li[data-thread-id="${id}"] [data-ribbon-sidebar-tree] path`)),
+    [first.id, last.id]);
+    // Which rows have the tree draw a visible line or node through a point,
+    // asked of the SVG's own geometry at that point on screen.
+    const drawn = (points) => page.evaluate(({ parentId, ids, points }) => {
+      const visible = (node) => {
+        for (let current = node; current && current.tagName !== "svg"; current = current.parentElement) {
+          if (Number(getComputedStyle(current).opacity) === 0) return false;
+        }
+        return true;
+      };
+      const rows = Object.fromEntries(["parent", "first", "last"].map((key, index) => {
+        const li = document.querySelector(`[data-ribbon-sidebar-root] li[data-thread-id="${[parentId, ...ids][index]}"]`);
+        const icon = li.querySelector("[data-ribbon-sidebar-icon-slot]").firstElementChild.getBoundingClientRect();
+        return [key, { li, x: (icon.left + icon.right) / 2, y: (icon.top + icon.bottom) / 2, top: li.getBoundingClientRect().top }];
+      }));
+      return points.map(({ row, dx = 0, dy = 0, fromTop }) => {
+        const at = rows[row];
+        const x = at.x + dx;
+        const y = fromTop === undefined ? at.y + dy : at.top + fromTop;
+        return [...document.querySelectorAll("[data-ribbon-sidebar-root] [data-ribbon-sidebar-tree] :is(path, circle)")]
+          .some((shape) => visible(shape) &&
+            shape.isPointInStroke(new DOMPoint(x, y).matrixTransform(shape.getScreenCTM().inverse())));
+      });
+    }, { parentId: parent.id, ids: [first.id, last.id], points });
+    // The ring's outer edge is 6.5px from its centre, and each line runs half a
+    // pixel right of and below the centre it follows.
+    const probes = [
+      { row: "first", dx: -8, dy: 0.5 },   // 0: the branch just short of the first child's ring
+      { row: "first", dx: -4, dy: 0.5 },   // 1: inside that ring, on to its hidden-ring node
+      { row: "first", dx: -1.5, dy: 0.5 }, // 2: the node's left edge
+      { row: "last", dx: -8, dy: 0.5 },    // 3: the branch just short of the selected ring
+      { row: "last", dx: -4, dy: 0.5 },    // 4: inside the selected ring
+      { row: "parent", dx: 0.5, dy: 10 },  // 5: the parent's line below its ring
+    ];
+
+    await page.mouse.move(1200, 780);
+    const rest = await drawn(probes);
+    assert.deepEqual(rest.slice(0, 5), [true, true, true, true, false],
+      "At rest, branches reach each ring's edge, and on into a node where the ring is hidden");
+    assert.equal(rest[5], true, "The parent's line drops from its ring");
+
+    await sidebar.locator(`a[data-sidebar-thread-id="${first.id}"]`).hover();
+    const hovered = await drawn(probes.slice(0, 3));
+    assert.deepEqual(hovered, [true, false, false],
+      "Hover reveals the ring where the branch stops, and the node gives way to it");
+
+    await page.mouse.move(1200, 780);
+    const link = sidebar.locator(`a[data-sidebar-thread-id="${first.id}"]`);
+    let focused = false;
+    for (let index = 0; index < 100 && !focused; index += 1) {
+      await page.keyboard.press("Tab");
+      focused = await link.evaluate((node) => document.activeElement === node);
+    }
+    assert.ok(focused, "Keyboard navigation reaches the first child");
+    assert.deepEqual(await drawn(probes.slice(0, 3)), [true, false, false],
+      "Keyboard focus reveals the ring where the branch stops");
+    await page.evaluate(() => document.activeElement?.blur());
   } finally {
-    await browser.close();
-    for (const child of children) fixture.run(["thread", "archive", child.id]);
-    fixture.run(["sidebar", "place", parent.id, "--to", "plugin:thread-stages:stages/Deferred"]);
+    fixture.run(["plugin", "config", "ribbon-sidebar", "set", "childThreadLines", "Bar"]);
   }
 }

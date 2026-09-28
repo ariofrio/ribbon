@@ -3,7 +3,7 @@ import { verifyChildRails } from "../ribbon-sidebar/child-rails.mjs";
 
 export default {
   id: "child-rails",
-  cases: ["geometry"],
+  cases: ["bar", "tree"],
   plugins: [
     "bb-plugin-icons",
     "bb-plugin-ribbon-sidebar",

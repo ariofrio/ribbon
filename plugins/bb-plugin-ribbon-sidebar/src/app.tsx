@@ -86,6 +86,7 @@ import {
   RAIL_EDGE_BOTTOM,
   RAIL_EDGE_TOP,
   railSegments,
+  treeLines,
 } from "./thread-rails";
 import {
   resolveThreadStatus,
@@ -263,20 +264,71 @@ function supplementalSidebarThread(
   };
 }
 
+// Hides what stands in for a stage ring while the ring shows: on hover, on
+// keyboard focus, and always under a coarse pointer.
+const UNTIL_RING_SHOWS =
+  "group-hover/thread-row:opacity-0 group-has-[:focus-visible]/thread-row:opacity-0 pointer-coarse:opacity-0";
+
+function ThreadTree({
+  depth,
+  lastAtDepth,
+  ring,
+  showsChildren,
+}: {
+  depth: number;
+  lastAtDepth: readonly boolean[];
+  ring: "shown" | "hidden-at-rest" | "absent";
+  showsChildren: boolean;
+}) {
+  const { always, whileRingHidden, node } = treeLines({
+    depth,
+    lastAtDepth,
+    showsChildren,
+    ring,
+  });
+  if (!always && !node) return null;
+  // A 5px hollow node: radius 2 with a 1px stroke.
+  const nodeCircle = node ? <circle cx={node.cx} cy={node.cy} r={2} /> : null;
+  return (
+    <svg
+      aria-hidden="true"
+      className="pointer-events-none absolute left-0 top-0 z-[1] h-full overflow-visible text-border-hairline opacity-70 [clip-path:inset(0_0_-1px_0)]"
+      data-ribbon-sidebar-tree=""
+      width={24 + 24 * depth}
+    >
+      <g
+        fill="none"
+        stroke="currentColor"
+        style={{ transform: "translateY(var(--ribbon-ring-y))" }}
+      >
+        {always ? <path d={always} /> : null}
+        {ring === "absent" ? nodeCircle : null}
+        {ring === "hidden-at-rest" ? (
+          <g className={UNTIL_RING_SHOWS}>
+            <path d={whileRingHidden} />
+            {nodeCircle}
+          </g>
+        ) : null}
+      </g>
+    </svg>
+  );
+}
+
 function ThreadRow({
   active,
   alignAdornmentsToEntireItem,
   actions,
   assignments,
+  childLines,
   childrenCollapsed,
   depth,
-  endsGroup,
   firstChild,
   hasChildren,
   indicatorThread,
   hasUnsubmittedDraft,
   hideIdleStageIconAtRest,
   icon,
+  lastAtDepth,
   dragging,
   dragTarget,
   projected,
@@ -293,6 +345,7 @@ function ThreadRow({
   reorderable,
   sections,
   shimmerRow,
+  showsChildren,
   thread,
 }: {
   active: boolean;
@@ -306,16 +359,17 @@ function ThreadRow({
     singularLabel: string;
     onSetGroup(groupId: string): void;
   }[];
+  childLines: "Bar" | "Tree";
   childrenCollapsed: boolean;
   depth: number;
-  /** For each depth from 1 through `depth`, whether that sibling group's last row is this one. */
-  endsGroup: readonly boolean[];
   firstChild: boolean;
   hasChildren: boolean;
   indicatorThread: ThreadStatus;
   hasUnsubmittedDraft: boolean;
   hideIdleStageIconAtRest: boolean;
   icon: ReactNode;
+  /** For each depth from 1 through `depth`, whether this row's ancestor there (itself, last) is the last of its siblings. */
+  lastAtDepth: readonly boolean[];
   dragging: boolean;
   dragTarget?: ThreadDragTarget;
   projected: boolean;
@@ -333,6 +387,7 @@ function ThreadRow({
   sections: readonly { id: string; label: string }[];
   /** Shimmer the working row rather than its indicator. */
   shimmerRow: boolean;
+  showsChildren: boolean;
   thread: PluginSidebarThread;
 }) {
   const {
@@ -398,6 +453,11 @@ function ThreadRow({
     showChildToggleAtRest ||
     (pullRequestNumber !== null && pullRequestNumberPosition === "right");
   const hasIcon = icon !== null;
+  const ring = !hasIcon
+    ? "absent"
+    : hideIdleStageIconAtRest
+      ? "hidden-at-rest"
+      : "shown";
   const iconSpansEntireItem = alignAdornmentsToEntireItem && preview !== null;
   const hasTrailingIndicator =
     layout !== null ||
@@ -476,32 +536,38 @@ function ThreadRow({
         onDragStart={(event) => event.preventDefault()}
         style={{ paddingLeft: 8 + depth * 24 }}
       >
-        {railSegments({
-          depth,
-          firstChild,
-          endsGroup,
-          ring: !hasIcon
-            ? "absent"
-            : hideIdleStageIconAtRest
-              ? "hidden-at-rest"
-              : "shown",
-        }).map(({ level, from, to, whileRingHidden }) => (
-          <span
-            aria-hidden="true"
-            className={`pointer-events-none absolute z-[1] w-px bg-border-hairline opacity-70 ${
-              whileRingHidden
-                ? "group-hover/thread-row:opacity-0 group-has-[:focus-visible]/thread-row:opacity-0 pointer-coarse:opacity-0"
-                : ""
-            }`}
-            data-ribbon-sidebar-rail={level}
-            key={`${level}:${from}`}
-            style={{
-              left: 16 + level * 24,
-              top: RAIL_EDGE_TOP[from],
-              bottom: RAIL_EDGE_BOTTOM[to],
-            }}
+        {childLines === "Tree" ? (
+          <ThreadTree
+            depth={depth}
+            lastAtDepth={lastAtDepth}
+            ring={ring}
+            showsChildren={showsChildren}
           />
-        ))}
+        ) : (
+          railSegments({
+            depth,
+            firstChild,
+            endsGroup: lastAtDepth.map(
+              (_, index) =>
+                !showsChildren && lastAtDepth.slice(index).every(Boolean),
+            ),
+            ring,
+          }).map(({ level, from, to, whileRingHidden }) => (
+            <span
+              aria-hidden="true"
+              className={`pointer-events-none absolute z-[1] w-px bg-border-hairline opacity-70 ${
+                whileRingHidden ? UNTIL_RING_SHOWS : ""
+              }`}
+              data-ribbon-sidebar-rail={level}
+              key={`${level}:${from}`}
+              style={{
+                left: 16 + level * 24,
+                top: RAIL_EDGE_TOP[from],
+                bottom: RAIL_EDGE_BOTTOM[to],
+              }}
+            />
+          ))
+        )}
         <a
           {...splitProps}
           {...(reorderable ? sortable.attributes : {})}
@@ -1737,12 +1803,12 @@ function RibbonSidebarList({
           })}
           childrenCollapsed={childrenCollapsed}
           depth={depth}
+          childLines={
+            settings.values?.childThreadLines === "Tree" ? "Tree" : "Bar"
+          }
           firstChild={lineage.firstChild}
-          endsGroup={lineage.lastAtDepth.map(
-            (_, index) =>
-              !showsChildren &&
-              lineage.lastAtDepth.slice(index).every(Boolean),
-          )}
+          lastAtDepth={lineage.lastAtDepth}
+          showsChildren={showsChildren}
           hasChildren={children.length > 0}
           indicatorThread={indicatorThread}
           hasUnsubmittedDraft={draftThreadIds.has(root.id)}
