@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-thread-stages",
   "version": "0.13.1",
-  "description": "Preserve existing stage shortcuts and migrate saved state to Ribbon sidebar.",
+  "description": "Mention stages in the composer, and preserve existing stage shortcuts and saved state for Ribbon sidebar.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -39,7 +39,7 @@
   },
   "bb": {
     "name": "Thread stages",
-    "description": "Preserve existing stage shortcuts and migrate saved state to Ribbon sidebar.",
+    "description": "Mention stages in the composer, and preserve existing stage shortcuts and saved state for Ribbon sidebar.",
     "branding": {
       "icon": "./assets/icon.svg"
     },

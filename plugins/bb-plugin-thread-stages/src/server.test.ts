@@ -41,3 +41,83 @@ it("preserves the old stage and reorder RPCs as a one-way compatibility bridge",
     await harness.lifecycle.dispose();
   }
 });
+
+it("offers stages as mentions that tell the agent how to place a thread", async () => {
+  const getSettings = vi.fn(async () => ({
+    ok: true,
+    schema: {},
+    values: { showDeferredStage: false },
+  }));
+  const { bb, harness } = createFakePluginHost({
+    pluginId: "thread-stages",
+    sdk: { plugins: { getSettings } },
+  });
+  await plugin(bb);
+  try {
+    const provider = harness.inspection.registrations.mentionProviders.find(
+      ({ id }) => id === "stage",
+    );
+    expect(provider).toBeDefined();
+    const search = async (query: string) =>
+      (
+        await provider!.search({
+          trigger: "@",
+          query,
+          projectId: null,
+          threadId: null,
+        })
+      ).map(({ id, title }) => ({ id, title }));
+
+    expect(await search("")).toEqual([]);
+    expect(await search("bl")).toEqual([{ id: "blocked", title: "Blocked" }]);
+    expect(await search("stage")).toEqual([
+      { id: "idle", title: "Idle" },
+      { id: "blocked", title: "Blocked" },
+      { id: "completed", title: "Completed" },
+    ]);
+    expect(await search("def")).toEqual([]);
+    expect(getSettings).toHaveBeenCalledWith({ pluginId: "ribbon-sidebar" });
+
+    const { context } = await provider!.resolve("blocked");
+    expect(context).toContain("@Blocked is the Blocked workflow stage");
+    expect(context).toContain(
+      "bb sidebar place <thread> --to plugin:thread-stages:stages/Blocked",
+    );
+    expect(() => provider!.resolve("nowhere")).toThrow();
+  } finally {
+    await harness.lifecycle.dispose();
+  }
+});
+
+it("offers every stage when Ribbon's settings are unavailable", async () => {
+  const { bb, harness } = createFakePluginHost({
+    pluginId: "thread-stages",
+    sdk: {
+      plugins: {
+        getSettings: async () => {
+          throw new Error("not installed");
+        },
+      },
+    },
+  });
+  await plugin(bb);
+  try {
+    const provider = harness.inspection.registrations.mentionProviders.find(
+      ({ id }) => id === "stage",
+    );
+    const results = await provider!.search({
+      trigger: "@",
+      query: "stage",
+      projectId: null,
+      threadId: null,
+    });
+    expect(results.map(({ title }) => title)).toEqual([
+      "Deferred",
+      "Idle",
+      "Blocked",
+      "Completed",
+    ]);
+  } finally {
+    await harness.lifecycle.dispose();
+  }
+});
