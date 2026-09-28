@@ -1035,6 +1035,7 @@ describe("Ribbon sidebar server", () => {
       "deleteEntityV1",
       "getPlacementV1",
       "invalidateGroupingCatalogV1",
+      "listChildOrderV1",
       "listPlacementsV1",
       "listPreviewsV1",
       "listProjectActionStatesV1",
@@ -1043,6 +1044,7 @@ describe("Ribbon sidebar server", () => {
       "pullRequestDetailsV1",
       "searchThreadIdsV1",
       "renameEntityV1",
+      "reorderChildrenV1",
       "reorderPinnedV1",
       "sidebarSnapshotV1",
       "synchronizeV1",
@@ -1292,6 +1294,39 @@ describe("Ribbon sidebar server", () => {
         },
       ],
     ]);
+  });
+
+  it("keeps each parent's child order and forgets deleted threads", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+
+    await expect(
+      harness.behavior.callRpc("reorderChildrenV1", {
+        parentThreadId: "thread-a",
+        threadIds: ["thread-child-b", "thread-child"],
+      }),
+    ).resolves.toEqual({ ok: true });
+    expect(harness.inspection.realtimeSignals).toContainEqual({
+      channel: "child-order-changed",
+      payload: null,
+    });
+    await expect(
+      harness.behavior.callRpc("listChildOrderV1", null),
+    ).resolves.toEqual({
+      items: [
+        { parentThreadId: "thread-a", threadId: "thread-child-b" },
+        { parentThreadId: "thread-a", threadId: "thread-child" },
+      ],
+    });
+
+    await harness.behavior.emitThreadEvent("thread.deleted", {
+      thread: makeThreadResponse({ id: "thread-child-b" }),
+    });
+    await expect(
+      harness.behavior.callRpc("listChildOrderV1", null),
+    ).resolves.toEqual({
+      items: [{ parentThreadId: "thread-a", threadId: "thread-child" }],
+    });
   });
 
   it("delegates sidebar search to bb's indexed thread search", async () => {
