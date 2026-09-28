@@ -15,7 +15,7 @@ export async function verifyDragRegressions({ stack, fixture, cases }) {
       "place",
       thread.id,
       "--to",
-      `plugin:thread-stages:stages/${index < 6 ? "Idle" : index < 8 ? "Deferred" : "Completed"}`,
+      `plugin:thread-stages:stages/${index < 6 ? "Active" : index < 8 ? "Deferred" : "Completed"}`,
     ]);
   }
   const children = [];
@@ -368,7 +368,7 @@ export async function verifyDragRegressions({ stack, fixture, cases }) {
         "place",
         initial[1],
         "--to",
-        "plugin:thread-stages:stages/Blocked",
+        "plugin:thread-stages:stages/BlockedOnThirdParty",
       ]);
       await Promise.race([
         readCaptured,

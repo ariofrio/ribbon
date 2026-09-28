@@ -5,12 +5,12 @@ import { AGENT } from "../../screenshots/fixture.mjs";
 const PARENT = "Replace the legacy filter drawer";
 
 // Child threads hang from their parent by a bar in their own ring column,
-// which stands in for a hidden Idle ring and parts around a shown one, or by a
+// which stands in for a hidden Active ring and parts around a shown one, or by a
 // tree whose branches reach each ring, or a small hollow node while it hides.
 export async function verifyChildRails({ stack, fixture, cases }) {
   const parent = fixture.threads.get(PARENT);
   const project = fixture.projects.get("atlas-web");
-  fixture.run(["sidebar", "place", parent.id, "--to", "plugin:thread-stages:stages/Idle"]);
+  fixture.run(["sidebar", "place", parent.id, "--to", "plugin:thread-stages:stages/Active"]);
   fixture.run(["plugin", "config", "ribbon-sidebar", "set", "showMessagePreviews", "true"]);
   const children = ["First child rail", "Last child rail"].map((title) => {
     const child = fixture.runJson([
@@ -40,7 +40,7 @@ export async function verifyChildRails({ stack, fixture, cases }) {
     const [first, last] = await page.evaluate((ids) => ids
       .map((id) => ({ id, top: document.querySelector(`[data-ribbon-sidebar-root] li[data-thread-id="${id}"]`).getBoundingClientRect().top }))
       .sort((a, b) => a.top - b.top), children.map((child) => child.id));
-    // Selecting the last child shows its Idle ring, while the first child's
+    // Selecting the last child shows its Active ring, while the first child's
     // stays hidden at rest.
     await sidebar.locator(`a[data-sidebar-thread-id="${last.id}"]`).click();
     await page.mouse.move(1200, 780);
@@ -98,7 +98,7 @@ async function verifyBar({ page, sidebar, fixture, parent, first, last }) {
     await page.mouse.move(1200, 780);
     const rest = await measure();
     assert.equal(rest.parent.bars.length, 0, "The parent row draws no bar of its own");
-    assert.equal(rest.first.ringOpacity, 0, "The unselected Idle child hides its ring at rest");
+    assert.equal(rest.first.ringOpacity, 0, "The unselected Active child hides its ring at rest");
     assert.equal(rest.last.ringOpacity, 1, "The selected child shows its ring");
     for (const child of [rest.first, rest.last]) {
       for (const bar of child.bars) {
@@ -129,7 +129,7 @@ async function verifyBar({ page, sidebar, fixture, parent, first, last }) {
 
     await sidebar.locator(`a[data-sidebar-thread-id="${first.id}"]`).hover();
     const hovered = await measure();
-    assert.equal(hovered.first.ringOpacity, 1, "Hover reveals the Idle ring");
+    assert.equal(hovered.first.ringOpacity, 1, "Hover reveals the Active ring");
     assert.ok(clearOf(hovered.first.bars, hovered.first.ring), "The bar parts around the revealed ring");
     assert.ok(
       covers(hovered.first.bars, hovered.first.ring.bottom + 3, hovered.last.row.top),
@@ -145,7 +145,7 @@ async function verifyBar({ page, sidebar, fixture, parent, first, last }) {
     }
     assert.ok(focused, "Keyboard navigation reaches the first child");
     const keyboard = await measure();
-    assert.equal(keyboard.first.ringOpacity, 1, "Keyboard focus reveals the Idle ring");
+    assert.equal(keyboard.first.ringOpacity, 1, "Keyboard focus reveals the Active ring");
     assert.ok(clearOf(keyboard.first.bars, keyboard.first.ring), "The bar parts around the focused row's ring");
 
     // Aligned to the entire item, a ring centres on the title and preview
@@ -161,7 +161,7 @@ async function verifyBar({ page, sidebar, fixture, parent, first, last }) {
       }, last.id);
       await page.mouse.move(1200, 780);
       const entire = await measure();
-      assert.equal(entire.first.ringOpacity, 0, "The unselected Idle ring is hidden again");
+      assert.equal(entire.first.ringOpacity, 0, "The unselected Active ring is hidden again");
       assert.ok(
         covers(entire.first.bars, entire.first.ringCenter.y - 6.5, entire.last.row.top),
         "The bar runs through the hidden ring's slot, centred on the whole item",

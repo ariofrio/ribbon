@@ -28,7 +28,7 @@ it("preserves custom and cleared bindings, unrelated overrides, and newer Ribbon
 });
 it("disables old defaults while leaving new defaults platform-specific", () => {
   const next = migrateShortcutOverrides([], true);
-  expect(next).toHaveLength(11);
+  expect(next).toHaveLength(12);
   expect(
     next.every(
       (row) =>

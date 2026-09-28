@@ -429,7 +429,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     showBlockedStage: {
       type: "boolean",
-      label: "Enable Blocked stage",
+      label: "Enable Blocked stages",
       default: true,
     },
     autoArchiveCompletedAfter: {

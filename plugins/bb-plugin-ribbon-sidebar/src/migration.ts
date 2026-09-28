@@ -29,7 +29,7 @@ export async function migrateThreadStages(
       await client.getPlacementMigrationSnapshotV1(),
     );
     imported =
-      store.importThreadStagesSnapshot(withoutActiveStage(latest)).imported ||
+      store.importThreadStagesSnapshot(withCurrentStages(latest)).imported ||
       imported;
     const acknowledgement = acknowledgePlacementMigrationOutputSchema.parse(
       await client.acknowledgePlacementMigrationV1({
@@ -51,13 +51,19 @@ export async function migrateThreadStages(
 }
 
 /**
- * Older Thread stages data can still hold the retired Active stage. Its
- * threads arrive as Idle, keeping an Idle order they already had.
+ * Older Thread stages data names today's stages differently: Idle and the
+ * retired Active stage both arrive as Active, keeping the Idle order a thread
+ * already had, and Blocked arrives as Blocked on third party.
  */
-function withoutActiveStage(
+function withCurrentStages(
   snapshot: ThreadStagesMigrationSnapshotV1,
 ): ThreadStagesMigrationSnapshotV1 {
-  const idle = (groupId: string) => (groupId === "Active" ? "Idle" : groupId);
+  const current = (groupId: string) =>
+    groupId === "Idle"
+      ? "Active"
+      : groupId === "Blocked"
+        ? "BlockedOnThirdParty"
+        : groupId;
   return {
     ...snapshot,
     placements: snapshot.placements.map((placement) => {
@@ -67,13 +73,13 @@ function withoutActiveStage(
       );
       return {
         ...placement,
-        groupId: idle(placement.groupId),
+        groupId: current(placement.groupId),
         ...(placement.previousGroupId === undefined
           ? {}
-          : { previousGroupId: idle(placement.previousGroupId) }),
+          : { previousGroupId: current(placement.previousGroupId) }),
         orders: placement.orders
           .filter(({ groupId }) => !(groupId === "Active" && hasIdleOrder))
-          .map((order) => ({ ...order, groupId: idle(order.groupId) })),
+          .map((order) => ({ ...order, groupId: current(order.groupId) })),
       };
     }),
   };

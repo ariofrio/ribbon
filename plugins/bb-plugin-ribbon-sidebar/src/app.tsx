@@ -128,7 +128,11 @@ import {
   WORKING_STAGE_ICONS,
 } from "./workflow/catalog";
 import { registerWorkflowCommands } from "./workflow/commands";
-import { parseWorkflowStage } from "./workflow/workflow-stage";
+import {
+  WORKFLOW_STAGE_LABELS,
+  isBlockedStage,
+  parseWorkflowStage,
+} from "./workflow/workflow-stage";
 
 // bb clears its legacy key during preference hydration; Ribbon owns this key.
 const COLLAPSED_THREADS_STORAGE_KEY =
@@ -345,7 +349,7 @@ function ThreadRow({
   hasChildren,
   indicatorThread,
   hasUnsubmittedDraft,
-  hideIdleStageIconAtRest,
+  hideActiveStageIconAtRest,
   icon,
   lastAtDepth,
   dragging,
@@ -390,7 +394,7 @@ function ThreadRow({
   hasChildren: boolean;
   indicatorThread: ThreadStatus;
   hasUnsubmittedDraft: boolean;
-  hideIdleStageIconAtRest: boolean;
+  hideActiveStageIconAtRest: boolean;
   icon: ReactNode;
   /** For each depth from 1 through `depth`, whether this row's ancestor there (itself, last) is the last of its siblings. */
   lastAtDepth: readonly boolean[];
@@ -499,7 +503,7 @@ function ThreadRow({
   const hasIcon = icon !== null;
   const ring = !hasIcon
     ? "absent"
-    : hideIdleStageIconAtRest
+    : hideActiveStageIconAtRest
       ? "hidden-at-rest"
       : "shown";
   const iconSpansEntireItem = alignAdornmentsToEntireItem && preview !== null;
@@ -645,7 +649,7 @@ function ThreadRow({
           {hasIcon ? (
             <span
               className={`col-start-1 row-start-1 flex self-center ${
-                hideIdleStageIconAtRest
+                hideActiveStageIconAtRest
                   ? "opacity-0 group-hover/thread-row:opacity-100 group-has-[:focus-visible]/thread-row:opacity-100 pointer-coarse:opacity-100"
                   : ""
               }`}
@@ -1830,8 +1834,8 @@ function RibbonSidebarList({
     return (
       parseWorkflowStage(
         assignmentPlacements.get(THREAD_STAGES_GROUPING_KEY)?.get(thread.id)
-          ?.groupId ?? "Idle",
-      ) ?? "Idle"
+          ?.groupId ?? "Active",
+      ) ?? "Active"
     );
   }
   function threadBand(thread: PluginSidebarThread) {
@@ -1850,13 +1854,13 @@ function RibbonSidebarList({
     return working ? (
       <WorkingStageIcon
         {...WORKING_STAGE_ICONS[stage]}
-        label={`${stage} stage, working`}
+        label={`${WORKFLOW_STAGE_LABELS[stage]} stage, working`}
         className="text-subtle-foreground/75"
       />
     ) : (
       <ProviderIcon
         icon={STAGE_ICONS[stage]}
-        label={`${stage} stage`}
+        label={`${WORKFLOW_STAGE_LABELS[stage]} stage`}
         className="text-subtle-foreground/75"
       />
     );
@@ -2004,15 +2008,17 @@ function RibbonSidebarList({
           hasChildren={children.length > 0}
           indicatorThread={indicatorThread}
           hasUnsubmittedDraft={draftThreadIds.has(root.id)}
-          hideIdleStageIconAtRest={
-            threadStage(root) === "Idle" &&
+          hideActiveStageIconAtRest={
+            threadStage(root) === "Active" &&
             !indicatorThread.spinsStageRing &&
             activeThreadId !== root.id
           }
           icon={threadIcon(root, indicatorThread.spinsStageRing)}
           dragging={draggingThreadId === root.id}
           muted={
-            stage === "Deferred" || stage === "Blocked" || stage === "Completed"
+            stage === "Deferred" ||
+            isBlockedStage(stage) ||
+            stage === "Completed"
           }
           dragTarget={
             rowContext

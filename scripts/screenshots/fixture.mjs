@@ -23,16 +23,16 @@ export const SECTION = { name: "Atlas", icon: "globe", color: "purple" };
 /** bb's own project for threads that belong to no repository. */
 export const PERSONAL_PROJECT_ID = "proj_personal";
 
-// Stage names match the Thread stages grouping's group IDs. The spread —
-// two deferred, one each idle, active and blocked, five completed — fills every
-// stage while keeping the collapsed ones worth collapsing.
+// Stage names match the Thread stages grouping's group IDs. The spread — one
+// deferred, one each active and working, one in each Blocked stage, five
+// completed — fills every stage while keeping Completed worth collapsing.
 export const THREADS = [
   {
     project: "atlas-web",
     title: "Polish analytics dashboard",
     // The thread the shots open, in the stage a thread sits in most of the
-    // time: bb returns a thread to Idle the moment its turn ends.
-    stage: "Idle",
+    // time: a thread waits on the user, in Active, once its turn ends.
+    stage: "Active",
     prompt:
       "Polish the analytics dashboard. Improve the metric cards, add keyboard navigation, and verify the loading state.",
     reply:
@@ -55,7 +55,7 @@ export const THREADS = [
     // work on either side of it.
     project: null,
     title: "Compare managed Postgres plans",
-    stage: "Blocked",
+    stage: "BlockedOnThirdParty",
     prompt: "Compare managed Postgres plans for a small production app.",
     reply:
       "For this size, the shared tiers on Neon and Supabase both cover it, and Neon's branching is the one that pays off during migrations.",
@@ -63,7 +63,7 @@ export const THREADS = [
   {
     project: "atlas-web",
     title: "Replace the legacy filter drawer",
-    stage: "Deferred",
+    stage: "BlockedOnOtherAgent",
     prompt: "Replace the legacy filter drawer with the new panel.",
     reply: "Sketched the swap; it waits on the panel's focus behaviour landing first.",
   },

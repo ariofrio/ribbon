@@ -11,10 +11,14 @@ const grouping = {
   groupingKey,
   singularLabel: "Stage",
   pluralLabel: "Stages",
-  defaultGroupId: "Idle",
+  defaultGroupId: "Active",
   groups: [
-    { id: "Idle", label: "Idle", acceptsAssignments: true },
-    { id: "Blocked", label: "Blocked", acceptsAssignments: true },
+    { id: "Active", label: "Active", acceptsAssignments: true },
+    {
+      id: "BlockedOnThirdParty",
+      label: "Blocked on third party",
+      acceptsAssignments: true,
+    },
   ],
   membership: { kind: "ribbon" as const },
 };
@@ -106,10 +110,10 @@ describe("Thread stages migration", () => {
       revision: 2,
       imported: true,
     });
-    // Active is retired: its placements and orders arrive as Idle.
+    // Idle and the retired Active stage both arrive as today's Active.
     expect(acknowledgementObservations).toEqual([
-      ["Idle:thread-a", "Idle:thread-b"],
-      ["Idle:thread-a", "Idle:thread-b"],
+      ["Active:thread-a", "Active:thread-b"],
+      ["Active:thread-a", "Active:thread-b"],
     ]);
     expect(acknowledgePlacementMigrationV1.mock.calls).toEqual([
       [{ installationId: "a".repeat(32), revision: 1 }],
@@ -119,9 +123,9 @@ describe("Thread stages migration", () => {
       ok: true,
       value: {
         placement: {
-          groupId: "Idle",
+          groupId: "Active",
           enteredAtMs: 200,
-          previousGroupId: "Idle",
+          previousGroupId: "Active",
           origin: "ui",
         },
       },
@@ -159,9 +163,66 @@ describe("Thread stages migration", () => {
       )
       .all(groupingKey);
     expect(orders).toEqual([
-      { group_id: "Idle", thread_id: "thread-a", sort_key: "A" },
-      { group_id: "Idle", thread_id: "thread-b", sort_key: "B" },
-      { group_id: "Idle", thread_id: "thread-c", sort_key: "C" },
+      { group_id: "Active", thread_id: "thread-a", sort_key: "A" },
+      { group_id: "Active", thread_id: "thread-b", sort_key: "B" },
+      { group_id: "Active", thread_id: "thread-c", sort_key: "C" },
+    ]);
+  });
+
+  it("files a legacy Blocked thread as Blocked on third party", async () => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    for (const migration of RIBBON_SIDEBAR_MIGRATIONS) database.exec(migration);
+    const store = createPlacementStore(database, {
+      grouping: (key) => (key === groupingKey ? grouping : null),
+      groupings: () => [grouping],
+    });
+    store.reconcileRoots(["thread-a", "thread-b", "thread-c"], []);
+    const legacy = snapshot(1, "Idle");
+    const source = {
+      ...legacy,
+      placements: [
+        ...legacy.placements,
+        {
+          groupingId: "stages",
+          threadId: "thread-c",
+          groupId: "Blocked",
+          enteredAtMs: 400,
+          updatedAtMs: 400,
+          previousGroupId: "Idle",
+          origin: "cli" as const,
+          orders: [
+            { groupId: "Idle", sortKey: "C", updatedAtMs: 300 },
+            { groupId: "Blocked", sortKey: "D", updatedAtMs: 400 },
+          ],
+        },
+      ],
+    };
+
+    await migrateThreadStages(store, {
+      getPlacementMigrationSnapshotV1: async () => source,
+      acknowledgePlacementMigrationV1: async () => ({ transferred: true }),
+    });
+
+    expect(store.getPlacement({ groupingKey, threadId: "thread-c" })).toMatchObject({
+      ok: true,
+      value: {
+        placement: {
+          groupId: "BlockedOnThirdParty",
+          previousGroupId: "Active",
+          origin: "cli",
+        },
+      },
+    });
+    expect(
+      database
+        .prepare(
+          "SELECT group_id, sort_key FROM group_order WHERE grouping_key = ? AND thread_id = 'thread-c' ORDER BY group_id",
+        )
+        .all(groupingKey),
+    ).toEqual([
+      { group_id: "Active", sort_key: "C" },
+      { group_id: "BlockedOnThirdParty", sort_key: "D" },
     ]);
   });
 

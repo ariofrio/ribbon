@@ -1,5 +1,9 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import { parseWorkflowStage, type WorkflowStage } from "./workflow-stage";
+import {
+  WORKFLOW_STAGE_LABELS,
+  parseWorkflowStage,
+  type WorkflowStage,
+} from "./workflow-stage";
 
 type StageChangeOrigin = "ui" | "cli";
 
@@ -24,20 +28,21 @@ const ORIGIN_DESCRIPTIONS: Record<StageChangeOrigin, string> = {
  * `stage:<stage in lowercase>` from its `stage` mention provider.
  */
 function stageMention(stage: WorkflowStage, start: number): PromptMention {
+  const label = WORKFLOW_STAGE_LABELS[stage];
   return {
     start,
-    end: start + 1 + stage.length,
+    end: start + 1 + label.length,
     resource: {
       kind: "plugin",
       pluginId: "thread-stages",
       itemId: `stage:${stage.toLowerCase()}`,
-      label: stage,
+      label,
     },
   };
 }
 
 /**
- * "Thread stage updated: @Idle → @Blocked", with each stage a Thread stages
+ * "Thread stage updated: @Active → @Blocked on third party", with each stage a Thread stages
  * mention exactly as its composer menu would insert it, plus an agent-only note
  * that the move has already happened. Without Thread stages running, nothing
  * could resolve the mentions, so the stages are named in plain text.
@@ -49,8 +54,10 @@ export function stageChangeInput(
   const prefix = "Thread stage updated: ";
   const separator = " → ";
   const at = withMentions ? "@" : "";
-  const from = `${at}${change.from}`;
-  const text = `${prefix}${from}${separator}${at}${change.to}`;
+  const fromLabel = WORKFLOW_STAGE_LABELS[change.from];
+  const toLabel = WORKFLOW_STAGE_LABELS[change.to];
+  const from = `${at}${fromLabel}`;
+  const text = `${prefix}${from}${separator}${at}${toLabel}`;
   return [
     {
       type: "text",
@@ -67,7 +74,7 @@ export function stageChangeInput(
     },
     {
       type: "text",
-      text: `Ribbon sent this notice because this thread's stage changed from ${change.from} to ${change.to}, made by ${ORIGIN_DESCRIPTIONS[change.origin]}. The move is already done, so do not place the thread again. No reply is needed unless the new stage changes what you should do.`,
+      text: `Ribbon sent this notice because this thread's stage changed from ${fromLabel} to ${toLabel}, made by ${ORIGIN_DESCRIPTIONS[change.origin]}. The move is already done, so do not place the thread again. No reply is needed unless the new stage changes what you should do.`,
       mentions: [],
       visibility: "agent-only",
     },
