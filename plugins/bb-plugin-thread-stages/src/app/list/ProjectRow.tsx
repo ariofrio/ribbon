@@ -167,6 +167,7 @@ import {
   RibbonHeadingIcon,
   useHeadingStyle,
 } from "../../ribbon/app/heading-icon.js";
+import { useIconsController } from "../../ribbon/app/icons.js";
 import { useRibbonData } from "../../ribbon/app/data.js";
 import { ActionMenuItem } from "../ui/action-menu-items.js";
 import { SiblingLineage } from "../../ribbon/app/rails.js";
@@ -1425,6 +1426,7 @@ const SectionTreeItemRow = memo(function SectionTreeItemRow({
   const [isTopLevelActionsOpen, setIsTopLevelActionsOpen] = useState(false);
   const [isPickingIcon, setIsPickingIcon] = useState(false);
   const ribbon = useRibbonData();
+  const icons = useIconsController();
   const sectionOwner = useMemo(
     () => ({ kind: "section" as const, id: section.id }),
     [section.id],
@@ -1511,7 +1513,11 @@ const SectionTreeItemRow = memo(function SectionTreeItemRow({
             ? () => onCreateThreadInSection(section.id)
             : undefined
         }
-        onOpenChange={setIsTopLevelActionsOpen}
+        onOpenChange={(open) => {
+          setIsTopLevelActionsOpen(open);
+          // Fetched as the menu opens, so the picker is whole when chosen.
+          if (open) icons?.loadCatalog();
+        }}
         onCloseAutoFocus={rename.onCloseAutoFocus}
       >
         <SidebarSectionMenuItems
@@ -2404,6 +2410,7 @@ function ProjectRowComponent({
   const [isRemovePending, setIsRemovePending] = useState(false);
   const [isPickingIcon, setIsPickingIcon] = useState(false);
   const ribbon = useRibbonData();
+  const icons = useIconsController();
   const projectOwner = useMemo(
     () => ({ kind: "project" as const, id: project.id }),
     [project.id],
@@ -2451,7 +2458,10 @@ function ProjectRowComponent({
       label={project.name}
       sectionId={buildSidebarEntitySectionId("project", project.id)}
       onNewThread={onCreateProjectThread ? handleCreateThread : undefined}
-      onOpenChange={setIsDropdownActionsOpen}
+      onOpenChange={(open) => {
+        setIsDropdownActionsOpen(open);
+        if (open) icons?.loadCatalog();
+      }}
       onCloseAutoFocus={rename.onCloseAutoFocus}
     >
       <ProjectActionsMenuItems

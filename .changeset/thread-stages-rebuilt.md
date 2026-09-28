@@ -8,9 +8,10 @@ search, and menus — with workflow stages, stable manual order, stage bands wit
 previews, stage rings and row shimmer, child thread lines, prompt action
 buttons, pull request numbers and marks, section and project icons with
 colored headings, the `bb sidebar` CLI, stage mentions and change notices,
-stage shortcuts, and seven-day Completed auto-archive on top. It replaces the
+stage shortcuts, and Completed auto-archive on top. Rows carry no archive
+button. It replaces the
 Ribbon sidebar, Icons, and Breadcrumbs plugins, importing Ribbon's and Icons'
 data on first load, and drops Ribbon's settings for Deferred and Blocked
-stages, auto-archive delay, sidebar controls, collapsed-group indicators,
+stages, sidebar controls, collapsed-group indicators,
 message previews, and adornment alignment, along with the Icons plugin's
 header, prompt-box, and menu icons.

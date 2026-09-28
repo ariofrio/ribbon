@@ -22,6 +22,7 @@ import { registerThreadGroupInheritance } from "./group-inheritance";
 import { orderedGroupings } from "./grouping-order";
 import { importIcons, importRibbonSidebar } from "./import-legacy-plugins";
 import { reclaimLegacyDatabase } from "./legacy-database";
+import { AUTO_ARCHIVE_OPTIONS } from "./workflow/auto-archive";
 
 /** The Ribbon sidebar settings this plugin kept, by the names both use. */
 const RIBBON_SETTINGS = [
@@ -29,6 +30,7 @@ const RIBBON_SETTINGS = [
   "groupHeaderIcons",
   "shimmerWorkingRows",
   "messageOnStageChange",
+  "autoArchiveCompletedAfter",
 ] as const;
 import {
   createPlacementStore,
@@ -406,6 +408,12 @@ export default async function ribbonServer(
         "Shimmer a working thread's whole row instead of its activity indicator.",
       default: true,
     },
+    autoArchiveCompletedAfter: {
+      type: "select",
+      label: "Auto-archive completed threads",
+      options: [...AUTO_ARCHIVE_OPTIONS],
+      default: AUTO_ARCHIVE_COMPLETED_AFTER,
+    },
     messageOnStageChange: {
       type: "boolean",
       label: "Message threads when their stage changes",
@@ -778,7 +786,8 @@ export default async function ribbonServer(
     updatePlacement,
     {
       get: async () => ({
-        autoArchiveCompletedAfter: AUTO_ARCHIVE_COMPLETED_AFTER,
+        autoArchiveCompletedAfter:
+          (await settings.get()).autoArchiveCompletedAfter ?? AUTO_ARCHIVE_COMPLETED_AFTER,
       }),
     },
     {

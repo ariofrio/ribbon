@@ -125,7 +125,13 @@ async function verifyTree({ page, list, parent, first, last, setLines }) {
   setLines("Tree");
   await page.waitForFunction((ids) => ids.every((id) =>
     document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${id}"] [data-ribbon-sidebar-tree] path`)),
-  [first.id, last.id]);
+  [parent.id, first.id, last.id]);
+  // The parent draws its own tree: a node where its hidden ring sits, and the
+  // line its children hang from.
+  assert.ok(
+    await page.evaluate((id) => document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${id}"] [data-ribbon-sidebar-tree] circle`) !== null, parent.id),
+    "The parent row draws a node in its hidden ring's place",
+  );
   // Which rows have the tree draw a visible line or node through a point,
   // asked of the SVG's own geometry at that point on screen.
   const drawn = (points) => page.evaluate(({ parentId, ids, points }) => {

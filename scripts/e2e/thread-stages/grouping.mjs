@@ -26,9 +26,10 @@ export async function verifyGrouping({ stack, fixture }) {
     await featured.waitFor();
     await otherProject.waitFor();
     const header = heading(group);
-    await header.hover();
+    // The whole heading is the toggle, so clicking the section's name folds it.
+    const name = await header.getByText(SECTION.name, { exact: true }).boundingBox();
     await withPreferenceSaved(page, "collapsedThreadSections", () =>
-      header.getByRole("button", { name: `Collapse ${SECTION.name} section`, exact: true }).click());
+      page.mouse.click(name.x + name.width / 2, name.y + name.height / 2));
     await featured.waitFor({ state: "hidden" });
     await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
     await list.waitFor({ timeout: 120_000 });

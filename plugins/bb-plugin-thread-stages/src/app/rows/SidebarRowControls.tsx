@@ -48,11 +48,13 @@ export function SidebarControlButton({
   icon,
   onClick,
   disabled = false,
+  className,
 }: {
   label: string;
   icon: IconName;
   onClick: () => void;
   disabled?: boolean;
+  className?: string;
 }) {
   return (
     <Tooltip delayDuration={350} disableHoverableContent>
@@ -63,7 +65,7 @@ export function SidebarControlButton({
           size="icon"
           aria-label={label}
           disabled={disabled}
-          className={SIDEBAR_CONTROL_PRIMARY_BUTTON_CLASS}
+          className={className ?? SIDEBAR_CONTROL_PRIMARY_BUTTON_CLASS}
           onClick={(event) => {
             event.stopPropagation();
             if (event.detail > 0) event.currentTarget.blur();

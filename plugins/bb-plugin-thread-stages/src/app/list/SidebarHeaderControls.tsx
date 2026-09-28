@@ -16,6 +16,12 @@ import {
   SidebarRowControls,
 } from "../rows/SidebarRowControls.js";
 import { SIDEBAR_CONTROL_BUTTON_CLASS } from "../rows/sidebarRowClasses.js";
+import { cn } from "@/lib/utils";
+import { useRibbonData } from "../../ribbon/app/data.js";
+import { HEADING_ACTION_CLASS } from "../../ribbon/app/heading.js";
+
+/** Ribbon's heading buttons: a 20px glyph box in a 28px hit area, inked like the heading. */
+export const RIBBON_HEADING_BUTTON_CLASS = `relative m-1 size-5 shrink-0 cursor-pointer rounded-md p-0 outline-none ring-sidebar-ring focus-visible:ring-2 ${HEADING_ACTION_CLASS}`;
 import { ThreadListVisibilityMenuItems } from "./ThreadListVisibility.js";
 import { SidebarHeaderMenuContents } from "./SidebarViewItems.js";
 
@@ -48,6 +54,7 @@ export function SidebarHeaderControls({
 }) {
   const creation = useContext(HeaderCreationContext);
   const compact = useIsCompactViewport();
+  const ribbon = useRibbonData() !== null;
   const [page, setPage] = useState<"organize" | "sort" | "filter" | null>(null);
   const changeOpen = (next: boolean) => {
     if (!next) setPage(null);
@@ -62,6 +69,7 @@ export function SidebarHeaderControls({
             icon="MessageSquarePlus"
             onClick={() => onNewThread?.()}
             disabled={!onNewThread}
+            className={ribbon ? RIBBON_HEADING_BUTTON_CLASS : undefined}
           />
         ) : null
       }
@@ -74,7 +82,7 @@ export function SidebarHeaderControls({
             size="icon"
             aria-label={`${label} actions`}
             data-sidebar-rename-anchor=""
-            className={SIDEBAR_CONTROL_BUTTON_CLASS}
+            className={cn(ribbon ? RIBBON_HEADING_BUTTON_CLASS : SIDEBAR_CONTROL_BUTTON_CLASS)}
           >
             <Icon
               name="MoreHorizontal"

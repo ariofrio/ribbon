@@ -61,6 +61,7 @@ import { useSidebarRename } from "./SidebarInlineRename.js";
 import { SidebarRowControls } from "./SidebarRowControls.js";
 import {
   SIDEBAR_CONTROL_BUTTON_CLASS,
+  SIDEBAR_CONTROL_STATE_CLASS,
   SIDEBAR_ROW_BASE_CLASS,
   SIDEBAR_ROW_GLYPH_SLOT_CLASS,
   SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,
@@ -96,6 +97,9 @@ import {
   ShineContent,
   useRowShine,
 } from "../../ribbon/app/row-shine.js";
+
+/** Ribbon's row buttons: the same 20px box in a 28px hit area as its headings. */
+const RIBBON_ROW_BUTTON_CLASS = `relative m-1 size-5 shrink-0 cursor-pointer rounded-md p-0 outline-none ring-sidebar-ring focus-visible:ring-2 ${SIDEBAR_CONTROL_STATE_CLASS}`;
 import {
   ThreadActionsContextMenu,
   ThreadActionsMenu,
@@ -534,8 +538,9 @@ function ThreadRowComponent({
       : ribbon.stage === "Active" && !ribbon.working && !showActive
         ? "hidden-at-rest"
         : "shown";
+  // A parent's own line drops from its ring, so roots with children draw too.
   const ribbonRails =
-    ribbon !== null && options.depth > 0 ? (
+    ribbon !== null && (options.depth > 0 || (isParentRow && hasChildren)) ? (
       ribbonSettings.childThreadLines === "Tree" ? (
         <RailTree
           depth={options.depth}
@@ -832,16 +837,22 @@ function ThreadRowComponent({
                 )}
               >
                 <SidebarRowControls
+                  // Completed is the way a thread leaves the list; archiving
+                  // by hand has no place on a Ribbon row.
                   primaryAction={
-                    <ThreadArchiveQuickAction
-                      thread={thread}
-                      className={SIDEBAR_CONTROL_BUTTON_CLASS}
-                    />
+                    ribbon ? null : (
+                      <ThreadArchiveQuickAction
+                        thread={thread}
+                        className={SIDEBAR_CONTROL_BUTTON_CLASS}
+                      />
+                    )
                   }
                 >
                   <ThreadActionsMenu
                     thread={thread}
-                    triggerClassName={SIDEBAR_CONTROL_BUTTON_CLASS}
+                    triggerClassName={
+                      ribbon ? RIBBON_ROW_BUTTON_CLASS : SIDEBAR_CONTROL_BUTTON_CLASS
+                    }
                     onOpenInSplit={splitAvailable ? openInSplit : undefined}
                     onOpenChange={setIsDropdownActionsOpen}
                     onRename={rename.startEditingFromMenu}

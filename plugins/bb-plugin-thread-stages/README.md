@@ -130,10 +130,12 @@ or starts one on an idle thread. Automatic placement and a thread moving
 itself through the CLI send nothing. Turn off **Message threads when their
 stage changes** to stop these messages.
 
-Completed threads auto-archive after seven days. A hierarchy archives only
+Completed threads auto-archive after seven days; **Auto-archive completed
+threads** can choose 1 or 30 days instead, or Never. A hierarchy archives only
 when every descendant is also Completed long enough; a Completed child can
-archive while its parent stays open. Subsequent updates restart the timer,
-and any pinned member prevents archival.
+archive while its parent stays open. Subsequent updates restart the timer, and
+any pinned member prevents archival. Rows carry no archive button: filing a
+thread as Completed is how it leaves the list.
 
 | macOS | Linux / Windows | Action |
 | --- | --- | --- |

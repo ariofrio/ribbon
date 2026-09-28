@@ -41,24 +41,28 @@ export function RibbonThreadMenuItems({
   const ribbon = useRibbonData();
   if (ribbon === null || thread.archivedAt !== null) return null;
   const current = ribbon.stageOf(thread.id);
-  const items = WORKFLOW_STAGES.map((stage) => {
-    const Item = surface === "context" ? ContextMenuItem : DropdownMenuItem;
-    return (
-      <Item
-        key={stage}
-        aria-current={stage === current ? "true" : undefined}
-        onSelect={() => {
-          if (stage !== current) void ribbon.setStage(thread.id, stage);
-        }}
-      >
-        <span className="w-4">
-          {stage === current ? <Icon name="Check" aria-hidden /> : null}
-        </span>
-        <ProviderIcon icon={STAGE_ICONS[stage]} label={`${WORKFLOW_STAGE_LABELS[stage]} icon`} />
-        {WORKFLOW_STAGE_LABELS[stage]}
-      </Item>
-    );
-  });
+  // Laid out like bb's own choices, in the Organize menu: the glyph, the
+  // label, and a check at the far end where the row is the one in effect.
+  const Item = surface === "context" ? ContextMenuItem : DropdownMenuItem;
+  const items = WORKFLOW_STAGES.map((stage) => (
+    <Item
+      key={stage}
+      role="menuitemradio"
+      aria-checked={stage === current}
+      onSelect={() => {
+        if (stage !== current) void ribbon.setStage(thread.id, stage);
+      }}
+    >
+      {/* The label names the choice; the glyph beside it is decoration. */}
+      <span aria-hidden className="contents">
+        <ProviderIcon icon={STAGE_ICONS[stage]} label="" />
+      </span>
+      {WORKFLOW_STAGE_LABELS[stage]}
+      <span className="ml-auto inline-flex size-4 shrink-0 items-center justify-center">
+        {stage === current ? <Icon name="Check" className="size-4" aria-hidden /> : null}
+      </span>
+    </Item>
+  ));
   const Sub = surface === "context" ? ContextMenuSub : DropdownMenuSub;
   const SubTrigger =
     surface === "context" ? ContextMenuSubTrigger : DropdownMenuSubTrigger;

@@ -11,6 +11,10 @@ import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
 import { LIST_HOVER_TRANSITION } from "@/components/ui/motion";
 import { CHROME_SECTION_LABEL_CLASS } from "@/components/ui/chrome-style-tokens";
+import { COARSE_POINTER_ROW_HEIGHT_CLASS } from "@/components/ui/coarse-pointer-sizing";
+import { CHROME_GROUP_HEADING_CLASS } from "../../ribbon/app/chrome-style-tokens.js";
+import { useRibbonData } from "../../ribbon/app/data.js";
+import { HEADING_MUTED_CLASS, HEADING_TEXT_CLASS } from "../../ribbon/app/heading.js";
 import {
   SidebarStickyGroup,
   SidebarStickyTier,
@@ -112,6 +116,9 @@ export function TopLevelSidebarSection({
   isDropTargetActive = false,
 }: TopLevelSidebarSectionProps) {
   const threadDropState = useSectionDropTargetState(dropParentKey);
+  // Ribbon's heading: laid out like a thread row, and a toggle from end to
+  // end, with the chevron a picture of it rather than the only way in.
+  const ribbon = useRibbonData() !== null;
   const collapsedSplitIndicator = useThreadGroupSplitIndicator(
     collapsedThreads,
     collapseControl?.isCollapsed === true,
@@ -184,6 +191,19 @@ export function TopLevelSidebarSection({
     },
     [consumeClickSuppression, labelEditor],
   );
+  const handleHeadingClick = useCallback<MouseEventHandler<HTMLDivElement>>(
+    (event) => {
+      if (!ribbon || !collapseControl || labelEditor || event.detail !== 1) return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest("button, a, input, textarea, [data-sidebar-trailing-controls]")
+      ) {
+        return;
+      }
+      collapseControl.onToggleCollapsed();
+    },
+    [collapseControl, labelEditor, ribbon],
+  );
   const handleCollapseControlClick = useCallback<
     MouseEventHandler<HTMLButtonElement>
   >(
@@ -227,22 +247,27 @@ export function TopLevelSidebarSection({
         tier="label"
         className={cn(
           SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
-          CHROME_SECTION_LABEL_CLASS,
-          headingStyle
-            ? "text-[color:var(--ribbon-heading-on,currentColor)]"
-            : SIDEBAR_GROUP_TEXT_CLASS,
+          ribbon
+            ? cn(COARSE_POINTER_ROW_HEIGHT_CLASS, CHROME_GROUP_HEADING_CLASS, HEADING_TEXT_CLASS, "cursor-pointer")
+            : cn(
+                CHROME_SECTION_LABEL_CLASS,
+                headingStyle
+                  ? "text-[color:var(--ribbon-heading-on,currentColor)]"
+                  : SIDEBAR_GROUP_TEXT_CLASS,
+              ),
           SIDEBAR_STANDARD_ROW_PADDING_CLASS,
           "rounded-md pr-0 transition-colors",
           !stickyHeader && "relative top-auto",
           dragBindings && !dragBindings.disabled && "select-none",
         )}
         style={headingStyle}
+        onClick={ribbon ? handleHeadingClick : undefined}
         {...dragBindings?.attributes}
         {...(dragBindings?.listeners ?? {})}
       >
         <span className="relative z-10 flex min-w-0 flex-1 items-center gap-1 text-left">
           {leading ? (
-            <span className="mr-1 inline-flex shrink-0 items-center" aria-hidden="true">
+            <span className={cn("inline-flex shrink-0 items-center", ribbon ? "mr-2" : "mr-1")} aria-hidden="true">
               {leading}
             </span>
           ) : null}
@@ -278,9 +303,16 @@ export function TopLevelSidebarSection({
                   : `Collapse ${label} section`
               }
               className={cn(
-                !collapseControl.isCollapsed && SIDEBAR_HOVER_ACTIONS_CLASS,
-                "relative z-20 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none ring-sidebar-ring focus-visible:ring-2",
-                SIDEBAR_CONTROL_STATE_CLASS,
+                ribbon
+                  ? cn(
+                      "relative z-20 ml-1 mr-2 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none ring-sidebar-ring focus-visible:ring-2",
+                      HEADING_MUTED_CLASS,
+                    )
+                  : cn(
+                      !collapseControl.isCollapsed && SIDEBAR_HOVER_ACTIONS_CLASS,
+                      "relative z-20 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none ring-sidebar-ring focus-visible:ring-2",
+                      SIDEBAR_CONTROL_STATE_CLASS,
+                    ),
                 LIST_HOVER_TRANSITION,
                 labelEditor && "hidden",
               )}

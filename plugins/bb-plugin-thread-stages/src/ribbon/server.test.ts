@@ -464,6 +464,7 @@ describe("Ribbon sidebar server", () => {
       "childThreadLines",
       "groupHeaderIcons",
       "shimmerWorkingRows",
+      "autoArchiveCompletedAfter",
       "messageOnStageChange",
     ]);
     expect(harness.inspection.registrations.settingsDescriptors).toMatchObject({

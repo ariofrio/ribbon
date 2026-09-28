@@ -49,7 +49,7 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     await row(group, returning.id).hover();
     await row(group, returning.id).getByRole("button", { name: "Thread actions", exact: true }).click();
     await page.getByRole("menuitem", { name: /Move to stage/ }).hover();
-    await page.getByRole("menuitem").filter({ hasText: /^Completed$/ }).click();
+    await page.getByRole("menuitemradio", { name: "Completed", exact: true }).click();
     await first(returning);
     await page.locator('[data-app-composer-role="primary"] [contenteditable="true"]').click();
     const response = page.waitForResponse((response) => /\/rpc\/setWorkflowStage$/.test(response.url()));
