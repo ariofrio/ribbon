@@ -461,21 +461,21 @@ describe("Ribbon sidebar server", () => {
     expect(
       Object.keys(harness.inspection.registrations.settingsDescriptors),
     ).toEqual([
+      // Behavior, then appearance: bb draws them in this order.
+      "autoArchiveCompletedAfter",
+      "messageOnStageChange",
       "childThreadLines",
       "groupHeaderIcons",
       "shimmerWorkingRows",
-      "autoArchiveCompletedAfter",
-      "messageOnStageChange",
+      "tabularPullRequestDigits",
     ]);
     expect(harness.inspection.registrations.settingsDescriptors).toMatchObject({
-      childThreadLines: { type: "select", options: ["Bar", "Tree"], default: "Bar" },
-      groupHeaderIcons: {
-        type: "select",
-        options: ["On", "Off", "Standardized"],
-        default: "On",
-      },
-      shimmerWorkingRows: { type: "boolean", default: true },
+      autoArchiveCompletedAfter: { type: "select", default: "7 days" },
       messageOnStageChange: { type: "boolean", default: true },
+      childThreadLines: { type: "select", options: ["Bar", "Tree"], default: "Bar" },
+      groupHeaderIcons: { type: "boolean", default: true },
+      shimmerWorkingRows: { type: "boolean", default: true },
+      tabularPullRequestDigits: { type: "boolean", default: true },
     });
     await harness.lifecycle.dispose();
   });
@@ -1200,11 +1200,11 @@ describe("Ribbon sidebar server", () => {
     await plugin(bb);
 
     await expect(
-      harness.behavior.callRpc("updateSettingsV1", { groupHeaderIcons: "Off" }),
+      harness.behavior.callRpc("updateSettingsV1", { groupHeaderIcons: false }),
     ).resolves.toEqual({ ok: true });
     expect(updateSettings).toHaveBeenCalledWith({
       pluginId: "thread-stages",
-      values: { groupHeaderIcons: "Off" },
+      values: { groupHeaderIcons: false },
     });
   });
 

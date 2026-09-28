@@ -38,7 +38,8 @@ it("migrates page choices to all sections and preserves unrelated display prefer
     iconGroupingKey: "plugin:thread-stages:stages",
     sort: "manual",
     hide: { archived: false },
-    pullRequestNumberPosition: "left",
+    // Ribbon's left placement is the right one now.
+    pullRequestNumberPosition: "right",
   });
   expect([...result.collapsed]).toEqual([
     "builtin:sections/work",
@@ -85,16 +86,19 @@ it("persists project grouping independently of section collapse state", () => {
   ).toBe(true);
 });
 
-it("keeps equal-width PR digits for existing preferences and saves an explicit choice", () => {
+it("shows the PR number unless hidden, reading Ribbon's left placement as right", () => {
+  localStorage.setItem(
+    SIDEBAR_PREFERENCES_KEY,
+    JSON.stringify({
+      view: { scope: { kind: "all" }, groupingKey: null, pullRequestNumberPosition: "left" },
+      collapsed: [],
+    }),
+  );
+  expect(loadSidebarPreferences(localStorage).view.pullRequestNumberPosition).toBe("right");
   const preferences = loadSidebarPreferences(localStorage);
-  expect(preferences.view.tabularPullRequestDigits).toBe(true);
-  preferences.view.tabularPullRequestDigits = false;
+  preferences.view.pullRequestNumberPosition = "hidden";
   saveSidebarPreferences(localStorage, preferences);
-  expect(loadSidebarPreferences(localStorage).view.tabularPullRequestDigits).toBe(false);
-  const saved = JSON.parse(localStorage.getItem(SIDEBAR_PREFERENCES_KEY)!);
-  delete saved.view.tabularPullRequestDigits;
-  localStorage.setItem(SIDEBAR_PREFERENCES_KEY, JSON.stringify(saved));
-  expect(loadSidebarPreferences(localStorage).view.tabularPullRequestDigits).toBe(true);
+  expect(loadSidebarPreferences(localStorage).view.pullRequestNumberPosition).toBe("hidden");
 });
 
 it("keeps what this client chose in Ribbon sidebar until it chooses here", () => {
@@ -105,8 +109,7 @@ it("keeps what this client chose in Ribbon sidebar until it chooses here", () =>
       view: {
         scope: { kind: "all" },
         groupingKey: "builtin:projects",
-        pullRequestNumberPosition: "left",
-        tabularPullRequestDigits: false,
+        pullRequestNumberPosition: "hidden",
         hide: { notArchived: false, archived: false, visible: false, hidden: true },
       },
       collapsed: ["builtin:projects/proj_a"],
@@ -114,7 +117,7 @@ it("keeps what this client chose in Ribbon sidebar until it chooses here", () =>
   );
   const preferences = loadSidebarPreferences(localStorage);
   expect(preferences.view.groupingKey).toBe("builtin:projects");
-  expect(preferences.view.pullRequestNumberPosition).toBe("left");
+  expect(preferences.view.pullRequestNumberPosition).toBe("hidden");
   expect(preferences.view.hide.archived).toBe(false);
   expect(preferences.collapsed.has("builtin:projects/proj_a")).toBe(true);
   // Saved under this plugin's key, which wins from now on.

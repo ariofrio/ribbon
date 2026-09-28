@@ -28,7 +28,11 @@ export async function verifyAllPlugins({ stack, fixture }) {
     const header = heading(section(page, fixture.section.id));
     await header.hover();
     await header.getByRole("button", { name: "Atlas section actions", exact: true }).click();
-    await page.getByRole("menuitem", { name: /^PR number/ }).waitFor();
+    await page.getByRole("menuitem", { name: "Organize", exact: true }).hover();
+    await page.getByRole("menuitemcheckbox", { name: "PR number", exact: true }).waitFor();
+    await page.keyboard.press("Escape");
+    await header.hover();
+    await header.getByRole("button", { name: "Atlas section actions", exact: true }).click();
     await page.getByRole("menuitem", { name: "Change icon", exact: true }).click();
     await page.getByRole("searchbox", { name: "Search icons" }).waitFor();
     await page.keyboard.press("Escape");

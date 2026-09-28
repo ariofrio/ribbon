@@ -95,27 +95,25 @@ export async function verifyPrNumber({ stack, fixture }) {
       await header.getByRole("button", { name: "Atlas section actions" }).click();
     }
 
-    async function choose(current, next, keyboard = false) {
+    // The number is shown or hidden from Organize > Rows, like bb's own row options.
+    async function togglePrNumber(keyboard = false) {
       await openOptions();
-      const submenu = page.getByRole("menuitem", { name: `PR number ${current}`, exact: true });
+      const organize = page.getByRole("menuitem", { name: "Organize", exact: true });
+      const box = page.getByRole("menuitemcheckbox", { name: "PR number", exact: true });
       if (keyboard) {
-        await submenu.focus();
+        await organize.focus();
         await page.keyboard.press("ArrowRight");
-        await page.getByRole("menuitemcheckbox", { name: next, exact: true }).focus();
+        await box.focus();
         await page.keyboard.press("Enter");
       } else {
-        await submenu.hover();
-        await page.getByRole("menuitemcheckbox", { name: next, exact: true }).click();
+        await organize.hover();
+        await box.click();
       }
       await page.keyboard.press("Escape");
     }
 
-    async function toggleEqualWidthDigits() {
-      await openOptions();
-      await page.getByRole("menuitem", { name: "PR number Right", exact: true }).hover();
-      await page.getByRole("menuitemcheckbox", { name: "Equal-width digits" }).click();
-      await page.keyboard.press("Escape");
-    }
+    const setEqualWidthDigits = (value) =>
+      fixture.run(["plugin", "config", "thread-stages", "set", "tabularPullRequestDigits", String(value)]);
 
     async function waitForDigitStyle(variant) {
       await page.waitForFunction(({ threadId, variant }) => {
@@ -145,7 +143,7 @@ export async function verifyPrNumber({ stack, fixture }) {
     await waitForDigitStyle("tabular-nums");
     let widths = await digitWidths();
     assert.ok(Math.max(...widths) - Math.min(...widths) < 0.1, `PR digits should default to equal widths: ${widths.join(", ")}`);
-    await toggleEqualWidthDigits();
+    setEqualWidthDigits(false);
     await waitForDigitStyle("normal");
     widths = await digitWidths();
     assert.ok(Math.max(...widths) - Math.min(...widths) > 1, `PR digits should regain proportional widths: ${widths.join(", ")}`);
@@ -153,7 +151,7 @@ export async function verifyPrNumber({ stack, fixture }) {
     await list.waitFor({ timeout: 120_000 });
     await placement("right");
     await waitForDigitStyle("normal");
-    await toggleEqualWidthDigits();
+    setEqualWidthDigits(true);
     await waitForDigitStyle("tabular-nums");
     widths = await digitWidths();
     assert.ok(Math.max(...widths) - Math.min(...widths) < 0.1, `PR digits should return to equal widths: ${widths.join(", ")}`);
@@ -181,12 +179,7 @@ export async function verifyPrNumber({ stack, fixture }) {
     const hoveredEdge = await laneRow.evaluate((node) => [...node.querySelectorAll("span")]
       .find((span) => span.textContent === "#12345").getBoundingClientRect().right);
     assert.equal(hoveredEdge, rightEdges.indicatorless, "hovering does not move the number");
-    await choose("Right", "Left");
-    await placement("left");
-    await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
-    await list.waitFor({ timeout: 120_000 });
-    await placement("left");
-    await choose("Left", "Hidden", true);
+    await togglePrNumber(true);
     await placement("hidden");
     await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
     await list.waitFor({ timeout: 120_000 });
@@ -194,7 +187,7 @@ export async function verifyPrNumber({ stack, fixture }) {
     const hiddenLabel = await target.getByRole("link").first().getAttribute("aria-label");
     assert.ok(hiddenLabel.startsWith(`Open ${FEATURED_THREAD}`));
     assert.doesNotMatch(hiddenLabel, /PR #12345/);
-    await choose("Hidden", "Right");
+    await togglePrNumber();
     await placement("right");
     await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
     await list.waitFor({ timeout: 120_000 });

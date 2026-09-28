@@ -7,7 +7,7 @@ sidebar list itself — bb's sections, projects, machines, pins, nesting, rename
 search, and menus — with workflow stages, stable manual order, stage bands with
 previews, stage rings and row shimmer, child thread lines, prompt action
 buttons, pull request numbers and marks, section and project icons with
-colored headings, the `bb sidebar` CLI, stage mentions and change notices,
+colored headings and standard icons where none is chosen, the `bb sidebar` CLI, stage mentions and change notices,
 stage shortcuts, and Completed auto-archive on top. Rows carry no archive
 button. It replaces the
 Ribbon sidebar, Icons, and Breadcrumbs plugins, importing Ribbon's and Icons'

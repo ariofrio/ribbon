@@ -79,11 +79,11 @@ Every section and project has an icon and an optional color. Use a heading's
 glyphs by name or synonym, filter by category, and pick one of bb's eight
 favicon colors. Changes save as you click and appear in every window.
 
-A heading with a color is tinted by its hue; every other heading is gray. The
-**Group header icons** setting shows each group's own icon (On), none (Off),
-or Standardized: a book for every section, Unorganized included, and a folder
-for every project, open while the group is. The book's top page turns over on
-its spine and the folder's front falls forward as its group folds.
+A heading with a color is tinted by its hue; every other heading is gray. A
+heading whose group chose no icon carries a standard one: a book for a
+section, Unorganized included, and a folder for a project, open while the
+group is. The book's top page turns over on its spine and the folder's front
+falls forward as its group folds. **Group header icons** turns them all off.
 
 ## Rows
 
@@ -109,9 +109,9 @@ Hover the PR number to see what the mark stands for. Auto-merge, reviewers,
 and check counts come from the GitHub CLI (`gh`) signed in on the bb server's
 machine; without it, marks follow bb's own pull request status.
 
-Use a heading's **⋯ menu → PR number** to place the number to the Left or
-Right of each title, or Hidden to also hide its mark. **Equal-width digits**
-lines the numbers up.
+**⋯ menu → Organize → Rows → PR number** shows the number beside each title
+or hides it along with its mark. **Equal-width PR digits** in the plugin's
+settings lines the numbers up.
 
 ## Stages and shortcuts
 

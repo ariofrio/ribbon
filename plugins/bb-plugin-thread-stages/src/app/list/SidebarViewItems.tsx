@@ -14,7 +14,7 @@ import {
 import type { SidebarSectionId } from "../model/sidebar-section-id.js";
 import type { HeaderCreationActions } from "./SidebarHeaderControls.js";
 import { ThreadListVisibilityMenuItems } from "./ThreadListVisibility.js";
-import { RibbonViewMenuItems } from "../../ribbon/app/view-menu.js";
+import { useRibbonData } from "../../ribbon/app/data.js";
 import {
   sidebarThreadLifecyclesAtom,
   sidebarOrganizationModeAtom,
@@ -120,7 +120,6 @@ export function SidebarHeaderMenuContents({
           </DropdownMenuSub>
         ),
       )}
-      <RibbonViewMenuItems compact={compact} />
       {children ? (
         <>
           <DropdownMenuSeparator />
@@ -140,6 +139,7 @@ function SidebarViewItems({ page }: { page: SidebarViewPage }) {
   const [savedDirection, setDirection] = useAtom(sidebarSortDirectionAtom);
   const setEnvironmentGrouping = useSetAtom(sidebarEnvironmentGroupingAtom);
   const groupByEnvironment = useAtomValue(sidebarGroupThreadsByEnvironmentAtom);
+  const ribbon = useRibbonData();
   const [showProviderIcons, setShowProviderIcons] = useAtom(
     sidebarShowProviderIconsAtom,
   );
@@ -233,6 +233,27 @@ function SidebarViewItems({ page }: { page: SidebarViewPage }) {
               {showProviderIcons && <Icon name="Check" className="size-4" />}
             </span>
           </DropdownMenuItem>
+          {ribbon ? (
+            <DropdownMenuItem
+              role="menuitemcheckbox"
+              aria-checked={ribbon.view.pullRequestNumberPosition !== "hidden"}
+              onSelect={(event) => {
+                event.preventDefault();
+                ribbon.changeView((view) => ({
+                  ...view,
+                  pullRequestNumberPosition:
+                    view.pullRequestNumberPosition === "hidden" ? "right" : "hidden",
+                }));
+              }}
+            >
+              PR number
+              <span className="ml-auto inline-flex size-4 shrink-0 items-center justify-center">
+                {ribbon.view.pullRequestNumberPosition !== "hidden" && (
+                  <Icon name="Check" className="size-4" />
+                )}
+              </span>
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuGroup>
       </>
     );

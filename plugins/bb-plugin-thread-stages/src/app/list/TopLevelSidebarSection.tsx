@@ -193,7 +193,9 @@ export function TopLevelSidebarSection({
   );
   const handleHeadingClick = useCallback<MouseEventHandler<HTMLDivElement>>(
     (event) => {
-      if (!ribbon || !collapseControl || labelEditor || event.detail !== 1) return;
+      // Every click toggles at once; a double click on the name toggles
+      // twice and then renames, with nothing waiting to tell them apart.
+      if (!ribbon || !collapseControl || labelEditor) return;
       if (
         event.target instanceof Element &&
         event.target.closest("button, a, input, textarea, [data-sidebar-trailing-controls]")

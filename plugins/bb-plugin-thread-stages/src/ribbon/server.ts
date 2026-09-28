@@ -273,7 +273,7 @@ export const rpcContract = defineRpcContract({
   updateSettingsV1: {
     input: z
       .object({
-        groupHeaderIcons: z.enum(["On", "Off", "Standardized"]).optional(),
+        groupHeaderIcons: z.boolean().optional(),
       })
       .strict(),
     output: z.object({ ok: z.literal(true) }).strict(),
@@ -384,30 +384,9 @@ export default async function ribbonServer(
   bb: BbPluginApi,
   { extraCommands }: RibbonServerOptions = {},
 ) {
+  // Behavior first, then appearance: bb draws settings in this order and
+  // offers no groups of its own.
   const settings = bb.settings.define({
-    childThreadLines: {
-      type: "select",
-      label: "Child thread lines",
-      description:
-        "Run one bar beside child threads' titles, or branch a tree into each child's stage ring.",
-      options: ["Bar", "Tree"],
-      default: "Bar",
-    },
-    groupHeaderIcons: {
-      type: "select",
-      label: "Group header icons",
-      description:
-        "Show each group’s own icon beside its heading, none, or one standard icon for every section and project that opens and shuts with it.",
-      options: ["On", "Off", "Standardized"],
-      default: "On",
-    },
-    shimmerWorkingRows: {
-      type: "boolean",
-      label: "Shimmer working rows",
-      description:
-        "Shimmer a working thread's whole row instead of its activity indicator.",
-      default: true,
-    },
     autoArchiveCompletedAfter: {
       type: "select",
       label: "Auto-archive completed threads",
@@ -419,6 +398,34 @@ export default async function ribbonServer(
       label: "Message threads when their stage changes",
       description:
         "Send a thread a stage notice when you or another thread move it to a different stage.",
+      default: true,
+    },
+    childThreadLines: {
+      type: "select",
+      label: "Child thread lines",
+      description:
+        "Run one bar beside child threads' titles, or branch a tree into each child's stage ring.",
+      options: ["Bar", "Tree"],
+      default: "Bar",
+    },
+    groupHeaderIcons: {
+      type: "boolean",
+      label: "Group header icons",
+      description:
+        "Show an icon beside each heading: the group's own where one is chosen, otherwise a book for a section or a folder for a project that opens and shuts with it.",
+      default: true,
+    },
+    shimmerWorkingRows: {
+      type: "boolean",
+      label: "Shimmer working rows",
+      description:
+        "Shimmer a working thread's whole row instead of its activity indicator.",
+      default: true,
+    },
+    tabularPullRequestDigits: {
+      type: "boolean",
+      label: "Equal-width PR digits",
+      description: "Line pull request numbers up by giving every digit the same width.",
       default: true,
     },
   });
@@ -448,9 +455,14 @@ export default async function ribbonServer(
     if (plugins.some(({ id }) => id === "ribbon-sidebar")) {
       const legacy = await bb.sdk.plugins.getSettings({ pluginId: "ribbon-sidebar" });
       const values = Object.fromEntries(
-        RIBBON_SETTINGS.flatMap((name) =>
-          legacy.values[name] === undefined ? [] : [[name, legacy.values[name]]],
-        ),
+        RIBBON_SETTINGS.flatMap((name): Array<[string, unknown]> => {
+          const value = legacy.values[name];
+          if (value === undefined) return [];
+          // Ribbon chose among On, Off, and Standardized; here the icon is
+          // on or off, and standard where none is chosen.
+          if (name === "groupHeaderIcons") return [[name, value !== "Off"]];
+          return [[name, value]];
+        }),
       );
       if (Object.keys(values).length > 0) {
         await settings.experimental_set(values);

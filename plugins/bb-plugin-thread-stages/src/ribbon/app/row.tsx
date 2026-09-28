@@ -37,6 +37,7 @@ export function useRibbonRowSettings() {
     childThreadLines:
       settings.values?.childThreadLines === "Tree" ? ("Tree" as const) : ("Bar" as const),
     shimmerWorkingRows: settings.values?.shimmerWorkingRows !== false,
+    tabularPullRequestDigits: settings.values?.tabularPullRequestDigits !== false,
   };
 }
 
@@ -59,13 +60,14 @@ export function useRibbonRow(
   shines: boolean;
   pullRequest: {
     node: React.ReactNode;
-    position: "left" | "right";
+    position: "right";
     pending: boolean;
   } | null;
   actions: readonly ThreadAction[];
   hideTitle: boolean;
 } | null {
   const ribbon = useRibbonData();
+  const { tabularPullRequestDigits } = useRibbonRowSettings();
   const { isLoading: pullRequestLoading, pullRequest } =
     experimental_useSidebarThreadPullRequest(thread.id);
   const position = ribbon?.view.pullRequestNumberPosition ?? "right";
@@ -94,9 +96,9 @@ export function useRibbonRow(
                 data-ribbon-pull-request=""
                 // Set off from the title, or from the action buttons that
                 // end where it begins.
-                className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ${
-                  position === "right" ? "ml-2" : "mr-2"
-                } ${ribbon.view.tabularPullRequestDigits ? "tabular-nums" : ""}`}
+                className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ml-2 ${
+                  tabularPullRequestDigits ? "tabular-nums" : ""
+                }`}
                 title={
                   signal.label
                     ? `${visiblePullRequest.title} — ${signal.label}`

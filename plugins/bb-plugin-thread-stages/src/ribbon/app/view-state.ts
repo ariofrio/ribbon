@@ -4,7 +4,7 @@ export type GroupRef = { groupingKey: GroupingKey; groupId: string };
 export type Scope = { kind: "all" } | { kind: "group"; group: GroupRef };
 export type SidebarSort = "updated" | "created" | "alphabetical" | "manual";
 export type SidebarGroupingKey = "builtin:sections" | "builtin:projects";
-export type PullRequestNumberPosition = "left" | "right" | "hidden";
+export type PullRequestNumberPosition = "right" | "hidden";
 export interface HiddenThreadKinds {
   notArchived: boolean;
   archived: boolean;
@@ -17,7 +17,6 @@ export type SidebarView = {
   filterGroupingKey: GroupingKey | null;
   iconGroupingKey: GroupingKey | null;
   pullRequestNumberPosition: PullRequestNumberPosition;
-  tabularPullRequestDigits: boolean;
   hide: HiddenThreadKinds;
   sort: SidebarSort;
 };
@@ -143,12 +142,9 @@ function storedPreferences(
           view.iconGroupingKey === null || isGroupingKey(view.iconGroupingKey)
             ? view.iconGroupingKey
             : "builtin:projects",
+        // Ribbon also placed the number on the left; that is the right now.
         pullRequestNumberPosition:
-          view.pullRequestNumberPosition === "left" ||
-          view.pullRequestNumberPosition === "hidden"
-            ? view.pullRequestNumberPosition
-            : "right",
-        tabularPullRequestDigits: view.tabularPullRequestDigits !== false,
+          view.pullRequestNumberPosition === "hidden" ? "hidden" : "right",
         hide: storedHide(view.hide),
         sort: storedSort(view.sort),
       },
@@ -221,8 +217,6 @@ export function loadSidebarPreferences(storage: Storage): SidebarPreferences {
       hide: stored?.view.hide ?? { ...DEFAULT_HIDDEN_THREAD_KINDS },
       pullRequestNumberPosition:
         stored?.view.pullRequestNumberPosition ?? "right",
-      tabularPullRequestDigits:
-        stored?.view.tabularPullRequestDigits ?? true,
     },
     collapsed: stored?.collapsed ?? legacyCollapsed(storage, []),
   };

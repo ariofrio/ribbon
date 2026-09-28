@@ -11,14 +11,12 @@ import {
 } from "../../icons/store";
 import { StandardHeadingIcon, headingColorStyle } from "./heading";
 import { useIconsController, useOwnerColor } from "./icons";
-import { UnorganizedIcon } from "./unorganized-icon";
 
-export type HeadingIconsSetting = "On" | "Off" | "Standardized";
-
-export function useHeadingIconsSetting(): HeadingIconsSetting {
+/** Whether headings carry an icon; Ribbon's Off still reads as off. */
+export function useHeadingIconsSetting(): boolean {
   const settings = useSettings();
   const value = settings.values?.groupHeaderIcons;
-  return value === "Off" || value === "Standardized" ? value : "On";
+  return value !== false && value !== "Off";
 }
 
 /** The wash and ink a heading takes from its owner's color, gray without one. */
@@ -28,9 +26,10 @@ export function useHeadingStyle(owner: IconOwner | null): CSSProperties {
 }
 
 /**
- * The icon before a heading's label: the owner's own, a standard book or
- * folder that opens and shuts with the group, or nothing, as the setting
- * says. Unorganized, which owns no icon, keeps its own glyph.
+ * The icon before a heading's label: the owner's own where one was chosen,
+ * otherwise a standard book or folder that opens and shuts with the group,
+ * or nothing while the setting is off. Unorganized owns no icon, so it gets
+ * the section's book.
  */
 export function RibbonHeadingIcon({
   owner,
@@ -41,10 +40,16 @@ export function RibbonHeadingIcon({
   collapsed: boolean;
   unorganized?: boolean;
 }) {
-  const setting = useHeadingIconsSetting();
+  const enabled = useHeadingIconsSetting();
   const controller = useIconsController();
-  if (setting === "Off") return null;
-  if (setting === "Standardized") {
+  if (!enabled) return null;
+  const chosen =
+    !unorganized &&
+    owner !== null &&
+    (controller?.state?.icons.some(
+      (item) => item.kind === owner.kind && item.id === owner.id,
+    ) ?? false);
+  if (!chosen) {
     return (
       <StandardHeadingIcon
         kind={unorganized ? "section" : (owner?.kind ?? "section")}
@@ -52,8 +57,7 @@ export function RibbonHeadingIcon({
       />
     );
   }
-  if (unorganized || owner === null) return <UnorganizedIcon />;
-  const drawn = iconFor(controller?.state ?? null, owner, PERSONAL_PROJECT_ID);
+  const drawn = iconFor(controller?.state ?? null, owner as IconOwner, PERSONAL_PROJECT_ID);
   // The heading already wears the owner's color as its ink; the icon takes
   // that ink rather than the palette color it would draw in on its own.
   return (

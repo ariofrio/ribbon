@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { applyPluginState, FEATURED_PROJECT, FEATURED_THREAD, SECTION } from "../../screenshots/fixture.mjs";
-import { heading, launch, link, openContext, row, section, sidebar, STAGES } from "./sidebar.mjs";
+import { heading, launch, link, openContext, row, section, sidebar, sidebarRoot, STAGES } from "./sidebar.mjs";
 
 // A working thread shows its turn on the stage ring, not in the trailing lane.
 // Reporting a background command gives it a trailing indicator to lay out.
@@ -29,8 +29,6 @@ export async function verifyThreadIcons({ stack, fixture }) {
   // Earlier filing and placement cases can move this shared thread out of Active.
   fixture.run(["sidebar", "place", thread.id, "--to", `${STAGES}/Active`]);
   await applyPluginState({ stack, ...fixture });
-  const setHeadingIcons = (value) => fixture.run(["plugin", "config", "thread-stages", "set", "groupHeaderIcons", value]);
-  setHeadingIcons("On");
   const browser = await launch();
   try {
     const context = await openContext(browser, { viewport: { width: 1280, height: 800 } });
@@ -147,16 +145,19 @@ export async function verifyThreadIcons({ stack, fixture }) {
       assert.ok(Math.abs(hue - labelHue) < 0.5, `The Atlas heading's ${part} should keep its color's hue (${hue} vs ${labelHue})`);
     }
 
-    // Standardized heading icons: a book for a section, open while the
-    // section is, in the heading's own ink.
+    // A heading whose owner chose no icon carries the standard one: a book
+    // for a section, open while the section is, in the heading's own ink.
+    // Unorganized owns nothing to choose for, so it always does.
     {
-      setHeadingIcons("Standardized");
-      const standard = (name) => atlas.locator(`svg[data-icon="${name}"]`);
+      const plain = sidebarRoot(page).locator('[data-sidebar="group-label"]').filter({
+        has: page.getByRole("button", { name: /^(Collapse|Expand) Unorganized section$/ }),
+      });
+      const standard = (name) => plain.locator(`svg[data-icon="${name}"]`);
       await standard("BookOpen").waitFor();
       const glyph = await standard("BookOpen").evaluate((svg) => {
         const box = svg.getBoundingClientRect();
         const label = [...svg.closest('[data-sidebar="group-label"]').querySelectorAll("span")]
-          .find((span) => span.childElementCount === 0 && span.textContent === "Atlas");
+          .find((span) => span.childElementCount === 0 && span.textContent === "Unorganized");
         return { width: box.width, height: box.height, color: getComputedStyle(svg).color, ink: getComputedStyle(label).color };
       });
       assert.deepEqual(
@@ -170,7 +171,7 @@ export async function verifyThreadIcons({ stack, fixture }) {
       });
       const openWidth = await drawnWidth("BookOpen");
       // The book shuts as its group folds, frame by frame, from open.
-      const shutting = atlas.evaluate((group) => new Promise((resolve) => {
+      const shutting = plain.evaluate((group) => new Promise((resolve) => {
         const frames = [];
         const start = performance.now();
         requestAnimationFrame(function sample() {
@@ -180,8 +181,8 @@ export async function verifyThreadIcons({ stack, fixture }) {
           else requestAnimationFrame(sample);
         });
       }));
-      await atlas.hover();
-      await atlas.getByRole("button", { name: "Collapse Atlas section", exact: true }).click();
+      await plain.hover();
+      await plain.getByRole("button", { name: "Collapse Unorganized section", exact: true }).click();
       const frames = await shutting;
       const drawn = frames.slice(0, -1).map(Number);
       assert.equal(frames.at(-1), null, `The shut book should come to rest: ${JSON.stringify(frames)}`);
@@ -194,10 +195,10 @@ export async function verifyThreadIcons({ stack, fixture }) {
       const shutWidth = await drawnWidth("BookClosed");
       assert.ok(openWidth / shutWidth > 1.5 && openWidth / shutWidth < 2.1,
         `The open book should be most of twice as wide as the shut one: ${openWidth} and ${shutWidth}`);
-      await atlas.hover();
-      await atlas.getByRole("button", { name: "Expand Atlas section", exact: true }).click();
+      await plain.hover();
+      await plain.getByRole("button", { name: "Expand Unorganized section", exact: true }).click();
       await standard("BookOpen").waitFor();
-      setHeadingIcons("On");
+      // Atlas chose its own, which it keeps.
       await atlas.locator(`svg[data-icon="${SECTION.icon}"]`).waitFor();
     }
 
@@ -247,7 +248,6 @@ export async function verifyThreadIcons({ stack, fixture }) {
     assert.equal(await target.getByText("#123", { exact: true }).count(), 0);
     await context.close();
   } finally {
-    setHeadingIcons("Standardized");
     await browser.close();
   }
 }

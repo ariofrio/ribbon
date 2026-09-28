@@ -62,6 +62,7 @@ import { SidebarRowControls } from "./SidebarRowControls.js";
 import {
   SIDEBAR_CONTROL_BUTTON_CLASS,
   SIDEBAR_CONTROL_STATE_CLASS,
+  SIDEBAR_ROW_TEXT_CLASS,
   SIDEBAR_ROW_BASE_CLASS,
   SIDEBAR_ROW_GLYPH_SLOT_CLASS,
   SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,
@@ -490,7 +491,10 @@ function ThreadRowComponent({
       ? COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS
       : COARSE_POINTER_ROW_HEIGHT_CLASS,
     showActive
-      ? SIDEBAR_ROW_SELECTED_STATE_CLASS
+      ? ribbon
+        // Ribbon's open row wears the hover surface, not bb's active one.
+        ? `bg-sidebar-accent bb-sidebar-selected-row ${SIDEBAR_ROW_TEXT_CLASS}`
+        : SIDEBAR_ROW_SELECTED_STATE_CLASS
       : SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,
     ribbon?.muted && "text-subtle-foreground/75",
     !showActive && isOpenInSplit && SIDEBAR_ROW_OPEN_IN_SPLIT_STATE_CLASS,
@@ -662,7 +666,6 @@ function ThreadRowComponent({
                   </TooltipContent>
                 </Tooltip>
               ) : null}
-              {ribbon?.pullRequest?.position === "left" ? ribbon.pullRequest.node : null}
               {ribbon?.hideTitle ? (
                 <span className="min-w-0 flex-1" />
               ) : (
