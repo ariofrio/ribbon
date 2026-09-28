@@ -404,6 +404,12 @@ function options(overrides: Record<string, unknown> = {}) {
     async (): Promise<{ threads: ListedThread[] }> => ({ threads: [] }),
   );
   const updateSettingsV1 = vi.fn(async () => ({ ok: true as const }));
+  const listThreadActionsV1 = vi.fn(async () => ({ threads: [] as Array<{
+    threadId: string;
+    actions: Array<{ id: string; label: string; prompt: string }>;
+  }> }));
+  const saveThreadActionsV1 = vi.fn(async () => ({ ok: true as const }));
+  const runThreadActionV1 = vi.fn(async () => ({ ok: true as const }));
   return {
     synchronizeV1,
     listPlacementsV1,
@@ -418,6 +424,9 @@ function options(overrides: Record<string, unknown> = {}) {
     listProjectActionStatesV1,
     listThreadsV1,
     updateSettingsV1,
+    listThreadActionsV1,
+    saveThreadActionsV1,
+    runThreadActionV1,
     value: {
       settings: {
         showProjectsAndSections: true,
@@ -451,6 +460,9 @@ function options(overrides: Record<string, unknown> = {}) {
         renameEntityV1,
         deleteEntityV1,
         updateSettingsV1,
+        listThreadActionsV1,
+        saveThreadActionsV1,
+        runThreadActionV1,
       },
       sidebarThreads: {
         projects: [
@@ -496,6 +508,54 @@ function useManualSort(groupingKey = "plugin:thread-stages:stages") {
 }
 
 describe("Ribbon sidebar app", () => {
+  it("shows group-tinted thread actions and dispatches the selected prompt", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    fixture.listThreadActionsV1.mockResolvedValue({
+      threads: [{ threadId: "thread-a", actions: [
+        { id: "review", label: "Review", prompt: "Review this thread." },
+      ] }],
+    });
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const row = (await slot.findByText("Design migration")).closest<HTMLElement>(
+      '[data-thread-id="thread-a"]',
+    )!;
+    const button = await within(row).findByRole("button", {
+      name: "Review in Design migration",
+    });
+    fireEvent.click(button);
+    await waitFor(() => expect(fixture.runThreadActionV1).toHaveBeenCalledWith({
+      threadId: "thread-a", actionId: "review",
+    }));
+    slot.lifecycle.unmount();
+  });
+
+  it("edits thread actions from the thread menu", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const row = (await slot.findByText("Design migration")).closest<HTMLElement>(
+      '[data-thread-id="thread-a"]',
+    )!;
+    fireEvent.keyDown(row.querySelector('[aria-label="Thread actions"]')!, { key: "Enter" });
+    fireEvent.click(await slot.findByText("Edit actions"));
+    const dialog = await slot.findByRole("dialog", { name: "Edit thread actions" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add action" }));
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Action 1 button label" }), {
+      target: { value: "Review" },
+    });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Action 1 prompt" }), {
+      target: { value: "Review this thread." },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save actions" }));
+    await waitFor(() => expect(fixture.saveThreadActionsV1).toHaveBeenCalledWith({
+      threadId: "thread-a",
+      actions: [expect.objectContaining({ label: "Review", prompt: "Review this thread." })],
+    }));
+    expect(await within(row).findByRole("button", { name: "Review in Design migration" })).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
   it.each([
     ["builtin:sections", "Release"],
     ["builtin:projects", "Storefront"],
@@ -1478,6 +1538,11 @@ describe("Ribbon sidebar app", () => {
   it("preserves released archived-thread search results", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
+    fixture.listThreadActionsV1.mockResolvedValue({
+      threads: [{ threadId: "thread-archived", actions: [
+        { id: "review", label: "Review", prompt: "Review this thread." },
+      ] }],
+    });
     fixture.value.rpc.searchThreadIdsV1 = vi.fn(async () => ({
       threadIds: ["thread-archived"],
       threads: [
@@ -1501,6 +1566,7 @@ describe("Ribbon sidebar app", () => {
 
     expect(await slot.findByText("Archived migration")).toBeTruthy();
     expect(slot.queryByRole("button", { name: "Thread actions" })).toBeNull();
+    expect(slot.queryByRole("button", { name: "Review in Archived migration" })).toBeNull();
     fireEvent.click(
       slot.getByRole("link", { name: "Open Archived migration" }),
     );

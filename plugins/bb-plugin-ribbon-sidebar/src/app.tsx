@@ -86,6 +86,7 @@ import {
   type ThreadStatus,
 } from "./thread-status";
 import { ThreadTitle } from "./thread-title";
+import type { ThreadAction } from "./thread-actions-store";
 import { UnorganizedIcon } from "./unorganized-icon";
 import { Button } from "./vendor/components/ui/button";
 import {
@@ -104,6 +105,7 @@ import {
 } from "./pull-request-details-store";
 import { Icon } from "./vendor/components/ui/icon";
 import { Input } from "./vendor/components/ui/input";
+import { Textarea } from "./vendor/components/ui/textarea";
 import {
   loadSidebarPreferences,
   saveSidebarPreferences,
@@ -154,6 +156,20 @@ type EntityDialog =
 
 function title(thread: Pick<PluginSidebarThread, "title" | "titleFallback">) {
   return thread.title ?? thread.titleFallback ?? "Untitled thread";
+}
+
+function actionButtonStyle(kind?: "project" | "section"): CSSProperties {
+  const color = kind
+    ? `var(--ribbon-icons-${kind}-color-light, oklch(0.5 0 0))`
+    : "oklch(0.5 0 0)";
+  return {
+    backgroundColor:
+      `light-dark(oklch(from ${color} 0.93 0.045 h), ` +
+      `oklch(from ${color} 0.32 0.055 h))`,
+    color:
+      `light-dark(oklch(from ${color} 0.38 0.13 h), ` +
+      `oklch(from ${color} 0.89 0.11 h))`,
+  };
 }
 
 function descendants(
@@ -273,6 +289,8 @@ function ThreadRow({
   projected,
   muted,
   onNewSection,
+  onEditActions,
+  onRunAction,
   onOpen,
   onRename,
   onSetSection,
@@ -282,6 +300,8 @@ function ThreadRow({
   pullRequestNumberPosition,
   reorderable,
   rootThreadId,
+  rowActions,
+  groupColor,
   sections,
   shimmerRow,
   thread,
@@ -309,6 +329,8 @@ function ThreadRow({
   projected: boolean;
   muted: boolean;
   onNewSection(): void;
+  onEditActions(): void;
+  onRunAction(actionId: string): Promise<void>;
   onOpen(split: boolean): void;
   onRename(): void;
   onSetSection(sectionId: string | null): void;
@@ -318,6 +340,8 @@ function ThreadRow({
   pullRequestNumberPosition: PullRequestNumberPosition;
   reorderable: boolean;
   rootThreadId: string;
+  rowActions: readonly ThreadAction[];
+  groupColor: { kind: "project" | "section"; id: string } | null;
   sections: readonly { id: string; label: string }[];
   /** Shimmer the working row rather than its indicator. */
   shimmerRow: boolean;
@@ -344,6 +368,7 @@ function ThreadRow({
   useRowShine(rowRef, shines, working);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
+  const [runningActionId, setRunningActionId] = useState<string | null>(null);
   const rowTitle = title(thread);
   const sortable = useSortable({
     id: thread.id,
@@ -399,6 +424,7 @@ function ThreadRow({
     assignments,
     disabled: placementDisabled,
     onNewSection,
+    onEditActions,
     onRename,
     onSetSection,
     sections,
@@ -447,6 +473,9 @@ function ThreadRow({
           sortable.setNodeRef(node);
           rowRef.current = node;
         }}
+        {...(groupColor
+          ? { [`data-ribbon-icons-${groupColor.kind}`]: groupColor.id }
+          : {})}
         {...(shines ? { [SHINE_ROW_ATTRIBUTE]: "" } : {})}
         {...(working ? { [ACTIVE_ROW_ATTRIBUTE]: "" } : {})}
         onDragStart={(event) => event.preventDefault()}
@@ -586,6 +615,41 @@ function ThreadRow({
               title={preview}
             >
               {preview}
+            </span>
+          ) : null}
+          {!thread.isArchived && rowActions.length > 0 ? (
+            <span
+              className="relative z-20 row-start-3 flex min-w-0 flex-wrap gap-1 pb-1.5"
+              style={{
+                gridColumnStart: hasIcon ? 2 : 1,
+                gridColumnEnd: alignsTrailingIndicatorToTitle
+                  ? hasIcon ? 4 : 3
+                  : undefined,
+              }}
+            >
+              {rowActions.map((action) => (
+                <Button
+                  key={action.id}
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`${action.label} in ${rowTitle}`}
+                  disabled={runningActionId !== null}
+                  className="h-5 max-w-full rounded px-1.5 text-[11px] leading-none ring-sidebar-ring hover:brightness-95 focus-visible:ring-2 active:brightness-90"
+                  style={actionButtonStyle(groupColor?.kind)}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setRunningActionId(action.id);
+                    void onRunAction(action.id).finally(() => {
+                      setRunningActionId(null);
+                    });
+                  }}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  <span className="truncate">{action.label}</span>
+                </Button>
+              ))}
             </span>
           ) : null}
         </span>
@@ -759,6 +823,15 @@ function RibbonSidebarList({
   const [previews, setPreviews] = useState<ReadonlyMap<string, string | null>>(
     new Map(),
   );
+  const [threadActions, setThreadActions] = useState<
+    ReadonlyMap<string, readonly ThreadAction[]>
+  >(new Map());
+  const [threadActionsLoaded, setThreadActionsLoaded] = useState(false);
+  const [actionsEditor, setActionsEditor] = useState<{
+    threadId: string;
+    actions: ThreadAction[];
+  } | null>(null);
+  const [actionsEditorPending, setActionsEditorPending] = useState(false);
   const [supplementalThreads, setSupplementalThreads] = useState<
     readonly SupplementalThread[]
   >([]);
@@ -877,6 +950,31 @@ function RibbonSidebarList({
     );
     setPlacementsLoaded(true);
   }, [rpc]);
+
+  const loadThreadActions = useCallback(async () => {
+    const { threads } = await rpc.call("listThreadActionsV1", null);
+    setThreadActions(
+      new Map(threads.map(({ threadId, actions }) => [threadId, actions])),
+    );
+    setThreadActionsLoaded(true);
+  }, [rpc]);
+
+  useEffect(() => {
+    if (connection !== "connected") return;
+    void loadThreadActions().catch((error: unknown) => {
+      setMutationError(
+        error instanceof Error ? error.message : "Could not load thread actions",
+      );
+    });
+  }, [connection, loadThreadActions]);
+
+  useRealtime("thread-actions-changed", () => {
+    void loadThreadActions().catch((error: unknown) => {
+      setMutationError(
+        error instanceof Error ? error.message : "Could not load thread actions",
+      );
+    });
+  });
 
   const loadAssignmentPlacements = useCallback(async () => {
     const request = ++assignmentRequest.current;
@@ -1551,6 +1649,8 @@ function RibbonSidebarList({
       roots: readonly PluginSidebarThread[];
       groupId?: string;
     },
+    inheritedGroupColor: { kind: "project" | "section"; id: string } | null =
+      null,
   ) => {
     const children = childrenByParent.get(root.id) ?? [];
     const childrenCollapsed = collapsedThreadIds.has(root.id);
@@ -1573,6 +1673,19 @@ function RibbonSidebarList({
       !normalizedSearch &&
       !root.isArchived &&
       rowContext !== undefined;
+    const groupColor =
+      rowContext?.kind === "placement" &&
+      rowContext.groupId &&
+      (selectedGroupingKey === "builtin:sections" ||
+        selectedGroupingKey === "builtin:projects")
+        ? {
+            kind:
+              selectedGroupingKey === "builtin:sections"
+                ? ("section" as const)
+                : ("project" as const),
+            id: rowContext.groupId,
+          }
+        : inheritedGroupColor;
     return (
       <Fragment key={root.id}>
         {dragDestination?.indicatorBefore === root.id ? (
@@ -1589,6 +1702,28 @@ function RibbonSidebarList({
           }
           shimmerRow={settings.values?.shimmerWorkingRows !== false}
           actions={actions}
+          rowActions={threadActions.get(root.id) ?? []}
+          groupColor={groupColor}
+          onEditActions={() =>
+            setActionsEditor({
+              threadId: root.id,
+              actions: [...(threadActions.get(root.id) ?? [])],
+            })
+          }
+          onRunAction={async (actionId) => {
+            try {
+              await rpc.call("runThreadActionV1", {
+                threadId: root.id,
+                actionId,
+              });
+            } catch (error) {
+              setMutationError(
+                error instanceof Error
+                  ? error.message
+                  : "Could not run thread action",
+              );
+            }
+          }}
           assignments={
             depth === 0
               ? orderedGroupings(snapshot.groupings).flatMap((candidate) => {
@@ -1682,7 +1817,9 @@ function RibbonSidebarList({
         {includeDescendants &&
         !childrenCollapsed &&
         draggingThreadId !== root.id
-          ? children.map((child) => renderRoot(child, depth + 1))
+          ? children.map((child) =>
+              renderRoot(child, depth + 1, true, undefined, groupColor),
+            )
           : null}
         {dragDestination?.indicatorAfter === root.id ? (
           <li className="list-none">
@@ -1808,7 +1945,7 @@ function RibbonSidebarList({
             } as CSSProperties
           }
           data-ribbon-sidebar-ready={
-            placementsLoaded && stagesLoaded && previewsLoaded ? "" : undefined
+                placementsLoaded && stagesLoaded && previewsLoaded && threadActionsLoaded ? "" : undefined
           }
           data-ribbon-sidebar-root=""
         >
@@ -1949,6 +2086,116 @@ function RibbonSidebarList({
                       type="submit"
                     >
                       Rename
+                    </Button>
+                  </DialogFooter>
+                </form>
+              ) : null}
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={actionsEditor !== null}
+            onOpenChange={(open) => {
+              if (!open && !actionsEditorPending) setActionsEditor(null);
+            }}
+          >
+            <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit thread actions</DialogTitle>
+                <DialogDescription>
+                  Add up to three buttons that send prompts to this thread.
+                </DialogDescription>
+              </DialogHeader>
+              {actionsEditor ? (
+                <form
+                  className="space-y-4"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const { threadId, actions: edited } = actionsEditor;
+                    const next = edited.map((action) => ({
+                      ...action,
+                      label: action.label.trim(),
+                      prompt: action.prompt.trim(),
+                    }));
+                    if (next.some(({ label, prompt }) => !label || !prompt)) return;
+                    setActionsEditorPending(true);
+                    void rpc.call("saveThreadActionsV1", { threadId, actions: next })
+                      .then(() => {
+                        setThreadActions((current) => new Map(current).set(threadId, next));
+                        setActionsEditor(null);
+                      })
+                      .catch((error: unknown) => {
+                        setMutationError(error instanceof Error ? error.message : "Could not save thread actions");
+                      })
+                      .finally(() => setActionsEditorPending(false));
+                  }}
+                >
+                  {actionsEditor.actions.map((action, index) => (
+                    <div className="space-y-2 rounded-md border border-border p-3" key={action.id}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium">Action {index + 1}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={actionsEditorPending}
+                          onClick={() => setActionsEditor((current) => current && ({
+                            ...current,
+                            actions: current.actions.filter(({ id }) => id !== action.id),
+                          }))}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                      <Input
+                        aria-label={`Action ${index + 1} button label`}
+                        maxLength={24}
+                        placeholder="Button label"
+                        disabled={actionsEditorPending}
+                        value={action.label}
+                        onChange={(event) => setActionsEditor((current) => current && ({
+                          ...current,
+                          actions: current.actions.map((item) => item.id === action.id
+                            ? { ...item, label: event.target.value }
+                            : item),
+                        }))}
+                      />
+                      <Textarea
+                        aria-label={`Action ${index + 1} prompt`}
+                        maxLength={10000}
+                        placeholder="Prompt to send to this thread"
+                        disabled={actionsEditorPending}
+                        value={action.prompt}
+                        onChange={(event) => setActionsEditor((current) => current && ({
+                          ...current,
+                          actions: current.actions.map((item) => item.id === action.id
+                            ? { ...item, prompt: event.target.value }
+                            : item),
+                        }))}
+                      />
+                    </div>
+                  ))}
+                  <DialogFooter>
+                    {actionsEditor.actions.length < 3 ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={actionsEditorPending}
+                        onClick={() => setActionsEditor((current) => current && ({
+                          ...current,
+                          actions: [...current.actions, {
+                            id: crypto.randomUUID(), label: "", prompt: "",
+                          }],
+                        }))}
+                      >
+                        Add action
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="submit"
+                      disabled={actionsEditorPending || actionsEditor.actions.some(({ label, prompt }) => !label.trim() || !prompt.trim())}
+                    >
+                      Save actions
                     </Button>
                   </DialogFooter>
                 </form>

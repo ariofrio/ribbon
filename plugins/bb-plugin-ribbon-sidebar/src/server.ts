@@ -28,6 +28,7 @@ import {
 import { createPreviewStore } from "./preview-store";
 import { sidebarThreadsFromSearchResult } from "./search-results";
 import { registerThreadPreviews } from "./thread-previews";
+import { createThreadActionsStore, THREAD_ACTIONS_MIGRATION } from "./thread-actions-store";
 import { AUTO_ARCHIVE_OPTIONS } from "./workflow/auto-archive";
 import {
   createGroupingCatalog,
@@ -90,9 +91,50 @@ const ribbonThreadSchema = z
     latestAttentionAt: z.number(),
   })
   .strict();
+const threadActionSchema = z
+  .object({
+    id: z.string().min(1).max(64),
+    label: z.string().trim().min(1).max(24),
+    prompt: z.string().trim().min(1).max(10000),
+  })
+  .strict();
+const threadActionsSchema = z.array(threadActionSchema).max(3).refine(
+  (actions) => new Set(actions.map(({ id }) => id)).size === actions.length,
+  "Action IDs must be unique.",
+);
 
 export const rpcContract = defineRpcContract({
   ...workflowRpcMethods,
+  listThreadActionsV1: {
+    input: z.null(),
+    output: z
+      .object({
+        threads: z.array(
+          z
+            .object({ threadId: z.string(), actions: threadActionsSchema })
+            .strict(),
+        ),
+      })
+      .strict(),
+  },
+  saveThreadActionsV1: {
+    input: z
+      .object({
+        threadId: z.string().min(1).max(256),
+        actions: threadActionsSchema,
+      })
+      .strict(),
+    output: z.object({ ok: z.literal(true) }).strict(),
+  },
+  runThreadActionV1: {
+    input: z
+      .object({
+        threadId: z.string().min(1).max(256),
+        actionId: z.string().min(1).max(64),
+      })
+      .strict(),
+    output: z.object({ ok: z.literal(true) }).strict(),
+  },
   addProjectLocalPathV1: {
     input: z.object({ projectId: z.string().min(1).max(256) }).strict(),
     output: z.object({ added: z.boolean() }).strict(),
@@ -416,8 +458,12 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
   const database = bb.storage.database();
-  bb.storage.migrate(database, RIBBON_SIDEBAR_MIGRATIONS);
+  bb.storage.migrate(database, [
+    ...RIBBON_SIDEBAR_MIGRATIONS,
+    THREAD_ACTIONS_MIGRATION,
+  ]);
   const previews = createPreviewStore(database);
+  const threadActions = createThreadActionsStore(database);
   registerThreadPreviews(bb, previews);
 
   let projectGroups: GroupingDescriptor["groups"] = [];
@@ -797,6 +843,28 @@ export default async function plugin(bb: BbPluginApi) {
 
   bb.rpc.register(rpcContract, {
     ...workflow,
+    listThreadActionsV1() {
+      return { threads: threadActions.list() };
+    },
+    async saveThreadActionsV1({ threadId, actions }) {
+      const thread = await bb.sdk.threads.get({ threadId });
+      if (thread.archivedAt !== null) {
+        throw new Error("Archived threads cannot have actions.");
+      }
+      threadActions.save(threadId, actions);
+      bb.realtime.publish("thread-actions-changed", { threadId });
+      return { ok: true as const };
+    },
+    async runThreadActionV1({ threadId, actionId }) {
+      const action = threadActions.get(threadId, actionId);
+      if (!action) throw new Error("This thread action no longer exists.");
+      await bb.sdk.threads.send({
+        threadId,
+        input: [{ type: "text", text: action.prompt, mentions: [] }],
+        mode: "auto",
+      });
+      return { ok: true as const };
+    },
 
     async addProjectLocalPathV1({ projectId }) {
       const { primaryHostId } = await bb.sdk.system.config();
@@ -1009,6 +1077,7 @@ export default async function plugin(bb: BbPluginApi) {
 
   bb.events.on("thread.deleted", ({ thread }) => {
     previews.delete(thread.id);
+    threadActions.delete(thread.id);
     projectByThread.delete(thread.id);
     sectionByThread.delete(thread.id);
     const result = store.deleteThread(thread.id);

@@ -51,6 +51,11 @@ Thread status indicators retain bb's priority for errors, input requests, active
 work, queued messages, unread completions, and drafts. Split-pane maps, previews,
 PR numbers, thread menus, and chosen section icons remain available.
 
+Use a thread's **⋯ menu → Edit actions** to add up to three labeled prompts.
+Their buttons appear below the thread title and send the saved prompt to that
+thread when clicked. The buttons take their section or project color when one
+is set in the Icons plugin.
+
 A thread's pull request adds its status. Its icon beside the PR number is green
 while open, amber once auto-merge is on or it is in the merge queue, purple
 when merged, red when closed, and muted while a draft. The status indicator adds
