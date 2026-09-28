@@ -2,7 +2,7 @@ import { groupingCatalogSchema, type IconDataV1 } from "../contracts";
 import { WORKFLOW_STAGES, type WorkflowStage } from "./workflow-stage";
 export const THREAD_STAGES_GROUPING_KEY =
   "plugin:thread-stages:stages" as const;
-const RING_RADIUS = 8.25;
+const RING_RADIUS = 8.75;
 const RING_STROKE_WIDTH = 2;
 const progressRing: IconDataV1 = {
   tag: "circle",
@@ -70,7 +70,7 @@ const STAGE_MARKS: Record<WorkflowStage, IconDataV1[]> = {
 const workingArc: IconDataV1 = {
   tag: "path",
   attrs: {
-    d: "M20.25 12a8.25 8.25 0 1 1-5.701-7.847",
+    d: "M20.75 12a8.75 8.75 0 1 1-6.046-8.322",
     stroke: "currentColor",
     strokeLinecap: "round",
     strokeLinejoin: "round",
