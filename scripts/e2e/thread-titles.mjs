@@ -47,9 +47,13 @@ export async function verifyThreadTitles({ stack, fixture }) {
       "--model", "fixture", "--permission-mode", "accept-edits", "--prompt", "Calendar",
     ]);
     const workers = async () => {
-      const response = await fetch(new URL(
+      const url = new URL(
         "/api/v1/threads?includeHidden=true&originPluginId=thread-titles&limit=100", stack.serverUrl,
-      ));
+      );
+      // The synchronous CLI calls between reads can hold a pooled connection
+      // past the server's keep-alive timeout, so the next read finds it closed.
+      // The read is idempotent; retry it once on a fresh connection.
+      const response = await fetch(url).catch(() => fetch(url));
       assert.ok(response.ok, await response.clone().text());
       const body = await response.json();
       return (Array.isArray(body) ? body : body.threads).filter(
