@@ -2401,6 +2401,38 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("keeps a row pending until its pull request details settle", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const url = "https://github.com/acme/app/pull/12";
+    for (const outcome of ["loaded", "failed"] as const) {
+      let settle!: () => void;
+      const pullRequestDetailsV1 = vi.fn(
+        () => new Promise<{ details: never[] }>((resolve, reject) => {
+          settle = () =>
+            outcome === "loaded"
+              ? resolve({ details: [] })
+              : reject(new Error("gh unavailable"));
+        }),
+      );
+      const fixture = options({
+        sidebarPullRequests: {
+          "thread-a": { number: 12, title: "Ship it", url, state: "open", attention: "blocked" },
+        },
+      });
+      const slot = renderSlot(app.threadLists[0]!, props, {
+        ...fixture.value,
+        rpc: { ...fixture.value.rpc, pullRequestDetailsV1 },
+      });
+      const pending = () =>
+        slot.container.querySelectorAll("[data-ribbon-pull-request-pending]");
+      await waitFor(() => expect(pullRequestDetailsV1).toHaveBeenCalled());
+      expect(pending()).toHaveLength(1);
+      await act(async () => settle());
+      await waitFor(() => expect(pending()).toHaveLength(0));
+      slot.lifecycle.unmount();
+    }
+  });
+
   it("shows a retry action when mounting fails", async () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options({

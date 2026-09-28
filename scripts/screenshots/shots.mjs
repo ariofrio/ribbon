@@ -166,6 +166,26 @@ async function openFeaturedThread(page, knownHref) {
   // reason: a freshly seeded bb is still settling while the first shots are
   // taken, and a plugin bundle can load well past Playwright's default minute.
   await projectCrumb(page).waitFor({ timeout: 120000 });
+  // The Ribbon sidebar every shot shows draws its rows' previews and pull
+  // request states after the rows themselves, and a shot taken in between
+  // loses them. Its root is marked ready once the previews are in, and a row
+  // stays marked pending until its pull request is known. The featured row
+  // proves the rows are drawn, so an empty pending set is not vacuous.
+  const ribbon = page.locator(
+    "[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]",
+  );
+  await ribbon
+    .getByRole("link", { name: new RegExp(`^Open ${FEATURED_THREAD}`) })
+    .first()
+    .waitFor({ timeout: 120000 });
+  await page.waitForFunction(
+    () =>
+      document.querySelector(
+        "[data-ribbon-sidebar-root] [data-ribbon-pull-request-pending]",
+      ) === null,
+    null,
+    { timeout: 120000 },
+  );
   // Every wait above proves a thing arrived. This one proves nothing is still
   // moving: the header reflows around the crumb once it lands.
   await settleAnimations(page);
