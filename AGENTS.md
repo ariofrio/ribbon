@@ -8,7 +8,7 @@ you need the detail, and run it rather than reasoning about it:
 | `npm run check:layout` — `scripts/plugin-layout.mjs` | sentence-case plugin names, entry points under `src/`, what may sit in a plugin root, the `files` exclusions for tests and screenshots, and the `@/` alias in both tsconfig and vitest |
 | `npm run check:ui` — `scripts/vendor-ui.mjs` | every file under `src/vendor/` is bb's, verbatim, and explained by `vendor-ui.json` |
 | `npm run check:heading-icons` — `scripts/heading-icons.mjs` | `assets/icons/` matches each plugin's own icon |
-| `npm test` — `scripts/screenshots/trigger.test.mjs`, `scripts/workflows.test.mjs` | which paths make CI recapture, and that every CI job runs once and is required |
+| `npm test` — `scripts/screenshots/trigger.test.mjs`, `scripts/e2e-affects.test.mjs`, `scripts/changes.test.mjs`, `scripts/workflows.test.mjs` | which paths make CI recapture or run the end-to-end suites, that version bumps alone do neither, and that every CI job runs once and is required |
 
 What follows is here because no check can decide it, or because it has to be
 decided before the work starts.
