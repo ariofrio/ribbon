@@ -82,6 +82,11 @@ import {
 } from "./thread-drag";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
 import {
+  RAIL_EDGE_BOTTOM,
+  RAIL_EDGE_TOP,
+  railSegments,
+} from "./thread-rails";
+import {
   resolveThreadStatus,
   withPullRequestSignal,
   type ThreadStatus,
@@ -264,6 +269,8 @@ function ThreadRow({
   assignments,
   childrenCollapsed,
   depth,
+  endsGroup,
+  firstChild,
   hasChildren,
   indicatorThread,
   hasUnsubmittedDraft,
@@ -301,6 +308,9 @@ function ThreadRow({
   }[];
   childrenCollapsed: boolean;
   depth: number;
+  /** For each depth from 1 through `depth`, whether that sibling group's last row is this one. */
+  endsGroup: readonly boolean[];
+  firstChild: boolean;
   hasChildren: boolean;
   indicatorThread: ThreadStatus;
   hasUnsubmittedDraft: boolean;
@@ -447,7 +457,12 @@ function ThreadRow({
             : active
               ? "text-sidebar-foreground"
               : "text-sidebar-foreground/85 hover:text-sidebar-accent-foreground dark:text-sidebar-foreground"
-        } ${layout !== null && !active ? "bg-sidebar-accent/50" : ""} ${reorderable ? "select-none" : ""}`}
+        } ${layout !== null && !active ? "bg-sidebar-accent/50" : ""} ${reorderable ? "select-none" : ""} ${
+          // Where the stage ring's centre sits, for the rails to meet it.
+          iconSpansEntireItem
+            ? "[--ribbon-ring-y:50%]"
+            : "[--ribbon-ring-y:calc(var(--bb-sidebar-row-height)/2)] max-md:pointer-coarse:[--ribbon-ring-y:calc(var(--bb-sidebar-row-height-coarse)/2)]"
+        }`}
         ref={(node) => {
           sortable.setNodeRef(node);
           rowRef.current = node;
@@ -462,12 +477,30 @@ function ThreadRow({
         onDragStart={(event) => event.preventDefault()}
         style={{ paddingLeft: 8 + depth * 24 }}
       >
-        {Array.from({ length: depth }, (_, level) => (
+        {railSegments({
+          depth,
+          firstChild,
+          endsGroup,
+          ring: !hasIcon
+            ? "absent"
+            : hideIdleStageIconAtRest
+              ? "hidden-at-rest"
+              : "shown",
+        }).map(({ level, from, to, whileRingHidden }) => (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 z-[1] w-px bg-border-hairline opacity-70"
-            key={level}
-            style={{ left: 16 + level * 24 }}
+            className={`pointer-events-none absolute z-[1] w-px bg-border-hairline opacity-70 ${
+              whileRingHidden
+                ? "group-hover/thread-row:opacity-0 group-has-[:focus-visible]/thread-row:opacity-0 pointer-coarse:opacity-0"
+                : ""
+            }`}
+            data-ribbon-sidebar-rail={level}
+            key={`${level}:${from}`}
+            style={{
+              left: 16 + level * 24,
+              top: RAIL_EDGE_TOP[from],
+              bottom: RAIL_EDGE_BOTTOM[to],
+            }}
           />
         ))}
         <a
@@ -1567,9 +1600,20 @@ function RibbonSidebarList({
       roots: readonly PluginSidebarThread[];
       groupId?: string;
     },
+    // Whether this row is the first of its siblings, and whether it and each
+    // ancestor below the root are the last of theirs.
+    lineage: { firstChild: boolean; lastAtDepth: readonly boolean[] } = {
+      firstChild: false,
+      lastAtDepth: [],
+    },
   ) => {
     const children = childrenByParent.get(root.id) ?? [];
     const childrenCollapsed = collapsedThreadIds.has(root.id);
+    const showsChildren =
+      includeDescendants &&
+      !childrenCollapsed &&
+      draggingThreadId !== root.id &&
+      children.length > 0;
     const indicatorThread = resolveThreadStatus(
       childrenCollapsed
         ? [root, ...descendants(root.id, childrenByParent)]
@@ -1641,6 +1685,12 @@ function RibbonSidebarList({
           }
           childrenCollapsed={childrenCollapsed}
           depth={depth}
+          firstChild={lineage.firstChild}
+          endsGroup={lineage.lastAtDepth.map(
+            (_, index) =>
+              !showsChildren &&
+              lineage.lastAtDepth.slice(index).every(Boolean),
+          )}
           hasChildren={children.length > 0}
           indicatorThread={indicatorThread}
           hasUnsubmittedDraft={draftThreadIds.has(root.id)}
@@ -1696,10 +1746,16 @@ function RibbonSidebarList({
           sections={sections}
           thread={root}
         />
-        {includeDescendants &&
-        !childrenCollapsed &&
-        draggingThreadId !== root.id
-          ? children.map((child) => renderRoot(child, depth + 1))
+        {showsChildren
+          ? children.map((child, index) =>
+              renderRoot(child, depth + 1, true, undefined, {
+                firstChild: index === 0,
+                lastAtDepth: [
+                  ...lineage.lastAtDepth,
+                  index === children.length - 1,
+                ],
+              }),
+            )
           : null}
         {dragDestination?.indicatorAfter === root.id ? (
           <li className="list-none">
