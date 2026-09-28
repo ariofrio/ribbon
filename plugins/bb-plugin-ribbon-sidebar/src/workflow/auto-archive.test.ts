@@ -110,6 +110,8 @@ describe("completed auto-archive", () => {
     const source = {
       listCompletedBefore: vi.fn(async () => [
         { threadId: "active-root", enteredAt: now - 2 * DAY },
+        { threadId: "active-child", enteredAt: now - 2 * DAY },
+        { threadId: "active-grandchild", enteredAt: now - 2 * DAY },
         { threadId: "pinned-root", enteredAt: now - 2 * DAY },
         { threadId: "pinned-tree", enteredAt: now - 2 * DAY },
       ]),
@@ -167,6 +169,7 @@ describe("completed auto-archive", () => {
     const source = {
       listCompletedBefore: vi.fn(async () => [
         { threadId: "root-a", enteredAt: now - 2 * DAY },
+        { threadId: "child-a", enteredAt: now - 2 * DAY },
         { threadId: "root-b", enteredAt: now - 2 * DAY },
       ]),
     };
@@ -201,6 +204,32 @@ describe("completed auto-archive", () => {
     expect(warn).toHaveBeenCalledWith(
       "Could not auto-archive root-a: archive failed",
     );
+  });
+
+  it("keeps an Idle child when its parent is Completed and archives a Completed child alone", async () => {
+    const now = 10 * DAY;
+    const threads = [
+      thread("completed-parent"),
+      thread("idle-child", { parentThreadId: "completed-parent" }),
+      thread("idle-parent"),
+      thread("completed-child", { parentThreadId: "idle-parent" }),
+    ];
+    const archiveAll = vi.fn(async ({ threadId }: { threadId: string }) => ({
+      archivedThreadIds: [threadId], ok: true as const,
+    }));
+    const bb = {
+      sdk: { threads: { list: vi.fn(async () => threads), archiveAll } },
+      log: { warn: vi.fn(), info: vi.fn() },
+    } as unknown as BbPluginApi;
+    await expect(archiveEligibleCompletedThreads(bb, {
+      listCompletedBefore: async () => [
+        { threadId: "completed-parent", enteredAt: 1 },
+        { threadId: "completed-child", enteredAt: 1 },
+      ],
+    }, DAY, now)).resolves.toEqual(["completed-child"]);
+    expect(archiveAll.mock.calls.map(([call]) => call.threadId)).toEqual([
+      "completed-child",
+    ]);
   });
 
   it("accepts authoritative Completed candidates from Ribbon sidebar", async () => {

@@ -2,6 +2,8 @@ import type BetterSqlite3 from "better-sqlite3";
 import type { ThreadStagesMigrationSnapshotV1 } from "./contracts";
 import { createOrderKeyBetween } from "./order-keys";
 
+const THREAD_STAGES_GROUPING_KEY = "plugin:thread-stages:stages";
+
 export type GroupingKey =
   | "builtin:projects"
   | "builtin:sections"
@@ -132,6 +134,10 @@ export const RIBBON_SIDEBAR_MIGRATIONS = [
       WHERE grouping_key = 'plugin:thread-stages:stages';
     DROP TABLE IF EXISTS thread_task_workflow;
   `,
+  `CREATE TABLE IF NOT EXISTS eligible_child (
+    thread_id TEXT PRIMARY KEY,
+    bb_order INTEGER NOT NULL CHECK (bb_order >= 0)
+  );`,
 ];
 
 interface AssignmentRow {
@@ -171,7 +177,7 @@ export interface PlacementStore {
   ): { changedGroupingKeys: GroupingKey[] };
   reconcileRoot(
     threadId: string,
-    eligible: boolean,
+    eligible: boolean | "child",
   ): { changedGroupingKeys: GroupingKey[] };
   deleteThread(threadId: string): { changedGroupingKeys: GroupingKey[] };
   deleteGroupOrder(
@@ -259,6 +265,17 @@ export function createPlacementStore(
   const deleteEligibleRoot = database.prepare(
     "DELETE FROM eligible_root WHERE thread_id = ?",
   );
+  const clearEligibleChildren = database.prepare("DELETE FROM eligible_child");
+  const deleteEligibleChild = database.prepare(
+    "DELETE FROM eligible_child WHERE thread_id = ?",
+  );
+  const insertEligibleChild = database.prepare(`
+    INSERT INTO eligible_child(thread_id, bb_order) VALUES (?, ?)
+  `);
+  const insertEligibleChildAtEnd = database.prepare(`
+    INSERT OR IGNORE INTO eligible_child(thread_id, bb_order)
+    SELECT ?, COALESCE(MAX(bb_order) + 1, 0) FROM eligible_child
+  `);
   const insertEligibleRoot = database.prepare(`
     INSERT INTO eligible_root(thread_id, bb_order) VALUES (?, ?)
   `);
@@ -271,6 +288,22 @@ export function createPlacementStore(
   `);
   const removeChildOrder = database.prepare(`
     DELETE FROM group_order WHERE thread_id = ?
+  `);
+  const removeNonStageAssignment = database.prepare(`
+    DELETE FROM group_assignment
+    WHERE thread_id = ? AND grouping_key <> ?
+  `);
+  const removeNonStageOrder = database.prepare(`
+    DELETE FROM group_order
+    WHERE thread_id = ? AND grouping_key <> ?
+  `);
+  const listNonStageAssignmentKeys = database.prepare(`
+    SELECT grouping_key FROM group_assignment
+    WHERE thread_id = ? AND grouping_key <> ?
+  `);
+  const listNonStageOrderKeys = database.prepare(`
+    SELECT grouping_key FROM group_order
+    WHERE thread_id = ? AND grouping_key <> ?
   `);
   const assignmentExists = database.prepare(`
     SELECT 1 FROM group_assignment
@@ -293,8 +326,14 @@ export function createPlacementStore(
   const listEligibleRoots = database.prepare(`
     SELECT thread_id, bb_order FROM eligible_root ORDER BY bb_order, thread_id
   `);
+  const listEligibleChildren = database.prepare(`
+    SELECT thread_id, bb_order FROM eligible_child ORDER BY bb_order, thread_id
+  `);
   const getEligibleRoot = database.prepare(`
     SELECT thread_id, bb_order FROM eligible_root WHERE thread_id = ?
+  `);
+  const getEligibleChild = database.prepare(`
+    SELECT thread_id, bb_order FROM eligible_child WHERE thread_id = ?
   `);
   const getAssignment = database.prepare(`
     SELECT grouping_key, thread_id, group_id, entered_at_ms,
@@ -406,11 +445,26 @@ export function createPlacementStore(
     return assignment?.group_id ?? grouping.defaultGroupId;
   }
 
+  function isEligible(groupingKey: GroupingKey, threadId: string): boolean {
+    return Boolean(
+      getEligibleRoot.get(threadId) ||
+        (groupingKey === THREAD_STAGES_GROUPING_KEY &&
+          getEligibleChild.get(threadId)),
+    );
+  }
+
+  function eligibleRowsForGrouping(groupingKey: GroupingKey): EligibleRow[] {
+    const roots = listEligibleRoots.all() as EligibleRow[];
+    return groupingKey === THREAD_STAGES_GROUPING_KEY
+      ? [...roots, ...(listEligibleChildren.all() as EligibleRow[])]
+      : roots;
+  }
+
   function orderedMemberIds(
     grouping: GroupingDescriptor,
     groupId: string,
   ): string[] {
-    const eligible = listEligibleRoots.all() as EligibleRow[];
+    const eligible = eligibleRowsForGrouping(grouping.groupingKey);
     const members = eligible.filter(
       (row) => currentGroupId(grouping, row.thread_id) === groupId,
     );
@@ -512,22 +566,26 @@ export function createPlacementStore(
       childThreadIds: readonly string[],
     ) => {
       clearEligibleRoots.run();
+      clearEligibleChildren.run();
       eligibleRootThreadIds.forEach((threadId, index) => {
         insertEligibleRoot.run(threadId, index);
+      });
+      childThreadIds.forEach((threadId, index) => {
+        insertEligibleChild.run(threadId, index);
       });
 
       const changed = new Set<GroupingKey>();
       for (const threadId of childThreadIds) {
-        const affectedAssignmentKeys = database
-          .prepare(
-            "SELECT grouping_key FROM group_assignment WHERE thread_id = ?",
-          )
-          .all(threadId) as Array<{ grouping_key: GroupingKey }>;
-        const affectedOrderKeys = database
-          .prepare("SELECT grouping_key FROM group_order WHERE thread_id = ?")
-          .all(threadId) as Array<{ grouping_key: GroupingKey }>;
-        removeChildAssignment.run(threadId);
-        removeChildOrder.run(threadId);
+        const affectedAssignmentKeys = listNonStageAssignmentKeys.all(
+          threadId,
+          THREAD_STAGES_GROUPING_KEY,
+        ) as Array<{ grouping_key: GroupingKey }>;
+        const affectedOrderKeys = listNonStageOrderKeys.all(
+          threadId,
+          THREAD_STAGES_GROUPING_KEY,
+        ) as Array<{ grouping_key: GroupingKey }>;
+        removeNonStageAssignment.run(threadId, THREAD_STAGES_GROUPING_KEY);
+        removeNonStageOrder.run(threadId, THREAD_STAGES_GROUPING_KEY);
         for (const row of [...affectedAssignmentKeys, ...affectedOrderKeys]) {
           changed.add(row.grouping_key);
         }
@@ -536,7 +594,9 @@ export function createPlacementStore(
       for (const grouping of options.groupings()) {
         ensureRevision.run(grouping.groupingKey);
         if (grouping.membership.kind !== "ribbon") continue;
-        for (const threadId of eligibleRootThreadIds) {
+        for (const threadId of grouping.groupingKey === THREAD_STAGES_GROUPING_KEY
+          ? [...eligibleRootThreadIds, ...childThreadIds]
+          : eligibleRootThreadIds) {
           if (assignmentExists.get(grouping.groupingKey, threadId)) continue;
           insertAssignment.run(
             grouping.groupingKey,
@@ -557,9 +617,10 @@ export function createPlacementStore(
     },
   );
   const reconcileOne = database.transaction(
-    (threadId: string, eligible: boolean) => {
+    (threadId: string, eligible: boolean | "child") => {
       const changed = new Set<GroupingKey>();
-      if (eligible) {
+      if (eligible === true) {
+        deleteEligibleChild.run(threadId);
         insertEligibleRootAtEnd.run(threadId);
         for (const grouping of options.groupings()) {
           ensureRevision.run(grouping.groupingKey);
@@ -577,6 +638,35 @@ export function createPlacementStore(
           );
           changed.add(grouping.groupingKey);
         }
+      } else if (eligible === "child") {
+        deleteEligibleRoot.run(threadId);
+        insertEligibleChildAtEnd.run(threadId);
+        const affectedAssignmentKeys = listNonStageAssignmentKeys.all(
+          threadId,
+          THREAD_STAGES_GROUPING_KEY,
+        ) as Array<{ grouping_key: GroupingKey }>;
+        const affectedOrderKeys = listNonStageOrderKeys.all(
+          threadId,
+          THREAD_STAGES_GROUPING_KEY,
+        ) as Array<{ grouping_key: GroupingKey }>;
+        removeNonStageAssignment.run(threadId, THREAD_STAGES_GROUPING_KEY);
+        removeNonStageOrder.run(threadId, THREAD_STAGES_GROUPING_KEY);
+        for (const row of [...affectedAssignmentKeys, ...affectedOrderKeys]) {
+          changed.add(row.grouping_key);
+        }
+        const stage = options.grouping(THREAD_STAGES_GROUPING_KEY);
+        if (
+          stage?.membership.kind === "ribbon" &&
+          !assignmentExists.get(THREAD_STAGES_GROUPING_KEY, threadId)
+        ) {
+          insertAssignment.run(
+            THREAD_STAGES_GROUPING_KEY,
+            threadId,
+            stage.defaultGroupId,
+            now(),
+          );
+          changed.add(THREAD_STAGES_GROUPING_KEY);
+        }
       } else {
         const affectedAssignmentKeys = database
           .prepare(
@@ -587,6 +677,7 @@ export function createPlacementStore(
           .prepare("SELECT grouping_key FROM group_order WHERE thread_id = ?")
           .all(threadId) as Array<{ grouping_key: GroupingKey }>;
         deleteEligibleRoot.run(threadId);
+        deleteEligibleChild.run(threadId);
         removeChildAssignment.run(threadId);
         removeChildOrder.run(threadId);
         for (const row of [...affectedAssignmentKeys, ...affectedOrderKeys]) {
@@ -634,6 +725,7 @@ export function createPlacementStore(
             [...assignmentKeys, ...orderKeys].map((row) => row.grouping_key),
           );
           deleteEligibleRoot.run(threadId);
+          deleteEligibleChild.run(threadId);
           removeChildAssignment.run(threadId);
           removeChildOrder.run(threadId);
           for (const groupingKey of changed) {
@@ -842,12 +934,12 @@ export function createPlacementStore(
           },
         };
       }
-      if (!getEligibleRoot.get(input.threadId)) {
+      if (!isEligible(grouping.groupingKey, input.threadId)) {
         return {
           ok: false,
           error: {
             code: "THREAD_INELIGIBLE",
-            message: `Thread is not an eligible visible root: ${input.threadId}`,
+            message: `Thread is not eligible for this grouping: ${input.threadId}`,
           },
         };
       }
@@ -926,12 +1018,12 @@ export function createPlacementStore(
           },
         };
       }
-      if (!getEligibleRoot.get(input.threadId)) {
+      if (!isEligible(grouping.groupingKey, input.threadId)) {
         return {
           ok: false,
           error: {
             code: "THREAD_INELIGIBLE",
-            message: `Thread is not an eligible visible root: ${input.threadId}`,
+            message: `Thread is not eligible for this grouping: ${input.threadId}`,
           },
         };
       }
@@ -1042,12 +1134,12 @@ export function createPlacementStore(
               },
             };
           }
-          if (!getEligibleRoot.get(input.threadId)) {
+          if (!isEligible(grouping.groupingKey, input.threadId)) {
             return {
               ok: false as const,
               error: {
                 code: "THREAD_INELIGIBLE" as const,
-                message: `Thread is not an eligible visible root: ${input.threadId}`,
+                message: `Thread is not eligible for this grouping: ${input.threadId}`,
               },
             };
           }
@@ -1282,7 +1374,7 @@ export function createPlacementStore(
       const revision = (
         getRevision.get(grouping.groupingKey) as { revision: number }
       ).revision;
-      const eligibleRows = listEligibleRoots.all() as EligibleRow[];
+      const eligibleRows = eligibleRowsForGrouping(grouping.groupingKey);
       const eligibleById = new Map(
         eligibleRows.map((row) => [row.thread_id, row]),
       );

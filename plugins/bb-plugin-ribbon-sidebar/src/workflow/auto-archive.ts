@@ -96,16 +96,27 @@ export async function archiveEligibleCompletedThreads(
   }
 
   const archived: string[] = [];
-  for (const candidate of candidates) {
+  const completedIds = new Set(candidates.map(({ threadId }) => threadId));
+  const attemptedIds = new Set<string>();
+  const depth = (threadId: string): number => {
+    let value = 0;
+    let current = threadById.get(threadId);
+    const visited = new Set<string>();
+    while (current?.parentThreadId && !visited.has(current.parentThreadId)) {
+      visited.add(current.parentThreadId);
+      current = threadById.get(current.parentThreadId);
+      value += 1;
+    }
+    return value;
+  };
+  for (const candidate of [...candidates].sort((a, b) =>
+    depth(a.threadId) - depth(b.threadId))) {
     const thread = threadById.get(candidate.threadId);
-    if (
-      !thread ||
-      thread.parentThreadId !== null ||
-      thread.archivedAt !== null
-    ) {
+    if (!thread || thread.archivedAt !== null || attemptedIds.has(thread.id)) {
       continue;
     }
     const hierarchy = collectHierarchy(thread, childrenByParent);
+    if (hierarchy.some((entry) => !completedIds.has(entry.thread.id))) continue;
     if (hierarchy.some((entry) => entry.thread.updatedAt > cutoff)) continue;
     if (hierarchy.some((entry) => entry.thread.pinnedAt !== null)) continue;
     hierarchy.sort(
@@ -115,6 +126,7 @@ export async function archiveEligibleCompletedThreads(
     );
     try {
       for (const entry of hierarchy) {
+        attemptedIds.add(entry.thread.id);
         await bb.sdk.threads.archiveAll({ threadId: entry.thread.id });
       }
       archived.push(thread.id);

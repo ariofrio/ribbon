@@ -12,6 +12,7 @@ import type {
   PlacementStore,
 } from "./placement-store";
 import { orderedGroupings } from "./grouping-order";
+import { rootThreadIdByThreadId } from "./workflow/root-thread-ownership";
 
 interface CliResult {
   exitCode: number;
@@ -25,6 +26,7 @@ export interface RibbonSidebarCliContext {
   threads(options: {
     includeArchived: boolean;
     includeHidden: boolean;
+    includeChildren: boolean;
   }):
     | readonly RibbonSidebarThread[]
     | Promise<readonly RibbonSidebarThread[]>;
@@ -185,6 +187,7 @@ function richThreadRows(
   threadIds: readonly string[],
 ) {
   const threads = new Map(candidates.map((thread) => [thread.id, thread]));
+  const rootIds = rootThreadIdByThreadId(candidates);
   const groupIds = new Map<GroupingKey, Map<string, string>>();
   for (const grouping of groupings) {
     const listed = context.store.listPlacements({
@@ -197,6 +200,11 @@ function richThreadRows(
     );
     for (const threadId of threadIds) {
       if (ids.has(threadId)) continue;
+      const rootId = rootIds.get(threadId);
+      if (grouping.groupingKey.startsWith("builtin:") && rootId && ids.has(rootId)) {
+        ids.set(threadId, ids.get(rootId)!);
+        continue;
+      }
       const groupId = grouping.membership.kind === "ribbon"
         ? grouping.defaultGroupId
         : grouping.membership.groupIdForThread(threadId);
@@ -333,11 +341,15 @@ export function defineRibbonSidebarCli(
           },
           "include-archived": {
             type: "boolean",
-            description: "Include archived roots",
+            description: "Include archived threads",
           },
           "include-hidden": {
             type: "boolean",
-            description: "Include hidden roots",
+            description: "Include hidden threads",
+          },
+          "include-children": {
+            type: "boolean",
+            description: "Include child threads with their own stages",
           },
           ...JSON_OPTION,
         },
@@ -372,6 +384,7 @@ export function defineRibbonSidebarCli(
           const candidates = await context.threads({
             includeArchived: options["include-archived"],
             includeHidden: options["include-hidden"],
+            includeChildren: options["include-children"],
           });
           const candidateIds = new Set(candidates.map(({ id }) => id));
           const orderedIds = listed.value.items
@@ -452,11 +465,17 @@ export function defineRibbonSidebarCli(
               threadId,
             }),
           );
-          const failure = values.find((result) => !result.ok);
+          const failure = values.find(
+            (result) => !result.ok && result.error.code !== "THREAD_INELIGIBLE",
+          );
           if (failure && !failure.ok) return domainFailure(failure);
           const successful = values
             .filter((result) => result.ok)
             .map(({ value }) => value);
+          if (successful.length === 0) {
+            const ineligible = values.find((result) => !result.ok);
+            if (ineligible && !ineligible.ok) return domainFailure(ineligible);
+          }
           return success(
             successful,
             humanPlacements(

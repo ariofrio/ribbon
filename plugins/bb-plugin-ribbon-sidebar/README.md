@@ -43,9 +43,10 @@ Group rank survives stage changes, so returning a deferred or completed root
 to the main list restores its place.
 
 bb owns section membership, pins, pinned order, and lifecycle. Ribbon stores
-section and project ranks separately from workflow stage. Children inherit
-their root's stage and remain nested. Forks inherit their source hierarchy's
-section and stage; unparenting copies the former root's placement.
+section and project ranks separately from workflow stage. Each child has its
+own stage while remaining nested under its parent. Forks inherit their source
+thread's stage and hierarchy's section; unparenting preserves the child's
+stage and copies the former root's section placement.
 
 Thread status indicators retain bb's priority for errors, input requests, active
 work, queued messages, unread completions, and drafts. Split-pane maps, previews,
@@ -79,9 +80,11 @@ A working row also shimmers across its icon, title, preview, and indicator, in
 place of the shimmer bb draws on the indicator alone. Turn off **Shimmer working
 rows** in Ribbon settings to keep bb's.
 
-Completed hierarchies auto-archive after seven days by default. Ribbon settings
-can select 1 or 30 days, or Never. Completion and subsequent root or descendant
-updates restart the timer. Any pinned member prevents archival.
+Completed threads auto-archive after seven days by default. Ribbon settings
+can select 1 or 30 days, or Never. A hierarchy archives only when every
+descendant is also Completed long enough; a Completed child can archive while
+its parent stays open. Subsequent updates restart the timer, and any pinned
+member prevents archival.
 
 | macOS | Linux / Windows | Action |
 | --- | --- | --- |
@@ -92,6 +95,9 @@ updates restart the timer. Any pinned member prevents archival.
 | ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list |
 | ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to that list's edge |
 | ⌃⌘↑ / ⌃⌘↓ | Ctrl+↑ / Ctrl+↓ | Move to the adjacent enabled stage |
+
+On a child thread, filing shortcuts change that child's stage and stay on it.
+Stage-step shortcuts also work on children; order shortcuts remain root-only.
 
 Shortcuts can be rebound in bb. Enter opens a focused thread; Space starts a
 keyboard drag. Expanding an overflow list from the keyboard focuses its first
@@ -114,6 +120,7 @@ bb sidebar groups builtin:sections
 bb sidebar list --scope builtin:sections/<section-id>
 bb sidebar show --self
 bb sidebar place --self --to plugin:thread-stages:stages/Completed
+bb sidebar list --include-children --scope plugin:thread-stages:stages/Blocked
 bb sidebar place <thread> --to builtin:sections/<section-id> --before <thread>
 bb sidebar migrate thread-stages
 ```
@@ -121,6 +128,7 @@ bb sidebar migrate thread-stages
 Use `bb sidebar` to discover the full command surface. `list --json` joins
 thread metadata, project, section, and stage. Archived and hidden roots are
 excluded unless requested with `--include-archived` or `--include-hidden`.
+Add `--include-children` to list nested threads with their own stages.
 
 ## Development
 

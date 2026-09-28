@@ -574,7 +574,7 @@ describe("Ribbon sidebar server", () => {
     await fixture.harness.behavior.callRpc("updatePlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
       groupId: "Blocked",
-      threadId: "thr_parent",
+      threadId: "thr_fork_source",
       origin: "ui",
     });
     const fork = makeThreadResponse({
@@ -752,7 +752,7 @@ describe("Ribbon sidebar server", () => {
     expect(unsubscribe).toHaveBeenCalledOnce();
   });
 
-  it("gives an unparented thread provider groups from its former parent hierarchy", async () => {
+  it("preserves an unparented child's stage independently of its former parent", async () => {
     let onThreadChanged: ThreadChangedCallback | undefined;
     const subscribe = vi.fn((args: RealtimeSubscribeArgs) => {
       if (args.event === "thread:changed") onThreadChanged = args.callback;
@@ -805,7 +805,7 @@ describe("Ribbon sidebar server", () => {
         }),
       ).resolves.toMatchObject({
         ok: true,
-        value: { placement: { groupId: "Blocked" } },
+        value: { placement: { groupId: "Idle" } },
       });
     });
     service.controller.abort();
@@ -979,6 +979,55 @@ describe("Ribbon sidebar server", () => {
       ok: true,
       value: { placement: { groupId: "section-a" } },
     });
+  });
+
+  it("sets and lists a child's stage without changing its parent", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    await harness.behavior.callRpc("updatePlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Idle",
+      threadId: "thread-a",
+      origin: "cli",
+    });
+    expect(await harness.behavior.callRpc("updatePlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      groupId: "Blocked",
+      threadId: "thread-child",
+      origin: "cli",
+    })).toMatchObject({ ok: true });
+    expect(await harness.behavior.callRpc("getPlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      threadId: "thread-a",
+    })).toMatchObject({ ok: true, value: { placement: { groupId: "Idle" } } });
+    const listed = await harness.behavior.runCli([
+      "list", "--include-children", "--scope",
+      "plugin:thread-stages:stages/Blocked", "--json",
+    ]);
+    expect(JSON.parse(listed.stdout ?? "")).toEqual([
+      expect.objectContaining({
+        id: "thread-child",
+        parentThreadId: "thread-a",
+        section: { id: "section-a", name: "Release" },
+      }),
+    ]);
+    const shown = await harness.behavior.runCli([
+      "show", "thread-child", "--json",
+    ]);
+    expect(JSON.parse(shown.stdout ?? "")).toEqual([
+      expect.objectContaining({ placement: expect.objectContaining({ groupId: "Blocked" }) }),
+    ]);
+    expect(await harness.behavior.callRpc("setWorkflowStage", {
+      threadId: "thread-child", workflowStage: "Idle",
+    })).toEqual({ destination: { kind: "stay" } });
+    await harness.behavior.callRpc("reorderThread", {
+      threadId: "thread-child", scope: "stage", direction: 1,
+    });
+    await harness.behavior.callRpc("synchronizeV1", { migrateThreadStages: false });
+    expect(await harness.behavior.callRpc("getPlacementV1", {
+      groupingKey: "plugin:thread-stages:stages",
+      threadId: "thread-child",
+    })).toMatchObject({ ok: true, value: { placement: { groupId: "Blocked" } } });
   });
 
   it("serves canonical built-in names in the standard grouping order", async () => {

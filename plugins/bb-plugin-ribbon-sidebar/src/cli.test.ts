@@ -398,6 +398,7 @@ describe("Ribbon sidebar CLI", () => {
       .toEqual(["thread-a", "thread-b"]);
     expect(threads).toHaveBeenLastCalledWith({
       includeArchived: false,
+      includeChildren: false,
       includeHidden: false,
     });
 
