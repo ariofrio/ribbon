@@ -243,13 +243,30 @@ type SortableRowProps = ThreadRowProps & {
   sortable: ReturnType<typeof useSortable>;
 };
 
-function sameFields(left: object, right: object): boolean {
-  return (
-    Object.keys(left).length === Object.keys(right).length &&
-    Object.entries(left).every(([key, value]) =>
-      Object.is(value, Reflect.get(right, key)),
-    )
-  );
+const NO_IGNORED_FIELDS: ReadonlySet<string> = new Set();
+const ROW_NESTED_FIELDS = new Set([
+  "assignments", "indicatorThread", "icon", "sections", "dragTarget", "sortable", "thread",
+]);
+const THREAD_NESTED_FIELDS = new Set(["activity", "environment", "host"]);
+const ASSIGNMENT_CALLBACK_FIELDS = new Set(["onSetGroup"]);
+const DRAG_ROOT_FIELDS = new Set(["roots"]);
+
+function sameFields(
+  left: object,
+  right: object,
+  ignored: ReadonlySet<string> = NO_IGNORED_FIELDS,
+): boolean {
+  if (left === right) return true;
+  for (const key in left) {
+    if (!Object.hasOwn(left, key) || ignored.has(key)) continue;
+    if (!Object.hasOwn(right, key) || !Object.is(Reflect.get(left, key), Reflect.get(right, key)))
+      return false;
+  }
+  for (const key in right) {
+    if (Object.hasOwn(right, key) && !ignored.has(key) && !Object.hasOwn(left, key))
+      return false;
+  }
+  return true;
 }
 
 function sameRowProps(
@@ -264,7 +281,6 @@ function sameRowProps(
     dragTarget: ad,
     sortable: adnd,
     thread: at,
-    ...ap
   } = previous;
   const {
     assignments: b,
@@ -274,7 +290,6 @@ function sameRowProps(
     dragTarget: bd,
     sortable: bdnd,
     thread: bt,
-    ...bp
   } = next;
   if (
     adnd.setNodeRef !== bdnd.setNodeRef ||
@@ -284,17 +299,17 @@ function sameRowProps(
   )
     return false;
   if (at !== bt) {
-    const { activity: aa, environment: ae, host: ah, ...av } = at;
-    const { activity: ba, environment: be, host: bh, ...bv } = bt;
+    const { activity: aa, environment: ae, host: ah } = at;
+    const { activity: ba, environment: be, host: bh } = bt;
     if (
-      !sameFields(av, bv) ||
+      !sameFields(at, bt, THREAD_NESTED_FIELDS) ||
       !sameFields(aa, ba) ||
       (ae !== be && (!ae || !be || !sameFields(ae, be))) ||
       (ah !== bh && (!ah || !bh || !sameFields(ah, bh)))
     )
       return false;
   }
-  if (!sameFields(ap, bp) || !sameFields(ai, bi)) return false;
+  if (!sameFields(previous, next, ROW_NESTED_FIELDS) || !sameFields(ai, bi)) return false;
   if (
     ax !== bx &&
     !(
@@ -314,18 +329,15 @@ function sameRowProps(
     return false;
   if (
     a.length !== b.length ||
-    a.some(({ onSetGroup: _onSetGroup, ...item }, i) => {
-      const { onSetGroup: _nextOnSetGroup, ...other } = b[i]!;
-      return !sameFields(item, other);
-    })
+    a.some((item, i) => !sameFields(item, b[i]!, ASSIGNMENT_CALLBACK_FIELDS))
   )
     return false;
   if (ad !== bd) {
     if (!ad || !bd) return false;
-    const { roots: ar, ...av } = ad;
-    const { roots: br, ...bv } = bd;
+    const ar = ad.roots;
+    const br = bd.roots;
     if (
-      !sameFields(av, bv) ||
+      !sameFields(ad, bd, DRAG_ROOT_FIELDS) ||
       ar.length !== br.length ||
       ar.some((root, index) => root.id !== br[index]?.id)
     )
