@@ -4,7 +4,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { PreferencesSync } from "./app/preferences/PreferencesSync.js";
 import { ProjectList } from "./app/list/ProjectList.js";
 import { useSidebarThreadReveal } from "./app/list/useSidebarThreadReveal.js";
+import { registerWorkflowCommands } from "./ribbon/app/commands.js";
 import { RibbonDataProvider } from "./ribbon/app/data.js";
+import { IconsProvider } from "./ribbon/app/icons.js";
 
 function ThreadList({
   activeThreadId,
@@ -17,10 +19,12 @@ function ThreadList({
       <TooltipProvider>
         <PreferencesSync />
         <RibbonDataProvider>
-          <ProjectList
-            activeThreadId={activeThreadId}
-            onProjectSelect={onNavigate}
-          />
+          <IconsProvider>
+            <ProjectList
+              activeThreadId={activeThreadId}
+              onProjectSelect={onNavigate}
+            />
+          </IconsProvider>
         </RibbonDataProvider>
       </TooltipProvider>
     </CompactViewportOverrideProvider>
@@ -28,6 +32,7 @@ function ThreadList({
 }
 
 export default definePluginApp((app) => {
+  registerWorkflowCommands(app);
   app.slots.experimental_threadList({
     id: "thread-stages",
     title: "Thread stages",

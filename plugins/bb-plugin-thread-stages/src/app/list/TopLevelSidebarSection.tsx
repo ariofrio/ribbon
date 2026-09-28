@@ -59,6 +59,12 @@ interface TopLevelSidebarSectionCollapseControl {
 
 export interface TopLevelSidebarSectionProps {
   label: string;
+  /** Drawn before the label: the group's icon. */
+  leading?: ReactNode;
+  /** The heading's wash and ink, from the group's color. */
+  headingStyle?: CSSProperties;
+  /** Rendered beside the heading's controls, such as a picker they open. */
+  trailing?: ReactNode;
   labelEditor?: ReactNode;
   onRename?: () => void;
   children: ReactNode;
@@ -82,6 +88,9 @@ export interface TopLevelSidebarSectionProps {
 
 export function TopLevelSidebarSection({
   label,
+  leading,
+  headingStyle,
+  trailing,
   labelEditor,
   onRename,
   children,
@@ -194,16 +203,24 @@ export function TopLevelSidebarSection({
         className={cn(
           SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
           CHROME_SECTION_LABEL_CLASS,
-          SIDEBAR_GROUP_TEXT_CLASS,
+          headingStyle
+            ? "text-[color:var(--ribbon-heading-on,currentColor)]"
+            : SIDEBAR_GROUP_TEXT_CLASS,
           SIDEBAR_STANDARD_ROW_PADDING_CLASS,
           "rounded-md pr-0 transition-colors",
           !stickyHeader && "relative top-auto",
           dragBindings && !dragBindings.disabled && "select-none",
         )}
+        style={headingStyle}
         {...dragBindings?.attributes}
         {...(dragBindings?.listeners ?? {})}
       >
         <span className="relative z-10 flex min-w-0 flex-1 items-center gap-1 text-left">
+          {leading ? (
+            <span className="mr-1 inline-flex shrink-0 items-center" aria-hidden="true">
+              {leading}
+            </span>
+          ) : null}
           {labelEditor ?? (
             <span
               className="min-w-0 truncate"
@@ -269,6 +286,7 @@ export function TopLevelSidebarSection({
           >
             {status}
             {collapsedActivityIndicator}
+            {trailing}
             {actions ? (
               <span
                 data-sidebar-hover-actions-open={

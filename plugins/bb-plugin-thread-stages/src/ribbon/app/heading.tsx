@@ -23,16 +23,15 @@ export const HEADING_ACTION_CLASS = `${HEADING_MUTED_CLASS} hover:bg-[color:var(
 
 /**
  * Every heading is a faint wash with ink on it. A project or section whose icon
- * has a color takes that color's hue: the Icons plugin sets the color on any
- * element that names the owner, and only where someone picked one. Every other
- * heading is the same family in gray.
+ * has a color takes that color's hue, and every other heading is the same
+ * family in gray.
  *
- * The Icons palette is tuned for small glyphs, where one hue can run far hotter
+ * The icon palette is tuned for small glyphs, where one hue can run far hotter
  * than another, so a heading keeps only the hue, at one lightness and chroma
  * per mode for every color.
  */
-export function headingColorStyle(kind?: "project" | "section"): CSSProperties {
-  if (kind === undefined) {
+export function headingColorStyle(color: string | null = null): CSSProperties {
+  if (color === null) {
     return {
       backgroundColor: GRAY.fill,
       ["--ribbon-heading-on" as string]: GRAY.ink,
@@ -40,16 +39,12 @@ export function headingColorStyle(kind?: "project" | "section"): CSSProperties {
       ["--ribbon-heading-hover-fill" as string]: HOVER_FILL,
     };
   }
-  const color = `var(--ribbon-icons-${kind}-color-light)`;
   const tone = (light: string, dark: string) =>
     `light-dark(oklch(from ${color} ${light} h), oklch(from ${color} ${dark} h))`;
   return {
-    ["--ribbon-heading-fill" as string]: tone(FILL.light, FILL.dark),
-    ["--ribbon-heading-ink" as string]: tone(INK.light, INK.dark),
-    ["--ribbon-heading-hover-ink" as string]: tone(HOVER_INK.light, HOVER_INK.dark),
-    backgroundColor: `var(--ribbon-heading-fill, ${GRAY.fill})`,
-    ["--ribbon-heading-on" as string]: `var(--ribbon-heading-ink, ${GRAY.ink})`,
-    ["--ribbon-heading-hover-on" as string]: `var(--ribbon-heading-hover-ink, ${GRAY.hoverInk})`,
+    backgroundColor: tone(FILL.light, FILL.dark),
+    ["--ribbon-heading-on" as string]: tone(INK.light, INK.dark),
+    ["--ribbon-heading-hover-on" as string]: tone(HOVER_INK.light, HOVER_INK.dark),
     ["--ribbon-heading-hover-fill" as string]: HOVER_FILL,
   };
 }

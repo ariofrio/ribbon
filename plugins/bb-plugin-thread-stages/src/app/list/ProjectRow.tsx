@@ -163,6 +163,13 @@ import { useNestDropPreview } from "../dnd/useNestDropPreview.js";
 import { useChronologicalSectionThreadDnd } from "../dnd/SectionThreadDndContext.js";
 import { StageBandedItems } from "../../ribbon/app/StageBandedItems.js";
 import {
+  HeadingIconPicker,
+  RibbonHeadingIcon,
+  useHeadingStyle,
+} from "../../ribbon/app/heading-icon.js";
+import { useRibbonData } from "../../ribbon/app/data.js";
+import { ActionMenuItem } from "../ui/action-menu-items.js";
+import {
   renderBuiltInSidebarSection,
   type BuiltInSidebarSectionOptions,
   type BuiltInSidebarSectionOptionsById,
@@ -1414,6 +1421,13 @@ const SectionTreeItemRow = memo(function SectionTreeItemRow({
     },
   });
   const [isTopLevelActionsOpen, setIsTopLevelActionsOpen] = useState(false);
+  const [isPickingIcon, setIsPickingIcon] = useState(false);
+  const ribbon = useRibbonData();
+  const sectionOwner = useMemo(
+    () => ({ kind: "section" as const, id: section.id }),
+    [section.id],
+  );
+  const sectionHeadingStyle = useHeadingStyle(ribbon ? sectionOwner : null);
   const collapsedSections = useAtomValue(sidebarCollapsedThreadSectionsAtom);
   const setCollapsedSections = useSetAtom(sidebarCollapsedThreadSectionsAtom);
   const sectionKey = section.key;
@@ -1503,12 +1517,29 @@ const SectionTreeItemRow = memo(function SectionTreeItemRow({
           onRemove={
             onRemoveSection ? () => onRemoveSection(section) : undefined
           }
+          onChangeIcon={ribbon ? () => setIsPickingIcon(true) : undefined}
         />
       </SidebarHeaderControls>
     );
     return (
       <TopLevelSidebarSection
         label={sectionName}
+        leading={
+          ribbon ? (
+            <RibbonHeadingIcon owner={sectionOwner} collapsed={isCollapsed} />
+          ) : undefined
+        }
+        headingStyle={ribbon ? sectionHeadingStyle : undefined}
+        trailing={
+          ribbon ? (
+            <HeadingIconPicker
+              owner={sectionOwner}
+              ownerName={sectionName}
+              open={isPickingIcon}
+              onOpenChange={setIsPickingIcon}
+            />
+          ) : undefined
+        }
         labelEditor={rename.editor}
         onRename={rename.startEditing}
         sectionId={section.id}
@@ -2361,6 +2392,13 @@ function ProjectRowComponent({
   const [isContextActionsOpen, setIsContextActionsOpen] = useState(false);
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
   const [isRemovePending, setIsRemovePending] = useState(false);
+  const [isPickingIcon, setIsPickingIcon] = useState(false);
+  const ribbon = useRibbonData();
+  const projectOwner = useMemo(
+    () => ({ kind: "project" as const, id: project.id }),
+    [project.id],
+  );
+  const projectHeadingStyle = useHeadingStyle(ribbon ? projectOwner : null);
   const isActionsOpen = isDropdownActionsOpen || isContextActionsOpen;
   const projectThreads = useMemo(
     () =>
@@ -2412,7 +2450,18 @@ function ProjectRowComponent({
         onRename={rename.startEditingFromMenu}
         onRemove={requestRemove}
         extraActions={(surface) => (
-          <ThreadListVisibilityMenuItems surface={surface} />
+          <>
+            {ribbon ? (
+              <ActionMenuItem
+                surface={surface}
+                icon="Palette"
+                onSelect={() => setIsPickingIcon(true)}
+              >
+                Change icon
+              </ActionMenuItem>
+            ) : null}
+            <ThreadListVisibilityMenuItems surface={surface} />
+          </>
         )}
       />
     </SidebarHeaderControls>
@@ -2437,6 +2486,22 @@ function ProjectRowComponent({
         >
           <TopLevelSidebarSection
             label={project.name}
+            leading={
+              ribbon ? (
+                <RibbonHeadingIcon owner={projectOwner} collapsed={isCollapsed} />
+              ) : undefined
+            }
+            headingStyle={ribbon ? projectHeadingStyle : undefined}
+            trailing={
+              ribbon ? (
+                <HeadingIconPicker
+                  owner={projectOwner}
+                  ownerName={project.name}
+                  open={isPickingIcon}
+                  onOpenChange={setIsPickingIcon}
+                />
+              ) : undefined
+            }
             dropParentKey={buildSidebarEntitySectionId("project", project.id)}
             labelEditor={rename.editor}
             onRename={rename.startEditing}

@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from "react";
+import { memo, type CSSProperties, type ReactNode } from "react";
 import type { ConsumeDragClickSuppression } from "../ui/use-drag-click-suppression.js";
 import {
   TopLevelSidebarSection,
@@ -26,6 +26,8 @@ export interface BuiltInSidebarSectionOptions {
   collapsedThreads?: readonly ThreadSplitIndicatorTarget[];
   content: ReactNode;
   label: string;
+  leading?: ReactNode;
+  headingStyle?: CSSProperties;
 }
 
 interface BuiltInSidebarSectionProps extends BuiltInSidebarSectionOptions {
@@ -90,12 +92,16 @@ function BuiltInSidebarSection({
   id,
   isCollapsed,
   label,
+  leading,
+  headingStyle,
   onToggleCollapsed,
 }: BuiltInSidebarSectionProps) {
   return (
     <SortableSidebarSection
       id={id}
       label={label}
+      leading={leading}
+      headingStyle={headingStyle}
       stickyHeader={id !== "pinned"}
       disabled={disabled}
       actions={actions}

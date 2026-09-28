@@ -35,6 +35,7 @@ import { CompactLongPressMenu } from "../ui/compact-long-press-menu.js";
 import { copyToClipboardWithToast } from "../ui/clipboard.js";
 import type { SidebarThread } from "../model/sidebar-thread.js";
 import { useThreadSectionMove } from "./ThreadSectionMoveProvider.js";
+import { RibbonThreadMenuItems } from "../../ribbon/app/menu.js";
 
 interface ThreadActionsMenuBaseProps {
   thread: SidebarThread;
@@ -303,6 +304,7 @@ function ThreadActionsMenuItems({
       >
         Rename
       </ActionMenuItem>
+      <RibbonThreadMenuItems thread={thread} surface={surface} drawer={isDrawer} />
       {showSeparators ? <ActionMenuSeparator surface={surface} /> : null}
       <ActionMenuItem
         surface={surface}

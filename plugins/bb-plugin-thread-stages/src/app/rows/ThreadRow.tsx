@@ -86,6 +86,8 @@ import {
   useRibbonRowSettings,
 } from "../../ribbon/app/row.js";
 import { useRibbonData } from "../../ribbon/app/data.js";
+import { useOwnerColor } from "../../ribbon/app/icons.js";
+import { sidebarOrganizationModeAtom } from "../preferences/atoms.js";
 import {
   ACTIVE_ROW_ATTRIBUTE,
   SHINE_ATTRIBUTE,
@@ -435,6 +437,16 @@ function ThreadRowComponent({
   const ribbonData = useRibbonData();
   const ribbon = useRibbonRow(thread, trailingIndicatorState, pluginThreadRowStatus);
   const ribbonSettings = useRibbonRowSettings();
+  const organizationMode = useAtomValue(sidebarOrganizationModeAtom);
+  const ribbonActionColor = useOwnerColor(
+    ribbon === null
+      ? null
+      : organizationMode === "project"
+        ? { kind: "project", id: thread.projectId }
+        : organizationMode === "chronological" && thread.sectionId !== null
+          ? { kind: "section", id: thread.sectionId }
+          : null,
+  );
   const ribbonWorking = ribbon?.working ?? false;
   const ribbonShines = ribbonWorking && ribbonSettings.shimmerWorkingRows;
   const shineRowRef = useRef<HTMLDivElement | null>(null);
@@ -632,7 +644,7 @@ function ThreadRowComponent({
               {ribbon && ribbon.actions.length > 0 && ribbonData ? (
                 <RibbonActionButtons
                   actions={ribbon.actions}
-                  color={null}
+                  color={ribbonActionColor}
                   rowTitle={labelTitle}
                   onRun={(actionId) => ribbonData.runThreadAction(thread.id, actionId)}
                 />

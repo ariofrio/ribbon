@@ -113,9 +113,11 @@ export function SidebarHeaderControls({
 export function SidebarSectionMenuItems({
   onRename,
   onRemove,
+  onChangeIcon,
 }: {
   onRename?: () => void;
   onRemove?: () => void;
+  onChangeIcon?: () => void;
 }) {
   return (
     <>
@@ -123,6 +125,12 @@ export function SidebarSectionMenuItems({
         <DropdownMenuItem onSelect={onRename}>
           <Icon name="Edit" />
           Rename
+        </DropdownMenuItem>
+      )}
+      {onChangeIcon && (
+        <DropdownMenuItem onSelect={onChangeIcon}>
+          <Icon name="Palette" />
+          Change icon
         </DropdownMenuItem>
       )}
       <ThreadListVisibilityMenuItems />

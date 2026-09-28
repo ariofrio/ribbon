@@ -125,6 +125,12 @@ import {
   type SidebarProject,
 } from "../model/use-sidebar-data.js";
 import { useRibbonData } from "../../ribbon/app/data.js";
+import { ThreadActionsEditor } from "../../ribbon/app/ThreadActionsEditor.js";
+import {
+  RibbonHeadingIcon,
+  useHeadingStyle,
+} from "../../ribbon/app/heading-icon.js";
+import { headingColorStyle } from "../../ribbon/app/heading.js";
 import {
   createRibbonComparator,
   placementGroupingKey,
@@ -1712,10 +1718,45 @@ function ProjectListComponent({
     actions: renderSectionDisplayOptions("pinned", "Pinned"),
     actionsOpen: isSectionDisplayOptionsOpen("pinned"),
   };
+  // Ribbon names bb's catch-all groups: the sectionless threads are
+  // Unorganized, and the personal project is Personal.
+  const threadsLabel =
+    ribbon === null
+      ? "Threads"
+      : organizationMode === "chronological"
+        ? "Unorganized"
+        : organizationMode === "project"
+          ? "Personal"
+          : "Threads";
+  const personalOwner = useMemo(
+    () =>
+      personalProjectId === null
+        ? null
+        : { kind: "project" as const, id: personalProjectId },
+    [personalProjectId],
+  );
+  const personalHeadingStyle = useHeadingStyle(
+    ribbon !== null && organizationMode === "project" ? personalOwner : null,
+  );
   const threadsSection = {
-    label: "Threads",
-    actions: renderSectionDisplayOptions("threads", "Threads"),
+    label: threadsLabel,
+    actions: renderSectionDisplayOptions("threads", threadsLabel),
     actionsOpen: isSectionDisplayOptionsOpen("threads"),
+    ...(ribbon === null || organizationMode === "machine"
+      ? {}
+      : {
+          leading: (
+            <RibbonHeadingIcon
+              owner={organizationMode === "project" ? personalOwner : null}
+              collapsed={collapsedSidebarSectionIds.has("threads")}
+              unorganized={organizationMode === "chronological"}
+            />
+          ),
+          headingStyle:
+            organizationMode === "project"
+              ? personalHeadingStyle
+              : headingColorStyle(),
+        }),
   } satisfies Omit<BuiltInSidebarSectionOptions, "content">;
   const sectionCreateDialog = (
     <ThreadSectionCreateDialog
@@ -1744,6 +1785,21 @@ function ProjectListComponent({
     </ConfirmDeleteDialog>
   );
 
+  if (ribbon !== null && !ribbon.ready && ribbon.error !== null) {
+    return (
+      <ProjectListShell>
+        <div
+          role="alert"
+          className="flex min-h-20 flex-col items-center justify-center gap-2 px-3 py-6 text-center text-xs text-muted-foreground"
+        >
+          <span>Thread stages unavailable: {ribbon.error}</span>
+          <Button size="sm" type="button" variant="outline" onClick={ribbon.retry}>
+            Retry
+          </Button>
+        </div>
+      </ProjectListShell>
+    );
+  }
   if (
     threadListStatus === "loading" ||
     !preferencesReady ||
@@ -1886,6 +1942,19 @@ function ProjectListComponent({
       </ProjectListSectionMoveScope>
       {sectionCreateDialog}
       {sectionDeleteDialogContent}
+      {ribbon !== null ? (
+        <>
+          {ribbon.error !== null ? (
+            <div
+              role="alert"
+              className="mx-2 mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive"
+            >
+              {ribbon.error}
+            </div>
+          ) : null}
+          <ThreadActionsEditor />
+        </>
+      ) : null}
     </SidebarHeaderActionsProvider>
   );
 }
