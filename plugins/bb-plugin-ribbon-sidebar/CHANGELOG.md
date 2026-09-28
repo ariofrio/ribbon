@@ -1,5 +1,11 @@
 # bb-plugin-ribbon-sidebar
 
+## 0.8.1
+
+### Patch Changes
+
+- 7710f1b: End a sidebar drag that bb cancels as the thread leaves the sidebar. Dragging a thread toward the main view or composer and back could leave the row hidden and the cursor grabbing until the window was reloaded.
+
 ## 0.8.0
 
 ### Minor Changes
