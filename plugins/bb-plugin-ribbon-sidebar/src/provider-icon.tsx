@@ -53,11 +53,11 @@ export function WorkingStageIcon({
       aria-label={label}
       className={`relative inline-flex size-4 shrink-0 [&_svg]:absolute [&_svg]:inset-0 [&_svg]:size-4 ${className}`}
     >
-      {renderNode(
-        ring,
-        "ring",
-        `motion-safe:animate-spin ${CHROME_TITLE_COLOR_CLASS}`,
-      )}
+      {/* The compositor turns an HTML box by itself, but an <svg> only
+          through the main thread on every frame. */}
+      <span className="absolute inset-0 motion-safe:animate-spin">
+        {renderNode(ring, "ring", CHROME_TITLE_COLOR_CLASS)}
+      </span>
       {marks.children?.length ? renderNode(marks, "marks") : null}
     </span>
   );

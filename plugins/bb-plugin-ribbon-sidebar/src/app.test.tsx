@@ -783,8 +783,9 @@ describe("Ribbon sidebar app", () => {
     expect(slot.queryByLabelText("Thread working")).toBeNull();
     // Only the ring turns; the stage's own marks stay upright.
     const [ring, marks] = Array.from(working.querySelectorAll("svg"));
-    expect(ring!.getAttribute("class")).toContain("animate-spin");
-    expect(marks?.getAttribute("class") ?? "").not.toContain("animate-spin");
+    const spinning = '[class*="animate-spin"]';
+    expect(ring!.parentElement!.matches(spinning)).toBe(true);
+    expect(marks?.closest(spinning) ?? null).toBeNull();
     expect(
       working.closest("li")!.querySelector("[data-sidebar-thread-trailing-indicator]"),
     ).toBeNull();
@@ -1227,7 +1228,7 @@ describe("Ribbon sidebar app", () => {
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     const title = await slot.findByText("Design migration");
-    const preview = await slot.findByText("A useful preview");
+    const preview = await slot.findByTitle("A useful preview");
     const row = title.closest("[data-thread-id]")!;
     const indicator = row.querySelector<HTMLElement>(
       "[data-sidebar-thread-trailing-indicator]",
@@ -1243,7 +1244,7 @@ describe("Ribbon sidebar app", () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    const preview = await slot.findByText("A useful preview");
+    const preview = await slot.findByTitle("A useful preview");
 
     expect(getComputedStyle(preview).paddingRight).toBe("8px");
     slot.lifecycle.unmount();

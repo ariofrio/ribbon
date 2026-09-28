@@ -81,9 +81,10 @@ export async function verifyThreadIcons({ stack, fixture }) {
     const workingRow = sidebar.locator("li").filter({
       has: page.locator(`a[data-sidebar-thread-id="${workingThread.id}"]`),
     });
-    // Its turn never ends, so its stage ring turns in place of bb's spinner.
+    // Its turn never ends, so its stage ring turns in place of bb's spinner,
+    // carried by the box around it so the compositor can turn it.
     const ring = await workingRow.locator('[aria-label$=" stage, working"] svg').first().evaluate((node) => ({
-      animation: getComputedStyle(node).animationName,
+      animation: getComputedStyle(node.parentElement).animationName,
       width: getComputedStyle(node).width,
     }));
     assert.deepEqual(ring, { animation: "spin", width: "16px" });
