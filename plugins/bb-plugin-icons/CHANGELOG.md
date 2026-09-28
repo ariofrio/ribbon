@@ -1,5 +1,11 @@
 # bb-plugin-project-icons
 
+## 0.7.2
+
+### Patch Changes
+
+- 50cb3ca: Update the shared UI and Plugin SDK to bb 0.44.0 and SDK 0.5.29. These releases require bb 0.44.0 or newer.
+
 ## 0.7.1
 
 ### Patch Changes
