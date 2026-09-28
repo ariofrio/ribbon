@@ -1035,6 +1035,7 @@ describe("Ribbon sidebar server", () => {
       "deleteEntityV1",
       "getPlacementV1",
       "invalidateGroupingCatalogV1",
+      "listChildOrderV1",
       "listPlacementsV1",
       "listPreviewsV1",
       "listProjectActionStatesV1",
@@ -1043,6 +1044,7 @@ describe("Ribbon sidebar server", () => {
       "pullRequestDetailsV1",
       "searchThreadIdsV1",
       "renameEntityV1",
+      "reorderChildrenV1",
       "reorderPinnedV1",
       "sidebarSnapshotV1",
       "synchronizeV1",
@@ -1292,6 +1294,81 @@ describe("Ribbon sidebar server", () => {
         },
       ],
     ]);
+  });
+
+  it("keeps each parent's child order and forgets deleted threads", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+
+    await expect(
+      harness.behavior.callRpc("reorderChildrenV1", {
+        parentThreadId: "thread-a",
+        threadIds: ["thread-child-b", "thread-child"],
+      }),
+    ).resolves.toEqual({ ok: true });
+    expect(harness.inspection.realtimeSignals).toContainEqual({
+      channel: "child-order-changed",
+      payload: null,
+    });
+    await expect(
+      harness.behavior.callRpc("listChildOrderV1", null),
+    ).resolves.toEqual({
+      items: [
+        { parentThreadId: "thread-a", threadId: "thread-child-b" },
+        { parentThreadId: "thread-a", threadId: "thread-child" },
+      ],
+    });
+
+    await harness.behavior.emitThreadEvent("thread.deleted", {
+      thread: makeThreadResponse({ id: "thread-child-b" }),
+    });
+    await expect(
+      harness.behavior.callRpc("listChildOrderV1", null),
+    ).resolves.toEqual({
+      items: [{ parentThreadId: "thread-a", threadId: "thread-child" }],
+    });
+  });
+
+  it("moves a child among its siblings with the reorder shortcut", async () => {
+    const threads = [
+      makeThreadResponse({ id: "root", projectId: "project-a", createdAt: 1 }),
+      ...["older", "middle", "newer"].map((id, index) =>
+        makeThreadResponse({
+          id,
+          projectId: "project-a",
+          parentThreadId: "root",
+          createdAt: 2 + index,
+        }),
+      ),
+    ];
+    const { bb, harness } = setup({ threads, includeThreadStages: false });
+    await plugin(bb);
+    const order = async () =>
+      (
+        (await harness.behavior.callRpc("listChildOrderV1", null)) as {
+          items: { threadId: string }[];
+        }
+      ).items.map(({ threadId }) => threadId);
+
+    await harness.behavior.callRpc("reorderThread", {
+      threadId: "older",
+      scope: "step",
+      direction: -1,
+    });
+    expect(await order()).toEqual(["newer", "older", "middle"]);
+    await harness.behavior.callRpc("reorderThread", {
+      threadId: "newer",
+      scope: "edge",
+      direction: 1,
+    });
+    expect(await order()).toEqual(["older", "middle", "newer"]);
+    await expect(
+      harness.behavior.callRpc("reorderThread", {
+        threadId: "older",
+        scope: "stage",
+        direction: 1,
+      }),
+    ).rejects.toThrow(/belongs to root thread root/u);
   });
 
   it("delegates sidebar search to bb's indexed thread search", async () => {
