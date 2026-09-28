@@ -1,5 +1,13 @@
 # bb-plugin-ribbon-sidebar
 
+## 0.7.0
+
+### Minor Changes
+
+- e528e7a: Give child threads persistent, independent workflow stages in Ribbon. Show and change a child's stage in the sidebar and CLI, preserve it when the thread is reparented, and auto-archive only Completed subtrees.
+- a037ffa: Add a **Child thread lines** setting that can draw child threads as a tree, whose branches reach each child's stage ring, or a small hollow node while that ring is hidden.
+- 3581a02: Let each thread keep prompt buttons edited from its thread menu. Buttons align to the right of the title on one row, shrink and fade long labels when space runs out, and use the section or project color. Hovering the row pans clipped labels. The editor can hide the title while actions are present. Clicking a button sends its saved prompt to the thread.
+
 ## 0.6.0
 
 ### Minor Changes
