@@ -158,9 +158,8 @@ function descendants(
 
 function rootForThread(
   threadId: string,
-  threads: readonly PluginSidebarThread[],
+  byId: ReadonlyMap<string, PluginSidebarThread>,
 ): PluginSidebarThread | undefined {
-  const byId = new Map(threads.map((thread) => [thread.id, thread]));
   let current = byId.get(threadId);
   const visited = new Set<string>();
   while (
@@ -974,6 +973,10 @@ function RibbonSidebarList({
         : !preferences.view.hide.visible;
     });
   }, [preferences, sidebar.threads, supplementalThreads]);
+  const liveThreadsById = useMemo(
+    () => new Map(liveThreads.map((thread) => [thread.id, thread])),
+    [liveThreads],
+  );
   const liveThreadIds = useMemo(
     () => new Set(liveThreads.map(({ id }) => id)),
     [liveThreads],
@@ -1478,7 +1481,7 @@ function RibbonSidebarList({
   }
 
   function threadStage(thread: PluginSidebarThread) {
-    const root = rootForThread(thread.id, liveThreads) ?? thread;
+    const root = rootForThread(thread.id, liveThreadsById) ?? thread;
     return (
       parseWorkflowStage(
         assignmentPlacements.get(THREAD_STAGES_GROUPING_KEY)?.get(root.id)
@@ -1535,7 +1538,7 @@ function RibbonSidebarList({
       { showRuntime: false },
     );
     const stageOwner = root.parentThreadId
-      ? (rootForThread(root.id, liveThreads) ?? root)
+      ? (rootForThread(root.id, liveThreadsById) ?? root)
       : root;
     const stage = assignmentPlacements
       .get("plugin:thread-stages:stages")
@@ -2099,7 +2102,7 @@ function RibbonSidebarList({
                         }
                       : undefined;
                 const selectedRootId = activeThreadId
-                  ? (rootForThread(activeThreadId, liveThreads)?.id ??
+                  ? (rootForThread(activeThreadId, liveThreadsById)?.id ??
                     activeThreadId)
                   : null;
                 const renderSectionRow = (root: PluginSidebarThread) =>
