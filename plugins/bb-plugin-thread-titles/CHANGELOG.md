@@ -1,5 +1,11 @@
 # bb-plugin-thread-titles
 
+## 0.5.0
+
+### Minor Changes
+
+- 1a1ae8a: Turn each title pass off separately in the plugin's settings: the first-message title, the first-turn title, starting the first-turn title early on long turns, and the third-message review. All stay on by default. A pass that is off hands the thread to the next one.
+
 ## 0.4.0
 
 ### Minor Changes
