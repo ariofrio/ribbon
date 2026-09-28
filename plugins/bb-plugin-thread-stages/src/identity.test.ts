@@ -11,7 +11,7 @@ describe("plugin identity", () => {
     expect(manifest.name).toBe("bb-plugin-thread-stages");
     expect(manifest.bb.name).toBe("Thread stages");
     expect(manifest.bb.description).toBe(
-      "Preserve existing stage shortcuts and migrate saved state to Ribbon sidebar.",
+      "Mention stages in the composer, and preserve existing stage shortcuts and saved state for Ribbon sidebar.",
     );
     expect(manifest.bb.app).toBeUndefined();
     expect(manifest.bb.skills).toBeUndefined();

@@ -29,8 +29,9 @@ describe("placement persistence", () => {
   it("folds retired Active stage placements into Idle when upgrading", () => {
     const database = new Database(":memory:");
     databases.push(database);
-    const [retireActive, ...earlier] = [...RIBBON_SIDEBAR_MIGRATIONS].reverse();
-    for (const migration of earlier.reverse()) database.exec(migration);
+    const earlier = RIBBON_SIDEBAR_MIGRATIONS.slice(0, 3);
+    const retireActive = RIBBON_SIDEBAR_MIGRATIONS[3];
+    for (const migration of earlier) database.exec(migration);
     const key = "plugin:thread-stages:stages";
     const assign = database.prepare(
       "INSERT INTO group_assignment VALUES (?, ?, ?, 1, ?, 'auto')",

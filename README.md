@@ -39,7 +39,7 @@ bb plugin install ribbon-sidebar@ribbon
 
 ### <img src="assets/icons/thread-stages.svg" alt="" width="26" align="absmiddle"> &nbsp;Thread stages
 
-Preserve existing stage shortcuts and migrate saved state to Ribbon sidebar. New installations need only Ribbon.
+Mention stages in the composer, and preserve existing stage shortcuts and saved state for Ribbon sidebar.
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon

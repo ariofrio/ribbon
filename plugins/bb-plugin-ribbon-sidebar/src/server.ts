@@ -1,6 +1,7 @@
 import { migrateWorkflowShortcuts } from "./workflow/shortcut-migration";
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import { createChildOrderStore } from "./child-order-store";
 import { defineRibbonSidebarCli } from "./cli";
 import {
   acknowledgePlacementMigrationOutputSchema,
@@ -36,6 +37,7 @@ import {
 } from "./workflow/catalog";
 import { workflowRpcMethods } from "./workflow/contract";
 import { createWorkflowRuntime } from "./workflow/runtime";
+import { createStageChangeMessages } from "./workflow/stage-change-message";
 import {
   createGhGraphqlRunner,
   createPullRequestDetailsService,
@@ -176,6 +178,18 @@ export const rpcContract = defineRpcContract({
     input: invalidateGroupingCatalogInputSchema,
     output: invalidateGroupingCatalogOutputSchema,
   },
+  listChildOrderV1: {
+    input: z.null(),
+    output: z
+      .object({
+        items: z.array(
+          z
+            .object({ parentThreadId: z.string(), threadId: z.string() })
+            .strict(),
+        ),
+      })
+      .strict(),
+  },
   listPlacementsV1: {
     input: listPlacementsInputSchema,
     output: listPlacementsOutputSchema,
@@ -268,6 +282,15 @@ export const rpcContract = defineRpcContract({
         groupingKey: z.enum(["builtin:projects", "builtin:sections"]),
         id: z.string().min(1).max(256),
         name: z.string().trim().min(1).max(256),
+      })
+      .strict(),
+    output: z.object({ ok: z.literal(true) }).strict(),
+  },
+  reorderChildrenV1: {
+    input: z
+      .object({
+        parentThreadId: z.string().min(1).max(256),
+        threadIds: z.array(z.string().min(1).max(256)).max(1000),
       })
       .strict(),
     output: z.object({ ok: z.literal(true) }).strict(),
@@ -457,6 +480,13 @@ export default async function plugin(bb: BbPluginApi) {
         "Shimmer a working thread's whole row instead of its activity indicator.",
       default: true,
     },
+    messageOnStageChange: {
+      type: "boolean",
+      label: "Message threads when their stage changes",
+      description:
+        "Send a thread a stage notice when you or another thread move it to a different stage.",
+      default: true,
+    },
   });
   const database = bb.storage.database();
   bb.storage.migrate(database, [
@@ -466,6 +496,7 @@ export default async function plugin(bb: BbPluginApi) {
   ]);
   const previews = createPreviewStore(database);
   const threadActions = createThreadActionsStore(database);
+  const childOrder = createChildOrderStore(database);
   registerThreadPreviews(bb, previews);
 
   let projectGroups: GroupingDescriptor["groups"] = [];
@@ -515,6 +546,10 @@ export default async function plugin(bb: BbPluginApi) {
   const groupings = (): GroupingDescriptor[] =>
     orderedGroupings([projectGrouping(), sectionGrouping(), stageGrouping()]);
   const store = createPlacementStore(database, { grouping, groupings });
+  const stageChangeMessages = createStageChangeMessages(bb, {
+    enabled: async () => (await settings.get()).messageOnStageChange !== false,
+    threadStagesRunning: () => threadStagesInstalled,
+  });
   let sidebarThreads: ThreadSummary[] = [];
   let threadStagesInstalled = false;
   let mountedMigrationPending = false;
@@ -723,6 +758,10 @@ export default async function plugin(bb: BbPluginApi) {
 
   async function updatePlacement(
     input: z.infer<typeof updatePlacementInputSchema>,
+    {
+      announceStageChange = true,
+      actorThreadId,
+    }: { announceStageChange?: boolean; actorThreadId?: string } = {},
   ) {
     const groupingKey = input.groupingKey as GroupingKey;
     const descriptor = grouping(groupingKey);
@@ -740,6 +779,18 @@ export default async function plugin(bb: BbPluginApi) {
         bb.realtime.publish("placements-changed", {
           groupingKeys: [input.groupingKey],
         });
+        if (
+          announceStageChange &&
+          groupingKey === THREAD_STAGES_GROUPING_KEY &&
+          before.ok &&
+          actorThreadId !== input.threadId
+        ) {
+          stageChangeMessages.announce(input.threadId, {
+            origin: input.origin,
+            from: before.value.placement.groupId,
+            to: result.value.placement.groupId,
+          });
+        }
       }
       return result;
     }
@@ -831,11 +882,20 @@ export default async function plugin(bb: BbPluginApi) {
     return result;
   }
 
+  function reorderChildren(parentThreadId: string, threadIds: string[]) {
+    if (childOrder.setOrder(parentThreadId, threadIds)) {
+      bb.realtime.publish("child-order-changed", null);
+    }
+  }
+
   await refreshCatalogsAndRoots();
   mountedMigrationPending = true;
   await attemptMountedMigration();
   await migrateWorkflowShortcuts(bb, database, threadStagesInstalled);
-  const workflow = createWorkflowRuntime(bb, store, updatePlacement, settings);
+  const workflow = createWorkflowRuntime(bb, store, updatePlacement, settings, {
+    ranks: () => childOrder.list(),
+    reorder: reorderChildren,
+  });
   const pullRequestDetails = createPullRequestDetailsService({
     run: createGhGraphqlRunner(),
     onError(error) {
@@ -943,6 +1003,9 @@ export default async function plugin(bb: BbPluginApi) {
       bb.realtime.publish("catalog-changed", null);
       return null;
     },
+    listChildOrderV1() {
+      return { items: childOrder.list() };
+    },
     listPlacementsV1(input) {
       return store.listPlacements({
         ...input,
@@ -987,15 +1050,22 @@ export default async function plugin(bb: BbPluginApi) {
     async placeNewThreadV1({ groupingKey, groupId, threadId }) {
       const thread = await bb.sdk.threads.get({ threadId });
       reconcileRoot(thread, await eligibleRoot(thread));
-      return updatePlacement({
-        groupingKey,
-        groupId,
-        threadId,
-        origin: "ui",
-      });
+      return updatePlacement(
+        {
+          groupingKey,
+          groupId,
+          threadId,
+          origin: "ui",
+        },
+        { announceStageChange: false },
+      );
     },
     async pullRequestDetailsV1({ requests }) {
       return { details: await pullRequestDetails.get(requests) };
+    },
+    reorderChildrenV1({ parentThreadId, threadIds }) {
+      reorderChildren(parentThreadId, threadIds);
+      return { ok: true as const };
     },
     async reorderPinnedV1({ threadId, previousThreadId, nextThreadId }) {
       await bb.sdk.threads.reorderPinned({
@@ -1058,6 +1128,13 @@ export default async function plugin(bb: BbPluginApi) {
       return sidebarRootThreads(threads);
     },
     updatePlacement,
+    async hierarchy() {
+      return {
+        threads: await listAllThreads(bb),
+        ranks: childOrder.list(),
+      };
+    },
+    reorderChildren,
     migrateThreadStages: migrateFromThreadStages,
   });
   bb.cli.register({
@@ -1080,6 +1157,9 @@ export default async function plugin(bb: BbPluginApi) {
   bb.events.on("thread.deleted", ({ thread }) => {
     previews.delete(thread.id);
     threadActions.delete(thread.id);
+    if (childOrder.deleteThread(thread.id)) {
+      bb.realtime.publish("child-order-changed", null);
+    }
     projectByThread.delete(thread.id);
     sectionByThread.delete(thread.id);
     const result = store.deleteThread(thread.id);
