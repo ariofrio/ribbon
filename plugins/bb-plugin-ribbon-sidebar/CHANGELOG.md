@@ -1,5 +1,34 @@
 # bb-plugin-ribbon-sidebar
 
+## 0.5.0
+
+### Minor Changes
+
+- 0aec62c: Click anywhere on a group heading to collapse or expand it; the group folds open
+  and shut with bb's own easing. Headings are laid out like thread rows, with the
+  same height, padding, and gap to the rows under them. A section or project
+  heading takes its icon's color from the Icons plugin as a faint wash with
+  colored text and icon, every color at one lightness and chroma per mode; every
+  other heading is the same wash in gray.
+- d3e5896: Replace the Show group header icons toggle with a Group header icons setting:
+  On, Off, or Standardized, which draws a book for every section, Unorganized
+  included, and a folder for every project: shut while the group is collapsed,
+  open while it is expanded. The books are drawn as tall as the folders, and the
+  shut one reads as the open one folded. The setting starts at On,
+  so anyone who had turned icons off chooses Off again.
+
+### Patch Changes
+
+- e30ecb9: Synchronize working-row shimmer and spinning stage icons across Ribbon sidebar rows.
+- 0d0be21: Keep section and project heading buttons in the heading's color family on hover,
+  with an ink-tinted fill and stronger foreground contrast in both color schemes.
+- 65867b0: Let each working-row shimmer wave span twice the row's width, matching bb's proportional shine.
+- d3e5896: Label bb's personal project "Personal", its own name, instead of "Chats".
+- 0e22ccf: Match the new-thread icon on section and project headings to bb's thread list.
+- e574bf8: Show thread row hover highlights immediately while moving through the Ribbon sidebar.
+- 67f0540: Make sidebar thread stage rings 13 pixels across, and show unselected, non-working Idle icons on hover or keyboard focus instead of at rest.
+- 7e39faf: Use the same foreground color for hovered thread-row controls.
+
 ## 0.4.0
 
 ### Minor Changes
