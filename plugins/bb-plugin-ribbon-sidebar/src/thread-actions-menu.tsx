@@ -87,6 +87,8 @@ export function ThreadActionsContextMenu({
       <ContextMenuContent
         aria-label="Thread actions"
         onPointerUpCapture={(event) => {
+          // Temporary until https://github.com/get-bb/bb/issues/4439 reaches the pinned UI.
+          // Remove this guard after checking the real-pointer regression against that fix.
           if (event.button === 2) event.preventDefault();
         }}
       >
