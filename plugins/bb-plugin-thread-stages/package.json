@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-thread-stages",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Mention stages in the composer, and preserve existing stage shortcuts and saved state for Ribbon sidebar.",
   "license": "MIT",
   "repository": {
