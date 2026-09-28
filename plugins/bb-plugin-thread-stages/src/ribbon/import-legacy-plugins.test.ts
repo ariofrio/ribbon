@@ -108,9 +108,14 @@ describe("importing the Ribbon sidebar and Icons databases", () => {
     expect(
       ours.prepare("SELECT group_id FROM group_assignment WHERE grouping_key = 'builtin:sections'").all(),
     ).toEqual([{ group_id: "section-new" }]);
+    // Stage names from before the rename arrive as today's.
     expect(
-      ours.prepare("SELECT group_id FROM group_assignment WHERE grouping_key = 'plugin:thread-stages:stages'").all(),
-    ).toEqual([{ group_id: "Blocked" }]);
+      ours
+        .prepare(
+          "SELECT group_id, previous_group_id FROM group_assignment WHERE grouping_key = 'plugin:thread-stages:stages'",
+        )
+        .all(),
+    ).toEqual([{ group_id: "BlockedOnThirdParty", previous_group_id: "Active" }]);
     // The rank retained in a group the thread left came along.
     expect(ours.prepare("SELECT group_id FROM group_order ORDER BY sort_key").all()).toEqual([
       { group_id: "unsectioned" },

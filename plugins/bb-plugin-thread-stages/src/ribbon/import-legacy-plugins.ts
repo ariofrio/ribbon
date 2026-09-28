@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type BetterSqlite3 from "better-sqlite3";
+import { RETIRED_STAGE_RENAME } from "./placement-store";
 
 /**
  * Ribbon sidebar and Icons kept this plugin's data before it absorbed them,
@@ -93,11 +94,14 @@ export function importRibbonSidebar(
   database: BetterSqlite3.Database,
   sourcePath = legacyDatabasePath(database, "ribbon-sidebar"),
 ): number | null {
-  return importLegacyDatabase(database, {
+  const copied = importLegacyDatabase(database, {
     key: "imported-ribbon-sidebar",
     sourcePath,
     tables: RIBBON_SIDEBAR_TABLES,
   });
+  // A Ribbon sidebar from before the rename still says Idle and Blocked.
+  if (copied !== null) database.exec(RETIRED_STAGE_RENAME);
+  return copied;
 }
 
 export function importIcons(

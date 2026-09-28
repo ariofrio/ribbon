@@ -1633,6 +1633,28 @@ describe("Ribbon sidebar server", () => {
       });
     });
 
+    it("takes the setting from the Ribbon sidebar plugin, once", async () => {
+      const { bb, harness, send, getSettings } = setup({
+        threads: stageThreads(),
+        includeThreadStages: false,
+      });
+      getSettings.mockResolvedValue({
+        ok: true,
+        schema: {},
+        values: { messageOnStageChange: false, childThreadLines: "Tree", showBlockedStage: false },
+      });
+      await plugin(bb);
+      await vi.waitFor(() =>
+        expect(getSettings).toHaveBeenCalledWith({ pluginId: "ribbon-sidebar" }),
+      );
+      await harness.behavior.runSchedule("catalog-reconciliation");
+      expect(getSettings).toHaveBeenCalledTimes(1);
+
+      await moveToStage(harness, "first", "BlockedOnThirdParty");
+      await harness.behavior.runSchedule("catalog-reconciliation");
+      expect(send).not.toHaveBeenCalled();
+    });
+
     it("stays quiet when the setting is off", async () => {
       const { bb, harness, send } = setup({
         threads: stageThreads(),

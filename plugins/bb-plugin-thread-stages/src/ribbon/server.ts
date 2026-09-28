@@ -22,6 +22,14 @@ import { registerThreadGroupInheritance } from "./group-inheritance";
 import { orderedGroupings } from "./grouping-order";
 import { importIcons, importRibbonSidebar } from "./import-legacy-plugins";
 import { reclaimLegacyDatabase } from "./legacy-database";
+
+/** The Ribbon sidebar settings this plugin kept, by the names both use. */
+const RIBBON_SETTINGS = [
+  "childThreadLines",
+  "groupHeaderIcons",
+  "shimmerWorkingRows",
+  "messageOnStageChange",
+] as const;
 import {
   createPlacementStore,
   type GroupingDescriptor,
@@ -422,6 +430,28 @@ export default async function ribbonServer(
       bb.log.info(`Imported ${imported} rows from the ${name} plugin.`);
     }
   }
+  // What Ribbon sidebar chose for the settings this plugin kept, copied once
+  // while that plugin is still installed. bb's plugin catalog may not answer
+  // during startup, so the reconciliation schedule asks again until it does.
+  const importRibbonSettings = async (): Promise<void> => {
+    const key = "imported-ribbon-settings";
+    if (database.prepare("SELECT key FROM ribbon_upgrade WHERE key = ?").get(key)) return;
+    const { plugins } = await bb.sdk.plugins.list();
+    if (plugins.some(({ id }) => id === "ribbon-sidebar")) {
+      const legacy = await bb.sdk.plugins.getSettings({ pluginId: "ribbon-sidebar" });
+      const values = Object.fromEntries(
+        RIBBON_SETTINGS.flatMap((name) =>
+          legacy.values[name] === undefined ? [] : [[name, legacy.values[name]]],
+        ),
+      );
+      if (Object.keys(values).length > 0) {
+        await settings.experimental_set(values);
+        bb.log.info(`Imported ${Object.keys(values).join(", ")} from the Ribbon sidebar plugin.`);
+      }
+    }
+    database.prepare("INSERT OR IGNORE INTO ribbon_upgrade(key) VALUES (?)").run(key);
+  };
+  void importRibbonSettings().catch(() => undefined);
   const threadActions = createThreadActionsStore(database);
   const childOrder = createChildOrderStore(database);
   registerIcons(bb, database);
@@ -959,6 +989,7 @@ export default async function ribbonServer(
     reconcileRoot(thread, false);
   });
   bb.background.schedule("catalog-reconciliation", "* * * * *", async () => {
+    await importRibbonSettings().catch(() => undefined);
     if (await refreshCatalogsAndRoots()) {
       bb.realtime.publish("catalog-changed", null);
     }

@@ -154,8 +154,8 @@ commands carry over.
 
 The plugin reads the Ribbon sidebar's and the Icons plugin's databases once
 on first load — placements, stages, thread actions, and icons — and keeps
-its own copy from then on. The Ribbon sidebar's four remaining settings are
-read from its own configuration. The earlier Thread stages compatibility
+its own copy from then on, with the Ribbon sidebar's choices for the four
+settings that remain copied over once. The earlier Thread stages compatibility
 plugin's data is taken over in place. Remove the three old plugins once this
 one is installed; they draw nothing bb's list does not.
 
