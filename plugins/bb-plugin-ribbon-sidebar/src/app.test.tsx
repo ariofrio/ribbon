@@ -2600,6 +2600,45 @@ describe("Ribbon sidebar app", () => {
     slot.lifecycle.unmount();
   });
 
+  it("ends a drag that bb cancels before it is committed", async () => {
+    useManualSort();
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await slot.findByText("Ship UI");
+    const row = slot.getByText("Ship UI").closest("li")!;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      x: 0, y: 0, top: 0, left: 0, width: 250, height: 50, right: 250, bottom: 50,
+      toJSON() {},
+    });
+    fireEvent.mouseDown(row.querySelector("a")!, {
+      button: 0,
+      clientX: 50,
+      clientY: 25,
+    });
+    // bb's split gesture engages in the same task that activated the drag and
+    // cancels it with a synthetic Escape before React commits the drag.
+    act(() => {
+      document.dispatchEvent(
+        new MouseEvent("mousemove", { clientX: 60, clientY: 25, bubbles: true }),
+      );
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          code: "Escape",
+          bubbles: true,
+        }),
+      );
+    });
+    fireEvent.mouseUp(document);
+
+    await waitFor(() => {
+      expect(document.body.dataset.sidebarDragging).toBeUndefined();
+      expect(getComputedStyle(row).opacity).not.toBe("0");
+    });
+    slot.lifecycle.unmount();
+  });
+
   it("ignores self-drops and retries one revision conflict", async () => {
     useManualSort();
     const app = await loadPluginApp(() => import("./app"));
