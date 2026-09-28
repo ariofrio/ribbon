@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PreviewStore } from "./preview-store";
 import { registerThreadPreviews } from "./thread-previews";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
 
 type ChangedEvent = {
   id?: string;
@@ -76,6 +79,9 @@ function harness(args: {
   } as unknown as PreviewStore;
   const publish = vi.fn();
   const list = fakeEventsList(args.threads);
+  const threadsList = vi.fn(async (_args: { signal: AbortSignal }) =>
+    Object.keys(args.threads).map((id) => ({ id })),
+  );
   const timeline = vi.fn();
   const bb = {
     background: {
@@ -88,10 +94,10 @@ function harness(args: {
     sdk: {
       subscribe: ({ callback }: { callback: typeof changed }) => {
         changed = callback;
-        return () => undefined;
+        return () => { changed = null; };
       },
       threads: {
-        list: async () => Object.keys(args.threads).map((id) => ({ id })),
+        list: threadsList,
         timeline,
         events: { list },
       },
@@ -106,10 +112,11 @@ function harness(args: {
     abort,
     running,
     list,
+    threadsList,
     timeline,
     set,
     publish,
-    emit: (event: ChangedEvent) => (changed as unknown as (event: ChangedEvent) => void)(event),
+    emit: (event: ChangedEvent) => (changed as ((event: ChangedEvent) => void) | null)?.(event),
     subscribed: () => changed !== null,
     setSettings: (next: Settings) => {
       current = next;
@@ -123,6 +130,53 @@ function harness(args: {
 }
 
 describe("thread previews", () => {
+  it.each([false, true])("stops during the initial settings read (shown=%s)", async (shown) => {
+    const h = harness({ threads: {}, settings: { showMessagePreviews: shown } });
+    await h.stop();
+    expect(h.subscribed()).toBe(false);
+  }, 500);
+
+  it("observes a setting change during the initial settings read", async () => {
+    const h = harness({
+      threads: { "thread-a": [userTurn(1, "Prompt")] },
+      settings: { showMessagePreviews: false },
+    });
+    h.setSettings({ showMessagePreviews: true });
+    await vi.waitFor(() => expect(h.set).toHaveBeenCalledWith("thread-a", "Prompt", 1));
+    await h.stop();
+  });
+
+  it("can restart after hiding previews cancels the initial thread listing", async () => {
+    const h = harness({ threads: { "thread-a": [userTurn(1, "Prompt")] } });
+    const finished = vi.fn();
+    void h.running.then(finished, finished);
+    h.threadsList.mockImplementationOnce(({ signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => reject(new Error("Aborted")), { once: true });
+    }));
+    await vi.waitFor(() => expect(h.threadsList).toHaveBeenCalled());
+    h.setSettings({ showMessagePreviews: false });
+    await vi.waitFor(() => expect(h.subscribed()).toBe(false));
+    h.setSettings({ showMessagePreviews: true });
+    await vi.waitFor(() => expect(h.set).toHaveBeenCalledWith("thread-a", "Prompt", 1));
+    expect(finished).not.toHaveBeenCalled();
+    await h.stop();
+  });
+
+  it("does not store or publish an in-flight preview after stopping", async () => {
+    vi.useFakeTimers();
+    const h = harness({ threads: { "thread-a": [userTurn(1, "Prompt")] } });
+    let finishRead!: (events: Event[]) => void;
+    h.list.mockImplementationOnce(() => new Promise((resolve) => { finishRead = resolve; }));
+    await vi.runAllTimersAsync();
+    expect(h.list).toHaveBeenCalled();
+    const stopped = h.stop();
+    finishRead([userTurn(1, "Prompt")]);
+    await stopped;
+    await vi.runAllTimersAsync();
+    expect(h.set).not.toHaveBeenCalled();
+    expect(h.publish).not.toHaveBeenCalled();
+  });
+
   it("derives previews from message events instead of building timelines", async () => {
     const h = harness({
       threads: {
@@ -161,7 +215,7 @@ describe("thread previews", () => {
   });
 
   it("pages past long tool runs and stops once a user message is newer", async () => {
-    const commands = Array.from({ length: 45 }, (_, i) => command(10 + i));
+    const commands = Array.from({ length: 125 }, (_, i) => command(10 + i));
     const h = harness({
       threads: {
         "thread-a": [userTurn(1, "Prompt"), agentMessage(2, "Old reply"), ...commands],
@@ -173,11 +227,11 @@ describe("thread previews", () => {
       },
     });
     await vi.waitFor(() => expect(h.set).toHaveBeenCalledTimes(2));
-    expect(h.set).toHaveBeenCalledWith("thread-a", "Old reply", 54);
+    expect(h.set).toHaveBeenCalledWith("thread-a", "Old reply", 134);
     expect(h.set).toHaveBeenCalledWith("thread-b", "Follow-up", 32);
     const itemPages = (threadId: string) =>
       h.list.mock.calls.filter(([call]) => call.threadId === threadId && call.types?.includes("item/completed"));
-    expect(itemPages("thread-a")).toHaveLength(3);
+    expect(itemPages("thread-a")).toHaveLength(7);
     expect(itemPages("thread-b")).toHaveLength(1);
     await h.stop();
   });
@@ -221,28 +275,52 @@ describe("thread previews", () => {
     await h.stop();
   });
 
+  it("keeps the latest visible prompt when a newer system prompt is suppressed", async () => {
+    const h = harness({
+      threads: {
+        "thread-a": [
+          agentMessage(1, "Earlier reply"),
+          userTurn(2, "Visible follow-up"),
+          {
+            ...userTurn(3, "Hidden system prompt"),
+            data: {
+              initiator: "system",
+              systemMessageSubject: { kind: "tool-call", suppress: true },
+              input: [{ type: "text", text: "Hidden system prompt" }],
+            },
+          },
+        ],
+      },
+    });
+    await vi.waitFor(() => expect(h.set).toHaveBeenCalledWith("thread-a", "Visible follow-up", 3));
+    await h.stop();
+  });
+
   it("does nothing while previews are hidden and starts when they are shown", async () => {
+    vi.useFakeTimers();
     const h = harness({
       threads: { "thread-a": [userTurn(1, "Start"), agentMessage(2, "Reply")] },
       settings: { showMessagePreviews: false },
     });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await vi.runAllTimersAsync();
     expect(h.list).not.toHaveBeenCalled();
     expect(h.subscribed()).toBe(false);
 
     h.setSettings({ showMessagePreviews: true });
-    await vi.waitFor(() => expect(h.set).toHaveBeenCalledWith("thread-a", "Reply", 2));
+    await vi.runAllTimersAsync();
+    expect(h.set).toHaveBeenCalledWith("thread-a", "Reply", 2);
     expect(h.subscribed()).toBe(true);
 
     h.setSettings({ showMessagePreviews: false });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await vi.runAllTimersAsync();
+    expect(h.subscribed()).toBe(false);
     const calls = h.list.mock.calls.length;
     h.emit({
       id: "thread-a",
       changes: ["events-appended"],
       metadata: { eventTypes: ["item/completed"] },
     });
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await vi.runAllTimersAsync();
     expect(h.list.mock.calls.length).toBe(calls);
     await h.stop();
   });

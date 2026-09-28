@@ -15,7 +15,6 @@ const MESSAGE_EVENT_TYPES = [
   "item/completed",
 ];
 const ITEM_PAGE_SIZE = "20";
-const MAX_ITEM_PAGES = 5;
 const REFRESH_DEBOUNCE_MS = 200;
 
 type ThreadsSdk = BbPluginApi["sdk"]["threads"];
@@ -60,13 +59,21 @@ async function readPreview(
     }) as Promise<PreviewEvent[]>;
   const [latest] = await list({ limit: "1" });
   if (!latest || store.get(threadId)?.sourceSeq === latest.seq) return null;
-  const [user] = await list({
-    types: PREVIEW_USER_EVENT_TYPES as unknown as EventTypes,
-    limit: "1",
-  });
+  let user: PreviewEvent | undefined;
+  let beforeUserSeq: string | undefined;
+  while (!signal.aborted && !user) {
+    const rows = await list({
+      types: PREVIEW_USER_EVENT_TYPES as unknown as EventTypes,
+      limit: beforeUserSeq === undefined ? "1" : ITEM_PAGE_SIZE,
+      beforeSeq: beforeUserSeq,
+    });
+    if (rows.length === 0) break;
+    user = rows.find((row) => previewMessageText(row) !== null);
+    beforeUserSeq = String(rows[rows.length - 1]!.seq);
+  }
   let item: PreviewEvent | undefined;
   let beforeSeq: string | undefined;
-  for (let page = 0; page < MAX_ITEM_PAGES && !item; page += 1) {
+  while (!signal.aborted && !item) {
     const rows = await list({
       types: [PREVIEW_ITEM_EVENT_TYPE] as unknown as EventTypes,
       limit: ITEM_PAGE_SIZE,
@@ -93,8 +100,10 @@ export function registerThreadPreviews(
   store: PreviewStore,
   settings: PreviewSettings,
 ): void {
+  let latestSettings: { showMessagePreviews?: boolean } | undefined;
   const settingListeners = new Set<(shown: boolean) => void>();
   settings.onChange((next) => {
+    latestSettings = next;
     for (const listener of settingListeners) listener(previewsShown(next));
   });
   const nextSettingChange = (signal: AbortSignal) =>
@@ -112,7 +121,9 @@ export function registerThreadPreviews(
   bb.background.service("thread-previews", {
     async start(signal) {
       while (!signal.aborted) {
-        if (!previewsShown(await settings.get())) {
+        const values = await settings.get();
+        if (signal.aborted) return;
+        if (!previewsShown(latestSettings ?? values)) {
           await nextSettingChange(signal);
           continue;
         }
@@ -125,6 +136,8 @@ export function registerThreadPreviews(
         signal.addEventListener("abort", stop, { once: true });
         try {
           await runPreviews(bb, store, run.signal);
+        } catch (cause) {
+          if (!run.signal.aborted) throw cause;
         } finally {
           settingListeners.delete(onSetting);
           signal.removeEventListener("abort", stop);
@@ -165,7 +178,7 @@ async function runPreviews(
       .then(async () => {
         if (signal.aborted) return;
         const result = await readPreview(bb, store, threadId, signal);
-        if (!result) return;
+        if (!result || signal.aborted) return;
         if (store.set(threadId, result.preview, result.sourceSeq))
           publishChanged(threadId);
       })

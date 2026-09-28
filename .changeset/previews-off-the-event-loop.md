@@ -2,4 +2,4 @@
 "bb-plugin-ribbon-sidebar": patch
 ---
 
-Stop building thread timelines for message previews. The preview service now reads the newest message events directly, skips threads whose stored preview already covers their latest event, and does not run at all while "Show message previews" is off. Before this, every plugin load rebuilt a full timeline for every thread and every tool call in an active thread rebuilt its timeline again, on bb's single server event loop, even with previews hidden; on a busy machine this was most of the time bb spent stalled.
+Stop building thread timelines for message previews, reducing work on bb's server event loop. Previews now use small pages of message events, reuse persisted results for unchanged threads, and stop background work while "Show message previews" is off.
