@@ -51,6 +51,11 @@ newest first. Forks inherit their source thread's stage and hierarchy's
 section; unparenting preserves the child's stage and copies the former root's
 section placement.
 
+Children hang from their parent by a bar in their own stage-ring column, which
+fills in for a hidden Idle ring. Set **Child thread lines** to Tree in Ribbon
+settings to branch a line from the parent into each child's ring instead, or
+into a small hollow node while that ring is hidden.
+
 Thread status indicators retain bb's priority for errors, input requests, active
 work, queued messages, unread completions, and drafts. Split-pane maps, previews,
 PR numbers, thread menus, and chosen section icons remain available.
