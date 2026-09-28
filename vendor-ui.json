@@ -18,6 +18,7 @@
     ],
     "plugins/bb-plugin-ribbon-sidebar": [
       "button",
+      "checkbox",
       "context-menu",
       "dialog",
       "dropdown-menu",

@@ -37,6 +37,7 @@
     "plugins/bb-plugin-icons/src/vendor/lib/portal-scope.ts": "sha256-y/I+gcRDZYWl5VpIk1kdDMIsGJ9U0ATXDLfhqMxy+Yg=",
     "plugins/bb-plugin-icons/src/vendor/lib/utils.ts": "sha256-vr6aUNRqtgngie1XhQc2MRDM7ImQ1z+puGxY8iH1cKw=",
     "plugins/bb-plugin-ribbon-sidebar/src/vendor/components/ui/button.tsx": "sha256-0NKnWzoi0kR8yGQbp06XoqHiHzHr26AEQ/50+aXChRs=",
+    "plugins/bb-plugin-ribbon-sidebar/src/vendor/components/ui/checkbox.tsx": "sha256-LglH9t261YwCriqdfM1hGt8Bp4GLPNjE6W8ShWKp+kU=",
     "plugins/bb-plugin-ribbon-sidebar/src/vendor/components/ui/coarse-pointer-sizing.ts": "sha256-MfINQsiLUrvv6qMvI1i46zodWFFAfjK6gKCfCwwNQ4Q=",
     "plugins/bb-plugin-ribbon-sidebar/src/vendor/components/ui/context-menu.tsx": "sha256-w74Tnq74v1N7YN5VMHO82uJr7MrimhfMt41GtsMjtXU=",
     "plugins/bb-plugin-ribbon-sidebar/src/vendor/components/ui/dialog.tsx": "sha256-7za37ALHB+GVXz3jI/DcnBIeQPOE1RbPNDkpNFS+VVo=",

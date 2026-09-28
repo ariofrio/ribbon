@@ -90,6 +90,7 @@ import { ThreadTitle } from "./thread-title";
 import type { ThreadAction, ThreadActionsRecord } from "./thread-actions-store";
 import { UnorganizedIcon } from "./unorganized-icon";
 import { Button } from "./vendor/components/ui/button";
+import { Checkbox } from "./vendor/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -2206,14 +2207,12 @@ function RibbonSidebarList({
                     </div>
                   ))}
                   <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-foreground"
+                    <Checkbox
                       checked={actionsEditor.actions.length > 0 && actionsEditor.hideTitle}
                       disabled={actionsEditorPending || actionsEditor.actions.length === 0}
-                      onChange={(event) => setActionsEditor((current) => current && ({
+                      onCheckedChange={(checked) => setActionsEditor((current) => current && ({
                         ...current,
-                        hideTitle: event.target.checked,
+                        hideTitle: checked === true,
                       }))}
                     />
                     Hide thread title

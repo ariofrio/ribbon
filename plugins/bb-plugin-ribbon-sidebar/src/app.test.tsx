@@ -18,6 +18,7 @@ afterEach(async () => {
     expect(clicked).toHaveBeenCalled();
   });
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   document.body.innerHTML = "";
   window.localStorage.clear();
 });
@@ -532,6 +533,11 @@ describe("Ribbon sidebar app", () => {
   }, 15_000);
 
   it("edits thread actions from the thread menu", async () => {
+    vi.stubGlobal("ResizeObserver", class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    });
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
