@@ -8,7 +8,7 @@ import {
 } from "./sidebar.mjs";
 
 export async function verifyThreadReordering({ stack, fixture }) {
-  for (const thread of fixture.threads.values()) fixture.run(["sidebar", "place", thread.id, "--to", `${STAGES}/Idle`]);
+  for (const thread of fixture.threads.values()) fixture.run(["sidebar", "place", thread.id, "--to", `${STAGES}/Active`]);
   const browser = await launch();
   let releaseSave = () => {};
   let context;

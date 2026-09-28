@@ -23,18 +23,18 @@ const threadStagesCatalog = {
       id: "stages",
       singularLabel: "Stage",
       pluralLabel: "Stages",
-      defaultGroupId: "Idle",
+      defaultGroupId: "Active",
       groups: [
         {
-          id: "Idle",
-          label: "Idle",
+          id: "Active",
+          label: "Active",
           visibleWhenEmpty: true,
           acceptsAssignments: true,
           defaultCollapsed: false,
         },
         {
-          id: "Blocked",
-          label: "Blocked",
+          id: "BlockedOnThirdParty",
+          label: "Blocked on third party",
           visibleWhenEmpty: true,
           acceptsAssignments: true,
           defaultCollapsed: false,
@@ -175,14 +175,14 @@ function setup({
             {
               groupingId: "stages",
               threadId: "thread-a",
-              groupId: "Blocked",
+              groupId: "BlockedOnThirdParty",
               enteredAtMs: 200,
               updatedAtMs: 300,
-              previousGroupId: "Idle",
+              previousGroupId: "Active",
               origin: "ui" as const,
               orders: [
-                { groupId: "Idle", sortKey: "A", updatedAtMs: 100 },
-                { groupId: "Blocked", sortKey: "B", updatedAtMs: 300 },
+                { groupId: "Active", sortKey: "A", updatedAtMs: 100 },
+                { groupId: "BlockedOnThirdParty", sortKey: "B", updatedAtMs: 300 },
               ],
             },
           ],
@@ -336,8 +336,8 @@ describe("Ribbon sidebar server", () => {
       await plugin(bb);
       try {
         for (const [threadId, groupId] of [
-          ["first", "Blocked"],
-          ["second", "Blocked"],
+          ["first", "BlockedOnThirdParty"],
+          ["second", "BlockedOnThirdParty"],
         ]) {
           await harness.behavior.callRpc("updatePlacementV1", {
             groupingKey: "plugin:thread-stages:stages",
@@ -375,7 +375,7 @@ describe("Ribbon sidebar server", () => {
         });
         await harness.behavior.callRpc("setWorkflowStage", {
           threadId: "second",
-          workflowStage: "Idle",
+          workflowStage: "Active",
         });
         expect(await ids()).toEqual(["second", "first", "third"]);
         expect(callRpc).not.toHaveBeenCalled();
@@ -428,7 +428,7 @@ describe("Ribbon sidebar server", () => {
     });
     await harness.behavior.callRpc("updatePlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
-      groupId: "Idle",
+      groupId: "Active",
       threadId: "thread-a",
       origin: "cli",
     });
@@ -535,7 +535,7 @@ describe("Ribbon sidebar server", () => {
     await plugin(fixture.bb);
     await fixture.harness.behavior.callRpc("updatePlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
-      groupId: "Blocked",
+      groupId: "BlockedOnThirdParty",
       threadId: "thr_fork_source",
       origin: "ui",
     });
@@ -561,7 +561,7 @@ describe("Ribbon sidebar server", () => {
         }),
       ).resolves.toMatchObject({
         ok: true,
-        value: { placement: { groupId: "Blocked" } },
+        value: { placement: { groupId: "BlockedOnThirdParty" } },
       });
     });
   });
@@ -616,12 +616,12 @@ describe("Ribbon sidebar server", () => {
     await expect(
       fixture.harness.behavior.callRpc("placeNewThreadV1", {
         groupingKey: "plugin:thread-stages:stages",
-        groupId: "Blocked",
+        groupId: "BlockedOnThirdParty",
         threadId: "thread-new",
       }),
     ).resolves.toMatchObject({
       ok: true,
-      value: { placement: { groupId: "Blocked", origin: "ui" } },
+      value: { placement: { groupId: "BlockedOnThirdParty", origin: "ui" } },
     });
     expect(fixture.list).not.toHaveBeenCalled();
     expect(fixture.get).toHaveBeenCalledWith({ threadId: "thread-new" });
@@ -738,7 +738,7 @@ describe("Ribbon sidebar server", () => {
     await plugin(fixture.bb);
     await fixture.harness.behavior.callRpc("updatePlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
-      groupId: "Blocked",
+      groupId: "BlockedOnThirdParty",
       threadId: "thr_parent",
       origin: "ui",
     });
@@ -767,7 +767,7 @@ describe("Ribbon sidebar server", () => {
         }),
       ).resolves.toMatchObject({
         ok: true,
-        value: { placement: { groupId: "Idle" } },
+        value: { placement: { groupId: "Active" } },
       });
     });
     service.controller.abort();
@@ -875,7 +875,7 @@ describe("Ribbon sidebar server", () => {
     await plugin(fixture.bb);
     await fixture.harness.behavior.callRpc("updatePlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
-      groupId: "Blocked",
+      groupId: "BlockedOnThirdParty",
       threadId: "thr_root",
       origin: "ui",
     });
@@ -900,7 +900,7 @@ describe("Ribbon sidebar server", () => {
       }),
     ).resolves.toMatchObject({
       ok: true,
-      value: { placement: { groupId: "Blocked" } },
+      value: { placement: { groupId: "BlockedOnThirdParty" } },
     });
     expect(fixture.list).not.toHaveBeenCalled();
     service.controller.abort();
@@ -948,23 +948,23 @@ describe("Ribbon sidebar server", () => {
     await plugin(bb);
     await harness.behavior.callRpc("updatePlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
-      groupId: "Idle",
+      groupId: "Active",
       threadId: "thread-a",
       origin: "cli",
     });
     expect(await harness.behavior.callRpc("updatePlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
-      groupId: "Blocked",
+      groupId: "BlockedOnThirdParty",
       threadId: "thread-child",
       origin: "cli",
     })).toMatchObject({ ok: true });
     expect(await harness.behavior.callRpc("getPlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
       threadId: "thread-a",
-    })).toMatchObject({ ok: true, value: { placement: { groupId: "Idle" } } });
+    })).toMatchObject({ ok: true, value: { placement: { groupId: "Active" } } });
     const listed = await harness.behavior.runCli([
       "list", "--include-children", "--scope",
-      "plugin:thread-stages:stages/Blocked", "--json",
+      "plugin:thread-stages:stages/BlockedOnThirdParty", "--json",
     ]);
     expect(JSON.parse(listed.stdout ?? "")).toEqual([
       expect.objectContaining({
@@ -979,10 +979,10 @@ describe("Ribbon sidebar server", () => {
     expect(JSON.parse(shown.stdout ?? "")).toMatchObject({
       threadId: "thread-child",
       parentThreadId: "thread-a",
-      stage: "Blocked",
+      stage: "BlockedOnThirdParty",
     });
     expect(await harness.behavior.callRpc("setWorkflowStage", {
-      threadId: "thread-child", workflowStage: "Idle",
+      threadId: "thread-child", workflowStage: "Active",
     })).toEqual({ destination: { kind: "stay" } });
     await harness.behavior.callRpc("reorderThread", {
       threadId: "thread-child", scope: "stage", direction: 1,
@@ -991,7 +991,7 @@ describe("Ribbon sidebar server", () => {
     expect(await harness.behavior.callRpc("getPlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
       threadId: "thread-child",
-    })).toMatchObject({ ok: true, value: { placement: { groupId: "Blocked" } } });
+    })).toMatchObject({ ok: true, value: { placement: { groupId: "BlockedOnOtherAgent" } } });
   });
 
   it("serves canonical built-in names in the standard grouping order", async () => {
@@ -1287,7 +1287,7 @@ describe("Ribbon sidebar server", () => {
       }),
     ).resolves.toMatchObject({
       ok: true,
-      value: { placement: { groupId: "Blocked" } },
+      value: { placement: { groupId: "BlockedOnOtherAgent" } },
     });
     expect(await order()).toEqual(["older", "middle", "newer"]);
   });
@@ -1336,7 +1336,7 @@ describe("Ribbon sidebar server", () => {
       }),
     ).toMatchObject({
       ok: true,
-      value: { placement: { groupId: "Idle", origin: "auto" } },
+      value: { placement: { groupId: "Active", origin: "auto" } },
     });
   });
 
@@ -1499,7 +1499,7 @@ describe("Ribbon sidebar server", () => {
       const { bb, harness, send } = setup({ threads: stageThreads() });
       await plugin(bb);
 
-      await expect(moveToStage(harness, "first", "Blocked")).resolves.toMatchObject(
+      await expect(moveToStage(harness, "first", "BlockedOnThirdParty")).resolves.toMatchObject(
         { ok: true },
       );
 
@@ -1509,26 +1509,29 @@ describe("Ribbon sidebar server", () => {
         threadId: "first",
         mode: "steer-if-active",
       });
-      const text = "Thread stage updated: @Idle → @Blocked";
-      const mention = (stage: string) => ({
-        start: text.indexOf(`@${stage}`),
-        end: text.indexOf(`@${stage}`) + stage.length + 1,
+      const text = "Thread stage updated: @Active → @Blocked on third party";
+      const mention = (label: string, itemId: string) => ({
+        start: text.indexOf(`@${label}`),
+        end: text.indexOf(`@${label}`) + label.length + 1,
         resource: {
           kind: "plugin",
           pluginId: "thread-stages",
-          itemId: `stage:${stage.toLowerCase()}`,
-          label: stage,
+          itemId,
+          label,
         },
       });
       expect(request.input).toEqual([
         {
           type: "text",
           text,
-          mentions: [mention("Idle"), mention("Blocked")],
+          mentions: [
+            mention("Active", "stage:active"),
+            mention("Blocked on third party", "stage:blockedonthirdparty"),
+          ],
         },
         {
           type: "text",
-          text: expect.stringContaining("from Idle to Blocked"),
+          text: expect.stringContaining("from Active to Blocked on third party"),
           mentions: [],
           visibility: "agent-only",
         },
@@ -1548,7 +1551,7 @@ describe("Ribbon sidebar server", () => {
       });
       await plugin(bb);
 
-      await expect(moveToStage(harness, child.id, "Blocked")).resolves.toMatchObject(
+      await expect(moveToStage(harness, child.id, "BlockedOnThirdParty")).resolves.toMatchObject(
         { ok: true },
       );
 
@@ -1564,7 +1567,7 @@ describe("Ribbon sidebar server", () => {
         }),
       ).resolves.toMatchObject({
         ok: true,
-        value: { placement: { groupId: "Idle" } },
+        value: { placement: { groupId: "Active" } },
       });
     });
 
@@ -1576,8 +1579,8 @@ describe("Ribbon sidebar server", () => {
       });
       await plugin(bb);
 
-      await moveToStage(harness, "first", "Idle");
-      await moveToStage(harness, "first", "Blocked", "auto");
+      await moveToStage(harness, "first", "Active");
+      await moveToStage(harness, "first", "BlockedOnThirdParty", "auto");
       await harness.behavior.callRpc("placeNewThreadV1", {
         groupingKey: "plugin:thread-stages:stages",
         groupId: "Deferred",
@@ -1623,7 +1626,7 @@ describe("Ribbon sidebar server", () => {
         threadId: "first",
         input: [
           expect.objectContaining({
-            text: "Thread stage updated: @Idle → @Completed",
+            text: "Thread stage updated: @Active → @Completed",
           }),
           expect.anything(),
         ],
@@ -1638,9 +1641,9 @@ describe("Ribbon sidebar server", () => {
       });
       await plugin(bb);
 
-      await moveToStage(harness, "first", "Blocked");
+      await moveToStage(harness, "first", "BlockedOnThirdParty");
       await harness.behavior.setSettings({ messageOnStageChange: true });
-      await moveToStage(harness, "second", "Blocked");
+      await moveToStage(harness, "second", "BlockedOnThirdParty");
 
       await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
       expect(send.mock.calls[0]![0]).toMatchObject({ threadId: "second" });
@@ -1656,8 +1659,8 @@ describe("Ribbon sidebar server", () => {
       });
       await plugin(bb);
 
-      await expect(moveToStage(harness, "first", "Blocked")).resolves.toMatchObject(
-        { ok: true, value: { placement: { groupId: "Blocked" } } },
+      await expect(moveToStage(harness, "first", "BlockedOnThirdParty")).resolves.toMatchObject(
+        { ok: true, value: { placement: { groupId: "BlockedOnThirdParty" } } },
       );
       await vi.waitFor(() =>
         expect(harness.inspection.logEntries).toContainEqual(

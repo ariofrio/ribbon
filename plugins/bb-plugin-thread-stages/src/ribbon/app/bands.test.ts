@@ -16,9 +16,9 @@ const item = (id: string): ProjectThreadItem => ({
 describe("stage bands", () => {
   it("keeps the main list in retained order and sorts Completed by completion time", () => {
     const stages = new Map([
-      ["a", "Idle"],
+      ["a", "Active"],
       ["b", "Completed"],
-      ["c", "Blocked"],
+      ["c", "BlockedOnThirdParty"],
       ["d", "Deferred"],
       ["e", "Completed"],
     ] as const);
@@ -36,6 +36,6 @@ describe("stage bands", () => {
 
   it("treats a thread without a stage as Idle", () => {
     expect(bandOf(undefined)).toBe("main");
-    expect(bandOf("Blocked")).toBe("main");
+    expect(bandOf("BlockedOnThirdParty")).toBe("main");
   });
 });

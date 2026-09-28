@@ -19,7 +19,7 @@ import {
   type ActionMenuSurface,
 } from "../../app/ui/action-menu-items.js";
 import { STAGE_ICONS } from "../workflow/catalog";
-import { WORKFLOW_STAGES } from "../workflow/workflow-stage";
+import { WORKFLOW_STAGES, WORKFLOW_STAGE_LABELS } from "../workflow/workflow-stage";
 import { useRibbonData } from "./data";
 import { ProviderIcon } from "./provider-icon";
 
@@ -54,8 +54,8 @@ export function RibbonThreadMenuItems({
         <span className="w-4">
           {stage === current ? <Icon name="Check" aria-hidden /> : null}
         </span>
-        <ProviderIcon icon={STAGE_ICONS[stage]} label={`${stage} icon`} />
-        {stage}
+        <ProviderIcon icon={STAGE_ICONS[stage]} label={`${WORKFLOW_STAGE_LABELS[stage]} icon`} />
+        {WORKFLOW_STAGE_LABELS[stage]}
       </Item>
     );
   });

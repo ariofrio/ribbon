@@ -79,6 +79,54 @@ describe("placement persistence", () => {
     ).toBeUndefined();
   });
 
+  it("renames Idle to Active and files Blocked as Blocked on third party when upgrading", () => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    const earlier = RIBBON_SIDEBAR_MIGRATIONS.slice(0, 6);
+    const splitBlocked = RIBBON_SIDEBAR_MIGRATIONS[6];
+    for (const migration of earlier) database.exec(migration);
+    const key = "plugin:thread-stages:stages";
+    const assign = database.prepare(
+      "INSERT INTO group_assignment VALUES (?, ?, ?, 1, ?, 'auto')",
+    );
+    assign.run(key, "idle", "Idle", "Blocked");
+    assign.run(key, "blocked", "Blocked", "Idle");
+    assign.run(key, "done", "Completed", null);
+    assign.run("builtin:sections", "section", "Idle", "Blocked");
+    const order = database.prepare("INSERT INTO group_order VALUES (?, ?, ?, ?, 1)");
+    order.run(key, "Idle", "idle", "A");
+    order.run(key, "Blocked", "blocked", "B");
+    order.run("builtin:sections", "Blocked", "section", "C");
+    database.exec(`INSERT INTO grouping_revision VALUES ('${key}', 7);`);
+
+    database.exec(splitBlocked!);
+
+    expect(
+      database
+        .prepare(
+          "SELECT grouping_key, thread_id, group_id, previous_group_id FROM group_assignment ORDER BY thread_id",
+        )
+        .all(),
+    ).toEqual([
+      { grouping_key: key, thread_id: "blocked", group_id: "BlockedOnThirdParty", previous_group_id: "Active" },
+      { grouping_key: key, thread_id: "done", group_id: "Completed", previous_group_id: null },
+      { grouping_key: key, thread_id: "idle", group_id: "Active", previous_group_id: "BlockedOnThirdParty" },
+      { grouping_key: "builtin:sections", thread_id: "section", group_id: "Idle", previous_group_id: "Blocked" },
+    ]);
+    expect(
+      database
+        .prepare("SELECT grouping_key, group_id, thread_id FROM group_order ORDER BY thread_id")
+        .all(),
+    ).toEqual([
+      { grouping_key: key, group_id: "BlockedOnThirdParty", thread_id: "blocked" },
+      { grouping_key: key, group_id: "Active", thread_id: "idle" },
+      { grouping_key: "builtin:sections", group_id: "Blocked", thread_id: "section" },
+    ]);
+    expect(
+      database.prepare("SELECT revision FROM grouping_revision WHERE grouping_key = ?").get(key),
+    ).toEqual({ revision: 8 });
+  });
+
   it.each(["builtin:sections", "builtin:projects"] as const)(
     "retains %s ranks across refreshes and prepends newly created roots",
     (groupingKey) => {

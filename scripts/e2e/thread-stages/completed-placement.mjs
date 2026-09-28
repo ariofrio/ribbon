@@ -44,8 +44,8 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
         return icon?.closest("[data-thread-id]")?.dataset.threadId === id;
       }, thread.id);
     }
-    place(returning, "Idle");
-    await row(group, returning.id).getByLabel("Idle stage", { exact: true }).waitFor();
+    place(returning, "Active");
+    await row(group, returning.id).getByLabel("Active stage", { exact: true }).waitFor();
     await row(group, returning.id).hover();
     await row(group, returning.id).getByRole("button", { name: "Thread actions", exact: true }).click();
     await page.getByRole("menuitem", { name: /Move to stage/ }).hover();
@@ -56,12 +56,12 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     await page.keyboard.press(process.platform === "darwin" ? "Meta+." : "Control+.");
     assert.ok((await response).ok());
     await first(shortcut);
-    place(returning, "Idle");
+    place(returning, "Active");
     place(returning, "Completed");
     await first(returning);
     await context.close();
   } finally {
-    place(shortcut, "Idle");
+    place(shortcut, "Active");
     place(returning, "Completed");
     await browser.close();
   }

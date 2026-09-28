@@ -11,7 +11,7 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
   const browser = await launch();
   try {
     setMessages(true);
-    place("Idle");
+    place("Active");
 
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     context.setDefaultTimeout(30_000);
@@ -56,7 +56,7 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
         };
       }),
     );
-    assert.deepEqual(pills.map(({ label }) => label), ["Completed", "Idle"]);
+    assert.deepEqual(pills.map(({ label }) => label), ["Completed", "Active"]);
     for (const pill of pills) {
       assert.notEqual(pill.display, "none");
       assert.ok(pill.width > 0, `${pill.label} must take up space`);
@@ -68,9 +68,9 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
     await composer.click();
     await page.keyboard.type("then @bl");
     // Only Thread stages' provider supplies this subtitle to the menu.
-    await page.getByText("Stage · cannot progress until something external changes", { exact: true }).waitFor();
+    await page.getByText("Stage · waiting for another agent's thread to finish or deliver something", { exact: true }).waitFor();
     await page.keyboard.press("Enter");
-    const inserted = page.locator('[data-app-composer-role="primary"] [data-prompt-mention]').filter({ hasText: "Blocked" });
+    const inserted = page.locator('[data-app-composer-role="primary"] [data-prompt-mention]').filter({ hasText: "Blocked on other agent" });
     await inserted.waitFor();
     assert.equal((await composer.innerText()).includes("@bl"), false, "Picking the stage must replace the typed query with its pill");
     await composer.press(process.platform === "darwin" ? "Meta+a" : "Control+a");
@@ -78,8 +78,8 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
 
     const events = JSON.parse(fixture.run(["thread", "log", thread.id, "--all", "--json"]));
     const serialized = JSON.stringify(events);
-    assert.ok(serialized.includes("this thread's stage changed from Completed to Idle"), "The agent must receive the notice's agent-only context");
-    assert.ok(serialized.includes("@Idle is the Idle workflow stage"), "The agent must receive each stage mention's resolved context");
+    assert.ok(serialized.includes("this thread's stage changed from Completed to Active"), "The agent must receive the notice's agent-only context");
+    assert.ok(serialized.includes("@Active is the Active workflow stage"), "The agent must receive each stage mention's resolved context");
     await context.close();
   } finally {
     setMessages(false);

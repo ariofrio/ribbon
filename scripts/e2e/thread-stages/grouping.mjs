@@ -82,9 +82,9 @@ export async function verifyGrouping({ stack, fixture }) {
     await webHeading.getByRole("button", { name: `Expand ${webProject.name} section`, exact: true }).click();
     await webThread.waitFor();
     const second = fixture.threads.get("Replace the legacy filter drawer").id;
-    fixture.run(["sidebar", "place", second, "--to", `${STAGES}/Idle`]);
+    fixture.run(["sidebar", "place", second, "--to", `${STAGES}/Active`]);
     const secondRow = link(web, second);
-    await web.locator(`[data-thread-id="${second}"]`).getByLabel("Idle stage", { exact: true }).waitFor();
+    await web.locator(`[data-thread-id="${second}"]`).getByLabel("Active stage", { exact: true }).waitFor();
     const ids = new Set([second, featuredId]);
     const order = async (scope) => (await rowOrder(scope)).filter((id) => ids.has(id));
     const initialProjectOrder = await order(web);

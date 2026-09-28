@@ -1,6 +1,6 @@
 ---
 name: thread-stages
-description: Inspect and organize bb threads across sections, projects, and the Deferred, Idle, Blocked, and Completed workflow stages. Use when deciding which stage a bb thread belongs in, selecting threads by sidebar organization or stage before bulk work or messaging, changing a thread's or child's stage, moving and ordering root threads, ordering children among siblings, or reading and changing the thread list's layout preferences. Discover the installed CLI rather than assuming its commands.
+description: Inspect and organize bb threads across sections, projects, and the Deferred, Active, Blocked on other agent, Blocked on third party, and Completed workflow stages. Use when deciding which stage a bb thread belongs in, including after asking the user something, selecting threads by sidebar organization or stage before bulk work or messaging, changing a thread's or child's stage, moving and ordering root threads, ordering children among siblings, or reading and changing the thread list's layout preferences. Discover the installed CLI rather than assuming its commands.
 ---
 
 # Thread stages
@@ -28,12 +28,23 @@ resolve it to a root for section, project, or root-order operations. Use
 
 ## Stages
 
-Thread stages describe the workflow state of each thread:
+A stage says whose move a thread is waiting on:
 
-- **Deferred** is intentionally set aside for later.
-- **Idle** is available or waiting without a blocker.
-- **Blocked** cannot progress until something external changes.
-- **Completed** is finished and should be treated like archived work.
+| Stage | ID | Whose move |
+| --- | --- | --- |
+| **Deferred** | `Deferred` | Nobody's yet: intentionally set aside for later. |
+| **Active** | `Active` | The user's or this thread's: available, working, or waiting on the user. |
+| **Blocked on other agent** | `BlockedOnOtherAgent` | Another agent's: another bb thread must finish or deliver something this one depends on. |
+| **Blocked on third party** | `BlockedOnThirdParty` | Someone or something outside bb: a reviewer, CI, a vendor, a date. |
+| **Completed** | `Completed` | Nobody's: finished, and treated like archived work. |
+
+Waiting on the user is **Active**, never a Blocked stage. Ending a turn already
+hands the thread to the user, so do not move a thread because you asked the
+user a question, requested approval, or finished work for them to review. The
+user is not a third party.
+
+Place a thread by stage ID:
+`bb sidebar place --self --to plugin:thread-stages:stages/BlockedOnOtherAgent`.
 
 Each child has its own stage and remains nested beneath its parent. A child
 can be reordered among its siblings, while its stage remains independent.
@@ -51,12 +62,14 @@ ring, because the thread is waiting on the user rather than working.
 
 ## Stage mentions
 
-A mention of `@Deferred`, `@Idle`, `@Blocked`, or `@Completed` names a stage.
-A message that mentions one, in a sentence such as "do this, then @Blocked"
-or on its own, asks for the root to be placed in that stage once the rest of
-the message is done. The plugin also tells a thread when someone else changes
-its stage, as "Thread stage updated: @Idle → @Blocked"; that move has already
-happened.
+A mention of a stage, such as `@Active` or `@Blocked on third party`, names
+that stage. A message that mentions one, in a sentence such as "do this, then
+@Blocked on other agent" or on its own, asks for the thread to be placed in
+that stage once the rest of the message is done. The plugin also tells a
+thread when someone else changes its stage, as "Thread stage updated: @Active
+→ @Blocked on third party"; that move has already happened. Older messages may
+mention `@Idle`, now Active, or `@Blocked`, now split into the two Blocked
+stages.
 
 ## Layout preferences
 

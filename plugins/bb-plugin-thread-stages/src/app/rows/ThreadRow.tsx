@@ -531,7 +531,7 @@ function ThreadRowComponent({
   const ribbonRing: "shown" | "hidden-at-rest" | "absent" =
     ribbon === null
       ? "absent"
-      : ribbon.stage === "Idle" && !ribbon.working && !showActive
+      : ribbon.stage === "Active" && !ribbon.working && !showActive
         ? "hidden-at-rest"
         : "shown";
   const ribbonRails =
@@ -627,7 +627,7 @@ function ThreadRowComponent({
                   stage={ribbon.stage}
                   working={ribbon.working}
                   hiddenAtRest={
-                    ribbon.stage === "Idle" && !ribbon.working && !showActive
+                    ribbon.stage === "Active" && !ribbon.working && !showActive
                   }
                 />
               ) : null}

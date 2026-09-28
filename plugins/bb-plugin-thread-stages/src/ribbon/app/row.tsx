@@ -80,7 +80,7 @@ export function useRibbonRow(
   const actions = thread.archivedAt === null ? (record?.actions ?? []) : [];
   return {
     stage,
-    muted: stage !== "Idle",
+    muted: stage !== "Active",
     status,
     working: status.spinsStageRing,
     shines: status.isWorking && status.indicator !== "waiting-for-input",
@@ -118,7 +118,7 @@ export function useRibbonRow(
   };
 }
 
-/** The ring beside a title: hidden at rest while Idle and still, as Ribbon draws it. */
+/** The ring beside a title: hidden at rest while Active and still, as Ribbon draws it. */
 export function RibbonStageGlyph({
   stage,
   working,

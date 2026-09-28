@@ -2,7 +2,7 @@
 "bb-plugin-thread-stages": major
 ---
 
-Rebuilt as a fork of bb's own thread list. Thread stages now draws the whole
+Rebuilt as a fork of bb's own thread list, with the Active and split Blocked stages of Ribbon sidebar 0.8. Thread stages now draws the whole
 sidebar list itself — bb's sections, projects, machines, pins, nesting, rename,
 search, and menus — with workflow stages, stable manual order, stage bands with
 previews, stage rings and row shimmer, child thread lines, prompt action

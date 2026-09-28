@@ -25,3 +25,30 @@ it.each(["MacIntel", "Linux x86_64", "Win32"])(
     expect(new Set(shortcuts).size).toBe(shortcuts.length);
   },
 );
+
+it("files a thread into every stage from a command, keeping existing command IDs", () => {
+  expect(
+    WORKFLOW_COMMANDS.flatMap(({ action, id, title }) =>
+      action.kind === "stage" ? [[id, action.stage, title]] : [],
+    ),
+  ).toEqual([
+    ["complete-thread", "Completed", "File thread as Completed"],
+    [
+      "complete-thread-alternate",
+      "Completed",
+      "File thread as Completed (alternate shortcut)",
+    ],
+    ["idle-thread", "Active", "Return thread to Active"],
+    [
+      "block-thread-on-agent",
+      "BlockedOnOtherAgent",
+      "File thread as Blocked on other agent",
+    ],
+    [
+      "block-thread",
+      "BlockedOnThirdParty",
+      "File thread as Blocked on third party",
+    ],
+    ["defer-thread", "Deferred", "File thread as Deferred"],
+  ]);
+});

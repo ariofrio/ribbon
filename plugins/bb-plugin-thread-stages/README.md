@@ -39,10 +39,14 @@ the plugin's own lives under `src/ribbon/` and `src/icons/`.
 ## Grouping and ordering
 
 Choose **⋯ menu → Organize → Custom** for sections or **By project** for
-projects. Each keeps its own order and collapsed headings. Inside each group,
-Idle and Blocked share one manually ordered list, followed by Deferred and
-then Completed. New roots enter at the top, and activity leaves positions
-unchanged.
+projects. Each keeps its own order and collapsed headings. A stage says whose
+move a thread is waiting on: **Active** is the user's or the thread's own,
+**Blocked on other agent** is another bb thread's, **Blocked on third party**
+is someone or something outside bb, **Deferred** is set aside, and
+**Completed** is done. Waiting on the user is Active, never a Blocked stage.
+Inside each group, Active and both Blocked stages share one manually ordered
+list, followed by Deferred and then Completed. New roots enter at the top, and
+activity leaves positions unchanged.
 
 Deferred shows two roots in group order and Completed the two most recent
 completions; **Show N more deferred/completed** expands the rest, and **Show
@@ -64,7 +68,7 @@ stage and hierarchy's section; unparenting preserves the child's stage and
 copies the former root's section placement.
 
 Children hang from their parent by a bar in their own stage-ring column, which
-fills in for a hidden Idle ring and parts around a shown one. Set **Child
+fills in for a hidden Active ring and parts around a shown one. Set **Child
 thread lines** to Tree to branch a line from the parent into each child's ring
 instead, or into a small hollow node while that ring is hidden.
 
@@ -112,12 +116,15 @@ lines the numbers up.
 ## Stages and shortcuts
 
 Type `@` and a stage name in the composer to mention a stage, such as
-`@Blocked`. A mentioned stage tells the agent to place the thread there, so a
-message can end with "then @Blocked", and a queued message can be just the
-mention.
+`@Blocked on other agent`. A mentioned stage tells the agent to place the
+thread there, so a message can end with "then @Blocked on other agent", and a
+queued message can be just the mention. Mentions of `@Idle` and `@Blocked` in
+older messages still resolve: Idle is now Active, and Blocked is split into
+the two Blocked stages.
 
 When you or another thread move a thread to a different stage, the plugin
-sends that thread "Thread stage updated: @Idle → @Blocked", with agent-only
+sends that thread "Thread stage updated: @Active → @Blocked on third party",
+with agent-only
 context that tells the agent who moved it. The message steers a running turn
 or starts one on an idle thread. Automatic placement and a thread moving
 itself through the CLI send nothing. Turn off **Message threads when their
@@ -131,8 +138,9 @@ and any pinned member prevents archival.
 | macOS | Linux / Windows | Action |
 | --- | --- | --- |
 | ⌘. / ⌥⌘. | Ctrl+. / Ctrl+Alt+. | Complete and select the next main-list thread in this section or project |
-| ⇧⌘. | Ctrl+Shift+. | Return to Idle, or undo the latest filing in this section or project |
-| ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked |
+| ⇧⌘. | Ctrl+Shift+. | Return to Active, or undo the latest filing in this section or project |
+| ⌃⌥⌘. | Ctrl+Alt+Shift+. | Mark Blocked on other agent |
+| ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked on third party |
 | ⌃⌘. | Ctrl+Alt+, | Defer |
 | ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list, or a child among its siblings |
 | ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to that list's edge |
@@ -162,7 +170,7 @@ bb sidebar groups builtin:sections
 bb sidebar list --scope builtin:sections/<section-id>
 bb sidebar show --self
 bb sidebar place --self --to plugin:thread-stages:stages/Completed
-bb sidebar list --include-children --scope plugin:thread-stages:stages/Blocked
+bb sidebar list --include-children --scope plugin:thread-stages:stages/BlockedOnThirdParty
 bb sidebar place <thread> --to builtin:sections/<section-id> --before <thread>
 bb sidebar place <child> --before <sibling>
 bb sidebar children <thread>

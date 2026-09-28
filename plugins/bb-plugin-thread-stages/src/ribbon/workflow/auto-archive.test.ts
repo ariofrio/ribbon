@@ -206,7 +206,7 @@ describe("completed auto-archive", () => {
     );
   });
 
-  it("keeps an Idle child when its parent is Completed and archives a Completed child alone", async () => {
+  it("keeps an Active child when its parent is Completed and archives a Completed child alone", async () => {
     const now = 10 * DAY;
     const threads = [
       thread("completed-parent"),

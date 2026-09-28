@@ -237,7 +237,7 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
 
   const stageOf = useCallback(
     (threadId: string): WorkflowStage =>
-      parseWorkflowStage(stages.get(threadId)?.groupId ?? "Idle") ?? "Idle",
+      parseWorkflowStage(stages.get(threadId)?.groupId ?? "Active") ?? "Active",
     [stages],
   );
   const enteredStageAt = useCallback(

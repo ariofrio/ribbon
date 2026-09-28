@@ -32,7 +32,7 @@ export function bandOf(stage: WorkflowStage | undefined): StageBand {
 
 /**
  * Partitions a group's roots, in their retained order, into the main list
- * (Idle and Blocked), Deferred, and Completed. Only Completed re-sorts, by
+ * (Active and both Blocked stages), Deferred, and Completed. Only Completed re-sorts, by
  * completion time, so a root keeps its rank through every other stage.
  */
 export function stageBands(

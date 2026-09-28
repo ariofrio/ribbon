@@ -8,7 +8,7 @@ import {
 export async function verifyDragRegressions({ stack, fixture, cases }) {
   const threads = [...fixture.threads.values()];
   for (const [index, thread] of threads.entries()) {
-    fixture.run(["sidebar", "place", thread.id, "--to", `${STAGES}/${index < 6 ? "Idle" : index < 8 ? "Deferred" : "Completed"}`]);
+    fixture.run(["sidebar", "place", thread.id, "--to", `${STAGES}/${index < 6 ? "Active" : index < 8 ? "Deferred" : "Completed"}`]);
   }
   const children = [];
   if (cases.includes("nested")) {
@@ -190,7 +190,7 @@ export async function verifyDragRegressions({ stack, fixture, cases }) {
         await gate;
         await route.fulfill({ response });
       });
-      fixture.run(["sidebar", "place", initial[1], "--to", `${STAGES}/Blocked`]);
+      fixture.run(["sidebar", "place", initial[1], "--to", `${STAGES}/BlockedOnThirdParty`]);
       await Promise.race([
         readCaptured,
         new Promise((_, reject) => {

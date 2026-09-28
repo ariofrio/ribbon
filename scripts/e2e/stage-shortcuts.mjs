@@ -17,9 +17,10 @@ export async function verifyStageShortcuts({ stack, fixture }) {
       const mac = platform === "MacIntel";
       const shortcuts = [
         [mac ? "Meta+." : "Control+.", "Completed"],
-        [mac ? "Meta+Shift+." : "Control+Shift+.", "Idle"],
+        [mac ? "Meta+Shift+." : "Control+Shift+.", "Active"],
         [mac ? "Control+Meta+." : "Control+Alt+,", "Deferred"],
-        [mac ? "Control+Meta+Shift+." : "Control+Alt+Shift+,", "Blocked"],
+        [mac ? "Control+Alt+Meta+." : "Control+Alt+Shift+.", "BlockedOnOtherAgent"],
+        [mac ? "Control+Meta+Shift+." : "Control+Alt+Shift+,", "BlockedOnThirdParty"],
         [mac ? "Meta+Alt+." : "Control+Alt+.", "Completed"],
       ];
       for (const [shortcut, stage] of shortcuts) {

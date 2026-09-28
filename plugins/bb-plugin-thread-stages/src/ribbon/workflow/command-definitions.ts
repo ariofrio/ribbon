@@ -17,17 +17,24 @@ export const WORKFLOW_COMMANDS = [
     id: "complete-thread-alternate",
     title: "File thread as Completed (alternate shortcut)",
   },
+  // Command IDs outlive stage names: saved bindings refer to them.
   {
-    action: { kind: "stage", stage: "Idle" },
+    action: { kind: "stage", stage: "Active" },
     defaultShortcut: { key: ".", mod: true, shift: true },
     id: "idle-thread",
-    title: "Return thread to Idle",
+    title: "Return thread to Active",
   },
   {
-    action: { kind: "stage", stage: "Blocked" },
+    action: { kind: "stage", stage: "BlockedOnOtherAgent" },
+    defaultShortcut: { alt: true, control: true, key: ".", mod: true },
+    id: "block-thread-on-agent",
+    title: "File thread as Blocked on other agent",
+  },
+  {
+    action: { kind: "stage", stage: "BlockedOnThirdParty" },
     defaultShortcut: { control: true, key: ".", mod: true, shift: true },
     id: "block-thread",
-    title: "File thread as Blocked",
+    title: "File thread as Blocked on third party",
   },
   {
     action: { kind: "stage", stage: "Deferred" },
@@ -89,8 +96,12 @@ export function workflowShortcut(
   command: (typeof WORKFLOW_COMMANDS)[number],
   isMac: boolean,
 ) {
-  return !isMac &&
-    (command.id === "defer-thread" || command.id === "block-thread")
-    ? { key: ",", mod: true, alt: true, shift: command.id === "block-thread" }
-    : command.defaultShortcut;
+  if (isMac) return command.defaultShortcut;
+  if (command.id === "defer-thread" || command.id === "block-thread") {
+    return { key: ",", mod: true, alt: true, shift: command.id === "block-thread" };
+  }
+  if (command.id === "block-thread-on-agent") {
+    return { key: ".", mod: true, alt: true, shift: true };
+  }
+  return command.defaultShortcut;
 }

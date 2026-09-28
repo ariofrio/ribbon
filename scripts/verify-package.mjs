@@ -1,8 +1,9 @@
 // Packs a plugin, checks that the tarball holds exactly the publishable files,
 // then installs it in a temporary prefix and validates the installed manifest
-// and build metadata. Usage: node scripts/verify-package.mjs [pluginDir]
+// and build metadata. Also builds the source with production-only dependencies.
+// Usage: node scripts/verify-package.mjs [pluginDir]
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import {
   mkdtempSync,
   readFileSync,
@@ -67,6 +68,24 @@ const expectedFiles = [
 ].sort();
 
 const temporaryDirectory = mkdtempSync(join(tmpdir(), `${pluginId}-pack-`));
+const productionBuild = spawn(
+  process.execPath,
+  [resolve(import.meta.dirname, "verify-production-build.mjs"), pluginDirectory],
+  { stdio: "inherit" },
+);
+const productionResult = new Promise((resolveResult) => {
+  productionBuild.once("error", (error) => resolveResult(error));
+  productionBuild.once("close", (code, signal) =>
+    resolveResult(
+      code === 0
+        ? null
+        : new Error(
+            `Production-only build failed (${signal ?? `exit code ${code}`}).`,
+          ),
+    ),
+  );
+});
+let packageError;
 
 try {
   const packOutput = execFileSync(
@@ -141,6 +160,12 @@ try {
   }
 
   console.log(`Verified packed artifact ${packed.filename}.`);
+} catch (error) {
+  packageError = error;
 } finally {
   rmSync(temporaryDirectory, { recursive: true, force: true });
 }
+
+const productionError = await productionResult;
+if (packageError) throw packageError;
+if (productionError) throw productionError;

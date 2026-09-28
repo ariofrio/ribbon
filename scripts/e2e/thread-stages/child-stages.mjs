@@ -14,11 +14,11 @@ export async function verifyChildStages({ stack, fixture }) {
   const project = fixture.projects.get(FEATURED_PROJECT);
   const child = spawnChild(fixture, { parent, project, title: "Independent child stage", AGENT });
   const parentStage = stageFor(fixture, parent.id);
-  fixture.run(["sidebar", "place", child.id, "--to", `${STAGES}/Blocked`]);
-  assert.equal(stageFor(fixture, child.id), "Blocked");
+  fixture.run(["sidebar", "place", child.id, "--to", `${STAGES}/BlockedOnThirdParty`]);
+  assert.equal(stageFor(fixture, child.id), "BlockedOnThirdParty");
   assert.equal(stageFor(fixture, parent.id), parentStage);
   assert.ok(fixture.runJson([
-    "sidebar", "list", "--include-children", "--scope", `${STAGES}/Blocked`,
+    "sidebar", "list", "--include-children", "--scope", `${STAGES}/BlockedOnThirdParty`,
   ]).some(({ id }) => id === child.id));
 
   const browser = await launch();
@@ -31,7 +31,7 @@ export async function verifyChildStages({ stack, fixture }) {
       await list.waitFor({ timeout: 120_000 });
       const childRow = row(list, child.id);
       await childRow.waitFor();
-      const icon = childRow.locator('[aria-label="Blocked stage"]');
+      const icon = childRow.locator('[aria-label="Blocked on third party stage"]');
       await icon.waitFor();
       const rendered = await icon.evaluate((node) => {
         const style = getComputedStyle(node);
@@ -44,9 +44,9 @@ export async function verifyChildStages({ stack, fixture }) {
       await childRow.hover();
       await childRow.getByRole("button", { name: "Thread actions" }).click();
       await page.getByRole("menuitem", { name: "Move to stage" }).click();
-      await page.getByRole("menuitem", { name: "Idle" }).click();
-      await childRow.locator('[aria-label="Idle stage"]').waitFor({ state: "attached" });
-      assert.equal(stageFor(fixture, child.id), "Idle");
+      await page.getByRole("menuitem", { name: "Active" }).click();
+      await childRow.locator('[aria-label="Active stage"]').waitFor({ state: "attached" });
+      assert.equal(stageFor(fixture, child.id), "Active");
       assert.equal(stageFor(fixture, parent.id), parentStage);
     } finally {
       await context.close();
