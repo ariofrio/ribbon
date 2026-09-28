@@ -98,6 +98,7 @@ import {
   sidebarCollapsedMachinesAtom,
   sidebarManualSectionOrderAtom,
   sidebarOrganizationModeAtom,
+  sidebarCollapsedThreadSectionsAtom,
 } from "../preferences/atoms.js";
 import type {
   ChronologicalSort as SidebarChronologicalSort,
@@ -137,10 +138,19 @@ import {
   placementRanks,
 } from "../../ribbon/app/order.js";
 import { useRibbonDnd } from "../../ribbon/app/dnd.js";
+import {
+  filterThreadsToSearch,
+  RibbonListProvider,
+  useRibbonSearch,
+} from "../../ribbon/app/search.js";
+import { ribbonClientPreferences } from "../../ribbon/app/migrate-client-preferences.js";
+
 
 export interface ProjectListProps {
   activeThreadId: string | null;
   onProjectSelect?: () => void;
+  /** The sidebar search box's text; Ribbon narrows the list to its matches. */
+  searchQuery?: string;
 }
 
 interface ProjectListShellProps {
@@ -1362,15 +1372,33 @@ function toThreadListStatus(
 function ProjectListComponent({
   activeThreadId,
   onProjectSelect,
+  searchQuery = "",
 }: ProjectListProps) {
   const sdk = useSdk();
   const sidebarActions = experimental_useSidebarThreadActions();
   const { status, sections, projects, personalProject, archived } =
     useSidebarData();
   const personalProjectId = personalProject?.id ?? null;
-  const threads = useMemo<SidebarThread[]>(
+  const liveThreads = useMemo<SidebarThread[]>(
     () => projects.flatMap((project) => project.threads),
     [projects],
+  );
+  const liveThreadIds = useMemo(
+    () => new Set(liveThreads.map((thread) => thread.id)),
+    [liveThreads],
+  );
+  const ribbon = useRibbonData();
+  const search = useRibbonSearch(searchQuery, liveThreadIds);
+  // Under a search, only roots holding a match, archived matches included.
+  const threads = useMemo<SidebarThread[]>(
+    () =>
+      search.status === "ready"
+        ? filterThreadsToSearch(
+            [...liveThreads, ...search.extraThreads],
+            search.threadIds,
+          )
+        : liveThreads,
+    [liveThreads, search],
   );
   const draftThreadIds = useSidebarThreadDraftIds();
   const preferencesReady = usePreferencesReady();
@@ -1535,6 +1563,45 @@ function ProjectListComponent({
   const [collapsedThreadIdList, setCollapsedThreadIdList] = useAtom(
     collapsedThreadIdsAtom,
   );
+  const setOrganizationMode = useSetAtom(sidebarOrganizationModeAtom);
+  const setCollapsedThreadSections = useSetAtom(sidebarCollapsedThreadSectionsAtom);
+  const setCollapsedProjectIds = useSetAtom(collapsedProjectIdsAtom);
+  const setCollapsedBuiltInSections = useSetAtom(collapsedSidebarSectionIdsAtom);
+  // What this client folded and grouped by in Ribbon sidebar carries over once.
+  useEffect(() => {
+    if (!preferencesReady || ribbon === null) return;
+    const migrated = ribbonClientPreferences(window.localStorage);
+    if (migrated === null) return;
+    if (migrated.organizationMode) setOrganizationMode(migrated.organizationMode);
+    if (migrated.collapsedThreadSections) {
+      setCollapsedThreadSections((current) => [
+        ...new Set([...current, ...migrated.collapsedThreadSections!]),
+      ]);
+    }
+    if (migrated.collapsedProjects) {
+      setCollapsedProjectIds((current) => [
+        ...new Set([...current, ...migrated.collapsedProjects!]),
+      ]);
+    }
+    if (migrated.collapsedSections) {
+      setCollapsedBuiltInSections((current) => [
+        ...new Set([...current, ...migrated.collapsedSections!]),
+      ]);
+    }
+    if (migrated.collapsedThreads) {
+      setCollapsedThreadIdList((current) => [
+        ...new Set([...current, ...migrated.collapsedThreads!]),
+      ]);
+    }
+  }, [
+    preferencesReady,
+    ribbon,
+    setCollapsedBuiltInSections,
+    setCollapsedProjectIds,
+    setCollapsedThreadIdList,
+    setCollapsedThreadSections,
+    setOrganizationMode,
+  ]);
   const [collapsedEnvironmentIdList, setCollapsedEnvironmentIdList] = useAtom(
     collapsedEnvironmentIdsAtom,
   );
@@ -1591,7 +1658,6 @@ function ProjectListComponent({
   );
   const sortDirection = useAtomValue(sidebarSortDirectionAtom);
   const activeRename = useSidebarRenameState();
-  const ribbon = useRibbonData();
   const ribbonReady = ribbon?.ready ?? false;
   const ribbonPlacements = ribbon?.placements;
   const ribbonChildRanks = ribbon?.childRanks;
@@ -1819,6 +1885,37 @@ function ProjectListComponent({
     );
   }
 
+  if (search.status === "loading" || search.status === "error") {
+    return (
+      <ProjectListShell>
+        <div
+          role="status"
+          className="flex min-h-20 flex-col items-center justify-center gap-2 px-3 py-6 text-center text-xs text-muted-foreground"
+        >
+          {search.status === "loading" ? (
+            <span>Searching threads…</span>
+          ) : (
+            <>
+              <span>Search failed.</span>
+              <Button size="sm" type="button" variant="outline" onClick={search.retry}>
+                Retry
+              </Button>
+            </>
+          )}
+        </div>
+      </ProjectListShell>
+    );
+  }
+  if (search.status === "ready" && threads.length === 0) {
+    return (
+      <ProjectListShell>
+        <div role="status" className="px-3 py-6 text-center text-xs text-muted-foreground">
+          No matching threads
+        </div>
+      </ProjectListShell>
+    );
+  }
+
   return (
     <SidebarHeaderActionsProvider
       value={{
@@ -1826,6 +1923,7 @@ function ProjectListComponent({
         isCreatingSection: isCreateThreadSectionPending,
       }}
     >
+      <RibbonListProvider value={{ revealAll: search.status === "ready" }}>
       <ProjectListSectionMoveScope sections={sections}>
         <ActiveSidebarModeSections
           mode={organizationMode}
@@ -1947,6 +2045,7 @@ function ProjectListComponent({
           </>
         )}
       </ProjectListSectionMoveScope>
+      </RibbonListProvider>
       {sectionCreateDialog}
       {sectionDeleteDialogContent}
       {ribbon !== null ? (

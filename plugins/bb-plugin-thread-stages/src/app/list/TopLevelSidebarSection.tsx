@@ -117,12 +117,37 @@ export function TopLevelSidebarSection({
     collapseControl?.isCollapsed === true,
   );
   const pluginStatus = usePluginThreadRowStatusForThreads(collapsedThreads);
+  const hasCollapsedActivity =
+    collapsedActivity !== undefined &&
+    (collapsedActivity.pending ||
+      collapsedActivity.working ||
+      collapsedActivity.hasUnsubmittedDraft ||
+      collapsedActivity.unread ||
+      collapsedActivity.unreadError);
   const showCollapsedActivity =
     !status &&
     collapseControl?.isCollapsed === true &&
     (collapsedSplitIndicator.miniMap !== null ||
-      collapsedActivity !== undefined ||
+      hasCollapsedActivity ||
       pluginStatus !== null);
+  // Folded and quiet, a group says how many threads it holds.
+  const collapsedCount =
+    !status &&
+    collapseControl?.isCollapsed === true &&
+    !showCollapsedActivity &&
+    collapsedThreads.length > 0 ? (
+      <span
+        aria-label={`${collapsedThreads.length} ${collapsedThreads.length === 1 ? "thread" : "threads"}`}
+        data-sidebar-collapsed-count=""
+        className={cn(
+          "pointer-events-none absolute right-0 top-1/2 z-20 inline-flex -translate-y-1/2 items-center justify-center text-xs tabular-nums opacity-60 max-md:static max-md:shrink-0 max-md:translate-y-0",
+          COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
+          actions && SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
+        )}
+      >
+        {collapsedThreads.length}
+      </span>
+    ) : null;
   const collapsedActivityIndicator = showCollapsedActivity ? (
     <span
       data-sidebar-collapsed-activity-edge=""
@@ -274,7 +299,7 @@ export function TopLevelSidebarSection({
             </button>
           ) : null}
         </span>
-        {status || actions || collapsedActivityIndicator ? (
+        {status || actions || collapsedActivityIndicator || collapsedCount ? (
           <span
             data-sidebar-trailing-controls=""
             className={cn(
@@ -286,6 +311,7 @@ export function TopLevelSidebarSection({
           >
             {status}
             {collapsedActivityIndicator}
+            {collapsedCount}
             {trailing}
             {actions ? (
               <span

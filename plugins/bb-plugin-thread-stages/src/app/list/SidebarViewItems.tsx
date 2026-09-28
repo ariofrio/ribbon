@@ -14,6 +14,7 @@ import {
 import type { SidebarSectionId } from "../model/sidebar-section-id.js";
 import type { HeaderCreationActions } from "./SidebarHeaderControls.js";
 import { ThreadListVisibilityMenuItems } from "./ThreadListVisibility.js";
+import { RibbonViewMenuItems } from "../../ribbon/app/view-menu.js";
 import {
   sidebarThreadLifecyclesAtom,
   sidebarOrganizationModeAtom,
@@ -119,6 +120,7 @@ export function SidebarHeaderMenuContents({
           </DropdownMenuSub>
         ),
       )}
+      <RibbonViewMenuItems compact={compact} />
       {children ? (
         <>
           <DropdownMenuSeparator />

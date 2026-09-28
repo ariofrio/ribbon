@@ -12,6 +12,7 @@ function ThreadList({
   activeThreadId,
   isCompactViewport,
   onNavigate,
+  searchQuery,
 }: PluginThreadListProps) {
   useSidebarThreadReveal();
   return (
@@ -23,6 +24,7 @@ function ThreadList({
             <ProjectList
               activeThreadId={activeThreadId}
               onProjectSelect={onNavigate}
+              searchQuery={searchQuery}
             />
           </IconsProvider>
         </RibbonDataProvider>

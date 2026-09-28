@@ -6,6 +6,7 @@ import {
 import { getSidebarItemKey } from "../../app/rows/sidebarItemKeys.js";
 import { itemThread, stageBands } from "./bands";
 import { useRibbonData } from "./data";
+import { useRibbonList } from "./search";
 import { StagePreview } from "./stage-preview";
 
 /**
@@ -29,6 +30,7 @@ export function StageBandedItems({
   revealAll?: boolean;
 }) {
   const ribbon = useRibbonData();
+  const { revealAll: searchReveals } = useRibbonList();
   const stageOf = ribbon?.stageOf;
   const enteredStageAt = ribbon?.enteredStageAt;
   const bands = useMemo(
@@ -56,14 +58,14 @@ export function StageBandedItems({
         rows={rows(bands.deferred)}
         selectedRootId={selectedRootId}
         renderRow={({ id, item }) => <Fragment key={id}>{renderItem(item)}</Fragment>}
-        revealAll={revealAll}
+        revealAll={revealAll || searchReveals}
       />
       <StagePreview
         stage="completed"
         rows={rows(bands.completed)}
         selectedRootId={selectedRootId}
         renderRow={({ id, item }) => <Fragment key={id}>{renderItem(item)}</Fragment>}
-        revealAll={revealAll}
+        revealAll={revealAll || searchReveals}
       />
     </>
   );
