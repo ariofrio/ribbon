@@ -22,14 +22,14 @@ import { orderedGroupings } from "./grouping-order";
 import { migrateThreadStages } from "./migration";
 import {
   createPlacementStore,
-  RIBBON_SIDEBAR_MIGRATIONS,
   type GroupingDescriptor,
   type GroupingKey,
 } from "./placement-store";
 import { createPreviewStore } from "./preview-store";
 import { sidebarThreadsFromSearchResult } from "./search-results";
 import { registerThreadPreviews } from "./thread-previews";
-import { createThreadActionsStore, THREAD_ACTIONS_DISPLAY_MIGRATION, THREAD_ACTIONS_MIGRATION } from "./thread-actions-store";
+import { sidebarMigrations } from "./sidebar-migrations";
+import { createThreadActionsStore } from "./thread-actions-store";
 import { AUTO_ARCHIVE_OPTIONS } from "./workflow/auto-archive";
 import {
   createGroupingCatalog,
@@ -489,11 +489,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
   const database = bb.storage.database();
-  bb.storage.migrate(database, [
-    ...RIBBON_SIDEBAR_MIGRATIONS,
-    THREAD_ACTIONS_MIGRATION,
-    THREAD_ACTIONS_DISPLAY_MIGRATION,
-  ]);
+  bb.storage.migrate(database, sidebarMigrations(database));
   const previews = createPreviewStore(database);
   const threadActions = createThreadActionsStore(database);
   const childOrder = createChildOrderStore(database);
