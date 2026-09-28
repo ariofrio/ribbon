@@ -20,8 +20,12 @@ export interface Job {
   // The worker ran on the automatic model rather than a selected one.
   automatic?: boolean;
   model?: string | null;
-  // This phase's one retry, on the automatic fallback model, has started.
+  // This phase's one retry has started: on the automatic fallback model, or
+  // on the same model when lengthRetry is set.
   onFallback?: boolean;
+  lengthRetry?: boolean;
+  // The over-long title that prompted a length retry, if a worker wrote one.
+  rejectedTitle?: string | null;
   // Failed workers, never recovered as a later worker in any phase.
   failedWorkerIds?: string[];
 }

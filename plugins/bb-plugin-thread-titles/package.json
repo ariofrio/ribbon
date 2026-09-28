@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-thread-titles",
   "version": "0.2.0",
-  "description": "Name threads after their first turn and refine generic or inaccurate titles on the third user message.",
+  "description": "Name threads after their first turn and refine generic, inaccurate, or overlong titles on the third user message.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -36,7 +36,7 @@
   },
   "bb": {
     "name": "Thread titles",
-    "description": "Name threads after their first turn and refine generic or inaccurate titles on the third user message.",
+    "description": "Name threads after their first turn and refine generic, inaccurate, or overlong titles on the third user message.",
     "branding": {
       "icon": "./assets/icon.svg"
     },
