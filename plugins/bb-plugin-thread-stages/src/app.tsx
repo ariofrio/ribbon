@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { PreferencesSync } from "./app/preferences/PreferencesSync.js";
 import { ProjectList } from "./app/list/ProjectList.js";
 import { useSidebarThreadReveal } from "./app/list/useSidebarThreadReveal.js";
+import { RibbonDataProvider } from "./ribbon/app/data.js";
 
 function ThreadList({
   activeThreadId,
@@ -15,10 +16,12 @@ function ThreadList({
     <CompactViewportOverrideProvider isCompactViewport={isCompactViewport}>
       <TooltipProvider>
         <PreferencesSync />
-        <ProjectList
-          activeThreadId={activeThreadId}
-          onProjectSelect={onNavigate}
-        />
+        <RibbonDataProvider>
+          <ProjectList
+            activeThreadId={activeThreadId}
+            onProjectSelect={onNavigate}
+          />
+        </RibbonDataProvider>
       </TooltipProvider>
     </CompactViewportOverrideProvider>
   );

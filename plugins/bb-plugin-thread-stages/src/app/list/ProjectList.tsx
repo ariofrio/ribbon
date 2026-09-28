@@ -124,6 +124,12 @@ import {
   useSidebarMachineHosts,
   type SidebarProject,
 } from "../model/use-sidebar-data.js";
+import { useRibbonData } from "../../ribbon/app/data.js";
+import {
+  createRibbonComparator,
+  placementGroupingKey,
+  placementRanks,
+} from "../../ribbon/app/order.js";
 
 export interface ProjectListProps {
   activeThreadId: string | null;
@@ -1572,15 +1578,33 @@ function ProjectListComponent({
   );
   const sortDirection = useAtomValue(sidebarSortDirectionAtom);
   const activeRename = useSidebarRenameState();
-  const sidebarThreadComparator = useMemo<ThreadComparator>(
-    () =>
-      getSidebarThreadComparator(
-        chronologicalSort,
-        sortDirection,
-        activeRename,
-      ),
-    [chronologicalSort, sortDirection, activeRename],
-  );
+  const ribbon = useRibbonData();
+  const ribbonReady = ribbon?.ready ?? false;
+  const ribbonPlacements = ribbon?.placements;
+  const ribbonChildRanks = ribbon?.childRanks;
+  const sidebarThreadComparator = useMemo<ThreadComparator>(() => {
+    // Ribbon's retained order stands in for the sort wherever it has ranks.
+    if (ribbonReady && ribbonPlacements && ribbonChildRanks) {
+      const groupingKey = placementGroupingKey(organizationMode);
+      return createRibbonComparator(
+        placementRanks(groupingKey ? (ribbonPlacements.get(groupingKey) ?? []) : []),
+        ribbonChildRanks,
+      );
+    }
+    return getSidebarThreadComparator(
+      chronologicalSort,
+      sortDirection,
+      activeRename,
+    );
+  }, [
+    activeRename,
+    chronologicalSort,
+    organizationMode,
+    ribbonChildRanks,
+    ribbonPlacements,
+    ribbonReady,
+    sortDirection,
+  ]);
   const collapsedThreadIds = useMemo(
     () => new Set(collapsedThreadIdList),
     [collapsedThreadIdList],
@@ -1720,7 +1744,11 @@ function ProjectListComponent({
     </ConfirmDeleteDialog>
   );
 
-  if (threadListStatus === "loading" || !preferencesReady) {
+  if (
+    threadListStatus === "loading" ||
+    !preferencesReady ||
+    (ribbon !== null && !ribbon.ready)
+  ) {
     return (
       <ProjectListShell>
         <ProjectListNavigationLoadingState />

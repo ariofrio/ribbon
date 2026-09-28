@@ -17,7 +17,7 @@ afterEach(async () => {
 });
 
 function createPluginHarness() {
-  const host = createFakePluginHost({ pluginId: "thread-stages" });
+  const host = createFakePluginHost({ pluginId: "icons" });
   plugin(host.bb);
   disposeHosts.push(() => host.harness.lifecycle.dispose());
   return host.harness;
@@ -179,7 +179,7 @@ describe("the project list the drawing needs", () => {
    */
   function hostWithProjects(list: () => Promise<unknown>) {
     const host = createFakePluginHost({
-      pluginId: "thread-stages",
+      pluginId: "icons",
       // The service reads the list and then waits on project changes, so both
       // halves need standing in for.
       sdk: { projects: { list }, subscribe: () => () => {} },

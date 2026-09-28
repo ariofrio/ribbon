@@ -79,6 +79,21 @@ import type { SidebarSortableDragBindings } from "./sortableMotion.js";
 import { SidebarThreadDragChip } from "../dnd/sidebarThreadDragChip.js";
 import { SplitPaneMiniMap } from "./SplitPaneMiniMap.js";
 import {
+  RibbonActionButtons,
+  RibbonStageGlyph,
+  RibbonTrailingIndicator,
+  useRibbonRow,
+  useRibbonRowSettings,
+} from "../../ribbon/app/row.js";
+import { useRibbonData } from "../../ribbon/app/data.js";
+import {
+  ACTIVE_ROW_ATTRIBUTE,
+  SHINE_ATTRIBUTE,
+  SHINE_ROW_ATTRIBUTE,
+  ShineContent,
+  useRowShine,
+} from "../../ribbon/app/row-shine.js";
+import {
   ThreadActionsContextMenu,
   ThreadActionsMenu,
   ThreadArchiveQuickAction,
@@ -141,6 +156,7 @@ interface ThreadRowProps {
 type ThreadRowClickCaptureHandler = MouseEventHandler<HTMLDivElement>;
 
 interface ThreadRowContainerArgs {
+  attributes?: Record<string, string | undefined>;
   children: ReactNode;
   className: string;
   containerRef: (element: HTMLDivElement | null) => void;
@@ -176,6 +192,7 @@ function getThreadRowStyle(depth: number): CSSProperties {
 }
 
 function renderThreadRowContainer({
+  attributes,
   children,
   className,
   containerRef,
@@ -189,6 +206,7 @@ function renderThreadRowContainer({
   style,
 }: ThreadRowContainerArgs) {
   const containerProps = {
+    ...attributes,
     "data-sidebar-rename-row": "",
     className,
     style,
@@ -414,6 +432,13 @@ function ThreadRowComponent({
     trailingIndicatorState,
     pluginThreadRowStatus,
   );
+  const ribbonData = useRibbonData();
+  const ribbon = useRibbonRow(thread, trailingIndicatorState, pluginThreadRowStatus);
+  const ribbonSettings = useRibbonRowSettings();
+  const ribbonWorking = ribbon?.working ?? false;
+  const ribbonShines = ribbonWorking && ribbonSettings.shimmerWorkingRows;
+  const shineRowRef = useRef<HTMLDivElement | null>(null);
+  useRowShine(shineRowRef, ribbonShines, ribbonWorking);
   const trailingIndicatorKind = trailingIndicatorResolution.indicatorKind;
   const splitIndicatorIsWorking = hasThreadListWorkingActivity(
     trailingIndicatorState,
@@ -431,6 +456,7 @@ function ThreadRowComponent({
   const containerRef = useComposedRefs<HTMLDivElement>(
     rowDragBindings?.setActivatorNodeRef,
     options.nestDrop?.setNodeRef,
+    shineRowRef,
   );
   const rowClassName = cn(
     SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
@@ -444,6 +470,7 @@ function ThreadRowComponent({
     showActive
       ? SIDEBAR_ROW_SELECTED_STATE_CLASS
       : SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,
+    ribbon?.muted && "text-subtle-foreground/75",
     !showActive && isOpenInSplit && SIDEBAR_ROW_OPEN_IN_SPLIT_STATE_CLASS,
     !showActive &&
       "has-[[data-state=open]]:bg-sidebar-accent has-[[data-sidebar-rename-anchor]:focus-visible]:bg-sidebar-accent",
@@ -543,6 +570,15 @@ function ThreadRowComponent({
             </span>
           ) : (
             <>
+              {ribbon ? (
+                <RibbonStageGlyph
+                  stage={ribbon.stage}
+                  working={ribbon.working}
+                  hiddenAtRest={
+                    ribbon.stage === "Idle" && !ribbon.working && !showActive
+                  }
+                />
+              ) : null}
               {provider ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -569,16 +605,39 @@ function ThreadRowComponent({
                   </TooltipContent>
                 </Tooltip>
               ) : null}
-              <span
-                className={cn(
-                  "bb-thread-title",
-                  crossProjectLabel !== null && "min-w-0 truncate",
-                )}
-                title={labelTitle}
-                onDoubleClick={startTitleEditing}
-              >
-                <ThreadTitle threadId={thread.id} />
-              </span>
+              {ribbon?.pullRequest?.position === "left" ? ribbon.pullRequest.node : null}
+              {ribbon?.hideTitle ? (
+                <span className="min-w-0 flex-1" />
+              ) : (
+                <span
+                  className={cn(
+                    "bb-thread-title",
+                    (crossProjectLabel !== null || ribbon !== null) &&
+                      "min-w-0 truncate",
+                    ribbon !== null && "flex min-w-0 flex-1 items-center gap-2",
+                  )}
+                  title={labelTitle}
+                  onDoubleClick={startTitleEditing}
+                  {...(ribbon ? { [SHINE_ATTRIBUTE]: "" } : {})}
+                >
+                  {ribbon ? (
+                    <ShineContent className="flex items-center gap-2">
+                      <ThreadTitle threadId={thread.id} />
+                    </ShineContent>
+                  ) : (
+                    <ThreadTitle threadId={thread.id} />
+                  )}
+                </span>
+              )}
+              {ribbon && ribbon.actions.length > 0 && ribbonData ? (
+                <RibbonActionButtons
+                  actions={ribbon.actions}
+                  color={null}
+                  rowTitle={labelTitle}
+                  onRun={(actionId) => ribbonData.runThreadAction(thread.id, actionId)}
+                />
+              ) : null}
+              {ribbon?.pullRequest?.position === "right" ? ribbon.pullRequest.node : null}
             </>
           )}
         </span>
@@ -688,6 +747,14 @@ function ThreadRowComponent({
                       isWorking={splitIndicatorIsWorking}
                     />
                   </span>
+                ) : ribbon ? (
+                  <RibbonTrailingIndicator
+                    status={ribbon.status}
+                    hideIdleDraftLabel={
+                      !hasHiddenChildren && trailingIndicatorKind === "draft"
+                    }
+                    shine={!ribbonSettings.shimmerWorkingRows}
+                  />
                 ) : (
                   <ThreadTrailingIndicator
                     {...trailingIndicatorState}
@@ -734,6 +801,18 @@ function ThreadRowComponent({
   );
 
   const row = renderThreadRowContainer({
+    attributes: ribbon
+      ? {
+          "data-ribbon-stage": ribbon.stage,
+          ...(ribbonShines ? { [SHINE_ROW_ATTRIBUTE]: "" } : {}),
+          ...(ribbonWorking ? { [ACTIVE_ROW_ATTRIBUTE]: "" } : {}),
+          // Until the row can say what its pull request is waiting on, it is
+          // still being drawn; screenshots and tests wait for this to clear.
+          ...(ribbon.pullRequest?.pending
+            ? { "data-ribbon-pull-request-pending": "" }
+            : {}),
+        }
+      : undefined,
     children: rowContent,
     className: rowClassName,
     containerRef,
