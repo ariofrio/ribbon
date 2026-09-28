@@ -9,8 +9,10 @@ import {
 const STAGES = "plugin:thread-stages:stages";
 
 function stageFor(fixture, threadId) {
-  return fixture.runJson(["sidebar", "show", threadId])
-    .find(({ placement }) => placement.groupingKey === STAGES)?.placement.groupId;
+  const shown = fixture.runJson(["sidebar", "show", threadId]);
+  return Array.isArray(shown)
+    ? shown.find(({ placement }) => placement.groupingKey === STAGES)?.placement.groupId
+    : shown.stage;
 }
 
 export async function verifyChildStages({ stack, fixture }) {

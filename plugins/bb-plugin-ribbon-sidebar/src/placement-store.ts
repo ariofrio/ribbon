@@ -134,6 +134,15 @@ export const RIBBON_SIDEBAR_MIGRATIONS = [
       WHERE grouping_key = 'plugin:thread-stages:stages';
     DROP TABLE IF EXISTS thread_task_workflow;
   `,
+  `
+    CREATE TABLE IF NOT EXISTS child_order (
+      thread_id TEXT PRIMARY KEY,
+      parent_thread_id TEXT NOT NULL,
+      position INTEGER NOT NULL CHECK (position >= 0)
+    );
+    CREATE INDEX IF NOT EXISTS child_order_sequence
+      ON child_order(parent_thread_id, position);
+  `,
   `CREATE TABLE IF NOT EXISTS eligible_child (
     thread_id TEXT PRIMARY KEY,
     bb_order INTEGER NOT NULL CHECK (bb_order >= 0)

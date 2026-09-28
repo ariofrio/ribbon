@@ -397,6 +397,14 @@ function options(overrides: Record<string, unknown> = {}) {
   const deleteEntityV1 = vi.fn(async () => null);
   const addProjectLocalPathV1 = vi.fn(async () => ({ added: true }));
   const reorderPinnedV1 = vi.fn(async () => ({ reordered: true }));
+  const listChildOrderV1 = vi.fn(
+    async (): Promise<{
+      items: { parentThreadId: string; threadId: string }[];
+    }> => ({ items: [] }),
+  );
+  const reorderChildrenV1 = vi.fn(async (_input: unknown) => ({
+    ok: true as const,
+  }));
   const listProjectActionStatesV1 = vi.fn(async () => ({
     projects: [{ id: "project-a", canAddLocalPath: true }],
   }));
@@ -415,6 +423,8 @@ function options(overrides: Record<string, unknown> = {}) {
     deleteEntityV1,
     addProjectLocalPathV1,
     reorderPinnedV1,
+    listChildOrderV1,
+    reorderChildrenV1,
     listProjectActionStatesV1,
     listThreadsV1,
     updateSettingsV1,
@@ -446,6 +456,8 @@ function options(overrides: Record<string, unknown> = {}) {
         placeNewThreadV1,
         addProjectLocalPathV1,
         reorderPinnedV1,
+        listChildOrderV1,
+        reorderChildrenV1,
         createProjectV1,
         createSectionV1,
         renameEntityV1,
@@ -2332,6 +2344,126 @@ describe("Ribbon sidebar app", () => {
       slot.lifecycle.unmount();
     },
   );
+
+  function childFixture() {
+    const fixture = options({
+      sidebarThreads: {
+        projects: [
+          {
+            id: "project-a",
+            name: "Storefront",
+            isPersonal: false,
+            href: "/projects/project-a",
+            settingsHref: "/projects/project-a/settings",
+          },
+        ],
+        threads: [
+          thread({ id: "thread-a", title: "Design migration" }),
+          thread({
+            id: "child-old",
+            title: "Older child",
+            parentThreadId: "thread-a",
+            createdAt: 1,
+          }),
+          thread({
+            id: "child-new",
+            title: "Newer child",
+            parentThreadId: "thread-a",
+            createdAt: 2,
+          }),
+          thread({ id: "thread-b", title: "Ship UI" }),
+        ],
+      },
+    });
+    fixture.listChildOrderV1.mockResolvedValue({
+      items: [
+        { parentThreadId: "thread-a", threadId: "child-old" },
+        { parentThreadId: "thread-a", threadId: "child-new" },
+      ],
+    });
+    return fixture;
+  }
+
+  function renderedChildren(slot: ReturnType<typeof renderSlot>) {
+    return Array.from(
+      slot.container.querySelectorAll<HTMLElement>("li[data-thread-id]"),
+    )
+      .map(({ dataset }) => dataset.threadId)
+      .filter((id) => id?.startsWith("child-"));
+  }
+
+  it("orders children newest first until their saved order applies", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = childFixture();
+    fixture.listChildOrderV1.mockResolvedValue({ items: [] });
+    const unsaved = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await unsaved.findByText("Older child");
+    expect(renderedChildren(unsaved)).toEqual(["child-new", "child-old"]);
+    unsaved.lifecycle.unmount();
+
+    const saved = renderSlot(app.threadLists[0]!, props, childFixture().value);
+    await saved.findByText("Older child");
+    await waitFor(() =>
+      expect(renderedChildren(saved)).toEqual(["child-old", "child-new"]),
+    );
+    saved.lifecycle.unmount();
+  });
+
+  it("reorders a child among its siblings by dragging", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = childFixture();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await waitFor(() =>
+      expect(renderedChildren(slot)).toEqual(["child-old", "child-new"]),
+    );
+
+    const drag = await beginThreadDrag(
+      slot.getByText("Newer child").closest("li")!,
+    );
+    drag.hover(slot.getByText("Older child").closest("li")!);
+    await act(async () => drag.drop());
+
+    await waitFor(() =>
+      expect(fixture.reorderChildrenV1).toHaveBeenCalledWith({
+        parentThreadId: "thread-a",
+        threadIds: ["child-new", "child-old"],
+      }),
+    );
+    expect(renderedChildren(slot)).toEqual(["child-new", "child-old"]);
+    expect(fixture.updatePlacementV1).not.toHaveBeenCalled();
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps a dragged child under its parent", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = childFixture();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await waitFor(() =>
+      expect(renderedChildren(slot)).toEqual(["child-old", "child-new"]),
+    );
+
+    const drag = await beginThreadDrag(
+      slot.getByText("Newer child").closest("li")!,
+    );
+    drag.hover(slot.getByRole("region", { name: "Roadmap group" }));
+    await act(async () => drag.drop());
+    const rootDrag = await beginThreadDrag(
+      slot.getByText("Ship UI").closest("li")!,
+    );
+    rootDrag.hover(slot.getByText("Older child").closest("li")!);
+    await act(async () => rootDrag.drop());
+
+    expect(fixture.reorderChildrenV1).not.toHaveBeenCalled();
+    expect(fixture.updatePlacementV1).not.toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "child-new" }),
+    );
+    expect(fixture.updatePlacementV1).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        anchor: { kind: "before", threadId: "child-old" },
+      }),
+    );
+    slot.lifecycle.unmount();
+  });
 
   it("restores the original group when saving a drop fails", async () => {
     useManualSort();

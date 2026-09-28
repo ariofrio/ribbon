@@ -1,4 +1,4 @@
-import { useSortable } from "@dnd-kit/sortable";
+import { SortableContext, useSortable } from "@dnd-kit/sortable";
 import {
   definePluginApp,
   experimental_useSidebarThreadActions,
@@ -29,6 +29,7 @@ import {
   type ReactNode,
 } from "react";
 import type { z } from "zod";
+import { moveChild, orderChildren, type ChildRank } from "./child-order";
 import { CHROME_GROUP_HEADING_CLASS } from "./chrome-style-tokens";
 import { GroupBody } from "./group-body";
 import {
@@ -283,7 +284,6 @@ function ThreadRow({
   pullRequestNumberPosition,
   tabularPullRequestDigits,
   reorderable,
-  rootThreadId,
   sections,
   shimmerRow,
   thread,
@@ -320,7 +320,6 @@ function ThreadRow({
   pullRequestNumberPosition: PullRequestNumberPosition;
   tabularPullRequestDigits: boolean;
   reorderable: boolean;
-  rootThreadId: string;
   sections: readonly { id: string; label: string }[];
   /** Shimmer the working row rather than its indicator. */
   shimmerRow: boolean;
@@ -420,7 +419,7 @@ function ThreadRow({
     <li
       className="relative list-none"
       data-thread-id={thread.id}
-      data-ribbon-root-id={rootThreadId}
+      data-ribbon-depth={depth}
       style={
         dragging
           ? {
@@ -787,6 +786,8 @@ function RibbonSidebarList({
     name: string;
   } | null>(null);
   const [threadRenamePending, setThreadRenamePending] = useState(false);
+  const [childRanks, setChildRanks] = useState<readonly ChildRank[]>([]);
+  const [childOrderLoaded, setChildOrderLoaded] = useState(false);
   const [placementsLoaded, setPlacementsLoaded] = useState(false);
   const [stagesLoaded, setStagesLoaded] = useState(false);
   const [previewsLoaded, setPreviewsLoaded] = useState(false);
@@ -931,6 +932,22 @@ function RibbonSidebarList({
       ),
     );
   }, [loadAssignmentPlacements]);
+
+  const loadChildOrder = useCallback(async () => {
+    const { items } = await rpc.call("listChildOrderV1", null);
+    setChildRanks(items);
+    setChildOrderLoaded(true);
+  }, [rpc]);
+  useEffect(() => {
+    void loadChildOrder().catch((error: unknown) =>
+      setFatalError(
+        error instanceof Error ? error.message : "Could not load child order",
+      ),
+    );
+  }, [loadChildOrder]);
+  useRealtime("child-order-changed", () => {
+    void loadChildOrder().catch(() => undefined);
+  });
 
   useRealtime("placements-changed", () => {
     void loadPlacements();
@@ -1099,8 +1116,11 @@ function RibbonSidebarList({
       list.push(child);
       result.set(child.parentThreadId!, list);
     }
+    for (const [parentThreadId, children] of result) {
+      result.set(parentThreadId, orderChildren(children, childRanks));
+    }
     return result;
-  }, [liveThreadIds, liveThreads, preferences]);
+  }, [childRanks, liveThreadIds, liveThreads, preferences]);
   useEffect(() => {
     if (!normalizedSearch) {
       setSearchResult({
@@ -1418,6 +1438,39 @@ function RibbonSidebarList({
     setDragDestination(null);
   }, []);
 
+  const reorderChildren = useCallback(
+    async (
+      parentThreadId: string,
+      threadId: string,
+      beforeThreadId: string | null,
+    ) => {
+      const threadIds = moveChild(
+        (childrenByParent.get(parentThreadId) ?? []).map(({ id }) => id),
+        threadId,
+        beforeThreadId,
+      );
+      if (!threadIds) return;
+      setMutationError(null);
+      const moved = new Set(threadIds);
+      setChildRanks((current) => [
+        ...current.filter(
+          (rank) =>
+            rank.parentThreadId !== parentThreadId && !moved.has(rank.threadId),
+        ),
+        ...threadIds.map((id) => ({ parentThreadId, threadId: id })),
+      ]);
+      try {
+        await rpc.call("reorderChildrenV1", { parentThreadId, threadIds });
+      } catch (error) {
+        setMutationError(
+          error instanceof Error ? error.message : "Could not reorder thread",
+        );
+        await loadChildOrder().catch(() => undefined);
+      }
+    },
+    [childrenByParent, loadChildOrder, rpc],
+  );
+
   if (fatalError) {
     return (
       <div>
@@ -1561,11 +1614,17 @@ function RibbonSidebarList({
     root: PluginSidebarThread,
     depth = 0,
     includeDescendants = true,
-    rowContext?: {
-      kind: "pinned" | "placement";
-      roots: readonly PluginSidebarThread[];
-      groupId?: string;
-    },
+    rowContext?:
+      | {
+          kind: "pinned" | "placement";
+          roots: readonly PluginSidebarThread[];
+          groupId?: string;
+        }
+      | {
+          kind: "children";
+          roots: readonly PluginSidebarThread[];
+          parentThreadId: string;
+        },
   ) => {
     const children = childrenByParent.get(root.id) ?? [];
     const childrenCollapsed = collapsedThreadIds.has(root.id);
@@ -1577,17 +1636,14 @@ function RibbonSidebarList({
       threadRowStatuses.get(root.id),
       { showRuntime: false },
     );
-    const hierarchyRoot = root.parentThreadId
-      ? (rootForThread(root.id, liveThreads) ?? root)
-      : root;
     const stage = assignmentPlacements
       .get(THREAD_STAGES_GROUPING_KEY)
       ?.get(root.id)?.groupId;
     const reorderable =
-      depth === 0 &&
       !normalizedSearch &&
       !root.isArchived &&
-      rowContext !== undefined;
+      rowContext !== undefined &&
+      (depth === 0 || rowContext.kind === "children");
     return (
       <Fragment key={root.id}>
         {dragDestination?.indicatorBefore === root.id ? (
@@ -1596,7 +1652,6 @@ function RibbonSidebarList({
           </li>
         ) : null}
         <ThreadRow
-          rootThreadId={hierarchyRoot.id}
           pullRequestNumberPosition={preferences.view.pullRequestNumberPosition}
           tabularPullRequestDigits={preferences.view.tabularPullRequestDigits}
           active={activeThreadId === root.id}
@@ -1695,9 +1750,17 @@ function RibbonSidebarList({
         />
         {includeDescendants &&
         !childrenCollapsed &&
-        draggingThreadId !== root.id
-          ? children.map((child) => renderRoot(child, depth + 1))
-          : null}
+        draggingThreadId !== root.id ? (
+          <SortableContext items={children.map(({ id }) => id)}>
+            {children.map((child) =>
+              renderRoot(child, depth + 1, true, {
+                kind: "children",
+                roots: children,
+                parentThreadId: root.id,
+              }),
+            )}
+          </SortableContext>
+        ) : null}
         {dragDestination?.indicatorAfter === root.id ? (
           <li className="list-none">
             <ThreadDropPreview />
@@ -1757,6 +1820,13 @@ function RibbonSidebarList({
     <PullRequestDetailsProvider load={loadPullRequestDetails}>
       <ThreadDragProvider
         canDrop={(sourceId, target) => {
+          if (target.kind === "children") {
+            return (
+              !normalizedSearch &&
+              liveThreads.find(({ id }) => id === sourceId)?.parentThreadId ===
+                target.parentThreadId
+            );
+          }
           const source = rootThreads.find(({ id }) => id === sourceId);
           if (!source || normalizedSearch) return false;
           if (target.kind === "pinned") return source.isPinned;
@@ -1777,6 +1847,14 @@ function RibbonSidebarList({
         onDestination={setDragDestination}
         onCancel={clearDrag}
         onDrop={(threadId, destination) => {
+          if (destination.kind === "children") {
+            clearDrag();
+            const { parentThreadId, beforeThreadId } = destination;
+            moveQueue.current = moveQueue.current.then(() =>
+              reorderChildren(parentThreadId, threadId, beforeThreadId),
+            );
+            return;
+          }
           const id = ++moveSequence.current;
           setOptimisticMoves((current) => [
             ...current,
@@ -1829,7 +1907,12 @@ function RibbonSidebarList({
             } as CSSProperties
           }
           data-ribbon-sidebar-ready={
-            placementsLoaded && stagesLoaded && previewsLoaded ? "" : undefined
+            placementsLoaded &&
+            stagesLoaded &&
+            previewsLoaded &&
+            childOrderLoaded
+              ? ""
+              : undefined
           }
           data-ribbon-sidebar-root=""
         >

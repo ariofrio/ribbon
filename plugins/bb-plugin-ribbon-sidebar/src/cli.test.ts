@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createChildOrderStore } from "./child-order-store";
 import { runRibbonSidebarCli, type RibbonSidebarThread } from "./cli";
 import {
   RIBBON_SIDEBAR_MIGRATIONS,
@@ -114,10 +115,12 @@ function setup() {
     groupings: () => [sections, projects, stages, renamed],
     now: () => 100,
   });
-  store.reconcileRoots(["thread-a", "thread-b"], []);
+  store.reconcileRoots(["thread-a", "thread-b"], ["child-old", "child-new"]);
+  const childOrder = createChildOrderStore(database);
   return {
     database,
     store,
+    childOrder,
     context: {
       store,
       groupings: () => [sections, projects, stages],
@@ -143,6 +146,28 @@ function setup() {
       ],
       updatePlacement: (input: Parameters<typeof store.updatePlacement>[0]) =>
         store.updatePlacement(input),
+      hierarchy: () => ({
+        threads: [
+          thread({ id: "thread-a", title: "Investigate wakeups" }),
+          thread({ id: "thread-b", title: "Ship UI", createdAt: 30 }),
+          thread({
+            id: "child-old",
+            title: "Older child",
+            parentThreadId: "thread-a",
+            createdAt: 11,
+          }),
+          thread({
+            id: "child-new",
+            title: "Newer child",
+            parentThreadId: "thread-a",
+            createdAt: 12,
+          }),
+        ],
+        ranks: childOrder.list(),
+      }),
+      reorderChildren: (parentThreadId: string, threadIds: string[]) => {
+        childOrder.setOrder(parentThreadId, threadIds);
+      },
     },
   };
 }
@@ -176,7 +201,7 @@ describe("Ribbon sidebar CLI", () => {
     expect(placeHelp).toMatchObject({
       exitCode: 0,
       stdout: expect.stringContaining(
-        "bb sidebar place [<thread>] [--self] --to <group-ref>",
+        "bb sidebar place [<thread>] [--self] [--to <group-ref>]",
       ),
     });
     expect(placeHelp.stdout).toContain("--self");
@@ -560,6 +585,130 @@ describe("Ribbon sidebar CLI", () => {
     expect(ids()).toEqual(["thread-a", "thread-b"]);
   });
 
+  it("reorders a child among its siblings without a destination group", async () => {
+    const fixture = setup();
+    databases.push(fixture.database);
+
+    const placed = await runRibbonSidebarCli(fixture.context, [
+      "place",
+      "child-old",
+      "--before",
+      "child-new",
+    ]);
+    expect(placed).toEqual({
+      exitCode: 0,
+      stdout:
+        "Thread child-old updated\nThread: child-old\n  Parent: thread-a\n  Position: 1 of 2\n",
+    });
+    expect(fixture.childOrder.list()).toEqual([
+      { parentThreadId: "thread-a", threadId: "child-old" },
+      { parentThreadId: "thread-a", threadId: "child-new" },
+    ]);
+
+    const shown = await runRibbonSidebarCli(fixture.context, [
+      "show",
+      "child-new",
+      "--json",
+    ]);
+    expect(JSON.parse(shown.stdout ?? "")).toEqual({
+      threadId: "child-new",
+      parentThreadId: "thread-a",
+      position: 2,
+      siblingThreadIds: ["child-old", "child-new"],
+      stage: "Idle",
+    });
+
+    const children = await runRibbonSidebarCli(fixture.context, [
+      "children",
+      "thread-a",
+      "--json",
+    ]);
+    expect(
+      JSON.parse(children.stdout ?? "").map(({ id }: { id: string }) => id),
+    ).toEqual(["child-old", "child-new"]);
+    await expect(
+      runRibbonSidebarCli(fixture.context, ["children", "thread-a"]),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stdout:
+        "\nID         TITLE        STATUS\nchild-old  Older child  idle\nchild-new  Newer child  idle\n\n",
+    });
+
+    const after = await runRibbonSidebarCli(fixture.context, [
+      "place",
+      "child-old",
+      "--after",
+      "child-new",
+      "--json",
+    ]);
+    expect(JSON.parse(after.stdout ?? "")).toMatchObject({ position: 2 });
+  });
+
+  it("keeps children under their parent and roots in a group", async () => {
+    const fixture = setup();
+    databases.push(fixture.database);
+
+    const toGroup = await runRibbonSidebarCli(fixture.context, [
+      "place",
+      "child-old",
+      "--to",
+      "builtin:sections/section-a",
+    ]);
+    expect(toGroup.exitCode).toBe(1);
+    expect(toGroup.stderr).toContain("stays under its parent thread-a");
+
+    const noAnchor = await runRibbonSidebarCli(fixture.context, [
+      "place",
+      "child-old",
+    ]);
+    expect(noAnchor.exitCode).toBe(1);
+    expect(noAnchor.stderr).toContain("--before or --after");
+
+    const outsider = await runRibbonSidebarCli(fixture.context, [
+      "place",
+      "child-old",
+      "--before",
+      "thread-b",
+    ]);
+    expect(outsider.exitCode).toBe(1);
+    expect(outsider.stderr).toContain("not a sibling");
+
+    const root = await runRibbonSidebarCli(fixture.context, [
+      "place",
+      "thread-a",
+    ]);
+    expect(root.exitCode).toBe(1);
+    expect(root.stderr).toContain("--to");
+    expect(fixture.childOrder.list()).toEqual([]);
+  });
+
+  it("changes a child's stage without moving it from its parent", async () => {
+    const fixture = setup();
+    databases.push(fixture.database);
+
+    const placed = await runRibbonSidebarCli(fixture.context, [
+      "place",
+      "child-old",
+      "--to",
+      `${stages.groupingKey}/Completed`,
+      "--json",
+    ]);
+    expect(placed.exitCode).toBe(0);
+    expect(JSON.parse(placed.stdout ?? "")).toMatchObject({
+      placement: { threadId: "child-old", groupId: "Completed" },
+    });
+    const shown = await runRibbonSidebarCli(fixture.context, [
+      "show",
+      "child-old",
+      "--json",
+    ]);
+    expect(JSON.parse(shown.stdout ?? "")).toMatchObject({
+      parentThreadId: "thread-a",
+      stage: "Completed",
+    });
+    expect(fixture.childOrder.list()).toEqual([]);
+  });
+
   it("explicitly migrates Thread stages placement", async () => {
     const fixture = setup();
     databases.push(fixture.database);
@@ -596,7 +745,7 @@ describe("Ribbon sidebar CLI", () => {
     expect(JSON.parse(rekeyed.stdout ?? "")).toEqual({
       from: stages.groupingKey,
       to: renamed.groupingKey,
-      assignments: 2,
+      assignments: 4,
       orders: 0,
       revision: 1,
     });

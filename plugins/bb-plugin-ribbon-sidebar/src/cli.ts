@@ -11,7 +11,14 @@ import type {
   GroupingKey,
   PlacementStore,
 } from "./placement-store";
+import {
+  liveChildren,
+  liveParentId,
+  moveChild,
+  type ChildRank,
+} from "./child-order";
 import { orderedGroupings } from "./grouping-order";
+import { THREAD_STAGES_GROUPING_KEY } from "./workflow/catalog";
 import { rootThreadIdByThreadId } from "./workflow/root-thread-ownership";
 
 interface CliResult {
@@ -32,9 +39,21 @@ export interface RibbonSidebarCliContext {
     | Promise<readonly RibbonSidebarThread[]>;
   updatePlacement(
     input: Parameters<PlacementStore["updatePlacement"]>[0],
+    options?: { actorThreadId?: string },
   ):
     | ReturnType<PlacementStore["updatePlacement"]>
     | Promise<ReturnType<PlacementStore["updatePlacement"]>>;
+  /** Every thread, live or not, and the saved child order. */
+  hierarchy():
+    | { threads: readonly RibbonSidebarThread[]; ranks: readonly ChildRank[] }
+    | Promise<{
+        threads: readonly RibbonSidebarThread[];
+        ranks: readonly ChildRank[];
+      }>;
+  reorderChildren(
+    parentThreadId: string,
+    threadIds: string[],
+  ): void | Promise<void>;
   migrateThreadStages?(): Promise<{
     installationId: string;
     revision: number;
@@ -153,6 +172,34 @@ function humanPlacements(
     },
   );
   return `Thread: ${threadId}${details.length > 0 ? `\n${details.join("\n")}` : ""}\n`;
+}
+
+/** Where a child sits among its siblings, or null for a root. */
+async function childPosition(
+  context: RibbonSidebarCliContext,
+  threadId: string,
+) {
+  const { threads, ranks } = await context.hierarchy();
+  const parentThreadId = liveParentId(threads, threadId);
+  if (parentThreadId === null) return null;
+  const siblingThreadIds = liveChildren(threads, ranks, parentThreadId).map(
+    ({ id }) => id,
+  );
+  return {
+    threadId,
+    parentThreadId,
+    position: siblingThreadIds.indexOf(threadId) + 1,
+    siblingThreadIds,
+  };
+}
+
+function humanChildPosition(child: {
+  threadId: string;
+  parentThreadId: string;
+  position: number;
+  siblingThreadIds: readonly string[];
+}) {
+  return `Thread: ${child.threadId}\n  Parent: ${child.parentThreadId}\n  Position: ${child.position} of ${child.siblingThreadIds.length}\n`;
 }
 
 function domainFailure(result: { ok: false; error: { message: string } }): never {
@@ -453,12 +500,26 @@ export function defineRibbonSidebarCli(
         positionals: [
           { name: "thread", description: "Thread ID" },
         ],
-        run({ options, positionals }, invocation) {
+        async run({ options, positionals }, invocation) {
           const threadId = resolveThreadId(
             positionals.thread,
             options.self,
             invocation,
           );
+          const child = await childPosition(context, threadId);
+          if (child) {
+            const stage = context.store.getPlacement({
+              groupingKey: THREAD_STAGES_GROUPING_KEY,
+              threadId,
+            });
+            if (!stage.ok) return domainFailure(stage);
+            const stageName = stage.value.placement.groupId;
+            return success(
+              { ...child, stage: stageName },
+              `${humanChildPosition(child)}  Stage: ${stageName}\n`,
+              options.json,
+            );
+          }
           const values = availableGroupings().map((descriptor) =>
             context.store.getPlacement({
               groupingKey: descriptor.groupingKey,
@@ -487,6 +548,40 @@ export function defineRibbonSidebarCli(
           );
         },
       }),
+      children: cliCommand({
+        summary: "List a thread's children in order",
+        options: {
+          self: {
+            type: "boolean",
+            description: "Target the current thread",
+          },
+          ...JSON_OPTION,
+        },
+        positionals: [{ name: "thread", description: "Parent thread ID" }],
+        async run({ options, positionals }, invocation) {
+          const threadId = resolveThreadId(
+            positionals.thread,
+            options.self,
+            invocation,
+          );
+          const { threads, ranks } = await context.hierarchy();
+          const children = liveChildren(threads, ranks, threadId);
+          return success(
+            children,
+            children.length === 0
+              ? "No child threads\n"
+              : humanTable([
+                  ["ID", "TITLE", "STATUS"],
+                  ...children.map((thread) => [
+                    thread.id,
+                    thread.title ?? thread.titleFallback ?? "",
+                    thread.status,
+                  ]),
+                ]),
+            options.json,
+          );
+        },
+      }),
       place: cliCommand({
         summary: "Place a thread",
         options: {
@@ -496,9 +591,8 @@ export function defineRibbonSidebarCli(
           },
           to: {
             type: "string",
-            description: "Destination group",
+            description: "Destination group; omit when reordering a child",
             placeholder: "group-ref",
-            required: true,
           },
           before: {
             type: "string",
@@ -524,17 +618,70 @@ export function defineRibbonSidebarCli(
             options.self,
             invocation,
           );
+          const child = await childPosition(context, threadId);
+          if (child && options.to === undefined) {
+            const anchor = options.before ?? options.after;
+            if (anchor === undefined) {
+              throw new PluginCliError(
+                `Pass --before or --after a sibling of child thread ${threadId}.`,
+              );
+            }
+            if (
+              anchor === threadId ||
+              !child.siblingThreadIds.includes(anchor)
+            ) {
+              throw new PluginCliError(
+                `Thread ${anchor} is not a sibling of child thread ${threadId}.`,
+              );
+            }
+            const others = child.siblingThreadIds.filter((id) => id !== threadId);
+            const beforeThreadId = options.before
+              ? anchor
+              : (others[others.indexOf(anchor) + 1] ?? null);
+            const threadIds = moveChild(
+              child.siblingThreadIds,
+              threadId,
+              beforeThreadId,
+            )!;
+            await context.reorderChildren(child.parentThreadId, threadIds);
+            const moved = {
+              ...child,
+              position: threadIds.indexOf(threadId) + 1,
+              siblingThreadIds: threadIds,
+            };
+            return success(
+              moved,
+              `Thread ${threadId} updated\n${humanChildPosition(moved)}`,
+              options.json,
+            );
+          }
+          if (options.to === undefined) {
+            throw new PluginCliError(`Missing --to for root thread ${threadId}.`);
+          }
           const destination = groupRef(options.to);
-          const result = await context.updatePlacement({
-            ...destination,
-            threadId,
-            origin: "cli",
-            ...(options.before
-              ? { anchor: { kind: "before" as const, threadId: options.before } }
-              : options.after
-                ? { anchor: { kind: "after" as const, threadId: options.after } }
-                : {}),
-          });
+          if (child && destination.groupingKey !== THREAD_STAGES_GROUPING_KEY) {
+            throw new PluginCliError(
+              `Child thread ${threadId} stays under its parent ${child.parentThreadId}; use --to only for stages.`,
+            );
+          }
+          if (child && (options.before || options.after)) {
+            throw new PluginCliError(
+              `Omit --to when reordering child thread ${threadId} among siblings.`,
+            );
+          }
+          const result = await context.updatePlacement(
+            {
+              ...destination,
+              threadId,
+              origin: "cli",
+              ...(options.before
+                ? { anchor: { kind: "before" as const, threadId: options.before } }
+                : options.after
+                  ? { anchor: { kind: "after" as const, threadId: options.after } }
+                  : {}),
+            },
+            { actorThreadId: invocation.threadId },
+          );
           if (!result.ok) return domainFailure(result);
           return success(
             result.value,
