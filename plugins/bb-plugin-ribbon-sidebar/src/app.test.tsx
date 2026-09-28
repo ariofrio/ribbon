@@ -1969,7 +1969,7 @@ describe("Ribbon sidebar app", () => {
       );
       // It is drawn at its size rather than scaled, so its stroke is the
       // usual weight.
-      for (const path of Array.from(header.querySelectorAll(`[data-icon="${shut}"] path`))) {
+      for (const path of Array.from(header.querySelectorAll(`[data-icon="${shut}"] path:not(mask path)`))) {
         expect(path.getAttribute("transform")).toBeNull();
         expect(path.getAttribute("stroke-width")).toBe("1.5");
       }

@@ -149,17 +149,20 @@ export function StandardHeadingIcon({
             {covers ? (
               <mask height="48" id={id} maskUnits="userSpaceOnUse" width="48" x="-12" y="-12">
                 <rect fill="white" height="48" width="48" x="-12" y="-12" />
-                <path d={covers} fill="black" stroke="black" strokeLinejoin="round" strokeWidth="1.5" />
+                <path d={covers} fill="black" />
               </mask>
             ) : null}
-            <path
-              d={layer.d}
-              mask={covers ? `url(#${id})` : undefined}
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.5"
-            />
+            {layer.strokes.map((stroke) => (
+              <path
+                d={stroke.d}
+                key={stroke.width}
+                mask={covers ? `url(#${id})` : undefined}
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={String(Math.round(stroke.width * 1000) / 1000)}
+              />
+            ))}
           </g>
         );
       })}
