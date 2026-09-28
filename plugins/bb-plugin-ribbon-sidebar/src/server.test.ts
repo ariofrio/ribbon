@@ -284,10 +284,12 @@ describe("Ribbon sidebar server", () => {
     const { bb, harness, send } = setup();
     await plugin(bb);
     try {
-      const actions = [{ id: "review", label: "Review", prompt: "Review this change." }];
-      await harness.behavior.callRpc("saveThreadActionsV1", { threadId: "thread-a", actions });
+      const actions = ["Review", "Test", "Explain", "Summarize"].map((label) => ({
+        id: label.toLowerCase(), label, prompt: `${label} this change.`,
+      }));
+      await harness.behavior.callRpc("saveThreadActionsV1", { threadId: "thread-a", actions, hideTitle: true });
       expect(await harness.behavior.callRpc("listThreadActionsV1", null)).toEqual({
-        threads: [{ threadId: "thread-a", actions }],
+        threads: [{ threadId: "thread-a", actions, hideTitle: true }],
       });
       await harness.behavior.callRpc("runThreadActionV1", {
         threadId: "thread-a", actionId: "review",
@@ -300,6 +302,8 @@ describe("Ribbon sidebar server", () => {
       await expect(harness.behavior.callRpc("runThreadActionV1", {
         threadId: "thread-a", actionId: "missing",
       })).rejects.toThrow();
+      await harness.behavior.callRpc("saveThreadActionsV1", { threadId: "thread-a", actions: [], hideTitle: true });
+      expect(await harness.behavior.callRpc("listThreadActionsV1", null)).toEqual({ threads: [] });
     } finally {
       await harness.dispose();
     }

@@ -9,6 +9,7 @@ export interface ThreadAction {
 export interface ThreadActionsRecord {
   threadId: string;
   actions: ThreadAction[];
+  hideTitle: boolean;
 }
 
 export const THREAD_ACTIONS_MIGRATION = `
@@ -24,10 +25,20 @@ export const THREAD_ACTIONS_MIGRATION = `
     ON thread_action(thread_id, position);
 `;
 
+export const THREAD_ACTIONS_DISPLAY_MIGRATION = `
+  CREATE TABLE IF NOT EXISTS thread_action_display (
+    thread_id TEXT PRIMARY KEY,
+    hide_title INTEGER NOT NULL
+  );
+`;
+
 export function createThreadActionsStore(database: BetterSqlite3.Database) {
   const list = database.prepare(`
-    SELECT thread_id, action_id, label, prompt
-    FROM thread_action ORDER BY thread_id, position
+    SELECT action.thread_id, action.action_id, action.label, action.prompt,
+      COALESCE(display.hide_title, 0) AS hide_title
+    FROM thread_action AS action
+    LEFT JOIN thread_action_display AS display ON display.thread_id = action.thread_id
+    ORDER BY action.thread_id, action.position
   `);
   const get = database.prepare(`
     SELECT action_id, label, prompt FROM thread_action
@@ -40,14 +51,27 @@ export function createThreadActionsStore(database: BetterSqlite3.Database) {
     INSERT INTO thread_action(thread_id, action_id, label, prompt, position)
     VALUES (?, ?, ?, ?, ?)
   `);
+  const removeDisplay = database.prepare(
+    "DELETE FROM thread_action_display WHERE thread_id = ?",
+  );
+  const upsertDisplay = database.prepare(`
+    INSERT INTO thread_action_display(thread_id, hide_title) VALUES (?, ?)
+    ON CONFLICT(thread_id) DO UPDATE SET hide_title = excluded.hide_title
+  `);
   const save = database.transaction(
-    (threadId: string, actions: readonly ThreadAction[]) => {
+    (threadId: string, actions: readonly ThreadAction[], hideTitle: boolean) => {
       remove.run(threadId);
       actions.forEach((action, position) => {
         insert.run(threadId, action.id, action.label, action.prompt, position);
       });
+      if (actions.length > 0) upsertDisplay.run(threadId, Number(hideTitle));
+      else removeDisplay.run(threadId);
     },
   );
+  const deleteThread = database.transaction((threadId: string) => {
+    remove.run(threadId);
+    removeDisplay.run(threadId);
+  });
 
   return {
     list(): ThreadActionsRecord[] {
@@ -57,10 +81,11 @@ export function createThreadActionsStore(database: BetterSqlite3.Database) {
         action_id: string;
         label: string;
         prompt: string;
+        hide_title: number;
       }>) {
         let record = records.at(-1);
         if (record?.threadId !== row.thread_id) {
-          record = { threadId: row.thread_id, actions: [] };
+          record = { threadId: row.thread_id, actions: [], hideTitle: row.hide_title !== 0 };
           records.push(record);
         }
         record.actions.push({
@@ -80,8 +105,6 @@ export function createThreadActionsStore(database: BetterSqlite3.Database) {
         : null;
     },
     save,
-    delete(threadId: string): void {
-      remove.run(threadId);
-    },
+    delete: deleteThread,
   };
 }

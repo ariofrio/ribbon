@@ -28,7 +28,7 @@ import {
 import { createPreviewStore } from "./preview-store";
 import { sidebarThreadsFromSearchResult } from "./search-results";
 import { registerThreadPreviews } from "./thread-previews";
-import { createThreadActionsStore, THREAD_ACTIONS_MIGRATION } from "./thread-actions-store";
+import { createThreadActionsStore, THREAD_ACTIONS_DISPLAY_MIGRATION, THREAD_ACTIONS_MIGRATION } from "./thread-actions-store";
 import { AUTO_ARCHIVE_OPTIONS } from "./workflow/auto-archive";
 import {
   createGroupingCatalog,
@@ -98,7 +98,7 @@ const threadActionSchema = z
     prompt: z.string().trim().min(1).max(10000),
   })
   .strict();
-const threadActionsSchema = z.array(threadActionSchema).max(3).refine(
+const threadActionsSchema = z.array(threadActionSchema).refine(
   (actions) => new Set(actions.map(({ id }) => id)).size === actions.length,
   "Action IDs must be unique.",
 );
@@ -111,7 +111,7 @@ export const rpcContract = defineRpcContract({
       .object({
         threads: z.array(
           z
-            .object({ threadId: z.string(), actions: threadActionsSchema })
+            .object({ threadId: z.string(), actions: threadActionsSchema, hideTitle: z.boolean() })
             .strict(),
         ),
       })
@@ -122,6 +122,7 @@ export const rpcContract = defineRpcContract({
       .object({
         threadId: z.string().min(1).max(256),
         actions: threadActionsSchema,
+        hideTitle: z.boolean(),
       })
       .strict(),
     output: z.object({ ok: z.literal(true) }).strict(),
@@ -461,6 +462,7 @@ export default async function plugin(bb: BbPluginApi) {
   bb.storage.migrate(database, [
     ...RIBBON_SIDEBAR_MIGRATIONS,
     THREAD_ACTIONS_MIGRATION,
+    THREAD_ACTIONS_DISPLAY_MIGRATION,
   ]);
   const previews = createPreviewStore(database);
   const threadActions = createThreadActionsStore(database);
@@ -846,12 +848,12 @@ export default async function plugin(bb: BbPluginApi) {
     listThreadActionsV1() {
       return { threads: threadActions.list() };
     },
-    async saveThreadActionsV1({ threadId, actions }) {
+    async saveThreadActionsV1({ threadId, actions, hideTitle }) {
       const thread = await bb.sdk.threads.get({ threadId });
       if (thread.archivedAt !== null) {
         throw new Error("Archived threads cannot have actions.");
       }
-      threadActions.save(threadId, actions);
+      threadActions.save(threadId, actions, hideTitle);
       bb.realtime.publish("thread-actions-changed", { threadId });
       return { ok: true as const };
     },

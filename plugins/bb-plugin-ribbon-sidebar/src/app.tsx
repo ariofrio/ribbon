@@ -86,7 +86,7 @@ import {
   type ThreadStatus,
 } from "./thread-status";
 import { ThreadTitle } from "./thread-title";
-import type { ThreadAction } from "./thread-actions-store";
+import type { ThreadAction, ThreadActionsRecord } from "./thread-actions-store";
 import { UnorganizedIcon } from "./unorganized-icon";
 import { Button } from "./vendor/components/ui/button";
 import {
@@ -163,12 +163,14 @@ function actionButtonStyle(kind?: "project" | "section"): CSSProperties {
     ? `var(--ribbon-icons-${kind}-color-light, oklch(0.5 0 0))`
     : "oklch(0.5 0 0)";
   return {
-    backgroundColor:
-      `light-dark(oklch(from ${color} 0.93 0.045 h), ` +
-      `oklch(from ${color} 0.32 0.055 h))`,
-    color:
-      `light-dark(oklch(from ${color} 0.38 0.13 h), ` +
-      `oklch(from ${color} 0.89 0.11 h))`,
+    ["--ribbon-action-fill" as string]:
+      `light-dark(oklch(from ${color} 0.95 0.025 h), oklch(from ${color} 0.28 0.035 h))`,
+    ["--ribbon-action-ink" as string]:
+      `light-dark(oklch(from ${color} 0.47 0.13 h), oklch(from ${color} 0.82 0.11 h))`,
+    ["--ribbon-action-hover-ink" as string]:
+      `light-dark(oklch(from ${color} 0.34 0.15 h), oklch(from ${color} 0.94 0.13 h))`,
+    ["--ribbon-action-hover-fill" as string]:
+      "color-mix(in srgb, var(--ribbon-action-hover-ink) 26%, var(--ribbon-action-fill))",
   };
 }
 
@@ -302,6 +304,7 @@ function ThreadRow({
   reorderable,
   rootThreadId,
   rowActions,
+  hideTitle,
   groupColor,
   sections,
   shimmerRow,
@@ -343,6 +346,7 @@ function ThreadRow({
   reorderable: boolean;
   rootThreadId: string;
   rowActions: readonly ThreadAction[];
+  hideTitle: boolean;
   groupColor: { kind: "project" | "section"; id: string } | null;
   sections: readonly { id: string; label: string }[];
   /** Shimmer the working row rather than its indicator. */
@@ -372,6 +376,7 @@ function ThreadRow({
   const [contextOpen, setContextOpen] = useState(false);
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
   const rowTitle = title(thread);
+  const showThreadTitle = thread.isArchived || rowActions.length === 0 || !hideTitle;
   const sortable = useSortable({
     id: thread.id,
     disabled: !reorderable,
@@ -535,7 +540,7 @@ function ThreadRow({
             </span>
           ) : null}
           <span
-            className={`row-start-1 flex min-w-0 items-center ${
+            className={`row-start-1 flex min-w-0 items-start ${
               !hasTrailingIndicator && !thread.isArchived
                 ? reservesIndicatorLaneAtRest
                   ? "pr-8 max-md:pointer-coarse:pr-2!"
@@ -548,14 +553,41 @@ function ThreadRow({
                 !hasTrailingIndicator && thread.isArchived ? 8 : undefined,
             }}
           >
-            <span
-              className="flex min-w-0 flex-1 items-center gap-2"
-              {...{ [SHINE_ATTRIBUTE]: "" }}
-              title={accessibleTitle}
-            >
-              {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
-              <ThreadTitle title={rowTitle} />
-              {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
+            <span className="pointer-events-none flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+              {showThreadTitle || pullRequestNumber !== null ? (
+                <span
+                  className={`${rowActions.length > 0 && !thread.isArchived ? "w-max max-w-full shrink-0" : "w-full"} flex min-w-0 items-center gap-2`}
+                  {...{ [SHINE_ATTRIBUTE]: "" }}
+                  title={accessibleTitle}
+                >
+                  {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
+                  {showThreadTitle ? <ThreadTitle title={rowTitle} /> : null}
+                  {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
+                </span>
+              ) : null}
+              {!thread.isArchived ? rowActions.map((action) => (
+                <Button
+                  key={action.id}
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`${action.label} in ${rowTitle}`}
+                  disabled={runningActionId !== null}
+                  className="pointer-events-auto relative z-20 h-5 max-w-full rounded-md bg-[color:var(--ribbon-action-fill)] px-2 text-[11px] font-medium leading-none text-[color:var(--ribbon-action-ink)] ring-sidebar-ring hover:bg-[color:var(--ribbon-action-hover-fill)] hover:text-[color:var(--ribbon-action-hover-ink)] focus-visible:bg-[color:var(--ribbon-action-hover-fill)] focus-visible:text-[color:var(--ribbon-action-hover-ink)] focus-visible:ring-2 active:bg-[color:var(--ribbon-action-hover-fill)]"
+                  style={actionButtonStyle(groupColor?.kind)}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setRunningActionId(action.id);
+                    void onRunAction(action.id).finally(() => {
+                      setRunningActionId(null);
+                    });
+                  }}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  <span className="truncate">{action.label}</span>
+                </Button>
+              )) : null}
             </span>
             {hasChildren ? (
               <Button
@@ -617,41 +649,6 @@ function ThreadRow({
               title={preview}
             >
               {preview}
-            </span>
-          ) : null}
-          {!thread.isArchived && rowActions.length > 0 ? (
-            <span
-              className="pointer-events-none relative z-20 row-start-3 flex min-w-0 flex-wrap gap-1 pb-1.5"
-              style={{
-                gridColumnStart: hasIcon ? 2 : 1,
-                gridColumnEnd: alignsTrailingIndicatorToTitle
-                  ? hasIcon ? 4 : 3
-                  : undefined,
-              }}
-            >
-              {rowActions.map((action) => (
-                <Button
-                  key={action.id}
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  aria-label={`${action.label} in ${rowTitle}`}
-                  disabled={runningActionId !== null}
-                  className="pointer-events-auto h-5 max-w-full rounded px-1.5 text-[11px] leading-none ring-sidebar-ring hover:brightness-95 focus-visible:ring-2 active:brightness-90"
-                  style={actionButtonStyle(groupColor?.kind)}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setRunningActionId(action.id);
-                    void onRunAction(action.id).finally(() => {
-                      setRunningActionId(null);
-                    });
-                  }}
-                  onPointerDown={(event) => event.stopPropagation()}
-                >
-                  <span className="truncate">{action.label}</span>
-                </Button>
-              ))}
             </span>
           ) : null}
         </span>
@@ -826,12 +823,13 @@ function RibbonSidebarList({
     new Map(),
   );
   const [threadActions, setThreadActions] = useState<
-    ReadonlyMap<string, readonly ThreadAction[]>
+    ReadonlyMap<string, ThreadActionsRecord>
   >(new Map());
   const [threadActionsLoaded, setThreadActionsLoaded] = useState(false);
   const [actionsEditor, setActionsEditor] = useState<{
     threadId: string;
     actions: ThreadAction[];
+    hideTitle: boolean;
   } | null>(null);
   const [actionsEditorPending, setActionsEditorPending] = useState(false);
   const [supplementalThreads, setSupplementalThreads] = useState<
@@ -956,7 +954,7 @@ function RibbonSidebarList({
   const loadThreadActions = useCallback(async () => {
     const { threads } = await rpc.call("listThreadActionsV1", null);
     setThreadActions(
-      new Map(threads.map(({ threadId, actions }) => [threadId, actions])),
+      new Map(threads.map((record) => [record.threadId, record])),
     );
     setThreadActionsLoaded(true);
   }, [rpc]);
@@ -1705,12 +1703,14 @@ function RibbonSidebarList({
           }
           shimmerRow={settings.values?.shimmerWorkingRows !== false}
           actions={actions}
-          rowActions={threadActions.get(root.id) ?? []}
+          rowActions={threadActions.get(root.id)?.actions ?? []}
+          hideTitle={threadActions.get(root.id)?.hideTitle ?? false}
           groupColor={groupColor}
           onEditActions={() =>
             setActionsEditor({
               threadId: root.id,
-              actions: [...(threadActions.get(root.id) ?? [])],
+              actions: [...(threadActions.get(root.id)?.actions ?? [])],
+              hideTitle: threadActions.get(root.id)?.hideTitle ?? false,
             })
           }
           onRunAction={async (actionId) => {
@@ -2113,7 +2113,7 @@ function RibbonSidebarList({
               <DialogHeader>
                 <DialogTitle>Edit thread actions</DialogTitle>
                 <DialogDescription>
-                  Add up to three buttons that send prompts to this thread.
+                  Add buttons that send prompts to this thread.
                 </DialogDescription>
               </DialogHeader>
               {actionsEditor ? (
@@ -2129,9 +2129,15 @@ function RibbonSidebarList({
                     }));
                     if (next.some(({ label, prompt }) => !label || !prompt)) return;
                     setActionsEditorPending(true);
-                    void rpc.call("saveThreadActionsV1", { threadId, actions: next })
+                    const hideTitle = next.length > 0 && actionsEditor.hideTitle;
+                    void rpc.call("saveThreadActionsV1", { threadId, actions: next, hideTitle })
                       .then(() => {
-                        setThreadActions((current) => new Map(current).set(threadId, next));
+                        setThreadActions((current) => {
+                          const updated = new Map(current);
+                          if (next.length > 0) updated.set(threadId, { threadId, actions: next, hideTitle });
+                          else updated.delete(threadId);
+                          return updated;
+                        });
                         setActionsEditor(null);
                       })
                       .catch((error: unknown) => {
@@ -2185,22 +2191,33 @@ function RibbonSidebarList({
                       />
                     </div>
                   ))}
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-foreground"
+                      checked={actionsEditor.actions.length > 0 && actionsEditor.hideTitle}
+                      disabled={actionsEditorPending || actionsEditor.actions.length === 0}
+                      onChange={(event) => setActionsEditor((current) => current && ({
+                        ...current,
+                        hideTitle: event.target.checked,
+                      }))}
+                    />
+                    Hide thread title
+                  </label>
                   <DialogFooter>
-                    {actionsEditor.actions.length < 3 ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={actionsEditorPending}
-                        onClick={() => setActionsEditor((current) => current && ({
-                          ...current,
-                          actions: [...current.actions, {
-                            id: crypto.randomUUID(), label: "", prompt: "",
-                          }],
-                        }))}
-                      >
-                        Add action
-                      </Button>
-                    ) : null}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={actionsEditorPending}
+                      onClick={() => setActionsEditor((current) => current && ({
+                        ...current,
+                        actions: [...current.actions, {
+                          id: crypto.randomUUID(), label: "", prompt: "",
+                        }],
+                      }))}
+                    >
+                      Add action
+                    </Button>
                     <Button
                       type="submit"
                       disabled={actionsEditorPending || actionsEditor.actions.some(({ label, prompt }) => !label.trim() || !prompt.trim())}

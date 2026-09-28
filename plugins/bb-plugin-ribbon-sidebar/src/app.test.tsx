@@ -407,6 +407,7 @@ function options(overrides: Record<string, unknown> = {}) {
   const listThreadActionsV1 = vi.fn(async () => ({ threads: [] as Array<{
     threadId: string;
     actions: Array<{ id: string; label: string; prompt: string }>;
+    hideTitle: boolean;
   }> }));
   const saveThreadActionsV1 = vi.fn(async () => ({ ok: true as const }));
   const runThreadActionV1 = vi.fn(async () => ({ ok: true as const }));
@@ -512,7 +513,7 @@ describe("Ribbon sidebar app", () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     fixture.listThreadActionsV1.mockResolvedValue({
-      threads: [{ threadId: "thread-a", actions: [
+      threads: [{ threadId: "thread-a", hideTitle: false, actions: [
         { id: "review", label: "Review", prompt: "Review this thread." },
       ] }],
     });
@@ -540,7 +541,11 @@ describe("Ribbon sidebar app", () => {
     fireEvent.keyDown(row.querySelector('[aria-label="Thread actions"]')!, { key: "Enter" });
     fireEvent.click(await slot.findByText("Edit actions"));
     const dialog = await slot.findByRole("dialog", { name: "Edit thread actions" });
+    const hideTitle = within(dialog).getByRole("checkbox", { name: "Hide thread title" });
+    expect(hideTitle.hasAttribute("disabled")).toBe(true);
     fireEvent.click(within(dialog).getByRole("button", { name: "Add action" }));
+    expect(hideTitle.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(hideTitle);
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Action 1 button label" }), {
       target: { value: "Review" },
     });
@@ -551,8 +556,10 @@ describe("Ribbon sidebar app", () => {
     await waitFor(() => expect(fixture.saveThreadActionsV1).toHaveBeenCalledWith({
       threadId: "thread-a",
       actions: [expect.objectContaining({ label: "Review", prompt: "Review this thread." })],
+      hideTitle: true,
     }));
     expect(await within(row).findByRole("button", { name: "Review in Design migration" })).toBeTruthy();
+    expect(within(row).queryByText("Design migration")).toBeNull();
     slot.lifecycle.unmount();
   }, 15_000);
 
@@ -1539,7 +1546,7 @@ describe("Ribbon sidebar app", () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     fixture.listThreadActionsV1.mockResolvedValue({
-      threads: [{ threadId: "thread-archived", actions: [
+      threads: [{ threadId: "thread-archived", hideTitle: false, actions: [
         { id: "review", label: "Review", prompt: "Review this thread." },
       ] }],
     });
