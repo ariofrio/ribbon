@@ -38,6 +38,8 @@ export async function verifyThreadTitles({ stack, fixture }) {
         updates: [{ sessionUpdate: "agent_message_chunk", content: { type: "text", text: JSON.stringify(result) } }],
       });
     }
+    // The first turn stays open, so the first-message pass runs before it ends.
+    transcripts.unshift({ prompt: "Calendar", hang: true, updates: [] });
     writeFileSync(transcriptsPath, JSON.stringify(transcripts));
     // A short prompt intentionally retains bb's prompt-derived title fallback.
     const source = runJson([
@@ -54,32 +56,33 @@ export async function verifyThreadTitles({ stack, fixture }) {
         (thread) => thread.lifecycleOwnerThreadId === source.id,
       );
     };
-    run(["thread", "wait", source.id, "--status", "idle"]);
+    const settled = (count) => async () => {
+      const all = await workers();
+      return all.length === count && all.every((worker) => worker.archivedAt !== null);
+    };
+    await until(settled(1), "first-message pass and cleanup");
     await until(() => {
       const current = runJson(["thread", "show", source.id]).thread;
       return (current.title ?? current.titleFallback) === initialTitle;
-    }, "first-turn title");
-    await until(async () => (await workers()).some((worker) => worker.archivedAt !== null), "first worker cleanup");
+    }, "first-message title");
+    run(["thread", "stop", source.id]);
+    run(["thread", "wait", source.id, "--status", "idle"]);
+    await until(settled(2), "first-turn pass and cleanup");
     const first = await workers();
-    assert.equal(first.length, 1);
-    assert.equal(first[0].visibility, "hidden");
-    assert.equal(first[0].parentThreadId, null);
+    assert.ok(first.every((worker) => worker.visibility === "hidden" && worker.parentThreadId === null));
     run(["plugin", "reload", "thread-titles"]);
     await stack.restartServer();
     run(["thread", "tell", source.id, "Add sharing"]);
     run(["thread", "wait", source.id, "--status", "idle"]);
-    assert.equal((await workers()).length, 1);
+    assert.equal((await workers()).length, 2);
     run(["thread", "tell", source.id, "Include team invitations"]);
     run(["thread", "wait", source.id, "--status", "idle"]);
-    await until(async () => {
-      const all = await workers();
-      return all.length === 2 && all.every((worker) => worker.archivedAt !== null);
-    }, "third-message assessment and cleanup");
+    await until(settled(3), "third-message assessment and cleanup");
     assert.equal(runJson(["thread", "show", source.id]).thread.title, expectedTitle);
     run(["plugin", "reload", "thread-titles"]);
     run(["thread", "tell", source.id, "Also support reminders"]);
     run(["thread", "wait", source.id, "--status", "idle"]);
     assert.equal(runJson(["thread", "show", source.id]).thread.title, expectedTitle);
-    assert.equal((await workers()).length, 2);
+    assert.equal((await workers()).length, 3);
   }
 }

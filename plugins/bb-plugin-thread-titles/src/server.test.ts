@@ -167,6 +167,7 @@ it("refines once after the first turn ends, including assistant and tool content
   h.user("Build a useful calendar application");
   h.thread.title = "Build a calendar";
   await h.emit();
+  await finishWorker(h, { title: "Build a calendar" });
   h.events.push({
     id: "answer",
     threadId: "real",
@@ -198,21 +199,21 @@ it("refines once after the first turn ends, including assistant and tool content
   });
   h.user("Add sharing");
   await h.emit();
-  expect(h.spawned).toHaveLength(0);
+  expect(h.spawned).toHaveLength(1);
   h.user("Include team invitations");
   h.endTurn();
   await h.emit();
-  expect(h.spawned).toHaveLength(1);
-  expect(h.spawned[0]).toMatchObject({
+  expect(h.spawned).toHaveLength(2);
+  expect(h.spawned[1]).toMatchObject({
     visibility: "hidden",
     lifecycleOwnerThreadId: "real",
     providerId: "codex",
   });
-  expect(h.spawned[0]?.prompt).toContain("shared calendars");
-  expect(h.spawned[0]?.prompt).toContain("calendar.ts");
+  expect(h.spawned[1]?.prompt).toContain("shared calendars");
+  expect(h.spawned[1]?.prompt).toContain("calendar.ts");
   vi.setSystemTime(Date.now() + 300_000);
   await h.harness.behavior.runSchedule("title-reconciliation");
-  expect(h.spawned).toHaveLength(1);
+  expect(h.spawned).toHaveLength(2);
 });
 
 it("applies a completed result once while the source remains active", async () => {
@@ -223,10 +224,14 @@ it("applies a completed result once while the source remains active", async () =
   h.thread.title = "Build a calendar";
   h.user("Build a useful calendar application");
   await h.emit();
-  expect(h.spawned).toHaveLength(0);
+  expect(h.spawned).toHaveLength(1);
+  await finishWorker(h, { title: "Build a calendar" });
+  h.harness.inspection.sdk.stub("threads.output", async () => ({
+    output: JSON.stringify({ title: "Build a shared calendar" }),
+  }));
   h.endTurn();
   await h.emit();
-  expect(h.spawned).toHaveLength(1);
+  expect(h.spawned).toHaveLength(2);
   h.worker.status = "idle";
   h.workerEvents.push({
     id: "completed",
@@ -244,7 +249,7 @@ it("applies a completed result once while the source remains active", async () =
   const next = await h.harness.lifecycle.reload(plugin);
   cleanups.push(() => next.harness.lifecycle.dispose());
   await next.harness.behavior.runSchedule("title-reconciliation");
-  expect(h.spawned).toHaveLength(1);
+  expect(h.spawned).toHaveLength(2);
   expect(h.updates).toHaveLength(1);
 });
 
@@ -256,22 +261,23 @@ it("keeps the baseline across restart and recovers the end of the first turn", a
   h.thread.title = "Build a calendar";
   h.user("Build a useful calendar application");
   await h.emit();
+  await finishWorker(h, { title: "Build a calendar" });
   vi.setSystemTime(Date.now() + 86_400_000);
   const next = await h.harness.lifecycle.reload(plugin);
   cleanups.push(() => next.harness.lifecycle.dispose());
   await next.harness.behavior.runSchedule("title-reconciliation");
-  expect(h.spawned).toHaveLength(0);
+  expect(h.spawned).toHaveLength(1);
   h.user("Add sharing");
   await next.harness.behavior.runSchedule("title-reconciliation");
-  expect(h.spawned).toHaveLength(0);
+  expect(h.spawned).toHaveLength(1);
   h.endTurn();
   const restarted = await next.harness.lifecycle.reload(plugin);
   cleanups.push(() => restarted.harness.lifecycle.dispose());
   await restarted.harness.behavior.runSchedule("title-reconciliation");
-  expect(h.spawned).toHaveLength(1);
-  expect(h.spawned[0]?.prompt).toContain('Current title: "Build a calendar"');
+  expect(h.spawned).toHaveLength(2);
+  expect(h.spawned[1]?.prompt).toContain('Current title: "Build a calendar"');
   await restarted.harness.behavior.runSchedule("title-reconciliation");
-  expect(h.spawned).toHaveLength(1);
+  expect(h.spawned).toHaveLength(2);
 });
 
 it("skips a renamed title both before generation and before applying", async () => {
@@ -282,16 +288,17 @@ it("skips a renamed title both before generation and before applying", async () 
   h.thread.title = "Build a calendar";
   h.user("Build a useful calendar application");
   await h.emit();
+  await finishWorker(h, { title: "Build a calendar" });
   h.thread.title = "My chosen name";
   h.user("Second");
   h.user("Third");
   h.endTurn();
   vi.setSystemTime(Date.now() + 300_000);
   await h.harness.behavior.runSchedule("title-reconciliation");
-  expect(h.spawned).toHaveLength(0);
+  expect(h.spawned).toHaveLength(1);
   h.thread.title = "Build a calendar";
   await h.harness.behavior.runSchedule("title-reconciliation");
-  expect(h.spawned).toHaveLength(0);
+  expect(h.spawned).toHaveLength(1);
 });
 
 it("does not overwrite a rename made while generation is running", async () => {
@@ -506,15 +513,16 @@ it("starts the first title mid-turn once the transcript reaches a quarter of the
   h.thread.title = "Build a calendar";
   h.user("Build a useful calendar application");
   await h.emit();
-  answers(h, 100);
-  await h.emit();
-  expect(h.spawned).toHaveLength(0);
+  await finishWorker(h, { title: "Build a calendar" });
   answers(h, 100);
   await h.emit();
   expect(h.spawned).toHaveLength(1);
+  answers(h, 100);
+  await h.emit();
+  expect(h.spawned).toHaveLength(2);
   expect(h.thread.status).toBe("active");
-  expect(h.spawned[0]?.prompt).toContain("Assistant response 201");
-  expect(h.spawned[0]?.prompt).not.toContain("cut off");
+  expect(h.spawned[1]?.prompt).toContain("Assistant response 201");
+  expect(h.spawned[1]?.prompt).not.toContain("cut off");
 });
 
 it("waits for the first turn to end and reconciles a missed completion event", async () => {
@@ -592,6 +600,111 @@ it("rejects tool-using workers instead of applying their result", async () => {
   await h.harness.behavior.runSchedule("title-reconciliation");
   expect(h.updates).toHaveLength(0);
   expect(h.spawned).toHaveLength(1);
+});
+
+// bb's own title step at creation: it records the outcome, then stores the title.
+function bbTitle(h: Awaited<ReturnType<typeof setup>>, title: string | null) {
+  const seq = h.events.length + 1;
+  h.events.push({
+    id: `provisioning-${seq}`,
+    threadId: "real",
+    seq,
+    createdAt: Date.now(),
+    scope: { kind: "thread" },
+    type: "system/thread-provisioning",
+    data: {
+      entries: [{ type: "step", key: "metadata-completed", status: "completed", metadata: { titleGenerated: title !== null } }],
+    },
+  });
+}
+
+async function finishWorker(h: Awaited<ReturnType<typeof setup>>, output: unknown) {
+  h.harness.inspection.sdk.stub("threads.output", async () => ({ output: JSON.stringify(output) }));
+  h.worker.status = "idle";
+  h.workerEvents.push({ seq: 1, type: "turn/completed", data: { status: "completed" } });
+  await h.harness.behavior.emitThreadEvent("thread.idle", { thread: h.worker, lastAssistantText: null });
+  h.worker.id = `${h.worker.id}-next`;
+  h.worker.status = "active";
+  h.workerEvents.length = 0;
+}
+
+it("titles the first message once bb has stored its title, then again after the first turn", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Update branch from origin/main and install plugins from this worktree");
+  await h.emit();
+  bbTitle(h, "Update from origin/main and install worktree");
+  await h.emit();
+  expect(h.spawned).toHaveLength(0);
+  h.thread.title = "Update from origin/main and install worktree";
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  expect(h.spawned[0]?.pluginMetadata).toMatchObject({ phase: "message" });
+  expect(h.spawned[0]?.prompt).toContain('Current title: "Update from origin/main and install worktree"');
+  expect(h.spawned[0]?.prompt).toContain("44 characters, over the 40-character limit");
+  await finishWorker(h, { title: "Install plugins from worktree" });
+  expect(h.updates).toEqual([{ threadId: "real", title: "Install plugins from worktree" }]);
+  h.endTurn();
+  await h.emit();
+  expect(h.spawned).toHaveLength(2);
+  expect(h.spawned[1]?.pluginMetadata).toMatchObject({ phase: "initial" });
+  expect(h.spawned[1]?.prompt).toContain('Current title: "Install plugins from worktree"');
+});
+
+it("titles the first message from bb's fallback when bb generated no title", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Build a useful calendar application");
+  bbTitle(h, null);
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  expect(h.spawned[0]?.prompt).toContain('Current title: "Build a useful calendar application"');
+  await finishWorker(h, { title: "Build a calendar app" });
+  expect(h.updates).toEqual([{ threadId: "real", title: "Build a calendar app" }]);
+});
+
+it("still titles the first turn after the first-message pass fails", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Build a useful calendar application");
+  bbTitle(h, null);
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  await finishWorker(h, { title: "" });
+  expect(h.updates).toHaveLength(0);
+  h.endTurn();
+  await h.emit();
+  expect(h.spawned).toHaveLength(2);
+  expect(h.spawned[1]?.pluginMetadata).toMatchObject({ phase: "initial" });
+});
+
+it("never titles again after a rename during the first-message pass", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Build a useful calendar application");
+  bbTitle(h, "Build a calendar");
+  h.thread.title = "Build a calendar";
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  h.thread.title = "My calendar";
+  await finishWorker(h, { title: "Build a calendar app" });
+  h.endTurn();
+  h.user("Second");
+  h.user("Third");
+  await h.emit();
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.updates).toHaveLength(0);
+  expect(h.spawned).toHaveLength(1);
+});
+
+it("skips the first-message pass when the first turn ends before bb stores a title", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Build a useful calendar application");
+  h.endTurn();
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  expect(h.spawned[0]?.pluginMetadata).toMatchObject({ phase: "initial" });
 });
 
 async function firstTitle(title = "Build a shared calendar") {

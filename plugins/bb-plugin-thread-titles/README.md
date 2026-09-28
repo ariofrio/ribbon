@@ -1,6 +1,6 @@
 # Thread titles
 
-Name threads after their first turn and refine generic, inaccurate, or overlong titles on the third user message.
+Title threads from their first message and first turn, and refine generic, inaccurate, or overlong titles on the third user message.
 The update can run while the thread is busy and uses its recorded
 conversation, including assistant messages, tool results, and partial output.
 
@@ -17,24 +17,32 @@ required.
 
 ## Behavior
 
-When the first turn ends, a fresh hidden worker generates a concise title with
-the title model (see [Settings](#settings)) on the source thread's machine, in a
-personal workspace. A first turn that is still running starts the worker once
-its transcript reaches a quarter of the transcript size limit. The worker
-receives the recorded transcript as quoted data and is instructed to return a
-title within the title length limit, without tools. Completion and size are
-read from durable history, so a missed event or restart does not lose the
-trigger.
+Each title comes from a fresh hidden worker running the title model (see
+[Settings](#settings)) on the source thread's machine, in a personal workspace.
+It receives the recorded transcript as quoted data and is instructed to return
+a title within the title length limit, without tools.
 
-After a successful first pass, the third accepted user message triggers one
-assessment of the title. If the title has changed since the first pass, the
+The first pass titles the first message. bb titles a new thread from the first
+80 columns of its prompt, so this pass waits until bb has stored that title, or
+recorded that it generated none, and then replaces or keeps it. Waiting makes
+the plugin's title the later write. If the first turn ends before bb's title
+arrives, this pass is skipped. Whatever its outcome, the second pass follows.
+
+The second pass titles the first turn: when it ends, or while it is still
+running once its transcript reaches a quarter of the transcript size limit. The
+first message alone often cannot say what a thread is about, such as a prompt
+that is only an issue link. Completion and size are read from durable history,
+so a missed event or restart does not lose the trigger.
+
+After a successful second pass, the third accepted user message triggers one
+assessment of the title. If the title has changed since the second pass, the
 assessment is permanently cancelled. Otherwise, the worker keeps it unless it
 is generic, materially inaccurate, or longer than the title length limit. New details, alternative wording, and
 stylistic preferences are not reasons to rewrite an accurate, specific title.
 Retries and agent messages do not count. Elapsed time never triggers an update.
 Each worker is stopped and archived afterward.
 
-The plugin saves the first stored title it observes during initial naming.
+The plugin saves the first stored title it observes before the first pass.
 bb initially displays a fallback derived from the first prompt while its stored
 `title` is still null. If no stored title arrives, the fallback is the baseline.
 A different title before generation or application permanently cancels the
@@ -49,10 +57,11 @@ events, including across restarts, but never repeats an ambiguous worker creatio
 or title write. If the initial stored title appeared
 while the plugin was offline and its baseline is unknown, the update is skipped.
 A destructive history edit or context clear during generation cancels the job.
-Each phase starts at most one worker, plus a single retry, and
-recovery never adopts a failed worker. A completed first pass saves the resulting
-title as the baseline for the third-message assessment; a completed assessment
-or skipped job is never retried. Previously completed jobs are not backfilled.
+Each pass starts at most one worker, plus a single retry, and
+recovery never adopts an earlier pass's worker or a failed one. Each completed
+pass saves the resulting title as the baseline for the next. A completed
+assessment, or a skipped second or third pass, ends the job; nothing is retried
+later. Previously completed jobs are not backfilled.
 
 ## Settings
 
