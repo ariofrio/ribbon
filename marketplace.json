@@ -6,33 +6,6 @@
   "description": "A suite of bb plugins for managing large amounts of agents.",
   "plugins": [
     {
-      "id": "breadcrumbs",
-      "displayName": "Breadcrumbs",
-      "description": "Show a thread's section, project, and ancestors in its header.",
-      "icon": {
-        "url": "./plugins/bb-plugin-breadcrumbs/assets/icon.svg"
-      },
-      "tags": [
-        "interface",
-        "projects",
-        "navigation",
-        "threads"
-      ],
-      "author": {
-        "name": "Andres Riofrio",
-        "github": "ariofrio",
-        "url": "https://github.com/ariofrio"
-      },
-      "source": {
-        "git": {
-          "url": "https://github.com/ariofrio/ribbon.git",
-          "subdir": "plugins/bb-plugin-breadcrumbs",
-          "range": "*",
-          "tagPrefix": "breadcrumbs/"
-        }
-      }
-    },
-    {
       "id": "chatgpt-theme",
       "displayName": "ChatGPT theme",
       "description": "Restyle bb to match the OpenAI ChatGPT (Codex) desktop app.",
@@ -62,34 +35,6 @@
       }
     },
     {
-      "id": "icons",
-      "displayName": "Icons",
-      "description": "Give each section and project an icon and color.",
-      "icon": {
-        "url": "./plugins/bb-plugin-icons/assets/icon.svg"
-      },
-      "tags": [
-        "projects",
-        "icons",
-        "colors",
-        "interface",
-        "sidebar"
-      ],
-      "author": {
-        "name": "Andres Riofrio",
-        "github": "ariofrio",
-        "url": "https://github.com/ariofrio"
-      },
-      "source": {
-        "git": {
-          "url": "https://github.com/ariofrio/ribbon.git",
-          "subdir": "plugins/bb-plugin-icons",
-          "range": "*",
-          "tagPrefix": "icons/"
-        }
-      }
-    },
-    {
       "id": "missing-keyboard-shortcuts",
       "displayName": "Missing keyboard shortcuts",
       "description": "Add shortcuts to start personal or project threads, navigate history, and reach the composer or panel tabs.",
@@ -114,35 +59,6 @@
           "subdir": "plugins/bb-plugin-missing-keyboard-shortcuts",
           "range": "*",
           "tagPrefix": "missing-keyboard-shortcuts/"
-        }
-      }
-    },
-    {
-      "id": "ribbon-sidebar",
-      "displayName": "Ribbon sidebar",
-      "description": "Organize every section in one sidebar with stable thread order and workflow stages.",
-      "icon": {
-        "url": "./plugins/bb-plugin-ribbon-sidebar/assets/icon.svg"
-      },
-      "tags": [
-        "sidebar",
-        "threads",
-        "projects",
-        "sections",
-        "productivity",
-        "cli"
-      ],
-      "author": {
-        "name": "Andres Riofrio",
-        "github": "ariofrio",
-        "url": "https://github.com/ariofrio"
-      },
-      "source": {
-        "git": {
-          "url": "https://github.com/ariofrio/ribbon.git",
-          "subdir": "plugins/bb-plugin-ribbon-sidebar",
-          "range": "*",
-          "tagPrefix": "ribbon-sidebar/"
         }
       }
     },

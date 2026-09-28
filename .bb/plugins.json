@@ -4,24 +4,12 @@
   "name": "ribbon",
   "plugins": [
     {
-      "name": "breadcrumbs",
-      "source": "./plugins/bb-plugin-breadcrumbs"
-    },
-    {
       "name": "chatgpt-theme",
       "source": "./plugins/bb-plugin-chatgpt-theme"
     },
     {
-      "name": "icons",
-      "source": "./plugins/bb-plugin-icons"
-    },
-    {
       "name": "missing-keyboard-shortcuts",
       "source": "./plugins/bb-plugin-missing-keyboard-shortcuts"
-    },
-    {
-      "name": "ribbon-sidebar",
-      "source": "./plugins/bb-plugin-ribbon-sidebar"
     },
     {
       "name": "thread-stages",

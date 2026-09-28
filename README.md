@@ -12,7 +12,7 @@
 
 <br>
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/hero-dark.png"><img src="assets/hero-light.png" alt="bb with Thread stages, Icons, and Breadcrumbs at work"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/hero-dark.png"><img src="assets/hero-light.png" alt="bb with Thread stages, the ChatGPT theme, and Missing keyboard shortcuts at work"></picture></p>
 
 <br>
 
@@ -20,22 +20,7 @@
 
 <p><img src="assets/spacer.svg" alt="" width="1120" height="48" align="left"></p>
 
-<a href="plugins/bb-plugin-ribbon-sidebar#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-ribbon-sidebar/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-ribbon-sidebar/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-ribbon-sidebar/assets/card-beside-dark.png"><img src="plugins/bb-plugin-ribbon-sidebar/assets/card-beside-light.png" alt="Ribbon sidebar organizing bb threads within sections" align="right" width="45%"></picture></a>
-
-### <img src="assets/icons/ribbon-sidebar.svg" alt="" width="26" align="absmiddle"> &nbsp;Ribbon sidebar
-
-Organize every section in one sidebar with stable thread order and workflow stages.
-
-```sh
-bb marketplace add git:github.com/ariofrio/ribbon
-bb plugin install ribbon-sidebar@ribbon
-```
-
-<a href="plugins/bb-plugin-ribbon-sidebar#readme">Read more &rarr;</a>
-
-<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="1"></picture><br clear="all">
-
-<a href="plugins/bb-plugin-thread-stages#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-thread-stages/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-thread-stages/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-thread-stages/assets/card-beside-dark.png"><img src="plugins/bb-plugin-thread-stages/assets/card-beside-light.png" alt="Thread stages rendered by Ribbon sidebar" align="right" width="45%"></picture></a>
+<a href="plugins/bb-plugin-thread-stages#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-thread-stages/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-thread-stages/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-thread-stages/assets/card-beside-dark.png"><img src="plugins/bb-plugin-thread-stages/assets/card-beside-light.png" alt="Thread stages organizing bb threads within sections" align="right" width="45%"></picture></a>
 
 ### <img src="assets/icons/thread-stages.svg" alt="" width="26" align="absmiddle"> &nbsp;Thread stages
 
@@ -63,36 +48,6 @@ bb plugin install thread-titles@ribbon
 ```
 
 <a href="plugins/bb-plugin-thread-titles#readme">Read docs &rarr;</a>
-
-<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
-
-<a href="plugins/bb-plugin-icons#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-icons/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-icons/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-icons/assets/card-beside-dark.png"><img src="plugins/bb-plugin-icons/assets/card-beside-light.png" alt="The icon picker open on the Storefront project's icon in a bb thread header" align="right" width="45%"></picture></a>
-
-### <img src="assets/icons/icons.svg" alt="" width="26" align="absmiddle"> &nbsp;Icons
-
-Give each section and project an icon and color.
-
-```sh
-bb marketplace add git:github.com/ariofrio/ribbon
-bb plugin install icons@ribbon
-```
-
-<a href="plugins/bb-plugin-icons#readme">Read docs &rarr;</a>
-
-<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
-
-<a href="plugins/bb-plugin-breadcrumbs#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-breadcrumbs/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-breadcrumbs/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-breadcrumbs/assets/card-beside-dark.png"><img src="plugins/bb-plugin-breadcrumbs/assets/card-beside-light.png" alt="The Storefront project and its actions menu in a bb thread header" align="right" width="45%"></picture></a>
-
-### <img src="assets/icons/breadcrumbs.svg" alt="" width="26" align="absmiddle"> &nbsp;Breadcrumbs
-
-Show a thread's section, project, and ancestors in its header.
-
-```sh
-bb marketplace add git:github.com/ariofrio/ribbon
-bb plugin install breadcrumbs@ribbon
-```
-
-<a href="plugins/bb-plugin-breadcrumbs#readme">Read docs &rarr;</a>
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
