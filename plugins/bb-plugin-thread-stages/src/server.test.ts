@@ -114,6 +114,8 @@ it("offers stages as mentions that tell the agent how to place a thread", async 
       "bb sidebar place <thread> --to plugin:thread-stages:stages/BlockedOnThirdParty",
     );
     expect(context).toContain("Waiting on the user is Active");
+    // Children have their own stage, so place the thread itself.
+    expect(context).not.toContain("place its root");
 
     // Messages sent before the rename still resolve.
     expect((await provider!.resolve("idle")).context).toContain(

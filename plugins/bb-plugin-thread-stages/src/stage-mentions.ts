@@ -48,14 +48,14 @@ export function stageContext(stage: WorkflowStage | "Blocked"): string {
   if (stage === "Blocked") {
     return [
       `@Blocked was a workflow stage that Ribbon sidebar has since split into Blocked on other agent, ${STAGE_MEANINGS.BlockedOnOtherAgent}, and Blocked on third party, ${STAGE_MEANINGS.BlockedOnThirdParty}.`,
-      `When a message asks for a thread to be put in it, finish any work it asks for first, then run ${placement("BlockedOnOtherAgent")} or ${placement("BlockedOnThirdParty")}, whichever the thread is waiting on, with \`--self\` in place of <thread> for the current thread. A child thread has no stage of its own; place its root instead.`,
+      `When a message asks for a thread to be put in it, finish any work it asks for first, then run ${placement("BlockedOnOtherAgent")} or ${placement("BlockedOnThirdParty")}, whichever the thread is waiting on, with \`--self\` in place of <thread> for the current thread.`,
       WAITING_ON_THE_USER,
     ].join(" ");
   }
   const label = WORKFLOW_STAGE_LABELS[stage];
   return [
     `@${label} is the ${label} workflow stage that Ribbon sidebar gives root bb threads: ${STAGE_MEANINGS[stage]}.`,
-    `When a message asks for a thread to be put in this stage, whether in a sentence such as "do this, then @${label}" or with the mention alone, finish any work it asks for first, then run ${placement(stage)}, with \`--self\` in place of <thread> for the current thread. A child thread has no stage of its own; place its root instead.`,
+    `When a message asks for a thread to be put in this stage, whether in a sentence such as "do this, then @${label}" or with the mention alone, finish any work it asks for first, then run ${placement(stage)}, with \`--self\` in place of <thread> for the current thread.`,
     ...(stage === "Active" || isBlockedStage(stage) ? [WAITING_ON_THE_USER] : []),
   ].join(" ");
 }
