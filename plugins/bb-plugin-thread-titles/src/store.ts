@@ -25,14 +25,34 @@ export interface Job {
   // The worker ran on the automatic model rather than a selected one.
   automatic?: boolean;
   model?: string | null;
-  // This phase's one retry has started: on the automatic fallback model, or
-  // on the same model when lengthRetry is set.
+  // Snapshot the phase's model stack and cursor before spawning a worker.
+  choices?: import("./server").Selection[];
+  choiceIndex?: number;
+  // Provider cooldowns survive phase handoff as well as process restart.
+  cooldowns?: Record<string, number>;
+  recoverableFailure?: boolean;
+  legacyRecoveryChecked?: boolean;
+  // Legacy jobs used this flag for their sole fallback/length retry.
   onFallback?: boolean;
   lengthRetry?: boolean;
   // The over-long title that prompted a length retry, if a worker wrote one.
   rejectedTitle?: string | null;
   // Failed workers, never recovered as a later worker in any phase.
   failedWorkerIds?: string[];
+}
+
+// Old selected-model failures were terminal even for a temporary rate limit.
+export function legacyFailure(job: Job): boolean {
+  return (
+    job.state === "skipped" &&
+    !job.legacyRecoveryChecked &&
+    !job.choices &&
+    job.automatic === false &&
+    (job.phase ?? "initial") === "initial" &&
+    job.baseline === null &&
+    job.proposed === null &&
+    job.reason === "Title worker failed"
+  );
 }
 
 export function createStore(bb: BbPluginApi) {
@@ -87,10 +107,17 @@ export function createStore(bb: BbPluginApi) {
       return (
         db()
           .prepare(
-            "SELECT data FROM title_jobs WHERE state NOT IN ('done','skipped') OR (json_extract(data, '$.workerId') IS NOT NULL AND json_extract(data, '$.cleaned') = 0)",
+            "SELECT data FROM title_jobs WHERE state NOT IN ('done','skipped') OR (json_extract(data, '$.workerId') IS NOT NULL AND json_extract(data, '$.cleaned') = 0) OR (state = 'skipped' AND json_extract(data, '$.automatic') = 0 AND json_extract(data, '$.choices') IS NULL AND json_extract(data, '$.legacyRecoveryChecked') IS NULL)",
           )
           .all() as Array<{ data: string }>
-      ).map((row) => JSON.parse(row.data) as Job);
+      )
+        .map((row) => JSON.parse(row.data) as Job)
+        .filter(
+          (job) =>
+            !["done", "skipped"].includes(job.state) ||
+            (job.workerId && !job.cleaned) ||
+            legacyFailure(job),
+        );
     },
     claim(job: Job): boolean {
       job.state = "claimed";

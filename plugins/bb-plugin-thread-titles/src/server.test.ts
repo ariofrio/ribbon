@@ -40,6 +40,7 @@ async function setup() {
     codex: ["gpt-5.4-mini", "gpt-5.6-luna", "gpt-6-luna"],
     "claude-code": ["claude-haiku-4-5", "claude-sonnet-5"],
   };
+  const catalogFailures: Record<string, "error" | "throw"> = {};
   const modelQueries: Array<{ hostId?: string; providerId?: string }> = [];
   const bbTitles = { mode: "automatic" as "automatic" | "off" };
   const host = createFakePluginHost({
@@ -99,6 +100,10 @@ async function setup() {
       providers: {
         models: async ({ hostId, providerId }: { hostId?: string; providerId?: string } = {}) => {
           modelQueries.push({ hostId, providerId });
+          if (catalogFailures[providerId ?? ""] === "throw") throw new Error("Provider unavailable");
+          if (catalogFailures[providerId ?? ""] === "error") return {
+            models: [], selectedOnlyModels: [], modelLoadError: { code: "missing_executable" },
+          } as never;
           return {
             providers: [],
             permissionCeiling: "accept-edits",
@@ -162,6 +167,7 @@ async function setup() {
     spawned,
     updates,
     catalogs,
+    catalogFailures,
     modelQueries,
     bbTitles,
     emit,
@@ -1065,7 +1071,7 @@ it("runs every title worker on the selected model on the thread's host", async (
   });
 });
 
-it("skips when the selected model is unavailable on the thread's host", async () => {
+it("uses the automatic model when the selected model is unavailable on the thread's host", async () => {
   const h = await setup();
   await h.harness.behavior.callRpc("selection.set", {
     selection: {
@@ -1076,11 +1082,12 @@ it("skips when the selected model is unavailable on the thread's host", async ()
   });
   h.catalogs["claude-code"] = ["claude-haiku-4-5"];
   await firstTurn(h);
-  expect(h.spawned).toHaveLength(0);
+  expect(h.spawned).toHaveLength(1);
+  expect(h.spawned[0].model).toBe("gpt-6-luna");
   vi.setSystemTime(Date.now() + 300_000);
   h.catalogs["claude-code"] = ["claude-sonnet-5"];
   await h.harness.behavior.runSchedule("title-reconciliation");
-  expect(h.spawned).toHaveLength(0);
+  expect(h.spawned).toHaveLength(1);
 });
 
 it("returns to the automatic choice when the selection is cleared", async () => {
@@ -1117,8 +1124,8 @@ async function failWorker(
 ) {
   h.worker.status = "error";
   h.workerEvents.push(
-    { seq: 1, type: "provider/error", data: { errorInfo: { category, httpStatusCode: 429, providerCode: null } } },
-    { seq: 2, type: "turn/completed", data: { status: "failed" } },
+    { seq: h.workerEvents.length + 1, type: "provider/error", data: { errorInfo: { category, httpStatusCode: 429, providerCode: null } } },
+    { seq: h.workerEvents.length + 2, type: "turn/completed", data: { status: "failed" } },
   );
   await h.harness.behavior.emitThreadEvent("thread.failed", {
     thread: h.worker,
@@ -1136,6 +1143,7 @@ it("retries once on the next Luna model after a transient failure", async () => 
   const h = await setup();
   await firstTurn(h);
   await failWorker(h, "rate-limit");
+  vi.setSystemTime(Date.now() + 900_000);
   await h.harness.behavior.runSchedule("title-reconciliation");
   expect(h.spawned.map((spawn) => spawn.model)).toEqual([
     "gpt-6-luna",
@@ -1171,27 +1179,21 @@ it("falls back after the worker times out, then never a third time", async () =>
   expect(h.spawned).toHaveLength(2);
 });
 
-it("does not fall back after a permanent failure or from a selected model", async () => {
+it("does not fall back after a permanent failure", async () => {
   const h = await setup();
   await firstTurn(h);
   await failWorker(h, "unauthorized");
   await h.harness.behavior.runSchedule("title-reconciliation");
   expect(h.spawned).toHaveLength(1);
 
-  const selected = await setup();
-  await selected.harness.behavior.callRpc("selection.set", {
-    selection: { providerId: "codex", model: "gpt-5.6-luna", reasoningLevel: "low" },
-  });
-  await firstTurn(selected);
-  await failWorker(selected, "rate-limit");
-  await selected.harness.behavior.runSchedule("title-reconciliation");
-  expect(selected.spawned).toHaveLength(1);
+
 });
 
 it("recovers a lost fallback spawn without adopting the failed worker", async () => {
   const h = await setup();
   await firstTurn(h);
   await failWorker(h, "rate-limit");
+  vi.setSystemTime(Date.now() + 900_000);
   h.harness.inspection.sdk.stub("threads.spawn", async () => {
     throw new Error("connection reset");
   });
@@ -1207,4 +1209,299 @@ it("recovers a lost fallback spawn without adopting the failed worker", async ()
   expect(next.harness.inspection.logEntries.map((entry) => entry.message)).toContain(
     "Thread real: title refinement skipped (Interrupted before worker creation could be confirmed)",
   );
+});
+
+
+it("falls back from a selected Codex model after the reset, across restart", async () => {
+  const h = await setup();
+  await h.harness.behavior.callRpc("selection.set", {
+    selection: { providerId: "codex", model: "gpt-6-luna", reasoningLevel: "medium" },
+  });
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Continue from @thread:earlier");
+  h.endTurn();
+  await h.emit();
+  const reset = Date.now() + 3_600_000;
+  h.workerEvents.push({ seq: 1, type: "provider/rateLimits/updated", data: {
+    rateLimits: { kind: "subscription-window", status: "blocked", windows: [
+      { status: "blocked", resetsAtMs: reset },
+    ] },
+  } });
+  await failWorker(h, "rate-limit");
+  expect(h.harness.inspection.sdk.callsTo("threads.archive")).toHaveLength(1);
+  const next = await h.harness.lifecycle.reload(plugin);
+  cleanups.push(() => next.harness.lifecycle.dispose());
+  vi.setSystemTime(reset);
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(1);
+  await recoverWorker(h);
+  vi.setSystemTime(reset + 15_000);
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned.map((s) => s.model)).toEqual(["gpt-6-luna", "gpt-5.6-luna"]);
+  h.worker.status = "idle";
+  h.workerEvents.push({ seq: 1, type: "turn/completed", data: { status: "completed" } });
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.thread.title).toBe("Build a shared calendar");
+});
+
+it("tries the selected model then both automatic models and keeps the saved selection", async () => {
+  const h = await setup();
+  const selection = { providerId: "claude-code", model: "claude-sonnet-5", reasoningLevel: "medium", serviceTier: "fast" };
+  await h.harness.behavior.callRpc("selection.set", { selection });
+  await firstTurn(h);
+  await failWorker(h, "overloaded");
+
+  await recoverWorker(h);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  await failWorker(h, "overloaded");
+  await recoverWorker(h);
+  h.worker.id = "automatic-worker";
+  vi.setSystemTime(Date.now() + 60_000);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned.map((s) => s.model)).toEqual(["claude-sonnet-5", "gpt-6-luna", "gpt-5.6-luna"]);
+  expect(h.spawned[2]).toMatchObject({ providerId: "codex", reasoningLevel: "low" });
+  expect(h.spawned[2]).not.toHaveProperty("serviceTier");
+  await failWorker(h, "overloaded");
+  vi.setSystemTime(Date.now() + 3_600_000);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(3);
+  expect(h.harness.inspection.sdk.callsTo("threads.archive")).toHaveLength(3);
+  expect(await h.harness.behavior.callRpc("selection.get", null)).toMatchObject({ selection });
+});
+
+it("recovers an untitled thread on its third message after temporary failures exhaust the first-turn budget", async () => {
+  const h = await setup();
+  await h.harness.behavior.callRpc("selection.set", {
+    selection: { providerId: "claude-code", model: "claude-sonnet-5", reasoningLevel: "low" },
+  });
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Continue from @thread:earlier");
+  h.endTurn();
+  await h.emit();
+  await failWorker(h, "overloaded");
+  vi.setSystemTime(Date.now() + 60_000);
+  await recoverWorker(h);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  await failWorker(h, "overloaded");
+  await recoverWorker(h);
+  h.worker.id = "automatic-worker";
+  vi.setSystemTime(Date.now() + 60_000);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  await failWorker(h, "overloaded");
+  h.user("Add calendar sharing");
+  await h.emit();
+  expect(h.spawned).toHaveLength(3);
+  h.user("Show everyone's availability");
+  await recoverWorker(h);
+  h.worker.id = "review-worker";
+  vi.setSystemTime(Date.now() + 60_000);
+  await h.emit();
+  expect(h.spawned).toHaveLength(4);
+  expect(h.spawned[3].model).toBe("claude-sonnet-5");
+  h.worker.status = "idle";
+  h.workerEvents.push({ seq: 1, type: "turn/completed", data: { status: "completed" } });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.thread.title).toBe("Build a shared calendar");
+});
+
+it("honors a user rename while a selected-model retry is waiting", async () => {
+  const h = await setup();
+  await h.harness.behavior.callRpc("selection.set", {
+    selection: { providerId: "claude-code", model: "claude-sonnet-5", reasoningLevel: "low" },
+  });
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Continue from @thread:earlier");
+  h.endTurn();
+  await h.emit();
+  await failWorker(h, "rate-limit");
+  h.thread.title = "My chosen title";
+  vi.setSystemTime(Date.now() + 900_000);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  h.user("More context");
+  h.user("Still more context");
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  expect(h.updates).toHaveLength(0);
+});
+
+it("backs off unknown rate limits and preserves provider cooldown through later phases", async () => {
+  const h = await setup();
+  await h.harness.behavior.callRpc("selection.set", {
+    selection: { providerId: "codex", model: "gpt-6-luna", reasoningLevel: "low" },
+  });
+  await firstTurn(h);
+  await failWorker(h, "rate-limit");
+  vi.setSystemTime(Date.now() + 899_999);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(1);
+  vi.setSystemTime(Date.now() + 1);
+  await recoverWorker(h);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned[1].model).toBe("gpt-5.6-luna");
+  await failWorker(h, "rate-limit");
+  h.user("More context");
+  h.user("Third message");
+  await h.emit();
+  expect(h.spawned).toHaveLength(2);
+  const next = await h.harness.lifecycle.reload(plugin);
+  cleanups.push(() => next.harness.lifecycle.dispose());
+  vi.setSystemTime(Date.now() + 900_000);
+  await recoverWorker(h);
+  h.worker.id = "review-worker";
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned[2].model).toBe("gpt-6-luna");
+});
+
+it("finishes interrupted worker retirement before spawning fallback after reload", async () => {
+  const h = await setup();
+  await h.harness.behavior.callRpc("selection.set", {
+    selection: { providerId: "claude-code", model: "claude-sonnet-5", reasoningLevel: "low" },
+  });
+  await firstTurn(h);
+  h.harness.inspection.sdk.stub("threads.archive", async () => { throw new Error("offline"); });
+  await failWorker(h, "rate-limit");
+  expect(h.spawned).toHaveLength(1);
+  const next = await h.harness.lifecycle.reload(plugin);
+  cleanups.push(() => next.harness.lifecycle.dispose());
+  const retired: string[] = [];
+  next.harness.inspection.sdk.stub("threads.archive", async ({ threadId }) => {
+    retired.push(threadId);
+    return { count: 1 } as never;
+  });
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(retired).toEqual(["worker"]);
+  expect(h.spawned.map((s) => s.model)).toEqual(["claude-sonnet-5", "gpt-6-luna"]);
+  await recoverWorker(h);
+  h.worker.status = "idle";
+  h.workerEvents.push({ seq: 1, type: "turn/completed", data: { status: "completed" } });
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.thread.title).toBe("Build a shared calendar");
+});
+
+it("falls back across providers on permanent errors and protects renames during fallback", async () => {
+  for (const category of ["unauthorized", "rate-limit"]) {
+    const h = await setup();
+    await h.harness.behavior.callRpc("selection.set", {
+      selection: { providerId: "claude-code", model: "claude-sonnet-5", reasoningLevel: "low" },
+    });
+    await firstTurn(h);
+    await failWorker(h, category);
+    await recoverWorker(h);
+    await h.harness.behavior.runSchedule("title-reconciliation");
+    expect(h.spawned).toHaveLength(2);
+    expect(h.spawned[1].providerId).toBe("codex");
+    h.thread.title = "My chosen title";
+    await finishWorker(h, { title: "Unwanted title" });
+    h.user("More context");
+    h.user("Third message");
+    await h.emit();
+    expect(h.thread.title).toBe("My chosen title");
+    expect(h.updates).toHaveLength(0);
+  }
+});
+
+it("recovers a legacy untitled selected-model failure on the third message only when transient", async () => {
+  for (const category of ["rate-limit", "unauthorized"]) {
+    const h = await setup();
+    await h.harness.behavior.callRpc("selection.set", {
+      selection: { providerId: "claude-code", model: "claude-sonnet-5", reasoningLevel: "low" },
+    });
+    await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+    h.user("Continue from @thread:earlier");
+    h.endTurn();
+    await h.emit();
+    h.workerEvents.push({ seq: 1, type: "provider/error", data: { errorInfo: { category } } });
+    h.worker.archivedAt = Date.now();
+    const db = h.bb.storage.database();
+    const row = db.prepare("SELECT data FROM title_jobs WHERE thread_id = ?").get("real") as { data: string };
+    const job = JSON.parse(row.data);
+    delete job.choices;
+    delete job.choiceIndex;
+    Object.assign(job, { automatic: false, state: "skipped", cleaned: true, reason: "Title worker failed" });
+    db.prepare("UPDATE title_jobs SET state = ?, data = ? WHERE thread_id = ?").run("skipped", JSON.stringify(job), "real");
+    const next = await h.harness.lifecycle.reload(plugin);
+    cleanups.push(() => next.harness.lifecycle.dispose());
+    await next.harness.behavior.runSchedule("title-reconciliation");
+    h.user("More context");
+    h.user("Third message");
+    vi.setSystemTime(Date.now() + 900_000);
+    await recoverWorker(h);
+    h.worker.archivedAt = null;
+    await next.harness.behavior.runSchedule("title-reconciliation");
+    expect(h.spawned).toHaveLength(category === "rate-limit" ? 2 : 1);
+  }
+});
+
+it("stores a generated title even when it matches the prompt-derived fallback", async () => {
+  const h = await setup();
+  h.thread.titleFallback = "Build a shared calendar";
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Build a shared calendar");
+  h.endTurn();
+  await h.emit();
+  await finishWorker(h, { title: "Build a shared calendar" });
+  expect(h.thread.title).toBe("Build a shared calendar");
+});
+
+it("does not replenish the model stack after an overlong reply", async () => {
+  const h = await setup();
+  await h.harness.behavior.callRpc("selection.set", {
+    selection: { providerId: "claude-code", model: "claude-sonnet-5", reasoningLevel: "low" },
+  });
+  await firstTurn(h);
+  await finishWorker(h, { title: "A".repeat(41) });
+  await recoverWorker(h);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  await failWorker(h, "connection-failed");
+  await recoverWorker(h);
+  h.worker.id = "automatic-worker";
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  await failWorker(h, "overloaded");
+  vi.setSystemTime(Date.now() + 60_000);
+  await recoverWorker(h);
+  h.worker.id = "last-worker";
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  await finishWorker(h, { title: "B".repeat(41) });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned.map((s) => s.model)).toEqual([
+    "claude-sonnet-5", "claude-sonnet-5", "gpt-6-luna", "gpt-5.6-luna",
+  ]);
+  expect(h.updates).toHaveLength(0);
+});
+
+it("finishes a first-message fallback before starting a fresh first-turn stack", async () => {
+  const h = await setup();
+  await h.harness.behavior.callRpc("selection.set", {
+    selection: { providerId: "claude-code", model: "claude-sonnet-5", reasoningLevel: "low" },
+  });
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Build a calendar");
+  bbTitle(h, "Build a calendar");
+  h.thread.title = "Build a calendar";
+  await h.emit();
+  await failWorker(h, "overloaded");
+  h.endTurn();
+  await recoverWorker(h);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned[1].pluginMetadata).toMatchObject({ phase: "message" });
+  await finishWorker(h, { title: "Build a shared calendar" });
+  vi.setSystemTime(Date.now() + 60_000);
+  await recoverWorker(h);
+  h.worker.id = "initial-worker";
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned[2]).toMatchObject({ model: "claude-sonnet-5", pluginMetadata: { phase: "initial" } });
+});
+
+
+it.each(["error", "throw"] as const)("runs the selected model when the automatic catalog fails with %s", async (failure) => {
+  const h = await setup();
+  h.catalogFailures.codex = failure;
+  await h.harness.behavior.callRpc("selection.set", {
+    selection: { providerId: "claude-code", model: "claude-sonnet-5", reasoningLevel: "low" },
+  });
+  await firstTurn(h);
+  expect(h.spawned).toHaveLength(1);
+  expect(h.spawned[0].model).toBe("claude-sonnet-5");
+  await finishWorker(h, { title: "Build a shared calendar" });
+  expect(h.thread.title).toBe("Build a shared calendar");
 });
