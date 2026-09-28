@@ -19,6 +19,8 @@ interface SidebarDisplayOptionsItemsProps {
   onHideChange(kind: keyof HiddenThreadKinds, hidden: boolean): void;
   onPullRequestNumberPositionChange(position: PullRequestNumberPosition): void;
   pullRequestNumberPosition: PullRequestNumberPosition;
+  tabularPullRequestDigits: boolean;
+  onTabularPullRequestDigitsChange(enabled: boolean): void;
 }
 
 const PR_NUMBER_OPTIONS: readonly {
@@ -46,6 +48,8 @@ export function SidebarDisplayOptionsItems({
   onHideChange,
   onPullRequestNumberPositionChange,
   pullRequestNumberPosition,
+  tabularPullRequestDigits,
+  onTabularPullRequestDigitsChange,
 }: SidebarDisplayOptionsItemsProps) {
   const hiddenLabels = [
     hide.hidden ? "Hidden" : null,
@@ -111,6 +115,15 @@ export function SidebarDisplayOptionsItems({
                 {option.label}
               </DropdownMenuCheckboxItem>
             ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem
+              checked={tabularPullRequestDigits}
+              onCheckedChange={(checked) =>
+                onTabularPullRequestDigitsChange(checked === true)
+              }
+            >
+              Equal-width digits
+            </DropdownMenuCheckboxItem>
           </DropdownMenuSubContent>
         </DropdownMenuPortal>
       </DropdownMenuSub>

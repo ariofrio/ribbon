@@ -298,6 +298,7 @@ function ThreadRow({
   placementDisabled,
   preview,
   pullRequestNumberPosition,
+  tabularPullRequestDigits,
   reorderable,
   rootThreadId,
   rowActions,
@@ -338,6 +339,7 @@ function ThreadRow({
   placementDisabled: boolean;
   preview: string | null;
   pullRequestNumberPosition: PullRequestNumberPosition;
+  tabularPullRequestDigits: boolean;
   reorderable: boolean;
   rootThreadId: string;
   rowActions: readonly ThreadAction[];
@@ -384,9 +386,9 @@ function ThreadRow({
   const pullRequestNumber =
     showPullRequest && pullRequestIcon ? (
       <span
-        className={`inline-flex shrink-0 items-center gap-1 tabular-nums text-subtle-foreground/75 ${
-          pullRequestNumberPosition === "right" ? "ml-auto" : ""
-        }`}
+        className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ${
+          tabularPullRequestDigits ? "tabular-nums" : ""
+        } ${pullRequestNumberPosition === "right" ? "ml-auto" : ""}`}
         title={
           pullRequestStatus.label
             ? `${visiblePullRequest.title} — ${pullRequestStatus.label}`
@@ -1696,6 +1698,7 @@ function RibbonSidebarList({
         <ThreadRow
           rootThreadId={stageOwner.id}
           pullRequestNumberPosition={preferences.view.pullRequestNumberPosition}
+          tabularPullRequestDigits={preferences.view.tabularPullRequestDigits}
           active={activeThreadId === root.id}
           alignAdornmentsToEntireItem={
             settings.values?.threadAdornmentAlignment === "Entire item"
@@ -1864,6 +1867,13 @@ function RibbonSidebarList({
           changePreferences((current) => ({
             ...current,
             view: { ...current.view, pullRequestNumberPosition },
+          }))
+        }
+        tabularPullRequestDigits={preferences.view.tabularPullRequestDigits}
+        onTabularPullRequestDigitsChange={(tabularPullRequestDigits) =>
+          changePreferences((current) => ({
+            ...current,
+            view: { ...current.view, tabularPullRequestDigits },
           }))
         }
       />
