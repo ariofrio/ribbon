@@ -86,7 +86,7 @@ import {
   withPullRequestSignal,
   type ThreadStatus,
 } from "./thread-status";
-import { ThreadTitle } from "./thread-title";
+import { MarqueeText, ThreadTitle } from "./thread-title";
 import type { ThreadAction, ThreadActionsRecord } from "./thread-actions-store";
 import { UnorganizedIcon } from "./unorganized-icon";
 import { Button } from "./vendor/components/ui/button";
@@ -398,7 +398,7 @@ function ThreadRow({
       <span
         className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ${
           tabularPullRequestDigits ? "tabular-nums" : ""
-        } ${pullRequestNumberPosition === "right" ? "ml-auto" : ""}`}
+        } ${hasVisibleActions ? "ml-2" : pullRequestNumberPosition === "right" ? "ml-auto" : ""}`}
         title={
           pullRequestStatus.label
             ? `${visiblePullRequest.title} — ${pullRequestStatus.label}`
@@ -550,7 +550,7 @@ function ThreadRow({
             </span>
           ) : null}
           <span
-            className={`row-start-1 flex min-w-0 ${hasVisibleActions ? "items-start" : "items-center"} ${
+            className={`row-start-1 flex min-w-0 items-center ${
               !hasTrailingIndicator && !thread.isArchived
                 ? reservesIndicatorLaneAtRest
                   ? "pr-8 max-md:pointer-coarse:pr-2!"
@@ -576,43 +576,49 @@ function ThreadRow({
                 </ShineContent>
               </span>
             ) : (
-              <span className="pointer-events-none flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-                {showThreadTitle || pullRequestNumber !== null ? (
+              <span className="pointer-events-none flex min-w-0 flex-1 items-center gap-2">
+                {showThreadTitle ? (
                   <span
-                    className="flex w-max max-w-full min-w-0 shrink-0 items-center gap-2"
+                    className="flex min-w-0 flex-1"
                     {...{ [SHINE_ATTRIBUTE]: "" }}
                     title={accessibleTitle}
                   >
-                    <ShineContent className="flex items-center gap-2">
-                      {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
-                      {showThreadTitle ? <ThreadTitle title={rowTitle} /> : null}
-                      {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
+                    <ShineContent className="flex items-center">
+                      <ThreadTitle title={rowTitle} />
                     </ShineContent>
                   </span>
-                ) : null}
-                {rowActions.map((action) => (
-                  <Button
-                    key={action.id}
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    aria-label={`${action.label} in ${rowTitle}`}
-                    disabled={runningActionId !== null}
-                    className="pointer-events-auto relative z-20 h-5 max-w-full rounded-md bg-[color:var(--ribbon-action-fill)] px-2 text-[11px] font-medium leading-none text-[color:var(--ribbon-action-ink)] ring-sidebar-ring hover:bg-[color:var(--ribbon-action-hover-fill)] hover:text-[color:var(--ribbon-action-hover-ink)] focus-visible:bg-[color:var(--ribbon-action-hover-fill)] focus-visible:text-[color:var(--ribbon-action-hover-ink)] focus-visible:ring-2 active:bg-[color:var(--ribbon-action-hover-fill)]"
-                    style={actionButtonStyle(groupColor?.kind)}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setRunningActionId(action.id);
-                      void onRunAction(action.id).finally(() => {
-                        setRunningActionId(null);
-                      });
-                    }}
-                    onPointerDown={(event) => event.stopPropagation()}
-                  >
-                    <span className="truncate">{action.label}</span>
-                  </Button>
-                ))}
+                ) : <span className="min-w-0 flex-1" />}
+                <span
+                  className={`flex min-w-0 flex-[0_1_auto] items-center ${rowActions.length > 8 ? "gap-0" : "gap-1"}`}
+                >
+                  {rowActions.map((action) => (
+                    <Button
+                      key={action.id}
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      aria-label={`${action.label} in ${rowTitle}`}
+                      disabled={runningActionId !== null}
+                      className="pointer-events-auto relative z-20 h-5 min-w-0 flex-[0_1_auto] overflow-hidden rounded-md bg-[color:var(--ribbon-action-fill)] text-[11px] font-medium leading-none text-[color:var(--ribbon-action-ink)] ring-sidebar-ring hover:bg-[color:var(--ribbon-action-hover-fill)] hover:text-[color:var(--ribbon-action-hover-ink)] focus-visible:bg-[color:var(--ribbon-action-hover-fill)] focus-visible:text-[color:var(--ribbon-action-hover-ink)] focus-visible:ring-2 active:bg-[color:var(--ribbon-action-hover-fill)]"
+                      style={{
+                        ...actionButtonStyle(groupColor?.kind),
+                        paddingInline: `min(8px, ${20 / rowActions.length}%)`,
+                      }}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setRunningActionId(action.id);
+                        void onRunAction(action.id).finally(() => {
+                          setRunningActionId(null);
+                        });
+                      }}
+                      onPointerDown={(event) => event.stopPropagation()}
+                    >
+                      <MarqueeText text={action.label} />
+                    </Button>
+                  ))}
+                </span>
+                {pullRequestNumber}
               </span>
             )}
             {hasChildren ? (

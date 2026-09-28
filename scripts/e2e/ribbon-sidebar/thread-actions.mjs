@@ -31,7 +31,13 @@ export async function verifyThreadActions({ stack, fixture }) {
     const dialog = page.getByRole("dialog", { name: "Edit thread actions" });
     const hideTitle = dialog.getByRole("checkbox", { name: "Hide thread title" });
     assert.equal(await hideTitle.isDisabled(), true);
-    const labels = ["Review", "Run tests", "Summarize changes", "Update docs", "Check PR"];
+    const labels = [
+      "Review",
+      "Run every relevant test",
+      "Summarize changes across this thread",
+      "Update documentation and release notes",
+      "Check the pull request status",
+    ];
     for (const [index, label] of labels.entries()) {
       await dialog.getByRole("button", { name: "Add action" }).click();
       await dialog.getByRole("textbox", { name: `Action ${index + 1} button label` }).fill(label);
@@ -43,7 +49,7 @@ export async function verifyThreadActions({ stack, fixture }) {
     const action = row.getByRole("button", { name: `Review in ${thread.title}` });
     await action.waitFor();
     assert.equal(await row.getByRole("button", { name: / in / }).count(), labels.length);
-    await row.evaluate((node) => { node.style.width = "600px"; });
+    await row.evaluate((node) => { node.style.width = "1100px"; });
     await page.waitForFunction(({ id, title }) => {
       const row = document.querySelector(`li[data-thread-id="${id}"]`);
       const titleNode = [...(row?.querySelectorAll("span") ?? [])]
@@ -51,20 +57,63 @@ export async function verifyThreadActions({ stack, fixture }) {
       const button = row?.querySelector('button[aria-label^="Review in "]');
       return titleNode && button && Math.abs(titleNode.getBoundingClientRect().top - button.getBoundingClientRect().top) < 3;
     }, { id: thread.id, title: thread.title });
+    const roomy = await row.evaluate((node, title) => {
+      const label = [...node.querySelectorAll("span")]
+        .find((candidate) => candidate.children.length === 0 && candidate.textContent === title);
+      const buttons = [...node.querySelectorAll("button")]
+        .filter((button) => button.getAttribute("aria-label")?.endsWith(` in ${title}`));
+      return {
+        titleRight: label.getBoundingClientRect().right,
+        firstButtonLeft: buttons[0].getBoundingClientRect().left,
+        lastButtonRight: buttons.at(-1).getBoundingClientRect().right,
+        contentRight: buttons[0].parentElement.parentElement.getBoundingClientRect().right,
+      };
+    }, thread.title);
+    assert.ok(roomy.firstButtonLeft > roomy.titleRight + 8, "Actions align right when the title is short");
+    assert.ok(Math.abs(roomy.lastButtonRight - roomy.contentRight) < 1,
+      "Without PR information, actions use the full title lane");
     await row.evaluate((node) => { node.style.width = "230px"; });
     const positions = await row.evaluate((node, threadTitle) => {
       const title = [...node.querySelectorAll("span")]
         .find((candidate) => candidate.children.length === 0 && candidate.textContent === threadTitle);
       const buttons = [...node.querySelectorAll("button")]
         .filter((button) => button.getAttribute("aria-label")?.endsWith(` in ${threadTitle}`));
+      const longLabel = [...buttons[1].querySelectorAll("span")]
+        .find((candidate) => candidate.children.length === 0 && candidate.textContent === "Run every relevant test");
       return {
-        titleBottom: title?.getBoundingClientRect().bottom,
-        rows: buttons.map((button) => button.getBoundingClientRect().top),
+        titleTop: title?.getBoundingClientRect().top,
+        buttonTops: buttons.map((button) => button.getBoundingClientRect().top),
+        buttonRights: buttons.map((button) => button.getBoundingClientRect().right),
+        labelWidth: longLabel?.getBoundingClientRect().width,
+        clipWidth: longLabel?.closest(".overflow-hidden")?.getBoundingClientRect().width,
+        mask: longLabel && getComputedStyle(longLabel.closest(".overflow-hidden")).maskImage,
       };
     }, thread.title);
-    assert.ok(positions.titleBottom !== undefined);
-    assert.ok(positions.rows[0] >= positions.titleBottom + 3, "Actions wrap below a full title with a consistent gap");
-    assert.ok(new Set(positions.rows).size >= 3, "More than three actions occupy multiple button rows");
+    assert.ok(positions.titleTop !== undefined);
+    assert.ok(positions.buttonTops.every((top) => Math.abs(top - positions.titleTop) < 3),
+      "All actions stay on the title's row at narrow widths");
+    assert.ok(positions.buttonRights.every((right, index) =>
+      index === 0 || right > positions.buttonRights[index - 1]),
+    "Actions retain their order and do not overlap");
+    assert.ok(positions.labelWidth > positions.clipWidth,
+      "Long action labels clip inside shrinking buttons");
+    assert.notEqual(positions.mask, "none", "Clipped action labels fade at the end");
+    await page.mouse.move(1000, 700);
+    const longButton = row.getByRole("button", { name: `Run every relevant test in ${thread.title}` });
+    await longButton.hover();
+    await page.waitForFunction(({ id, title }) => {
+      const row = document.querySelector(`li[data-thread-id="${id}"]`);
+      const label = [...(row?.querySelectorAll("span") ?? [])]
+        .find((candidate) => candidate.children.length === 0 && candidate.textContent === title);
+      return label?.getAnimations().length > 0;
+    }, { id: thread.id, title: "Run every relevant test" });
+    const marquee = await longButton.evaluate((button) => {
+      const label = [...button.querySelectorAll("span")]
+        .find((candidate) => candidate.children.length === 0 && candidate.textContent === "Run every relevant test");
+      label.getAnimations()[0].finish();
+      return new DOMMatrixReadOnly(getComputedStyle(label).transform).m41;
+    });
+    assert.ok(marquee < 0, "Hover pans a clipped action label to reveal its end");
     await page.reload();
     await sidebar.waitFor({ timeout: 120_000 });
     await action.waitFor();
@@ -95,7 +144,7 @@ export async function verifyThreadActions({ stack, fixture }) {
     assert.equal(await action.isVisible(), true, "Actions remain visible without the title");
 
     const before = page.url();
-    await row.getByRole("link", { name: `Open ${thread.title}` }).hover({ position: { x: 90, y: 10 } });
+    await page.mouse.move(1000, 700);
     const submissions = [];
     await page.route("**/plugins/ribbon-sidebar/rpc/runThreadActionV1", (route) => {
       submissions.push(route.request().postDataJSON());
@@ -107,6 +156,73 @@ export async function verifyThreadActions({ stack, fixture }) {
     assert.equal((await response).status(), 200);
     assert.equal(submissions.length, 1, "A real click dispatches one action");
     assert.equal(page.url(), before, "Running an action does not open another thread");
+
+    await page.route("**/api/v1/environments/*/pull-request*", (route) => route.fulfill({
+      json: {
+        outcome: "available",
+        pullRequest: {
+          number: 12345,
+          title: "Action button placement fixture",
+          url: "https://github.com/example/project/pull/12345",
+          state: "merged",
+          attention: "merged",
+          baseRefName: "main",
+          headRefName: "feature",
+          updatedAt: "2026-09-18T00:00:00Z",
+          checks: { failedCount: 0, passedCount: 1, pendingCount: 0, totalCount: 1, state: "passing" },
+          mergeability: { mergeStateStatus: "CLEAN", mergeable: "MERGEABLE", state: "mergeable" },
+          review: { reviewRequestCount: 0, state: "approved" },
+        },
+      },
+    }));
+    await page.reload();
+    await sidebar.waitFor({ timeout: 120_000 });
+    await action.waitFor();
+    await row.evaluate((node) => { node.style.width = "230px"; });
+    const prNumber = row.getByText("#12345", { exact: true });
+    await prNumber.waitFor();
+    const prLayout = await row.evaluate((node, title) => {
+      const buttons = [...node.querySelectorAll("button")]
+        .filter((button) => button.getAttribute("aria-label")?.endsWith(` in ${title}`));
+      const pr = [...node.querySelectorAll("span")]
+        .find((candidate) => candidate.textContent === "#12345");
+      return {
+        actionRight: buttons.at(-1).getBoundingClientRect().right,
+        prLeft: pr.getBoundingClientRect().left,
+        prRight: pr.getBoundingClientRect().right,
+        indicatorLeft: node.querySelector("[data-ribbon-sidebar-icon-indicator-space]")?.getBoundingClientRect().left,
+      };
+    }, thread.title);
+    assert.ok(prLayout.actionRight + 3 <= prLayout.prLeft,
+      "Actions stay to the left of PR information");
+    assert.ok(prLayout.indicatorLeft === undefined || prLayout.prRight <= prLayout.indicatorLeft,
+      "PR information stays clear of the indicator lane");
+
+    const crowded = Array.from({ length: 12 }, (_, index) => ({
+      id: `crowded-${index}`,
+      label: `Long action label ${index + 1}`,
+      prompt: `Do action ${index + 1}.`,
+    }));
+    const saved = await page.request.post(
+      new URL("/api/v1/plugins/ribbon-sidebar/rpc/saveThreadActionsV1", stack.serverUrl).href,
+      { data: { threadId: thread.id, actions: crowded, hideTitle: false } },
+    );
+    assert.equal(saved.status(), 200);
+    await row.getByRole("button", { name: `Long action label 12 in ${thread.title}` }).waitFor();
+    const crowdedLayout = await row.evaluate((node, title) => {
+      const buttons = [...node.querySelectorAll("button")]
+        .filter((button) => button.getAttribute("aria-label")?.endsWith(` in ${title}`));
+      return buttons.map((button) => ({
+        top: button.getBoundingClientRect().top,
+        left: button.getBoundingClientRect().left,
+        right: button.getBoundingClientRect().right,
+      }));
+    }, thread.title);
+    assert.equal(crowdedLayout.length, crowded.length);
+    assert.ok(crowdedLayout.every((box) => box.top === crowdedLayout[0].top && box.right > box.left),
+      "Many actions remain on one row with positive button widths");
+    assert.ok(crowdedLayout.every((box, index) => index === 0 || box.left >= crowdedLayout[index - 1].right),
+      "Crowded action buttons do not overlap");
   } finally {
     try {
       await cleanup?.();
