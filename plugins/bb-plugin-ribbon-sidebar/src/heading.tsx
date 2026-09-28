@@ -3,8 +3,7 @@ import {
   FolderClosedIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { type CSSProperties, useId, useLayoutEffect, useRef, useState } from "react";
-import { bookFrame, folderFrame } from "./standard-icon-motion";
+import type { CSSProperties } from "react";
 import { Icon } from "./vendor/components/ui/icon";
 
 /**
@@ -116,7 +115,7 @@ const path = (d: string, key: string): IconSvgElement[number] => [
  *
  * Open, book-open-01: its pages span y 3 to 18 and its spine drops to 21.
  */
-export const OpenBookIcon: IconSvgElement = [
+const OpenBookIcon: IconSvgElement = [
   path(
     "M8 3H6.6C4.432 3 3.348 3 2.674 3.697C2 4.394 2 5.515 2 7.758L2 13.241C2 15.485 2 16.606 2.674 17.303C3.347 18 4.431 18 6.6 18H8.95C10.433 18 11.709 19.256 12 21V5.069C11.056 3.767 10 3 8 3Z",
     "0",
@@ -133,7 +132,7 @@ export const OpenBookIcon: IconSvgElement = [
  * 18) and its page strip the spine's drop (18 to 21). Opening a section reads
  * as this one book spreading out.
  */
-export const ShutBookIcon: IconSvgElement = [
+const ShutBookIcon: IconSvgElement = [
   path(
     "M18.8 21H6.9C5.961 21 5.2 20.328 5.2 19.5M5.2 19.5C5.2 18.672 5.961 18 6.9 18H18.8V6.75C18.8 4.982 18.8 4.098 18.302 3.549C17.804 3 17.003 3 15.4 3H10.3C7.896 3 6.694 3 5.947 3.824C5.2 4.648 5.2 5.973 5.2 8.625V19.5Z",
     "0",
@@ -155,10 +154,6 @@ const STANDARD_ICONS: Record<
 /**
  * One icon for every section, Unorganized included, and one for every project,
  * instead of the icon each chose: a book or a folder, open while its group is.
- *
- * Opening or shutting its group, the book's cover swings over on its spine and
- * the folder's front falls forward or stands back up, alongside the group's
- * own fold. At rest, and without motion, it is the icon itself.
  */
 export function StandardHeadingIcon({
   kind,
@@ -168,129 +163,13 @@ export function StandardHeadingIcon({
   collapsed: boolean;
 }) {
   const [icon, name] = STANDARD_ICONS[kind][collapsed ? "shut" : "open"];
-  const frame = useOpening(collapsed ? 0 : 1);
-  if (frame === null) {
-    return (
-      <HugeiconsIcon
-        aria-hidden
-        className="size-4 shrink-0"
-        data-icon={name}
-        icon={icon}
-        size={16}
-      />
-    );
-  }
   return (
-    <svg
+    <HugeiconsIcon
       aria-hidden
       className="size-4 shrink-0"
       data-icon={name}
-      data-ribbon-icon-opening={round(frame)}
-      fill="none"
-      height={16}
-      viewBox="0 0 24 24"
-      width={16}
-    >
-      {kind === "section" ? <BookFrame open={frame} /> : <FolderFrame open={frame} />}
-    </svg>
+      icon={icon}
+      size={16}
+    />
   );
-}
-
-// As long as the group's own fold, but eased in and out as a thing with weight
-// moves: the fold's easing covers most of its ground in the first frame, too
-// fast to see the cover swing or the front fall.
-const OPENING_MS = 180;
-const OPENING_EASING = cubicBezier(0.4, 0, 0.2, 1);
-
-/**
- * How open the icon is drawn while it moves toward `target`, or null at rest.
- * Turning back partway starts from wherever it had got to.
- */
-function useOpening(target: 0 | 1): number | null {
-  const [frame, setFrame] = useState<number | null>(null);
-  const drawn = useRef<number>(target);
-  // Before paint, so a click never shows a frame of the icon it is going to.
-  useLayoutEffect(() => {
-    const from = drawn.current;
-    if (from === target) return;
-    if (!motionAllowed()) {
-      drawn.current = target;
-      setFrame(null);
-      return;
-    }
-    const duration = OPENING_MS * Math.abs(target - from);
-    setFrame(from);
-    // Timed from the first frame drawn, as a Web Animation is: the render
-    // that toggled the group can hold that frame back for most of the motion.
-    let start: number | undefined;
-    let request = requestAnimationFrame(function step() {
-      const now = performance.now();
-      start ??= now;
-      const progress = Math.min(1, (now - start) / duration);
-      if (progress >= 1) {
-        drawn.current = target;
-        setFrame(null);
-        return;
-      }
-      drawn.current = from + (target - from) * OPENING_EASING(progress);
-      setFrame(drawn.current);
-      request = requestAnimationFrame(step);
-    });
-    return () => cancelAnimationFrame(request);
-  }, [target]);
-  return frame;
-}
-
-const round = (n: number) => String(Math.round(n * 100) / 100);
-
-function BookFrame({ open }: { open: number }) {
-  const { cover, pages } = bookFrame(open);
-  const mask = useId();
-  return (
-    <>
-      <defs>
-        {/* The pages show only where the cover is not over them. */}
-        <mask height="48" id={mask} maskUnits="userSpaceOnUse" width="48" x="-12" y="-12">
-          <rect fill="white" height="48" width="48" x="-12" y="-12" />
-          <path d={cover} fill="black" stroke="black" strokeWidth="1.5" />
-        </mask>
-      </defs>
-      <path d={pages} mask={`url(#${mask})`} {...stroke} />
-      <path d={cover} {...stroke} />
-    </>
-  );
-}
-
-function FolderFrame({ open }: { open: number }) {
-  const { back, tab, front } = folderFrame(open);
-  return (
-    <>
-      <path d={back} {...stroke} />
-      <path d={tab} {...stroke} />
-      <path d={front} {...stroke} />
-    </>
-  );
-}
-
-function motionAllowed(): boolean {
-  return (
-    typeof requestAnimationFrame === "function" &&
-    !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-  );
-}
-
-/** A CSS cubic-bézier timing function, solved for its x by bisection. */
-function cubicBezier(x1: number, y1: number, x2: number, y2: number) {
-  const at = (a: number, b: number, s: number) =>
-    3 * (1 - s) * (1 - s) * s * a + 3 * (1 - s) * s * s * b + s * s * s;
-  return (x: number) => {
-    let low = 0;
-    let high = 1;
-    for (let step = 0; step < 30; step += 1) {
-      const mid = (low + high) / 2;
-      if (at(x1, x2, mid) < x) low = mid;
-      else high = mid;
-    }
-    return at(y1, y2, (low + high) / 2);
-  };
 }

@@ -247,26 +247,8 @@ export async function verifyThreadIcons({ stack, fixture }) {
         return Math.max(...boxes.map((box) => box.bottom)) - Math.min(...boxes.map((box) => box.top));
       });
       const openHeight = await drawnHeight("BookOpen");
-      // The book shuts in step with its group, frame by frame, from open.
-      const shutting = atlas.evaluate((group) => new Promise((resolve) => {
-        const frames = [];
-        const start = performance.now();
-        requestAnimationFrame(function sample() {
-          const svg = group.querySelector('svg[data-icon="BookClosed"]');
-          if (svg) frames.push(svg.getAttribute("data-ribbon-icon-opening"));
-          if (frames.at(-1) === null || performance.now() - start > 2000) resolve(frames);
-          else requestAnimationFrame(sample);
-        });
-      }));
       await atlas.getByRole("button", { name: "Collapse Atlas section", exact: true }).click();
-      const frames = await shutting;
-      const drawn = frames.slice(0, -1).map(Number);
-      assert.equal(frames.at(-1), null, `The shut book should come to rest as its icon: ${JSON.stringify(frames)}`);
-      assert.ok(
-        drawn.length >= 3 && drawn.some((open) => open > 0.2 && open < 0.8) &&
-          drawn.every((open, index) => index === 0 || open <= drawn[index - 1]),
-        `The book should shut through frames between open and shut: ${JSON.stringify(frames)}`,
-      );
+      await standard("BookClosed").waitFor();
       const shutHeight = await drawnHeight("BookClosed");
       // Both books are as tall as the folders: 18 of 24 units, 12px at 16px.
       assert.ok(Math.abs(openHeight - 12) < 0.25, `The open book should be 12px tall: ${openHeight}`);
