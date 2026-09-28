@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { CircleIcon } from "@hugeicons/core-free-icons";
+import { installTestPluginRuntime } from "@get-bb/plugin-sdk/testing/app";
 import {
   act,
   cleanup,
@@ -12,6 +13,8 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IconPicker } from "./IconPicker";
 import { iconColor } from "./icon-colors";
+
+installTestPluginRuntime();
 
 const catalog = [
   {
