@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import {
   intentFingerprint,
+  opening,
   transcript,
   userActivity,
   type Event,
@@ -57,6 +58,47 @@ it("includes streamed assistant text and command output before completion", () =
   expect(history).toContain("Working");
   expect(history).toContain("calendar.ts");
   expect(history).toContain('"partial":true');
+});
+
+it("trims long tool output but keeps messages in full", () => {
+  const long = (label: string) => `${label}-start ${"x".repeat(20_000)} ${label}-end`;
+  const history = transcript([
+    event(1, "client/turn/requested", { initiator: "user", input: long("request") }),
+    event(2, "item/completed", {
+      item: { id: "c", type: "commandExecution", command: "npm install", aggregatedOutput: long("output") },
+    }),
+    event(3, "item/started", { item: { id: "s", type: "commandExecution", command: "npm test" } }),
+    event(4, "item/commandExecution/outputDelta", { itemId: "s", delta: long("stream") }),
+    event(5, "item/completed", { item: { id: "a", type: "agentMessage", text: long("answer") } }),
+  ]);
+  expect(history).toContain("npm install");
+  for (const label of ["output", "stream"]) {
+    expect(history).toContain(`${label}-start`);
+    expect(history).toContain(`${label}-end`);
+  }
+  expect(history).toContain("characters trimmed");
+  expect(history).toContain(long("request"));
+  expect(history).toContain(long("answer"));
+  expect(history.length).toBeLessThan(45_000);
+});
+
+it("leaves out model reasoning", () => {
+  const history = transcript([
+    event(1, "item/started", { item: { id: "r", type: "reasoning", text: "" } }),
+    event(2, "item/reasoning/textDelta", { itemId: "r", delta: "private thought" }),
+    event(3, "item/completed", { item: { id: "r", type: "reasoning", text: "private thought" } }),
+    event(4, "item/completed", { item: { id: "a", type: "agentMessage", text: "Done" } }),
+  ]);
+  expect(history).not.toContain("private thought");
+  expect(history).toContain("Done");
+});
+
+it("takes the longest opening of whole lines that fits", () => {
+  const history = ["first", "second", "third"].join("\n");
+  expect(opening(history, 1_000)).toBe(history);
+  expect(opening(history, 14)).toBe("first\nsecond");
+  expect(opening(history, 4)).toBe("");
+  expect(opening("é\nb", 2)).toBe("é");
 });
 
 it("ignores new appended turns but detects context clearing after a snapshot", () => {

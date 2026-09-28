@@ -1,7 +1,7 @@
 # Thread titles
 
-Name threads after their first turn and refine generic or inaccurate titles on the third user message.
-The update can run while the thread is busy and uses its full recorded
+Name threads after their first turn and refine generic, inaccurate, or overlong titles on the third user message.
+The update can run while the thread is busy and uses its recorded
 conversation, including assistant messages, tool results, and partial output.
 
 ## Install
@@ -19,15 +19,17 @@ required.
 
 When the first turn ends, a fresh hidden worker generates a concise title with
 the title model (see [Settings](#settings)) on the source thread's machine, in a
-personal workspace. It receives the
-complete recorded transcript as quoted data and is instructed to return a title
-without tools. Completion is read from durable turn history, so a missed event
-or restart does not lose the trigger.
+personal workspace. A first turn that is still running starts the worker once
+its transcript reaches a quarter of the transcript size limit. The worker
+receives the recorded transcript as quoted data and is instructed to return a
+title within the title length limit, without tools. Completion and size are
+read from durable history, so a missed event or restart does not lose the
+trigger.
 
 After a successful first pass, the third accepted user message triggers one
 assessment of the title. If the title has changed since the first pass, the
 assessment is permanently cancelled. Otherwise, the worker keeps it unless it
-is generic or materially inaccurate. New details, alternative wording, and
+is generic, materially inaccurate, or longer than the title length limit. New details, alternative wording, and
 stylistic preferences are not reasons to rewrite an accurate, specific title.
 Retries and agent messages do not count. Elapsed time never triggers an update.
 Each worker is stopped and archived afterward.
@@ -47,7 +49,7 @@ events, including across restarts, but never repeats an ambiguous worker creatio
 or title write. If the initial stored title appeared
 while the plugin was offline and its baseline is unknown, the update is skipped.
 A destructive history edit or context clear during generation cancels the job.
-Each phase starts at most one worker, plus the single fallback retry, and
+Each phase starts at most one worker, plus a single retry, and
 recovery never adopts a failed worker. A completed first pass saves the resulting
 title as the baseline for the third-message assessment; a completed assessment
 or skipped job is never retried. Previously completed jobs are not backfilled.
@@ -64,12 +66,22 @@ Codex title service runs: the newest Luna model in the Codex catalog of the
 thread's machine, at the lowest reasoning level, whatever the thread's own
 provider. A thread whose machine offers no Luna model is skipped.
 
-The default transcript limit is 200,000 UTF-8 bytes. Larger transcripts are
-skipped in full, never truncated. Configure a limit between 1,000 and 2,000,000
-bytes with:
+The transcript keeps user and assistant messages in full. Any tool text longer
+than 1,000 characters keeps only its first and last 500, and model reasoning is
+left out. A transcript over the size limit is cut off after the last whole entry
+that fits, and the worker is told that later conversation is missing; a thread
+whose first message alone exceeds the limit is skipped. The default limit is
+200,000 UTF-8 bytes. Configure one between 1,000 and 2,000,000 bytes with:
 
 ```sh
 bb plugin config thread-titles set maxTranscriptBytes 200000
+```
+
+Titles are at most 40 characters by default. Configure a limit between 20 and
+80 characters with:
+
+```sh
+bb plugin config thread-titles set maxTitleLength 40
 ```
 
 Workers that fail, request an interaction, attempt tools, return invalid JSON,
@@ -77,7 +89,10 @@ or exceed two minutes of observed execution time are skipped. Waiting for bb's
 concurrency admission does not consume that execution timeout. As in bb's own
 Codex title service, an automatic worker that times out or fails with a rate
 limit, overload, or lost connection is retried once on the next newest Luna
-model. A selected model is never retried.
+model; a selected model is never retried after a failure. A worker that returns
+a title over the length limit, or keeps a current title over it, is retried once
+on the same model, automatic or selected. A second overlong title skips the
+phase.
 
 Inspect outcomes with `bb plugin logs thread-titles`.
 

@@ -450,7 +450,41 @@ it("does not start again after a destructive history edit during generation", as
   expect(h.spawned).toHaveLength(1);
 });
 
-it("skips oversized transcripts rather than truncating the full conversation", async () => {
+function answers(h: Awaited<ReturnType<typeof setup>>, count: number) {
+  for (let i = 0; i < count; i++) {
+    const seq = h.events.length + 1;
+    h.events.push({
+      id: `answer-${seq}`,
+      threadId: "real",
+      seq,
+      createdAt: Date.now(),
+      scope: { kind: "turn", turnId: "first-turn" },
+      type: "item/completed",
+      data: { item: { id: `a${seq}`, type: "agentMessage", text: `Assistant response ${seq}` } },
+    });
+  }
+}
+
+it("titles an oversized transcript from the opening that fits", async () => {
+  const h = await setup();
+  await h.harness.behavior.setSettings({ maxTranscriptBytes: 1_000 });
+  await h.harness.behavior.emitThreadEvent("thread.created", {
+    thread: h.thread,
+  });
+  h.thread.title = "Build a calendar";
+  h.user("Build a useful calendar application");
+  answers(h, 40);
+  h.endTurn();
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  const prompt = String(h.spawned[0]?.prompt);
+  expect(prompt).toContain("Build a useful calendar application");
+  expect(prompt).toContain("Assistant response 2");
+  expect(prompt).not.toContain("Assistant response 41");
+  expect(prompt).toContain("cut off after its first 1000 bytes");
+});
+
+it("skips a transcript whose first message alone exceeds the size limit", async () => {
   const h = await setup();
   await h.harness.behavior.setSettings({ maxTranscriptBytes: 1_000 });
   await h.harness.behavior.emitThreadEvent("thread.created", {
@@ -458,11 +492,29 @@ it("skips oversized transcripts rather than truncating the full conversation", a
   });
   h.thread.title = "Build a calendar";
   h.user("x".repeat(2_000));
-  h.user("Second");
-  h.user("Third");
   h.endTurn();
   await h.emit();
   expect(h.spawned).toHaveLength(0);
+});
+
+it("starts the first title mid-turn once the transcript reaches a quarter of the size limit", async () => {
+  const h = await setup();
+  await h.harness.behavior.setSettings({ maxTranscriptBytes: 40_000 });
+  await h.harness.behavior.emitThreadEvent("thread.created", {
+    thread: h.thread,
+  });
+  h.thread.title = "Build a calendar";
+  h.user("Build a useful calendar application");
+  await h.emit();
+  answers(h, 100);
+  await h.emit();
+  expect(h.spawned).toHaveLength(0);
+  answers(h, 100);
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  expect(h.thread.status).toBe("active");
+  expect(h.spawned[0]?.prompt).toContain("Assistant response 201");
+  expect(h.spawned[0]?.prompt).not.toContain("cut off");
 });
 
 it("waits for the first turn to end and reconciles a missed completion event", async () => {
@@ -577,7 +629,7 @@ it("refines a generic first title once on the third user message across reloads"
   await next.harness.behavior.runSchedule("title-reconciliation");
   expect(h.spawned).toHaveLength(2);
   expect(h.spawned[1]?.prompt).toContain('Current title: "Calendar"');
-  expect(h.spawned[1]?.prompt).toContain("generic or materially inaccurate");
+  expect(h.spawned[1]?.prompt).toContain("generic, materially inaccurate, or longer than 40 characters");
   next.harness.inspection.sdk.stub("threads.output", async () => ({ output: JSON.stringify({
     action: "rename", reason: "generic", title: "Build a shared calendar",
   }) }));
@@ -639,6 +691,74 @@ it("rejects a third-message rename without a permitted reason", async () => {
   expect(h.spawned).toHaveLength(2);
   await decide(h, { action: "rename", reason: "sounds better", title: "Develop shared calendars" });
   expect(h.updates).toHaveLength(1);
+});
+
+it("shortens a title over the length limit on the third user message", async () => {
+  const h = await firstTitle();
+  await h.harness.behavior.setSettings({ maxTitleLength: 20 });
+  h.user("Add sharing");
+  h.user("Include invitations");
+  await h.emit();
+  expect(h.spawned).toHaveLength(2);
+  expect(h.spawned[1]?.prompt).toContain("23 characters, over the 20-character limit");
+  await decide(h, { action: "rename", reason: "too-long", title: "Shared calendar" });
+  expect(h.updates).toHaveLength(2);
+  expect(h.thread.title).toBe("Shared calendar");
+});
+
+it("retries once instead of keeping a title over the length limit", async () => {
+  const h = await firstTitle();
+  await h.harness.behavior.setSettings({ maxTitleLength: 20 });
+  h.user("Add sharing");
+  h.user("Include invitations");
+  await h.emit();
+  await decide(h, { action: "keep" });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(3);
+  expect(h.updates).toHaveLength(1);
+});
+
+it("rejects a too-long rename of a title within the length limit", async () => {
+  const h = await firstTitle();
+  h.user("Add sharing");
+  h.user("Include invitations");
+  await h.emit();
+  await decide(h, { action: "rename", reason: "too-long", title: "Shared calendar" });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(2);
+  expect(h.updates).toHaveLength(1);
+});
+
+it("asks for a title within the length limit and retries an over-long one once on the same model", async () => {
+  const h = await setup();
+  const long = "Update from origin/main and install worktree plugins";
+  await firstTurn(h);
+  expect(h.spawned[0]?.prompt).toContain("at most 40 characters");
+  h.harness.inspection.sdk.stub("threads.output", async () => ({ output: JSON.stringify({ title: long }) }));
+  h.worker.status = "idle";
+  h.workerEvents.push({ seq: 1, type: "turn/completed", data: { status: "completed" } });
+  await h.harness.behavior.emitThreadEvent("thread.idle", { thread: h.worker, lastAssistantText: null });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.updates).toHaveLength(0);
+  expect(h.spawned.map((spawn) => spawn.model)).toEqual(["gpt-6-luna", "gpt-6-luna"]);
+  expect(h.spawned[1]?.prompt).toContain(`A previous reply, ${JSON.stringify(long)}, is longer than 40 characters`);
+  await recoverWorker(h);
+  h.worker.status = "idle";
+  h.workerEvents.push({ seq: 1, type: "turn/completed", data: { status: "completed" } });
+  await h.harness.behavior.emitThreadEvent("thread.idle", { thread: h.worker, lastAssistantText: null });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.updates).toHaveLength(0);
+  expect(h.spawned).toHaveLength(2);
+});
+
+it("tells the first pass when the current title is over the length limit", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.thread.title = "Update from origin/main and install worktree";
+  h.user("Update branch from origin/main and install plugins from this worktree");
+  h.endTurn();
+  await h.emit();
+  expect(h.spawned[0]?.prompt).toContain("44 characters, over the 40-character limit");
 });
 
 it("recovers the second worker without mistaking the archived first worker for it", async () => {
