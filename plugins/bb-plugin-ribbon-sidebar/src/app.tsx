@@ -380,7 +380,8 @@ function ThreadRow({
   const [contextOpen, setContextOpen] = useState(false);
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
   const rowTitle = title(thread);
-  const showThreadTitle = thread.isArchived || rowActions.length === 0 || !hideTitle;
+  const hasVisibleActions = !thread.isArchived && rowActions.length > 0;
+  const showThreadTitle = !hasVisibleActions || !hideTitle;
   const sortable = useSortable({
     id: thread.id,
     disabled: !reorderable,
@@ -549,7 +550,7 @@ function ThreadRow({
             </span>
           ) : null}
           <span
-            className={`row-start-1 flex min-w-0 items-start ${
+            className={`row-start-1 flex min-w-0 ${hasVisibleActions ? "items-start" : "items-center"} ${
               !hasTrailingIndicator && !thread.isArchived
                 ? reservesIndicatorLaneAtRest
                   ? "pr-8 max-md:pointer-coarse:pr-2!"
@@ -562,7 +563,7 @@ function ThreadRow({
                 !hasTrailingIndicator && thread.isArchived ? 8 : undefined,
             }}
           >
-            {thread.isArchived || rowActions.length === 0 ? (
+            {!hasVisibleActions ? (
               <span
                 className="flex min-w-0 flex-1"
                 {...{ [SHINE_ATTRIBUTE]: "" }}
@@ -590,27 +591,27 @@ function ThreadRow({
                   </span>
                 ) : null}
                 {rowActions.map((action) => (
-                <Button
-                  key={action.id}
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  aria-label={`${action.label} in ${rowTitle}`}
-                  disabled={runningActionId !== null}
-                  className="pointer-events-auto relative z-20 h-5 max-w-full rounded-md bg-[color:var(--ribbon-action-fill)] px-2 text-[11px] font-medium leading-none text-[color:var(--ribbon-action-ink)] ring-sidebar-ring hover:bg-[color:var(--ribbon-action-hover-fill)] hover:text-[color:var(--ribbon-action-hover-ink)] focus-visible:bg-[color:var(--ribbon-action-hover-fill)] focus-visible:text-[color:var(--ribbon-action-hover-ink)] focus-visible:ring-2 active:bg-[color:var(--ribbon-action-hover-fill)]"
-                  style={actionButtonStyle(groupColor?.kind)}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setRunningActionId(action.id);
-                    void onRunAction(action.id).finally(() => {
-                      setRunningActionId(null);
-                    });
-                  }}
-                  onPointerDown={(event) => event.stopPropagation()}
-                >
-                  <span className="truncate">{action.label}</span>
-                </Button>
+                  <Button
+                    key={action.id}
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`${action.label} in ${rowTitle}`}
+                    disabled={runningActionId !== null}
+                    className="pointer-events-auto relative z-20 h-5 max-w-full rounded-md bg-[color:var(--ribbon-action-fill)] px-2 text-[11px] font-medium leading-none text-[color:var(--ribbon-action-ink)] ring-sidebar-ring hover:bg-[color:var(--ribbon-action-hover-fill)] hover:text-[color:var(--ribbon-action-hover-ink)] focus-visible:bg-[color:var(--ribbon-action-hover-fill)] focus-visible:text-[color:var(--ribbon-action-hover-ink)] focus-visible:ring-2 active:bg-[color:var(--ribbon-action-hover-fill)]"
+                    style={actionButtonStyle(groupColor?.kind)}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setRunningActionId(action.id);
+                      void onRunAction(action.id).finally(() => {
+                        setRunningActionId(null);
+                      });
+                    }}
+                    onPointerDown={(event) => event.stopPropagation()}
+                  >
+                    <span className="truncate">{action.label}</span>
+                  </Button>
                 ))}
               </span>
             )}
