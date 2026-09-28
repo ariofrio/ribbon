@@ -12,6 +12,7 @@ import {
   THREAD_STAGE_SOURCE_MIGRATIONS,
   createThreadStageMigrationSource,
 } from "./migration-source";
+import { registerStageMentions } from "./stage-mentions";
 import { WORKFLOW_STAGES } from "./workflow-stage";
 
 const AUTO_ARCHIVE_OPTIONS = ["Never", "1 day", "7 days", "30 days"] as const;
@@ -139,6 +140,7 @@ export default async function plugin(bb: BbPluginApi) {
       return migrationSource.acknowledge(input);
     },
   });
+  registerStageMentions(bb);
   settings.onChange(() => {
     void settings
       .get()

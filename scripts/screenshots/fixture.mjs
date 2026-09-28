@@ -427,6 +427,9 @@ export function seed({ stack, workspaceRoot, bb, assignStages = true }) {
   // Thread stages moves a thread itself while its turn runs, so hand-set
   // stages only stick once every answered thread has settled.
   if (assignStages) {
+    // A stage notice would start a turn on every placed thread and on every
+    // thread a shot or suite moves later, rewriting what the fixture shows.
+    run(["plugin", "config", "ribbon-sidebar", "set", "messageOnStageChange", "false"]);
     for (const spec of THREADS) {
       if (spec.stage === null) continue;
       run([
