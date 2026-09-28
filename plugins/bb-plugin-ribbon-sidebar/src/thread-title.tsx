@@ -15,9 +15,17 @@ const fadeStyle = (gradient: string): CSSProperties => ({
   maskRepeat: "no-repeat",
 });
 
-export function MarqueeText({ text }: { text: string }) {
+export function MarqueeText({
+  text,
+  onMeasure,
+}: {
+  text: string;
+  onMeasure?: (width: number) => void;
+}) {
   const containerRef = useRef<HTMLSpanElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
+  const onMeasureRef = useRef(onMeasure);
+  onMeasureRef.current = onMeasure;
   const [overflow, setOverflow] = useState(0);
 
   useLayoutEffect(() => {
@@ -25,8 +33,11 @@ export function MarqueeText({ text }: { text: string }) {
     const text = textRef.current!;
     // Fractional widths, so the pan stops exactly at the end. A translation
     // leaves them alone, where scrollWidth would shrink as the title pans.
-    const measure = () =>
-      setOverflow(Math.max(0, text.getBoundingClientRect().width - container.getBoundingClientRect().width));
+    const measure = () => {
+      const width = text.getBoundingClientRect().width;
+      setOverflow(Math.max(0, width - container.getBoundingClientRect().width));
+      onMeasureRef.current?.(width);
+    };
     // The observer's first report comes once layout is done, before paint;
     // measuring here instead would force a layout for every title mounting.
     if (typeof ResizeObserver === "undefined") {
@@ -50,7 +61,7 @@ export function MarqueeText({ text }: { text: string }) {
   return (
     <span
       ref={containerRef}
-      className="pointer-events-none min-w-0 overflow-hidden whitespace-nowrap [mask-position:-16px_0] motion-safe:group-hover/thread-row:[mask-position:var(--ribbon-marquee-fade-end)_0] motion-safe:group-hover/thread-row:[transition:mask-position_var(--ribbon-marquee-trailing-fade)_linear_var(--ribbon-marquee-trailing-fade-delay)] motion-safe:group-has-[:focus-visible]/thread-row:[mask-position:var(--ribbon-marquee-fade-end)_0] motion-safe:group-has-[:focus-visible]/thread-row:[transition:mask-position_var(--ribbon-marquee-trailing-fade)_linear_var(--ribbon-marquee-trailing-fade-delay)]"
+      className="pointer-events-none w-max max-w-full min-w-0 overflow-hidden whitespace-nowrap [mask-position:-16px_0] motion-safe:group-hover/thread-row:[mask-position:var(--ribbon-marquee-fade-end)_0] motion-safe:group-hover/thread-row:[transition:mask-position_var(--ribbon-marquee-trailing-fade)_linear_var(--ribbon-marquee-trailing-fade-delay)] motion-safe:group-has-[:focus-visible]/thread-row:[mask-position:var(--ribbon-marquee-fade-end)_0] motion-safe:group-has-[:focus-visible]/thread-row:[transition:mask-position_var(--ribbon-marquee-trailing-fade)_linear_var(--ribbon-marquee-trailing-fade-delay)]"
       style={{
         ...fadeStyle(`linear-gradient(to right, black calc(100% - ${fadePx}px), transparent)`),
         "--ribbon-marquee-pan": `${-overflow}px`,

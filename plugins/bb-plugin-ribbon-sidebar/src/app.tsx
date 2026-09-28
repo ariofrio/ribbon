@@ -379,9 +379,21 @@ function ThreadRow({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
+  const [measuredActionWidths, setMeasuredActionWidths] = useState<
+    Record<string, number>
+  >({});
   const rowTitle = title(thread);
   const hasVisibleActions = !thread.isArchived && rowActions.length > 0;
   const showThreadTitle = !hasVisibleActions || !hideTitle;
+  const actionGap = rowActions.length > 8 ? 0 : 4;
+  const actionWidths = rowActions.map(
+    (action) => measuredActionWidths[`${action.id}\0${action.label}`],
+  );
+  const actionsNaturalWidth = actionWidths.every((width) => width !== undefined)
+    ? actionWidths.reduce((total, width) => total + width, 0) +
+      rowActions.length * 16 +
+      Math.max(0, rowActions.length - 1) * actionGap
+    : null;
   const sortable = useSortable({
     id: thread.id,
     disabled: !reorderable,
@@ -552,7 +564,9 @@ function ThreadRow({
           <span
             className={`row-start-1 flex min-w-0 items-center ${
               !hasTrailingIndicator && !thread.isArchived
-                ? reservesIndicatorLaneAtRest
+                ? hasVisibleActions
+                  ? "pr-8 max-md:pointer-coarse:pr-9"
+                  : reservesIndicatorLaneAtRest
                   ? "pr-8 max-md:pointer-coarse:pr-2!"
                   : "pr-2 group-hover/thread-row:pr-8 group-has-[:focus-visible]/thread-row:pr-8 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-8 max-md:pointer-coarse:pr-2!"
                 : ""
@@ -587,36 +601,57 @@ function ThreadRow({
                       <ThreadTitle title={rowTitle} />
                     </ShineContent>
                   </span>
-                ) : <span className="min-w-0 flex-1" />}
+                ) : (
+                  <span className="min-w-0 flex-1" />
+                )}
                 <span
-                  className={`flex min-w-0 flex-[0_1_auto] items-center ${rowActions.length > 8 ? "gap-0" : "gap-1"}`}
+                  className={`flex min-w-0 flex-[0_1_max-content] items-center ${rowActions.length > 8 ? "gap-0" : "gap-1"}`}
+                  style={{
+                    flexBasis: actionsNaturalWidth === null
+                      ? "max-content"
+                      : actionsNaturalWidth,
+                  }}
                 >
-                  {rowActions.map((action) => (
-                    <Button
-                      key={action.id}
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      aria-label={`${action.label} in ${rowTitle}`}
-                      disabled={runningActionId !== null}
-                      className="pointer-events-auto relative z-20 h-5 min-w-0 flex-[0_1_auto] overflow-hidden rounded-md bg-[color:var(--ribbon-action-fill)] text-[11px] font-medium leading-none text-[color:var(--ribbon-action-ink)] ring-sidebar-ring hover:bg-[color:var(--ribbon-action-hover-fill)] hover:text-[color:var(--ribbon-action-hover-ink)] focus-visible:bg-[color:var(--ribbon-action-hover-fill)] focus-visible:text-[color:var(--ribbon-action-hover-ink)] focus-visible:ring-2 active:bg-[color:var(--ribbon-action-hover-fill)]"
-                      style={{
-                        ...actionButtonStyle(groupColor?.kind),
-                        paddingInline: `min(8px, ${20 / rowActions.length}%)`,
-                      }}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        setRunningActionId(action.id);
-                        void onRunAction(action.id).finally(() => {
-                          setRunningActionId(null);
-                        });
-                      }}
-                      onPointerDown={(event) => event.stopPropagation()}
-                    >
-                      <MarqueeText text={action.label} />
-                    </Button>
-                  ))}
+                  {rowActions.map((action) => {
+                    const widthKey = `${action.id}\0${action.label}`;
+                    return (
+                      <Button
+                        key={action.id}
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`${action.label} in ${rowTitle}`}
+                        disabled={runningActionId !== null}
+                        className="pointer-events-auto relative z-20 h-5 min-w-0 flex-[0_1_max-content] overflow-hidden rounded-md bg-[color:var(--ribbon-action-fill)] text-[11px] font-medium leading-none text-[color:var(--ribbon-action-ink)] ring-sidebar-ring hover:bg-[color:var(--ribbon-action-hover-fill)] hover:text-[color:var(--ribbon-action-hover-ink)] focus-visible:bg-[color:var(--ribbon-action-hover-fill)] focus-visible:text-[color:var(--ribbon-action-hover-ink)] focus-visible:ring-2 active:bg-[color:var(--ribbon-action-hover-fill)]"
+                        style={{
+                          ...actionButtonStyle(groupColor?.kind),
+                          flexBasis: measuredActionWidths[widthKey] === undefined
+                            ? "max-content"
+                            : measuredActionWidths[widthKey] + 16,
+                          paddingInline: `min(8px, ${20 / rowActions.length}%)`,
+                        }}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setRunningActionId(action.id);
+                          void onRunAction(action.id).finally(() => {
+                            setRunningActionId(null);
+                          });
+                        }}
+                        onPointerDown={(event) => event.stopPropagation()}
+                      >
+                        <MarqueeText
+                          text={action.label}
+                          onMeasure={(width) => {
+                            setMeasuredActionWidths((current) =>
+                              current[widthKey] === width
+                                ? current
+                                : { ...current, [widthKey]: width });
+                          }}
+                        />
+                      </Button>
+                    );
+                  })}
                 </span>
                 {pullRequestNumber}
               </span>

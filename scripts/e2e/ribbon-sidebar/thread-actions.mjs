@@ -178,6 +178,13 @@ export async function verifyThreadActions({ stack, fixture }) {
     await page.reload();
     await sidebar.waitFor({ timeout: 120_000 });
     await action.waitFor();
+    await row.hover();
+    await row.getByRole("button", { name: "Thread actions" }).click();
+    await page.getByRole("menuitem", { name: "Edit actions" }).click();
+    await hideTitle.uncheck();
+    await dialog.getByRole("button", { name: "Save actions" }).click();
+    await dialog.waitFor({ state: "hidden" });
+    await row.getByText(thread.title, { exact: true }).waitFor();
     await row.evaluate((node) => { node.style.width = "230px"; });
     const prNumber = row.getByText("#12345", { exact: true });
     await prNumber.waitFor();
@@ -191,12 +198,17 @@ export async function verifyThreadActions({ stack, fixture }) {
         prLeft: pr.getBoundingClientRect().left,
         prRight: pr.getBoundingClientRect().right,
         indicatorLeft: node.querySelector("[data-ribbon-sidebar-icon-indicator-space]")?.getBoundingClientRect().left,
+        titleClipWidth: [...node.querySelectorAll("span")]
+          .find((candidate) => candidate.children.length === 0 && candidate.textContent === title)
+          ?.closest(".overflow-hidden")?.getBoundingClientRect().width,
       };
     }, thread.title);
     assert.ok(prLayout.actionRight + 3 <= prLayout.prLeft,
       "Actions stay to the left of PR information");
     assert.ok(prLayout.indicatorLeft === undefined || prLayout.prRight <= prLayout.indicatorLeft,
       "PR information stays clear of the indicator lane");
+    assert.ok(prLayout.titleClipWidth <= 1,
+      "The title yields all of its width before actions shrink beside PR information");
 
     const crowded = Array.from({ length: 12 }, (_, index) => ({
       id: `crowded-${index}`,
@@ -223,6 +235,32 @@ export async function verifyThreadActions({ stack, fixture }) {
       "Many actions remain on one row with positive button widths");
     assert.ok(crowdedLayout.every((box, index) => index === 0 || box.left >= crowdedLayout[index - 1].right),
       "Crowded action buttons do not overlap");
+
+    await page.unroute("**/api/v1/environments/*/pull-request*");
+    const oneAction = await page.request.post(
+      new URL("/api/v1/plugins/ribbon-sidebar/rpc/saveThreadActionsV1", stack.serverUrl).href,
+      { data: { threadId: thread.id, actions: [{ id: "update", label: "Update", prompt: "Update this thread." }], hideTitle: false } },
+    );
+    assert.equal(oneAction.status(), 200);
+    await page.reload();
+    await sidebar.waitFor({ timeout: 120_000 });
+    const update = row.getByRole("button", { name: `Update in ${thread.title}` });
+    await update.waitFor();
+    await row.evaluate((node) => { node.style.width = "230px"; });
+    const singleLayout = await row.evaluate((node) => {
+      const button = node.querySelector('button[aria-label^="Update in "]');
+      const label = [...button.querySelectorAll("span")]
+        .find((candidate) => candidate.children.length === 0 && candidate.textContent === "Update");
+      return {
+        labelWidth: label.getBoundingClientRect().width,
+        clipWidth: label.closest(".overflow-hidden").getBoundingClientRect().width,
+        indicatorGap: node.getBoundingClientRect().right - button.getBoundingClientRect().right,
+      };
+    });
+    assert.ok(singleLayout.clipWidth >= singleLayout.labelWidth - 0.5,
+      "A single action keeps its full label by shrinking the title first");
+    assert.ok(singleLayout.indicatorGap >= 28,
+      "Actions leave the indicator lane clear even when no indicator is present");
   } finally {
     try {
       await cleanup?.();
