@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { WORKFLOW_STAGES, type WorkflowStage } from "./workflow-stage";
+import {
+  WORKFLOW_STAGES,
+  WORKFLOW_STAGE_LABELS,
+  isBlockedStage,
+  type WorkflowStage,
+} from "./workflow-stage";
 
 const localIdSchema = z
   .string()
@@ -289,11 +294,24 @@ const STAGE_ICONS: Record<WorkflowStage, IconDataV1> = {
       },
     },
   ]),
-  Idle: stageIcon([progressRing]),
-  // A slash as long as Completed's dot is wide, round caps included.
-  Blocked: stageIcon([
+  Active: stageIcon([progressRing]),
+  // A bot's head, filled with its eyes cut out so they stay open at 16 pixels.
+  BlockedOnOtherAgent: stageIcon([
     progressRing,
-    strokedPath("M9 15 15 9"),
+    strokedPath("M12 5.75v1.5"),
+    {
+      tag: "path",
+      attrs: {
+        d: "M9.25 8.75h5.5a2.5 2.5 0 0 1 2.5 2.5v2.25a2.5 2.5 0 0 1-2.5 2.5h-5.5a2.5 2.5 0 0 1-2.5-2.5v-2.25a2.5 2.5 0 0 1 2.5-2.5ZM8.4 12.4a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0ZM12.6 12.4a1.5 1.5 0 1 0 3 0 1.5 1.5 0 1 0-3 0Z",
+        fill: "currentColor",
+        fillRule: "evenodd",
+      },
+    },
+  ]),
+  // Something coming back in from outside.
+  BlockedOnThirdParty: stageIcon([
+    progressRing,
+    strokedPath("M15.5 8.5 9 15M9 10.25V15h4.75"),
   ]),
   Completed: stageIcon([
     progressRing,
@@ -311,7 +329,7 @@ export function createGroupingCatalog(settings: {
   const optionalStageEnabled = (stage: WorkflowStage) =>
     stage === "Deferred"
       ? settings.showDeferredStage !== false
-      : stage === "Blocked"
+      : isBlockedStage(stage)
         ? settings.showBlockedStage !== false
         : true;
   return groupingCatalogSchema.parse({
@@ -322,10 +340,10 @@ export function createGroupingCatalog(settings: {
         singularLabel: "Stage",
         pluralLabel: "Stages",
         icon: STAGE_ICONS.Completed,
-        defaultGroupId: "Idle",
+        defaultGroupId: "Active",
         groups: WORKFLOW_STAGES.map((stage) => ({
           id: stage,
-          label: stage,
+          label: WORKFLOW_STAGE_LABELS[stage],
           icon: STAGE_ICONS[stage],
           visibleWhenEmpty: optionalStageEnabled(stage),
           acceptsAssignments: optionalStageEnabled(stage),

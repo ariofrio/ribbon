@@ -25,6 +25,27 @@ it("preserves the old stage and reorder RPCs as a one-way compatibility bridge",
         input,
       }),
     );
+    // Callers from before the rename still name Idle and Blocked.
+    await harness.behavior.callRpc("setWorkflowStage", {
+      threadId: "root",
+      workflowStage: "Blocked",
+    });
+    expect(callRpc).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        method: "setWorkflowStage",
+        input: { threadId: "root", workflowStage: "BlockedOnThirdParty" },
+      }),
+    );
+    await harness.behavior.callRpc("setWorkflowStage", {
+      threadId: "root",
+      workflowStage: "Idle",
+    });
+    expect(callRpc).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        method: "setWorkflowStage",
+        input: { threadId: "root", workflowStage: "Active" },
+      }),
+    );
     const reorder = { threadId: "root", scope: "step", direction: -1 };
     await harness.behavior.callRpc("reorderThread", reorder);
     expect(callRpc).toHaveBeenCalledWith(
@@ -69,20 +90,39 @@ it("offers stages as mentions that tell the agent how to place a thread", async 
       ).map(({ id, title }) => ({ id, title }));
 
     expect(await search("")).toEqual([]);
-    expect(await search("bl")).toEqual([{ id: "blocked", title: "Blocked" }]);
+    expect(await search("bl")).toEqual([
+      { id: "blockedonotheragent", title: "Blocked on other agent" },
+      { id: "blockedonthirdparty", title: "Blocked on third party" },
+    ]);
+    expect(await search("third")).toEqual([
+      { id: "blockedonthirdparty", title: "Blocked on third party" },
+    ]);
     expect(await search("stage")).toEqual([
-      { id: "idle", title: "Idle" },
-      { id: "blocked", title: "Blocked" },
+      { id: "active", title: "Active" },
+      { id: "blockedonotheragent", title: "Blocked on other agent" },
+      { id: "blockedonthirdparty", title: "Blocked on third party" },
       { id: "completed", title: "Completed" },
     ]);
     expect(await search("def")).toEqual([]);
     expect(getSettings).toHaveBeenCalledWith({ pluginId: "ribbon-sidebar" });
 
-    const { context } = await provider!.resolve("blocked");
-    expect(context).toContain("@Blocked is the Blocked workflow stage");
+    const { context } = await provider!.resolve("blockedonthirdparty");
     expect(context).toContain(
-      "bb sidebar place <thread> --to plugin:thread-stages:stages/Blocked",
+      "@Blocked on third party is the Blocked on third party workflow stage",
     );
+    expect(context).toContain(
+      "bb sidebar place <thread> --to plugin:thread-stages:stages/BlockedOnThirdParty",
+    );
+    expect(context).toContain("Waiting on the user is Active");
+
+    // Messages sent before the rename still resolve.
+    expect((await provider!.resolve("idle")).context).toContain(
+      "@Active is the Active workflow stage",
+    );
+    const retired = (await provider!.resolve("blocked")).context;
+    expect(retired).toContain("stages/BlockedOnOtherAgent");
+    expect(retired).toContain("stages/BlockedOnThirdParty");
+    expect(retired).toContain("Waiting on the user is Active");
     expect(() => provider!.resolve("nowhere")).toThrow();
   } finally {
     await harness.lifecycle.dispose();
@@ -113,8 +153,9 @@ it("offers every stage when Ribbon's settings are unavailable", async () => {
     });
     expect(results.map(({ title }) => title)).toEqual([
       "Deferred",
-      "Idle",
-      "Blocked",
+      "Active",
+      "Blocked on other agent",
+      "Blocked on third party",
       "Completed",
     ]);
   } finally {
