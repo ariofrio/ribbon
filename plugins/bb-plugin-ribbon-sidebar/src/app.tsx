@@ -328,10 +328,12 @@ function ThreadRow({
     isAvailable: splitAvailable,
     layout,
   } = experimental_useSidebarThreadSplit(thread.id);
-  const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
+  const { isLoading: pullRequestLoading, pullRequest } =
+    experimental_useSidebarThreadPullRequest(thread.id);
   const visiblePullRequest =
     pullRequestNumberPosition === "hidden" ? null : pullRequest;
-  const pullRequestDetails = usePullRequestDetails(visiblePullRequest);
+  const { details: pullRequestDetails, pending: pullRequestDetailsPending } =
+    usePullRequestDetails(visiblePullRequest);
   const pullRequestStatus = visiblePullRequest
     ? pullRequestSignal(visiblePullRequest, pullRequestDetails)
     : null;
@@ -449,6 +451,11 @@ function ThreadRow({
         }}
         {...(shines ? { [SHINE_ROW_ATTRIBUTE]: "" } : {})}
         {...(working ? { [ACTIVE_ROW_ATTRIBUTE]: "" } : {})}
+        // Until the row can say what its pull request is waiting on, it is
+        // still being drawn; screenshots and tests wait for this to clear.
+        {...(pullRequestLoading || pullRequestDetailsPending
+          ? { "data-ribbon-pull-request-pending": "" }
+          : {})}
         onDragStart={(event) => event.preventDefault()}
         style={{ paddingLeft: 8 + depth * 24 }}
       >
