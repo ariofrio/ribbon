@@ -499,11 +499,13 @@ describe("Ribbon sidebar server", () => {
         description: "Show live activity indicators on collapsed sections.",
         default: false,
       },
-      showGroupHeaderIcons: {
-        type: "boolean",
-        label: "Show group header icons",
-        description: "Show each group’s icon beside its sidebar heading.",
-        default: true,
+      groupHeaderIcons: {
+        type: "select",
+        label: "Group header icons",
+        description:
+          "Show each group’s own icon beside its heading, none, or one standard icon for every section and project that opens and shuts with it.",
+        options: ["On", "Off", "Standardized"],
+        default: "On",
       },
       shimmerWorkingRows: {
         type: "boolean",
@@ -1007,12 +1009,12 @@ describe("Ribbon sidebar server", () => {
       result.groupings
         .find(({ groupingKey }) => groupingKey === "builtin:projects")
         ?.groups.find(({ id }) => id === "project-personal")?.label,
-    ).toBe("Chats");
+    ).toBe("Personal");
     expect(
       result.groupings
         .find(({ groupingKey }) => groupingKey === "builtin:projects")
         ?.groups.map(({ label }) => label),
-    ).toEqual(["Storefront", "Back office", "Chats"]);
+    ).toEqual(["Storefront", "Back office", "Personal"]);
     expect(
       result.groupings.find(
         ({ groupingKey }) => groupingKey === "builtin:projects",
@@ -1208,7 +1210,7 @@ describe("Ribbon sidebar server", () => {
         showProjectsAndSections: false,
         showMessagePreviews: false,
         showCollapsedGroupIndicators: true,
-        showGroupHeaderIcons: false,
+        groupHeaderIcons: "Off",
       }),
     ).resolves.toEqual({ ok: true });
     expect(updateSettings).toHaveBeenCalledWith({
@@ -1217,7 +1219,7 @@ describe("Ribbon sidebar server", () => {
         showProjectsAndSections: false,
         showMessagePreviews: false,
         showCollapsedGroupIndicators: true,
-        showGroupHeaderIcons: false,
+        groupHeaderIcons: "Off",
       },
     });
   });

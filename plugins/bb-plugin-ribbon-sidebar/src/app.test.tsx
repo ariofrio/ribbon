@@ -424,7 +424,7 @@ function options(overrides: Record<string, unknown> = {}) {
         showMessagePreviews: true,
         threadAdornmentAlignment: "Title row",
         showCollapsedGroupIndicators: false,
-        showGroupHeaderIcons: true,
+        groupHeaderIcons: "On",
       },
       rpc: {
         synchronizeV1,
@@ -877,10 +877,15 @@ describe("Ribbon sidebar app", () => {
         "--ribbon-active-animation-delay",
       ),
     ).toMatch(/^-?\d+(?:\.\d+)?ms$/);
-    const shining = Array.from(working.querySelectorAll("[data-ribbon-shine]"));
-    expect(shining.map((node) => node.textContent)).toEqual(
-      expect.arrayContaining(["thread-a", "A useful preview"]),
+    // The preview arrives after the row does.
+    await waitFor(() =>
+      expect(
+        Array.from(working.querySelectorAll("[data-ribbon-shine]")).map(
+          (node) => node.textContent,
+        ),
+      ).toEqual(expect.arrayContaining(["thread-a", "A useful preview"])),
     );
+    const shining = Array.from(working.querySelectorAll("[data-ribbon-shine]"));
     expect(
       shining.some((node) => node.querySelector("[aria-label='Idle stage, working']")),
     ).toBe(true);
@@ -1903,7 +1908,7 @@ describe("Ribbon sidebar app", () => {
         showProjectsAndSections: true,
         showMessagePreviews: true,
         showCollapsedGroupIndicators: false,
-        showGroupHeaderIcons: false,
+        groupHeaderIcons: "Off",
       },
     });
     window.localStorage.setItem(
@@ -1927,6 +1932,43 @@ describe("Ribbon sidebar app", () => {
       hiddenHeader.querySelector('[data-ribbon-icons-section="section-a"]'),
     ).toBeNull();
     hiddenSlot.lifecycle.unmount();
+  });
+
+  it("draws standard heading icons that open and shut with their group", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    for (const [groupingKey, region, toggle, shut, open] of [
+      ["builtin:sections", "Release group", "Release section", "BookClosed", "BookOpen"],
+      ["builtin:sections", "Unorganized group", "Unorganized section", "BookClosed", "BookOpen"],
+      ["builtin:projects", "Storefront group", "Storefront project", "FolderClosed", "Folder02"],
+    ] as const) {
+      window.localStorage.setItem(
+        "bb.plugin.ribbon-sidebar.preferences.v1",
+        JSON.stringify({ view: { scope: { kind: "all" }, groupingKey }, collapsed: [] }),
+      );
+      const fixture = options({
+        settings: { ...options().value.settings, groupHeaderIcons: "Standardized" },
+      });
+      const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+      const header = (await slot.findByRole("region", { name: region }))
+        .querySelector<HTMLElement>('[data-sidebar="group-label"]')!;
+      // One glyph for every section or project, not the one each chose, and
+      // none special for Unorganized.
+      expect(header.querySelector("[data-ribbon-sidebar-icon]")).toBeNull();
+      expect(header.querySelector('[data-icon="ListViewOff"]')).toBeNull();
+      expect(header.querySelector(`[data-icon="${open}"]`)).not.toBeNull();
+      fireEvent.click(slot.getByRole("button", { name: `Collapse ${toggle}` }));
+      await slot.findByRole("button", { name: `Expand ${toggle}` });
+      expect(header.querySelector(`[data-icon="${shut}"]`)).not.toBeNull();
+      expect(header.querySelector(`[data-icon="${open}"]`)).toBeNull();
+      // The shut book has no spine line inside its cover, and is drawn at
+      // its size rather than scaled, so its stroke is the usual weight.
+      expect(header.querySelector('path[d="M8 2V18"]')).toBeNull();
+      for (const path of Array.from(header.querySelectorAll(`[data-icon="${shut}"] path`))) {
+        expect(path.getAttribute("transform")).toBeNull();
+        expect(path.getAttribute("stroke-width")).toBe("1.5");
+      }
+      slot.lifecycle.unmount();
+    }
   });
 
   it("moves a root from the thread's section menu", async () => {
