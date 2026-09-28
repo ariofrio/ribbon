@@ -359,11 +359,12 @@ export async function verifyThreadIcons({ stack, fixture }) {
           drawn.every((open, index) => index === 0 || open <= drawn[index - 1]),
         `The book should shut through frames between open and shut: ${JSON.stringify(frames)}`,
       );
-      // One book, drawn at one size: open, it is its two halves side by side.
+      // One book, drawn at one size: open, it is its two pages side by side,
+      // shut, one page and the spine rounding off its edge.
       const shutWidth = await drawnWidth("BookClosed");
       assert.ok(
-        openWidth / shutWidth > 1.7 && openWidth / shutWidth < 2.3,
-        `The open book should be about twice as wide as the shut one: ${openWidth} and ${shutWidth}`,
+        openWidth / shutWidth > 1.5 && openWidth / shutWidth < 2.1,
+        `The open book should be most of twice as wide as the shut one: ${openWidth} and ${shutWidth}`,
       );
       await atlas.getByRole("button", { name: "Expand Atlas section", exact: true }).click();
       await standard("BookOpen").waitFor();

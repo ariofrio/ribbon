@@ -30,7 +30,7 @@ whose icon has a color in the [Icons plugin](../bb-plugin-icons#readme) tints
 its heading with that color; every other heading is tinted gray. The **Group
 header icons** setting shows each group's own icon (On), none (Off), or
 Standardized: a book for every section, Unorganized included, and a folder for
-every project, open while the group is. The book's cover turns over on its
+every project, open while the group is. The book's top page turns over on its
 spine and the folder's front falls forward, as the objects would. A collapsed group previews the open thread. Its plus
 button creates a thread in that section or project. Headings, icons, menus, row styles, and focus
 treatments use Ribbon's existing bb components and theme tokens.

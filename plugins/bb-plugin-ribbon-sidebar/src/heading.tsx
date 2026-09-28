@@ -113,8 +113,8 @@ const FRAMES = { section: bookFrame, project: folderFrame };
  * One icon for every section, Unorganized included, and one for every project,
  * instead of the icon each chose: a book or a folder, open while its group is.
  *
- * Opening or shutting its group, the book's cover turns over on its spine and
- * the folder's front falls forward or stands back up, as the objects would.
+ * Opening or shutting its group, the book's top page turns over on its spine
+ * and the folder's front falls forward or stands back up, as the objects would.
  * Without motion it is drawn straight in its new pose.
  */
 export function StandardHeadingIcon({
@@ -152,17 +152,14 @@ export function StandardHeadingIcon({
                 <path d={covers} fill="black" />
               </mask>
             ) : null}
-            {layer.strokes.map((stroke) => (
-              <path
-                d={stroke.d}
-                key={stroke.width}
-                mask={covers ? `url(#${id})` : undefined}
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={String(Math.round(stroke.width * 1000) / 1000)}
-              />
-            ))}
+            <path
+              d={layer.d}
+              mask={covers ? `url(#${id})` : undefined}
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.5"
+            />
           </g>
         );
       })}

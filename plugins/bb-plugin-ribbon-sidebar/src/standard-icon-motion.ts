@@ -1,38 +1,33 @@
 /**
  * The standard group icons as small solid objects, drawn in the icon style.
  *
- * A book lies on a table, spine at the left, seen from in front and above;
- * opening it, the cover and half the pages turn over on the spine and land
- * flat on the left, the pages bowing into the gutter as they part. A folder
- * stands with its front panel against its back; opening it, the front falls
- * forward on the fold along its bottom.
+ * A book lies on a table, spine at the left, seen from in front and above:
+ * two pages, one over the other, joined by a rounded spine. Opening it, the
+ * top page turns over on the spine and lands flat on the left, the spine
+ * uncurling beneath it and the pages bowing into the gutter. A folder stands
+ * with its front panel against its back; opening it, the front falls forward
+ * on the fold along its bottom.
  *
- * Each frame is the objects posed in 3D and drawn with parallel projection,
- * as icons are: every edge that is a crease or a silhouette is stroked, the
- * seams across a smooth surface are not, and whatever a nearer part covers
- * is masked away. Sharp corners are rounded as the icon set rounds them.
+ * Each part is a panel with no thickness, posed in 3D and drawn with parallel
+ * projection, as icons are: every edge that is a crease, a fold or a panel's
+ * border is stroked, the seams across a smooth surface are not, and whatever
+ * a nearer part covers is masked away.
  */
 
 type V2 = [number, number];
 type V3 = [number, number, number];
 
-const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
+/** A panel, or several joined, with no thickness, drawn from either side. */
 interface Solid {
   faces: V3[][];
-  /**
-   * For a face lying against another solid's, how wide the gap between them
-   * shows: its edges are drawn that wide, from nothing while the faces touch
-   * to a full stroke once they have parted.
-   */
-  gaps?: Map<number, number>;
-  /** Each face's way out of the solid, where its winding does not say. */
+  /** For a curved panel, each face's outward side. */
   normals?: V3[];
-  /** Lines drawn on the solid besides its edges, such as a fold. */
+  /** Lines drawn on the panel besides its edges, such as a fold. */
   lines?: V3[][];
-  /** A panel with no thickness, drawn from either side. */
-  thin?: boolean;
+  /** Panels with the same name are one surface where their edges meet. */
+  join?: string;
 }
 
 /** A parallel view: where a point lands, and which way the viewer is. */
@@ -56,19 +51,9 @@ function normal(face: V3[]): V3 {
   return [n[0] / length, n[1] / length, n[2] / length];
 }
 
-function centroid(points: V3[]): V3 {
-  const sum = points.reduce<V3>((c, p) => [c[0] + p[0], c[1] + p[1], c[2] + p[2]], [0, 0, 0]);
-  return [sum[0] / points.length, sum[1] / points.length, sum[2] / points.length];
-}
-
-const STROKE = 1.5;
-
-/**
- * One solid as drawn: its strokes, each with the gap it shows or Infinity,
- * and the area it hides behind it.
- */
+/** One part as drawn: its strokes, and the area it hides behind it. */
 interface Layer {
-  strokes: { points: V2[]; closed: boolean; width: number }[];
+  strokes: { points: V2[]; closed: boolean }[];
   fills: V2[][];
 }
 
@@ -76,64 +61,55 @@ interface Layer {
 const CREASE = Math.cos((35 * Math.PI) / 180);
 
 /**
- * Draws solids nearest first, each on its own: where two lie flat against
- * each other, the line between them is the gap they leave, drawn as wide as
- * it is.
+ * Draws panels nearest first. A curved one hides its own far side: what faces
+ * away is drawn as a layer of its own, behind what faces the viewer.
  */
 function draw(solids: Solid[], view: View): Layer[] {
   const key = (p: V3) => p.map((n) => n.toFixed(4)).join(",");
-  type Side = { n: V3; seen: boolean; gap?: number };
-  const edges = new Map<string, { solid: number; a: V3; b: V3; sides: Side[] }>();
-  const fills: V2[][][] = solids.map(() => []);
+  const base: number[] = [];
+  let count = 0;
+  for (const solid of solids) {
+    base.push(count);
+    count += solid.normals ? 2 : 1;
+  }
+  type Side = { layer: number; solid: number; n: V3; facing: boolean };
+  const edges = new Map<string, { a: V3; b: V3; sides: Side[] }>();
+  const fills: V2[][][] = Array.from({ length: count }, () => []);
   solids.forEach((solid, index) => {
-    const middle = centroid(solid.faces.flat());
     solid.faces.forEach((face, faceIndex) => {
-      let n = solid.normals?.[faceIndex] ?? normal(face);
-      if (!solid.thin && !solid.normals && dot(n, sub(centroid(face), middle)) < 0) {
-        n = [-n[0], -n[1], -n[2]];
-      }
-      const seen = solid.thin || dot(n, view.toward) > 1e-9;
-      if (seen) fills[index]!.push(face.map(view.at));
+      const n = solid.normals?.[faceIndex] ?? normal(face);
+      const facing = dot(n, view.toward) > 1e-9;
+      const layer = base[index]! + (solid.normals && !facing ? 1 : 0);
+      fills[layer]!.push(face.map(view.at));
       face.forEach((a, i) => {
         const b = face[(i + 1) % face.length]!;
         if (key(a) === key(b)) return;
-        const k = `${index}:${[key(a), key(b)].sort().join("|")}`;
-        const edge = edges.get(k) ?? { solid: index, a, b, sides: [] };
-        edge.sides.push({ n, seen, gap: solid.gaps?.get(faceIndex) });
+        const k = `${solid.join ?? index}:${[key(a), key(b)].sort().join("|")}`;
+        const edge = edges.get(k) ?? { a, b, sides: [] };
+        edge.sides.push({ layer, solid: index, n, facing });
         edges.set(k, edge);
       });
     });
   });
-  // Segments by solid, then by the width they are drawn.
-  const segments: Map<number, V2[][]>[] = solids.map(() => new Map());
-  for (const { solid, a, b, sides } of edges.values()) {
-    const seen = sides.filter((side) => side.seen);
-    if (seen.length === 0) continue;
-    if (seen.length >= 2 && dot(seen[0]!.n, seen[1]!.n) > CREASE) continue;
-    // The gap shows where it runs across the solid's front, between the
-    // face that touches and one turned toward the viewer; along a side, the
-    // same edge is the whole book's outline.
-    const front = sides.some(({ gap, n }) => gap === undefined && n[1] < -1e-6);
-    const width = front
-      ? Math.min(Infinity, ...sides.flatMap(({ gap }) => (gap === undefined ? [] : [gap])))
-      : Infinity;
-    const group = segments[solid]!.get(width) ?? [];
-    group.push([view.at(a), view.at(b)]);
-    segments[solid]!.set(width, group);
+  const segments: V2[][][] = Array.from({ length: count }, () => []);
+  for (const { a, b, sides } of edges.values()) {
+    if (sides.length >= 2) {
+      // A panel may meet the next on either side; but where a curved one
+      // turns from facing the viewer to facing away, that fold is its outline.
+      const [p, q] = [sides[0]!, sides[1]!];
+      const fold = p.solid === q.solid && solids[p.solid]!.normals && p.facing !== q.facing;
+      if (!fold && Math.abs(dot(p.n, q.n)) > CREASE) continue;
+    }
+    segments[Math.min(...sides.map((side) => side.layer))]!.push([view.at(a), view.at(b)]);
   }
-  return solids.map((solid, index) => ({
-    strokes: [
-      ...[...segments[index]!].flatMap(([width, group]) =>
-        chain(group).map((line) => ({ ...line, width })),
-      ),
-      ...(solid.lines ?? []).map((line) => ({
-        points: line.map(view.at),
-        closed: false,
-        width: Infinity,
-      })),
-    ],
-    fills: fills[index]!,
-  }));
+  solids.forEach((solid, index) => {
+    for (const line of solid.lines ?? []) {
+      for (let i = 1; i < line.length; i += 1) {
+        segments[base[index]!]!.push([view.at(line[i - 1]!), view.at(line[i]!)]);
+      }
+    }
+  });
+  return segments.map((group, index) => ({ strokes: chain(group), fills: fills[index]! }));
 }
 
 /** Joins segments end to end into as few polylines as they make. */
@@ -221,16 +197,15 @@ function rounded(points: V2[], closed: boolean): string {
   return d;
 }
 
-// The book: two halves, each WIDTH across, DEPTH from front to back, and
-// THICKNESS through, one lying on the other while shut, their corners away
-// from the spine rounded to CORNER.
+// The book: two pages, each WIDTH across and DEPTH from front to back, their
+// corners away from the spine rounded to CORNER. Shut, they lie LIFT apart,
+// the book's thickness; open, they sink SINK into the gutter, bowing over
+// BOW from the spine.
 const WIDTH = 10.5;
 const DEPTH = 17;
-const THICKNESS = 2.6;
 const CORNER = 2;
-// Open, the pages sink this share of a half's thickness into the gutter,
-// bowing over this far from the spine.
-const GUTTER = 0.8;
+const LIFT = 4.3;
+const SINK = 2.08;
 const BOW = 3;
 
 // Seen from 50° above the table, in front.
@@ -240,25 +215,20 @@ const BOOK_VIEW: View = {
   toward: [0, -Math.cos(ELEVATION), Math.sin(ELEVATION)],
 };
 
-type Contact = "inner" | "spine";
-
 /**
- * One half of the book, measured across from its spine (a), back from its
- * front (y), and up from its inner face (b): its faces, each with the way
- * out of the half, and which of them touch the other half.
+ * One page of the book, measured across from the spine (a) and back from its
+ * front (y): flat, but bowing down into the spine by `sink` as it opens.
  */
-function half(sink: number) {
+function page(sink: number, place: (a: number, y: number, rise: number) => V3): Solid {
   const DIP = 6;
   const ROUND = 6;
-  const sinkAt = (a: number) => (a < BOW ? sink * (1 - a / BOW) ** 2 : 0);
-  const slopeAt = (a: number) => (a < BOW ? (-2 * sink * (1 - a / BOW)) / BOW : 0);
+  const riseAt = (a: number) => (a < BOW ? sink * (1 - (1 - a / BOW) ** 2) : sink);
   const dip = Array.from({ length: DIP + 1 }, (_, i) => (BOW * i) / DIP);
   const arc = (ca: number, cy: number, from: number): V2[] =>
     Array.from({ length: ROUND }, (_, k) => {
       const angle = from + ((k + 1) * Math.PI) / 2 / ROUND;
       return [ca + CORNER * Math.cos(angle), cy + CORNER * Math.sin(angle)];
     });
-  // The plan, counterclockwise from the spine's front end.
   const plan: V2[] = [
     ...dip.map((a): V2 => [a, 0]),
     [WIDTH - CORNER, 0],
@@ -267,72 +237,67 @@ function half(sink: number) {
     ...arc(WIDTH - CORNER, DEPTH - CORNER, 0),
     ...[...dip].reverse().map((a): V2 => [a, DEPTH]),
   ];
+  const at = ([a, y]: V2) => place(a, y, riseAt(a));
   const faces: V3[][] = [];
-  const normals: V3[] = [];
-  const contacts = new Map<number, Contact>();
-  const face = (points: V3[], normal: V3, contact?: Contact) => {
-    if (contact) contacts.set(faces.length, contact);
-    faces.push(points);
-    const length = Math.hypot(...normal);
-    normals.push([normal[0] / length, normal[1] / length, normal[2] / length]);
-  };
-  const low = ([a, y]: V2): V3 => [a, y, sinkAt(a)];
-  const high = ([a, y]: V2): V3 => [a, y, THICKNESS];
-  face(plan.map(high), [0, 0, 1]);
-  plan.forEach((p, i) => {
-    const q = plan[(i + 1) % plan.length]!;
-    const spine = p[0] === 0 && q[0] === 0;
-    face([low(p), low(q), high(q), high(p)], [q[1] - p[1], p[0] - q[0], 0], spine ? "spine" : undefined);
-  });
   for (let i = 0; i < DIP; i += 1) {
     const [a0, a1] = [dip[i]!, dip[i + 1]!];
-    face(
-      [low([a0, 0]), low([a1, 0]), low([a1, DEPTH]), low([a0, DEPTH])],
-      [slopeAt((a0 + a1) / 2), 0, -1],
-      "inner",
-    );
+    faces.push([at([a0, 0]), at([a1, 0]), at([a1, DEPTH]), at([a0, DEPTH])]);
   }
-  face(plan.filter(([a]) => a >= BOW).map(low), [0, 0, -1], "inner");
-  return { faces, normals, contacts };
+  faces.push(plan.filter(([a]) => a >= BOW).map(at));
+  return { faces };
 }
 
-/** A half placed in the world by an affine map, its normals carried along. */
-function placed(
-  { faces, normals, contacts }: ReturnType<typeof half>,
-  place: (p: V3) => V3,
-  gaps: Record<Contact, number>,
-): Solid {
-  const world = faces.map((points) => points.map(place));
-  return {
-    faces: world,
-    normals: normals.map((n, i) => sub(place([
-      faces[i]![0]![0] + n[0],
-      faces[i]![0]![1] + n[1],
-      faces[i]![0]![2] + n[2],
-    ]), world[i]![0]!)),
-    gaps: new Map(
-      [...contacts].map(([index, contact]) => [index, gaps[contact]]),
-    ),
-  };
+/**
+ * The spine: a strip of cover curling from the bottom page's spine edge, at
+ * the origin, round to the top page's. Shut, it is half a circle as tall as
+ * the book is thick; it curls less as the book opens and shortens as the
+ * pages settle, until they meet at the gutter. It leaves the bottom page and
+ * reaches the top one along their own slopes, so it and they are one surface.
+ */
+function spineArc(open: number, slope: number, turn: number) {
+  const length = ((Math.PI * LIFT) / 2) * (1 - open) ** 2;
+  // As many facets as keep it round; once it is too tight to draw round, its
+  // joints are folds, and it narrows into the fold at the gutter.
+  const STEPS = Math.max(1, Math.min(12, Math.round(length / 0.6)));
+  const lean = Math.atan(slope);
+  // Heading along the spine, from backward along the bottom page to forward
+  // along the top one, turning evenly.
+  const from = Math.PI + lean;
+  const to = turn - lean;
+  const points: V2[] = [];
+  for (let i = 0; i <= STEPS; i += 1) {
+    const t = (length * i) / STEPS;
+    const bend = (from - to) / (length || 1);
+    const heading = from - bend * t;
+    points.push(
+      Math.abs(bend) < 1e-6
+        ? [t * Math.cos(from), t * Math.sin(from)]
+        : [(Math.sin(heading) - Math.sin(from)) / -bend, (Math.cos(heading) - Math.cos(from)) / bend],
+    );
+  }
+  const faces: V3[][] = [];
+  const normals: V3[] = [];
+  for (let i = 0; i < STEPS; i += 1) {
+    const [q0, q1] = [points[i]!, points[i + 1]!];
+    faces.push([[q0[0], 0, q0[1]], [q1[0], 0, q1[1]], [q1[0], DEPTH, q1[1]], [q0[0], DEPTH, q0[1]]]);
+    // Outward is to the left of the way the spine runs.
+    const length = Math.hypot(q1[0] - q0[0], q1[1] - q0[1]) || 1;
+    normals.push([-(q1[1] - q0[1]) / length, 0, (q1[0] - q0[0]) / length]);
+  }
+  return { solid: { faces, normals, join: "book" } as Solid, hinge: points.at(-1)! };
 }
 
 function bookSolids(open: number): Solid[] {
-  const shape = half(GUTTER * THICKNESS * open);
+  const sink = SINK * open;
   const turn = Math.PI * open;
   const [c, s] = [Math.cos(turn), Math.sin(turn)];
-  // The halves' inner faces touch while shut, and their spines once open.
-  // Seen from the front, the inner faces part as the upper's far edge lifts,
-  // and the spines as the upper's spine tilts away from the lower's; the
-  // gutter between the open pages is a crease, not a gap.
-  const gaps = {
-    inner: turn <= Math.PI / 2 ? WIDTH * s * Math.cos(ELEVATION) : Infinity,
-    spine: turn >= Math.PI / 2 ? THICKNESS * s : Infinity,
-  };
-  // The lower half lies still; the upper turns over about the spine's top.
-  return [
-    placed(shape, ([a, y, b]) => [a * c - b * s, y, THICKNESS + a * s + b * c], gaps),
-    placed(shape, ([a, y, b]) => [a, y, THICKNESS - b], gaps),
-  ];
+  const slope = (2 * sink) / BOW;
+  const { solid: spine, hinge } = spineArc(open, slope, turn);
+  // The top page turns over from the end of the spine; its bow is toward the
+  // bottom page while shut, and upward once it lies open.
+  const upper = page(sink, (a, y, rise) => [hinge[0] + a * c + rise * s, y, hinge[1] + a * s - rise * c]);
+  const lower = page(sink, (a, y, rise) => [a, y, rise]);
+  return [{ ...upper, join: "book" }, spine, { ...lower, join: "book" }];
 }
 
 // folder-closed, point by point: the back with its tab, the fold along the
@@ -403,31 +368,27 @@ function folderSolids(open: number): Solid[] {
           return [x, -z * Math.sin(fall), z * Math.cos(fall)];
         }),
       ],
-      thin: true,
     },
-    { faces: [BACK.map(upright)], lines: [[upright([8, 7]), upright([12, 7])]], thin: true },
+    { faces: [BACK.map(upright)], lines: [[upright([8, 7]), upright([12, 7])]] },
   ];
 }
 
 export interface IconFrame {
-  /**
-   * Each part, nearest first: its strokes, each path with its width, and what
-   * it hides behind it.
-   */
-  layers: { strokes: { d: string; width: number }[]; covers: string }[];
+  /** Each part, nearest first: its strokes, and what it hides behind it. */
+  layers: { d: string; covers: string }[];
 }
 
-/** A layer's strokes as one path for each width they are drawn at. */
-function byWidth(layer: Layer, scale: number, place: (p: V2) => V2, round: boolean) {
-  const paths = new Map<number, string>();
-  for (const stroke of layer.strokes) {
-    const width = Math.min(STROKE, stroke.width * scale);
-    if (width < 0.01) continue;
-    const points = stroke.points.map(place);
-    const d = round ? rounded(points, stroke.closed) : polyline(points, stroke.closed);
-    paths.set(width, (paths.get(width) ?? "") + d);
-  }
-  return [...paths].map(([width, d]) => ({ d, width }));
+/**
+ * A polygon wound one way, so that overlapping ones in a single path add up
+ * under the nonzero rule instead of cancelling.
+ */
+function clockwise(points: V2[]): V2[] {
+  let area = 0;
+  points.forEach(([x0, y0], i) => {
+    const [x1, y1] = points[(i + 1) % points.length]!;
+    area += x0 * y1 - x1 * y0;
+  });
+  return area < 0 ? [...points].reverse() : points;
 }
 
 /**
@@ -459,8 +420,10 @@ function framed(
     const place = ([px, py]: V2): V2 => [12 + (px - x) * scale, 12 + (py - y) * scale];
     return {
       layers: draw(solids(open), view).map((layer) => ({
-        strokes: byWidth(layer, scale, place, round),
-        covers: layer.fills.map((fill) => `M${fill.map(place).map(point).join("L")}Z`).join(""),
+        d: layer.strokes
+          .map(({ points, closed }) => (round ? rounded : polyline)(points.map(place), closed))
+          .join(""),
+        covers: layer.fills.map((fill) => `M${clockwise(fill.map(place)).map(point).join("L")}Z`).join(""),
       })),
     };
   };

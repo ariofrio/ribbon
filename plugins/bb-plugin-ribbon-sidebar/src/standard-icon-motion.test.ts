@@ -2,13 +2,13 @@ import { FolderClosedIcon } from "@hugeicons/core-free-icons";
 import { describe, expect, it } from "vitest";
 import { type IconFrame, bookFrame, folderFrame } from "./standard-icon-motion";
 
-const strokes = (layer: IconFrame["layers"][number]) => layer.strokes.map((s) => s.d).join("");
+const strokes = (layer: IconFrame["layers"][number]) => layer.d;
 
 type Point = [number, number];
 
 /** Points along every stroke of an absolute M/H/V/L/Q/C/Z path. */
 function sample(d: string, per = 24): Point[] {
-  const tokens = d.match(/[MHVLQCZ]|-?\d*\.?\d+(?:e-?\d+)?/g)!;
+  const tokens = d.match(/[MHVLQCZ]|-?\d*\.?\d+(?:e-?\d+)?/g) ?? [];
   const points: Point[] = [];
   let at: Point = [0, 0];
   let start: Point = [0, 0];
@@ -54,11 +54,8 @@ const bounds = (d: string) => {
   return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
 };
 
-/** Points along the strokes drawn at least `width` wide. */
-const drawnAt = (frame: IconFrame, width = 0.5) =>
-  frame.layers.flatMap((layer) =>
-    layer.strokes.filter((stroke) => stroke.width >= width).flatMap((stroke) => sample(stroke.d, 12)),
-  );
+/** Points along every stroke. */
+const drawnAt = (frame: IconFrame) => frame.layers.flatMap((layer) => sample(layer.d, 12));
 
 /** How far the furthest stroke of one frame lies from the other's. */
 function apart(a: IconFrame, b: IconFrame): number {
@@ -88,26 +85,37 @@ describe.each([
 });
 
 describe("the standard book", () => {
-  it("keeps one size while it opens: the lower half lies still", () => {
-    // The lower half, apart from its pages bowing into the gutter, is the
-    // same object shut and open, so it is drawn the same width.
+  it("keeps one size while it opens: the bottom page lies still", () => {
+    // The bottom page, apart from bowing into the gutter, is the same object
+    // shut and open, so it is drawn the same width.
     const width = (open: number) => {
-      const { left, right } = bounds(strokes(bookFrame(open).layers[1]!));
+      const { left, right } = bounds(strokes(bookFrame(open).layers.at(-1)!));
       return right - left;
     };
     expect(Math.abs(width(1) - width(0))).toBeLessThan(0.05);
   });
 
-  it("stands the turning half on its edge halfway, then lays it down on the left", () => {
+  it("stands the top page on its edge halfway, then lays it down on the left", () => {
     const upper = (open: number) => bounds(strokes(bookFrame(open).layers[0]!));
-    const lower = bounds(strokes(bookFrame(0.5).layers[1]!));
+    const lower = bounds(strokes(bookFrame(0.5).layers.at(-1)!));
     expect(upper(0.5).right - upper(0.5).left).toBeLessThan(4);
-    // It rises above the lying half as it stands.
+    // It rises above the lying page as it stands.
     expect(upper(0.5).top).toBeLessThan(lower.top - 2);
-    expect(upper(1).right).toBeLessThanOrEqual(bounds(strokes(bookFrame(1).layers[1]!)).left + 0.5);
+    expect(upper(1).right).toBeLessThanOrEqual(bounds(strokes(bookFrame(1).layers.at(-1)!)).left + 0.5);
   });
 
-  it("hides what the turning half covers", () => {
+  it("rounds its spine while shut, and flattens it into the gutter open", () => {
+    // Shut, the spine bulges out past the pages' spine edges.
+    const spine = (open: number) => bounds(strokes(bookFrame(open).layers[1]!));
+    const pages = bounds(strokes(bookFrame(0).layers.at(-1)!));
+    expect(pages.left - spine(0).left).toBeGreaterThan(1.5);
+    // Open, it is gone into the fold between the pages.
+    const spread = bookFrame(1);
+    expect(sample(strokes(spread.layers[1]!))).toEqual([]);
+    expect(bounds(strokes(spread.layers[0]!)).right).toBeCloseTo(bounds(strokes(spread.layers.at(-1)!)).left, 0);
+  });
+
+  it("hides what the top page covers", () => {
     expect(bookFrame(0.25).layers[0]!.covers).not.toBe("");
   });
 });
