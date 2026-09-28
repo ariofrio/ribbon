@@ -39,6 +39,7 @@ export async function readEvents(
               "client/turn/requested",
               "client/turn/rejected",
               "system/operation",
+              "system/thread-provisioning",
               "turn/completed",
             ],
           }
@@ -63,8 +64,20 @@ export function userActivity(events: Event[]) {
   const seen = new Set<unknown>();
   let count = 0;
   let firstUserSeq: number | undefined;
+  // bb's own title step at creation. Threads bb titles without a provisioning
+  // transcript never leave "pending".
+  let titleStep: "pending" | "generated" | "none" = "pending";
   for (const event of events) {
     const data = record(event.data);
+    if (event.type === "system/thread-provisioning") {
+      for (const entry of Array.isArray(data.entries) ? data.entries : []) {
+        const step = record(entry);
+        if (step.key === "metadata-completed")
+          titleStep =
+            record(step.metadata).titleGenerated === true ? "generated" : "none";
+      }
+      continue;
+    }
     if (
       event.type !== "client/turn/requested" ||
       data.initiator !== "user" ||
@@ -82,7 +95,26 @@ export function userActivity(events: Event[]) {
     firstTurnEnded: firstUserSeq !== undefined && events.some(
       (event) => event.type === "turn/completed" && event.seq > firstUserSeq,
     ),
+    titleStep,
   };
+}
+
+const MESSAGE_ITEMS = new Set(["userMessage", "agentMessage", "plan"]);
+const TOOL_TEXT_LIMIT = 1_000;
+
+// Keep the start and end of long tool text: a title needs what ran and how it
+// ended, not every line of an install log.
+function trim(value: unknown): unknown {
+  if (typeof value === "string")
+    return value.length > TOOL_TEXT_LIMIT
+      ? `${value.slice(0, TOOL_TEXT_LIMIT / 2)}\n[… ${value.length - TOOL_TEXT_LIMIT} characters trimmed …]\n${value.slice(-TOOL_TEXT_LIMIT / 2)}`
+      : value;
+  if (Array.isArray(value)) return value.map(trim);
+  if (value !== null && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, trim(entry)]),
+    );
+  return value;
 }
 
 export function transcript(events: Event[]): string {
@@ -103,14 +135,18 @@ export function transcript(events: Event[]): string {
       event.type === "item/completed"
     ) {
       const item = record(data.item);
-      if (typeof item.id !== "string") continue;
+      if (typeof item.id !== "string" || item.type === "reasoning") continue;
       const key = `${record(event.scope).turnId ?? ""}:${item.id}`;
       const previous = items.get(key);
       items.set(key, {
         seq: previous?.seq ?? event.seq,
         value: { ...item, partial: event.type !== "item/completed" },
       });
-    } else if (event.type.startsWith("item/") && /delta$/i.test(event.type)) {
+    } else if (
+      event.type.startsWith("item/") &&
+      !event.type.startsWith("item/reasoning/") &&
+      /delta$/i.test(event.type)
+    ) {
       const id = data.itemId;
       if (typeof id !== "string" || typeof data.delta !== "string") continue;
       const key = `${record(event.scope).turnId ?? ""}:${id}`;
@@ -133,14 +169,35 @@ export function transcript(events: Event[]): string {
       event.type.startsWith("item/backgroundTask/") ||
       event.type === "system/operation"
     ) {
-      entries.push({ seq: event.seq, value: { type: event.type, ...data } });
+      entries.push({
+        seq: event.seq,
+        value: trim({ type: event.type, ...data }),
+      });
     }
   }
-  entries.push(...items.values());
+  for (const item of items.values())
+    entries.push({
+      seq: item.seq,
+      value: MESSAGE_ITEMS.has(String(item.value.type))
+        ? item.value
+        : trim(item.value),
+    });
   return entries
     .sort((a, b) => a.seq - b.seq)
     .map((entry) => JSON.stringify(entry.value))
     .join("\n");
+}
+
+// The longest run of whole transcript lines, from the start, within maxBytes.
+export function opening(history: string, maxBytes: number): string {
+  let bytes = -1;
+  let end = 0;
+  for (const line of history.split("\n")) {
+    bytes += Buffer.byteLength(line, "utf8") + 1;
+    if (bytes > maxBytes) break;
+    end += line.length + 1;
+  }
+  return history.slice(0, Math.max(0, end - 1));
 }
 
 // Requests survive bb's delta pruning; appended turns do not invalidate a snapshot.

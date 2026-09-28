@@ -44,6 +44,7 @@ test("the shortcut shot stops retrying when the late plugin handles the key", as
     evaluateAll: async () => {},
     filter: () => locator(name),
     first: () => locator(name),
+    getByRole: (role) => locator(role),
     getAttribute: async () => "/projects/proj_atlas/threads/thr_featured",
     innerText: async () => SIDEBAR_PROVIDER,
     waitFor: async (options) => {

@@ -5,6 +5,7 @@ import { chromium } from "playwright";
 import { FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
 
 export async function verifyThreadIndicators({ stack, fixture }) {
+  const { default: PencilEdit01Icon } = await import("@hugeicons/core-free-icons/PencilEdit01Icon");
   const thread = fixture.threads.get(FEATURED_THREAD);
   const project = fixture.projects.get(FEATURED_PROJECT);
   const pluginDir = resolve(".scratch/work/indicator-fixture");
@@ -59,7 +60,7 @@ export async function verifyThreadIndicators({ stack, fixture }) {
         for (const child of Object.values(value)) updateThread(child);
       }
       await page.route(/\/api\/v1\/(sidebar-bootstrap|threads(?:\/[^/?]+)?)(\?|$)/, async (route) => {
-        const response = await route.fetch();
+        const response = await route.fetch({ maxRetries: route.request().method() === "GET" ? 2 : 0 });
         if (!response.headers()["content-type"]?.includes("application/json")) {
           await route.fulfill({ response });
           return;
@@ -103,31 +104,44 @@ export async function verifyThreadIndicators({ stack, fixture }) {
           console.error(await glyph.evaluate(node => node.outerHTML));
           throw error;
         });
+        if (provider !== "__builtin__" && (label === null || label === "Thread working with unsubmitted draft")) {
+          const paths = await glyph.locator("svg path").evaluateAll(nodes => nodes.map(node => node.getAttribute("d")));
+          assert.deepEqual(paths, PencilEdit01Icon.map(([, attributes]) => attributes.d));
+        }
         const observation = await glyph.evaluate((node) => {
           const svg = node.querySelector("svg");
           const style = getComputedStyle(svg);
           const rect = svg.getBoundingClientRect();
+          // bb shines the glyph itself; Ribbon shines the whole row, which
+          // masks a window around the glyph and slides it instead. Either way
+          // it shimmers or not, and the row's slide is not the glyph's own.
+          const rowShimmer = "[data-ribbon-shine-window], [data-ribbon-shine-content]";
+          let shimmers = false;
+          for (let each = svg; each; each = each.parentElement) {
+            if (getComputedStyle(each).maskImage !== "none") shimmers = true;
+            if (each === node) break;
+          }
           return {
             color: style.color, width: rect.width, height: rect.height,
-            // bb shines the glyph itself; Ribbon shines the whole row, which
-            // masks the glyph's lane instead. Either way it shimmers or not.
-            shimmers: style.maskImage !== "none" || getComputedStyle(node).maskImage !== "none",
+            shimmers,
             glyphMasked: style.maskImage !== "none",
             shapes: [...svg.querySelectorAll("path, circle, rect, line, polyline, polygon")].map((shape) => {
               const b = shape.getBBox();
               return [b.x, b.y, b.width, b.height];
             }),
-            animations: node.getAnimations({ subtree: true }).map((animation) => ({
-              duration: animation.effect.getTiming().duration,
-              iterations: animation.effect.getTiming().iterations,
-            })),
+            animations: node.getAnimations({ subtree: true })
+              .filter((animation) => !animation.effect.target.matches(rowShimmer))
+              .map((animation) => ({
+                duration: animation.effect.getTiming().duration,
+                iterations: animation.effect.getTiming().iterations,
+              })),
           };
         });
         if (provider !== "__builtin__") {
           assert.equal(observation.glyphMasked, false, `${label}: Ribbon's glyph should not shimmer alone`);
         }
         delete observation.glyphMasked;
-        observations.push(observation);
+        observations.push({ label: label ?? "idle draft", ...observation });
       }
       await ready();
       for (const state of ["waiting", "failed"]) {
@@ -164,17 +178,17 @@ export async function verifyThreadIndicators({ stack, fixture }) {
       if (provider !== "__builtin__") {
         const motion = await row.evaluate((node) => {
           const ring = node.querySelector('[class*="animate-spin"]');
-          const shining = node.querySelector("[data-ribbon-shine]");
+          const wave = node.querySelector("[data-ribbon-shine] [data-ribbon-shine-window]");
           return {
-            rowAnimation: getComputedStyle(node).animationName,
-            rowDelay: getComputedStyle(node).animationDelay,
+            waveAnimation: wave ? getComputedStyle(wave).animationName : null,
+            waveDelay: wave ? getComputedStyle(wave).animationDelay : null,
             ringDelay: ring ? getComputedStyle(ring).animationDelay : null,
             rowWidth: node.getBoundingClientRect().width,
-            waveWidth: shining ? parseFloat(getComputedStyle(shining).maskSize) : null,
+            waveWidth: wave ? parseFloat(getComputedStyle(wave).maskSize) : null,
           };
         });
-        assert.equal(motion.rowAnimation, "ribbon-shine");
-        assert.equal(motion.ringDelay, motion.rowDelay);
+        assert.equal(motion.waveAnimation, "ribbon-shine-window");
+        assert.equal(motion.ringDelay, motion.waveDelay);
         assert.ok(Math.abs(motion.waveWidth - motion.rowWidth * 2) < 1,
           `shimmer wave ${motion.waveWidth}px should span twice the ${motion.rowWidth}px row`);
       }
@@ -214,8 +228,11 @@ export async function verifyThreadIndicators({ stack, fixture }) {
         await map.waitFor();
         await page.waitForFunction(({ node, running }) => {
           const lane = node.closest("[data-sidebar-thread-trailing-indicator]");
-          const shimmers = getComputedStyle(node).maskImage !== "none" ||
-            getComputedStyle(lane).maskImage !== "none";
+          let shimmers = false;
+          for (let each = node; each; each = each.parentElement) {
+            if (getComputedStyle(each).maskImage !== "none") shimmers = true;
+            if (each === lane) break;
+          }
           return running === shimmers;
         }, { node: await map.elementHandle(), running: tone === "running" });
       }
@@ -224,7 +241,19 @@ export async function verifyThreadIndicators({ stack, fixture }) {
       await page.unrouteAll({ behavior: "ignoreErrors" });
       await context.close();
     }
-    assert.deepEqual(results[1], results[0], "Ribbon glyph geometry, colors, and animations should match bb");
+    const ribbonDraftShapes = results[1].find(({ label }) => label === "idle draft").shapes;
+    for (let index = 0; index < results[0].length; index += 1) {
+      const builtin = results[0][index];
+      const ribbon = results[1][index];
+      const { shapes: builtinShapes, ...builtinAppearance } = builtin;
+      const { shapes: ribbonShapes, ...ribbonAppearance } = ribbon;
+      assert.deepEqual(ribbonAppearance, builtinAppearance, `${builtin.label}: Ribbon color, size, and animation should match bb`);
+      if (builtin.label === "idle draft" || builtin.label === "Thread working with unsubmitted draft") {
+        assert.deepEqual(ribbonShapes, ribbonDraftShapes, `${builtin.label}: Ribbon draft glyph should keep the same geometry`);
+      } else {
+        assert.deepEqual(ribbonShapes, builtinShapes, `${builtin.label}: Ribbon glyph geometry should match bb`);
+      }
+    }
   } finally {
     await browser.close();
     fixture.run(["plugin", "disable", "indicator-fixture"]);

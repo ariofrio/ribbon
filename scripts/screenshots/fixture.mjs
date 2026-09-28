@@ -5,6 +5,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fetchFromStack } from "./fetch.mjs";
 
 /**
  * One product in two repositories, which is the shape a section exists for:
@@ -427,6 +428,9 @@ export function seed({ stack, workspaceRoot, bb, assignStages = true }) {
   // Thread stages moves a thread itself while its turn runs, so hand-set
   // stages only stick once every answered thread has settled.
   if (assignStages) {
+    // A stage notice would start a turn on every placed thread and on every
+    // thread a shot or suite moves later, rewriting what the fixture shows.
+    run(["plugin", "config", "ribbon-sidebar", "set", "messageOnStageChange", "false"]);
     for (const spec of THREADS) {
       if (spec.stage === null) continue;
       run([
@@ -467,7 +471,7 @@ export async function applyPluginState({ stack, projects, section }) {
   ];
   for (const [name, owner] of owners) {
     const { kind, id, icon, color } = owner;
-    const response = await fetch(
+    const response = await fetchFromStack(
       new URL(
         `/api/v1/plugins/icons/rpc/setIcon`,
         stack.serverUrl,

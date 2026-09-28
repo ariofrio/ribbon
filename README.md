@@ -39,7 +39,7 @@ bb plugin install ribbon-sidebar@ribbon
 
 ### <img src="assets/icons/thread-stages.svg" alt="" width="26" align="absmiddle"> &nbsp;Thread stages
 
-Preserve existing stage shortcuts and migrate saved state to Ribbon sidebar. New installations need only Ribbon.
+Mention stages in the composer, and preserve existing stage shortcuts and saved state for Ribbon sidebar.
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon
@@ -53,7 +53,7 @@ bb plugin install thread-stages@ribbon
 
 ### <img src="assets/icons/thread-titles.svg" alt="" width="26" align="absmiddle"> &nbsp;Thread titles
 
-Name threads after their first turn and refine generic or inaccurate titles on the third user message.
+Title threads from their first message and first turn, and refine generic, inaccurate, or overlong titles on the third user message.
 
 Use the full recorded conversation, keep renamed titles, and remember completed
 updates across bb restarts.

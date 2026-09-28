@@ -29,6 +29,8 @@ const POLL_INTERVAL_MS = 60_000;
 function createStore(load: LoadDetails) {
   const requested = new Map<string, { stamp: string; rows: number }>();
   const details = new Map<string, PullRequestDetailsV1>();
+  // URLs whose first request has answered, whether or not it returned details.
+  const settled = new Set<string>();
   const listeners = new Set<() => void>();
   let flushQueued = false;
   let disposed = false;
@@ -37,16 +39,14 @@ function createStore(load: LoadDetails) {
     flushQueued = false;
     if (disposed || requested.size === 0) return;
     const requests = [...requested].map(([url, { stamp }]) => ({ url, stamp }));
-    load(requests).then(
-      (loaded) => {
-        if (disposed) return;
-        for (const item of loaded) details.set(item.url, item);
-        for (const listener of listeners) listener();
-      },
-      () => {
-        // Rows fall back to bb's own attention signal.
-      },
-    );
+    const answer = (loaded: readonly PullRequestDetailsV1[]) => {
+      if (disposed) return;
+      for (const item of loaded) details.set(item.url, item);
+      for (const { url } of requests) settled.add(url);
+      for (const listener of listeners) listener();
+    };
+    // On failure, rows fall back to bb's own attention signal.
+    load(requests).then(answer, () => answer([]));
   }
 
   function queueFlush() {
@@ -75,6 +75,9 @@ function createStore(load: LoadDetails) {
     },
     get(url: string) {
       return details.get(url) ?? null;
+    },
+    isSettled(url: string) {
+      return settled.has(url);
     },
     dispose() {
       disposed = true;
@@ -105,10 +108,13 @@ export function PullRequestDetailsProvider({
 
 const noSubscription = () => () => {};
 
-/** GitHub details for an open pull request, or null until they load. */
+/**
+ * GitHub details for an open pull request, or null until they load, and
+ * whether its first request is still unanswered.
+ */
 export function usePullRequestDetails(
   pullRequest: SidebarPullRequest | null,
-): PullRequestDetailsV1 | null {
+): { details: PullRequestDetailsV1 | null; pending: boolean } {
   const store = useContext(StoreContext);
   const url = pullRequest?.state === "open" ? pullRequest.url : null;
   const stamp = pullRequest ? `${pullRequest.state}:${pullRequest.attention}` : "";
@@ -116,8 +122,13 @@ export function usePullRequestDetails(
     if (!store || url === null) return;
     return store.register(url, stamp);
   }, [store, url, stamp]);
-  return useSyncExternalStore(
+  const details = useSyncExternalStore(
     store?.subscribe ?? noSubscription,
     () => (store && url !== null ? store.get(url) : null),
   );
+  const pending = useSyncExternalStore(
+    store?.subscribe ?? noSubscription,
+    () => url !== null && !(store?.isSettled(url) ?? false),
+  );
+  return { details, pending };
 }

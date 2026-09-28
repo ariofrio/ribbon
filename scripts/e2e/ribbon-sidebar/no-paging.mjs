@@ -24,13 +24,25 @@ export async function verifyNoPaging({ stack, fixture }) {
     await otherProject.waitFor();
     assert.equal(await sidebar.getByRole("region", { name: /^(Idle|Active|Blocked|Deferred|Completed) group$/ }).count(), 0);
     const heading = group.locator('[data-sidebar="group-label"]');
-    await heading.getByText(SECTION.name, { exact: true }).click();
-    assert.ok(await featured.isVisible(), "Clicking the section name preserves bb's non-collapsing behavior");
-    await heading.hover();
-    await heading.getByRole("button", { name: `Collapse ${SECTION.name} section`, exact: true }).click();
+    // The whole heading is the toggle, so clicking the section's name folds it.
+    const name = await heading.getByText(SECTION.name, { exact: true }).boundingBox();
+    await page.mouse.click(name.x + name.width / 2, name.y + name.height / 2);
+    // The group folds with bb's own easing rather than vanishing at once.
+    const folding = await group.locator("[data-ribbon-group-body]").evaluate((body) =>
+      body.getAnimations().map((animation) => ({
+        property: animation.transitionProperty,
+        duration: animation.effect.getTiming().duration,
+      })),
+    );
+    assert.ok(
+      folding.some(({ property, duration }) => property === "grid-template-rows" && duration === 180),
+      `Collapsing a group should animate its rows: ${JSON.stringify(folding)}`,
+    );
     await featured.waitFor({ state: "hidden" });
-    await heading.getByRole("button", { name: `Expand ${SECTION.name} section`, exact: true }).click();
+    await heading.getByRole("button", { name: `Expand ${SECTION.name} section`, exact: true }).waitFor();
+    await page.mouse.click(name.x + name.width / 2, name.y + name.height / 2);
     await featured.waitFor();
+    await heading.getByRole("button", { name: `Collapse ${SECTION.name} section`, exact: true }).waitFor();
     async function openHeadingOptions(label) {
       const header = sidebar.getByRole("button", { name: `${label} options`, exact: true })
         .locator('xpath=ancestor::*[@data-sidebar="group-label"][1]');

@@ -1,5 +1,17 @@
 # bb-plugin-thread-stages
 
+## 0.14.0
+
+### Minor Changes
+
+- 4c11203: Mention a stage in the composer with Thread stages, such as `@Blocked`, to ask the agent to move the thread there. Ribbon messages a thread with "Thread stage updated: @Idle → @Blocked" when you or another thread change its stage. Turn the messages off with **Message threads when their stage changes** in Ribbon settings.
+
+## 0.13.1
+
+### Patch Changes
+
+- 50cb3ca: Update the shared UI and Plugin SDK to bb 0.44.0 and SDK 0.5.29. These releases require bb 0.44.0 or newer.
+
 ## 0.13.0
 
 ### Minor Changes

@@ -1,4 +1,4 @@
-import { useSortable } from "@dnd-kit/sortable";
+import { SortableContext, useSortable } from "@dnd-kit/sortable";
 import {
   definePluginApp,
   experimental_useSidebarThreadActions,
@@ -33,7 +33,19 @@ import {
   type SyntheticEvent,
 } from "react";
 import type { z } from "zod";
+import { moveChild, orderChildren, type ChildRank } from "./child-order";
 import { CHROME_GROUP_HEADING_CLASS } from "./chrome-style-tokens";
+import { GroupBody } from "./group-body";
+import {
+  HEADING_ICON_STYLE,
+  HEADING_ACTION_CLASS,
+  HEADING_TEXT_CLASS,
+  HEADING_TOGGLE_CLASS,
+  STICKY_HEADING_STYLE,
+  HeadingChevron,
+  StandardHeadingIcon,
+  headingColorStyle,
+} from "./heading";
 import type { IconDataV1 } from "./contracts";
 import { GroupHeaderMenu, type HeaderGroupActions } from "./group-header-menu";
 import { orderedGroupings } from "./grouping-order";
@@ -51,6 +63,7 @@ import {
   publishShineStyles,
   SHINE_ATTRIBUTE,
   SHINE_ROW_ATTRIBUTE,
+  ShineContent,
   useRowShine,
 } from "./row-shine";
 import { sectionBands } from "./section-layout";
@@ -73,6 +86,11 @@ import {
   type ThreadDragTarget,
 } from "./thread-drag";
 import { groupIndicator, ThreadIndicator } from "./thread-indicator";
+import {
+  RAIL_EDGE_BOTTOM,
+  RAIL_EDGE_TOP,
+  railSegments,
+} from "./thread-rails";
 import {
   resolveThreadStatus,
   withPullRequestSignal,
@@ -160,6 +178,7 @@ function descendants(
   return result;
 }
 
+// Every row asks for its root, several times a render, of the same list.
 function rootForThread(
   threadId: string,
   byId: ReadonlyMap<string, PluginSidebarThread>,
@@ -245,7 +264,7 @@ type SortableRowProps = ThreadRowProps & {
 
 const NO_IGNORED_FIELDS: ReadonlySet<string> = new Set();
 const ROW_NESTED_FIELDS = new Set([
-  "assignments", "indicatorThread", "icon", "sections", "dragTarget", "sortable", "thread",
+  "assignments", "indicatorThread", "icon", "sections", "dragTarget", "sortable", "thread", "endsGroup",
 ]);
 const THREAD_NESTED_FIELDS = new Set(["activity", "environment", "host"]);
 const ASSIGNMENT_CALLBACK_FIELDS = new Set(["onSetGroup"]);
@@ -309,6 +328,10 @@ function sameRowProps(
     )
       return false;
   }
+  if (
+    previous.endsGroup.length !== next.endsGroup.length ||
+    previous.endsGroup.some((ends, index) => ends !== next.endsGroup[index])
+  ) return false;
   if (!sameFields(previous, next, ROW_NESTED_FIELDS) || !sameFields(ai, bi)) return false;
   if (
     ax !== bx &&
@@ -431,9 +454,12 @@ function ThreadRowContent({
   assignments,
   childrenCollapsed,
   depth,
+  endsGroup,
+  firstChild,
   hasChildren,
   indicatorThread,
   hasUnsubmittedDraft,
+  hideIdleStageIconAtRest,
   icon,
   dragging,
   dragTarget,
@@ -447,8 +473,8 @@ function ThreadRowContent({
   placementDisabled,
   preview,
   pullRequestNumberPosition,
+  tabularPullRequestDigits,
   reorderable,
-  rootThreadId,
   sections,
   shimmerRow,
   thread,
@@ -467,9 +493,13 @@ function ThreadRowContent({
   }[];
   childrenCollapsed: boolean;
   depth: number;
+  /** For each depth from 1 through `depth`, whether that sibling group's last row is this one. */
+  endsGroup: readonly boolean[];
+  firstChild: boolean;
   hasChildren: boolean;
   indicatorThread: ThreadStatus;
   hasUnsubmittedDraft: boolean;
+  hideIdleStageIconAtRest: boolean;
   icon: ReactNode;
   dragging: boolean;
   dragTarget?: ThreadDragTarget;
@@ -483,8 +513,8 @@ function ThreadRowContent({
   placementDisabled: boolean;
   preview: string | null;
   pullRequestNumberPosition: PullRequestNumberPosition;
+  tabularPullRequestDigits: boolean;
   reorderable: boolean;
-  rootThreadId: string;
   sections: readonly { id: string; label: string }[];
   /** Shimmer the working row rather than its indicator. */
   shimmerRow: boolean;
@@ -495,10 +525,12 @@ function ThreadRowContent({
     isAvailable: splitAvailable,
     layout,
   } = experimental_useSidebarThreadSplit(thread.id);
-  const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
+  const { isLoading: pullRequestLoading, pullRequest } =
+    experimental_useSidebarThreadPullRequest(thread.id);
   const visiblePullRequest =
     pullRequestNumberPosition === "hidden" ? null : pullRequest;
-  const pullRequestDetails = usePullRequestDetails(visiblePullRequest);
+  const { details: pullRequestDetails, pending: pullRequestDetailsPending } =
+    usePullRequestDetails(visiblePullRequest);
   const pullRequestStatus = visiblePullRequest
     ? pullRequestSignal(visiblePullRequest, pullRequestDetails)
     : null;
@@ -523,8 +555,8 @@ function ThreadRowContent({
     showPullRequest && pullRequestIcon ? (
       <span
         className={`inline-flex shrink-0 items-center gap-1 text-subtle-foreground/75 ${
-          pullRequestNumberPosition === "right" ? "ml-auto" : ""
-        }`}
+          tabularPullRequestDigits ? "tabular-nums" : ""
+        } ${pullRequestNumberPosition === "right" ? "ml-auto" : ""}`}
         title={
           pullRequestStatus.label
             ? `${visiblePullRequest.title} — ${pullRequestStatus.label}`
@@ -578,7 +610,7 @@ function ThreadRowContent({
     <li
       className="relative list-none"
       data-thread-id={thread.id}
-      data-ribbon-root-id={rootThreadId}
+      data-ribbon-depth={depth}
       style={
         dragging
           ? {
@@ -601,7 +633,12 @@ function ThreadRowContent({
             : active
               ? "text-sidebar-foreground"
               : "text-sidebar-foreground/85 hover:text-sidebar-accent-foreground dark:text-sidebar-foreground"
-        } ${layout !== null && !active ? "bg-sidebar-accent/50" : ""} ${reorderable ? "select-none" : ""}`}
+        } ${layout !== null && !active ? "bg-sidebar-accent/50" : ""} ${reorderable ? "select-none" : ""} ${
+          // Where the stage ring's centre sits, for the rails to meet it.
+          iconSpansEntireItem
+            ? "[--ribbon-ring-y:50%]"
+            : "[--ribbon-ring-y:calc(var(--bb-sidebar-row-height)/2)] max-md:pointer-coarse:[--ribbon-ring-y:calc(var(--bb-sidebar-row-height-coarse)/2)]"
+        }`}
         ref={(node) => {
           sortable.setNodeRef(node);
           rowRef.current = node;
@@ -623,15 +660,38 @@ function ThreadRowContent({
           if (!event.altKey && !event.ctrlKey && !event.metaKey)
             setKeyboardFocus(true);
         }}
+        // Until the row can say what its pull request is waiting on, it is
+        // still being drawn; screenshots and tests wait for this to clear.
+        {...(pullRequestLoading || pullRequestDetailsPending
+          ? { "data-ribbon-pull-request-pending": "" }
+          : {})}
         onDragStart={(event) => event.preventDefault()}
         style={{ paddingLeft: 8 + depth * 24 }}
       >
-        {Array.from({ length: depth }, (_, level) => (
+        {railSegments({
+          depth,
+          firstChild,
+          endsGroup,
+          ring: !hasIcon
+            ? "absent"
+            : hideIdleStageIconAtRest
+              ? "hidden-at-rest"
+              : "shown",
+        }).map(({ level, from, to, whileRingHidden }) => (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 z-[1] w-px bg-border-hairline opacity-70"
-            key={level}
-            style={{ left: 16 + level * 24 }}
+            className={`pointer-events-none absolute z-[1] w-px bg-border-hairline opacity-70 ${
+              whileRingHidden
+                ? "group-hover/thread-row:opacity-0 group-has-[:focus-visible]/thread-row:opacity-0 pointer-coarse:opacity-0"
+                : ""
+            }`}
+            data-ribbon-sidebar-rail={level}
+            key={`${level}:${from}`}
+            style={{
+              left: 16 + level * 24,
+              top: RAIL_EDGE_TOP[from],
+              bottom: RAIL_EDGE_BOTTOM[to],
+            }}
           />
         ))}
         <a
@@ -662,7 +722,11 @@ function ThreadRowContent({
         >
           {hasIcon ? (
             <span
-              className="col-start-1 row-start-1 flex self-center"
+              className={`col-start-1 row-start-1 flex self-center ${
+                hideIdleStageIconAtRest
+                  ? "opacity-0 group-hover/thread-row:opacity-100 group-has-[:focus-visible]/thread-row:opacity-100 pointer-coarse:opacity-100"
+                  : ""
+              }`}
               data-ribbon-sidebar-icon-slot=""
               {...{ [SHINE_ATTRIBUTE]: "" }}
               style={{
@@ -670,7 +734,7 @@ function ThreadRowContent({
                 gridRowStart: 1,
               }}
             >
-              {icon}
+              <ShineContent className="flex">{icon}</ShineContent>
             </span>
           ) : null}
           <span
@@ -688,13 +752,15 @@ function ThreadRowContent({
             }}
           >
             <span
-              className="flex min-w-0 flex-1 items-center gap-2"
+              className="flex min-w-0 flex-1"
               {...{ [SHINE_ATTRIBUTE]: "" }}
               title={accessibleTitle}
             >
-              {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
-              <ThreadTitle title={rowTitle} />
-              {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
+              <ShineContent className="flex items-center gap-2">
+                {pullRequestNumberPosition === "left" ? pullRequestNumber : null}
+                <ThreadTitle title={rowTitle} />
+                {pullRequestNumberPosition === "right" ? pullRequestNumber : null}
+              </ShineContent>
             </span>
             {hasChildren ? (
               <Button
@@ -755,7 +821,7 @@ function ThreadRowContent({
               }}
               title={preview}
             >
-              {preview}
+              <ShineContent className="truncate">{preview}</ShineContent>
             </span>
           ) : null}
         </span>
@@ -783,15 +849,17 @@ function ThreadRowContent({
                   data-sidebar-thread-trailing-indicator=""
                   {...{ [SHINE_ATTRIBUTE]: "" }}
                 >
-                  <SplitPaneMiniMap
-                    active={!shimmerRow && status.isWorking}
-                    label={
-                      status.indicatorLabel
-                        ? `${rowTitle} — open in split; ${status.indicatorLabel}`
-                        : `${rowTitle} — open in split`
-                    }
-                    layout={layout}
-                  />
+                  <ShineContent className="inline-flex items-center justify-center">
+                    <SplitPaneMiniMap
+                      active={!shimmerRow && status.isWorking}
+                      label={
+                        status.indicatorLabel
+                          ? `${rowTitle} — open in split; ${status.indicatorLabel}`
+                          : `${rowTitle} — open in split`
+                      }
+                      layout={layout}
+                    />
+                  </ShineContent>
                 </span>
               ) : (
                 <span
@@ -799,14 +867,16 @@ function ThreadRowContent({
                   data-sidebar-thread-trailing-indicator=""
                   {...{ [SHINE_ATTRIBUTE]: "" }}
                 >
-                  <ThreadIndicator
-                    indicator={status.indicator}
-                    label={status.indicatorLabel}
-                    pluginStatus={status.pluginStatus}
-                    pullRequestMark={status.pullRequestMark}
-                    hideIdleDraftLabel={!(hasChildren && childrenCollapsed)}
-                    shine={!shimmerRow}
-                  />
+                  <ShineContent className="inline-flex items-center justify-center">
+                    <ThreadIndicator
+                      indicator={status.indicator}
+                      label={status.indicatorLabel}
+                      pluginStatus={status.pluginStatus}
+                      pullRequestMark={status.pullRequestMark}
+                      hideIdleDraftLabel={!(hasChildren && childrenCollapsed)}
+                      shine={!shimmerRow}
+                    />
+                  </ShineContent>
                 </span>
               )}
             </span>
@@ -906,6 +976,7 @@ function RibbonSidebarList({
   const draftThreadIds = useSidebarThreadDraftIds();
   const threadRowStatuses = useSidebarThreadRowStatuses();
   const settings = useSettings();
+  const headerIcons = settings.values?.groupHeaderIcons ?? "On";
   const connection = useRealtimeConnectionState();
   const [snapshot, setSnapshot] = useState<SidebarSnapshot | null>(null);
   const [preferences, setPreferences] = useState<SidebarPreferences | null>(
@@ -940,6 +1011,8 @@ function RibbonSidebarList({
     name: string;
   } | null>(null);
   const [threadRenamePending, setThreadRenamePending] = useState(false);
+  const [childRanks, setChildRanks] = useState<readonly ChildRank[]>([]);
+  const [childOrderLoaded, setChildOrderLoaded] = useState(false);
   const [placementsLoaded, setPlacementsLoaded] = useState(false);
   const [stagesLoaded, setStagesLoaded] = useState(false);
   const [previewsLoaded, setPreviewsLoaded] = useState(false);
@@ -1084,6 +1157,22 @@ function RibbonSidebarList({
       ),
     );
   }, [loadAssignmentPlacements]);
+
+  const loadChildOrder = useCallback(async () => {
+    const { items } = await rpc.call("listChildOrderV1", null);
+    setChildRanks(items);
+    setChildOrderLoaded(true);
+  }, [rpc]);
+  useEffect(() => {
+    void loadChildOrder().catch((error: unknown) =>
+      setFatalError(
+        error instanceof Error ? error.message : "Could not load child order",
+      ),
+    );
+  }, [loadChildOrder]);
+  useRealtime("child-order-changed", () => {
+    void loadChildOrder().catch(() => undefined);
+  });
 
   useRealtime("placements-changed", () => {
     void loadPlacements();
@@ -1256,8 +1345,11 @@ function RibbonSidebarList({
       list.push(child);
       result.set(child.parentThreadId!, list);
     }
+    for (const [parentThreadId, children] of result) {
+      result.set(parentThreadId, orderChildren(children, childRanks));
+    }
     return result;
-  }, [liveThreadIds, liveThreads, preferences]);
+  }, [childRanks, liveThreadIds, liveThreads, preferences]);
   useEffect(() => {
     if (!normalizedSearch) {
       setSearchResult({
@@ -1575,6 +1667,39 @@ function RibbonSidebarList({
     setDragDestination(null);
   }, []);
 
+  const reorderChildren = useCallback(
+    async (
+      parentThreadId: string,
+      threadId: string,
+      beforeThreadId: string | null,
+    ) => {
+      const threadIds = moveChild(
+        (childrenByParent.get(parentThreadId) ?? []).map(({ id }) => id),
+        threadId,
+        beforeThreadId,
+      );
+      if (!threadIds) return;
+      setMutationError(null);
+      const moved = new Set(threadIds);
+      setChildRanks((current) => [
+        ...current.filter(
+          (rank) =>
+            rank.parentThreadId !== parentThreadId && !moved.has(rank.threadId),
+        ),
+        ...threadIds.map((id) => ({ parentThreadId, threadId: id })),
+      ]);
+      try {
+        await rpc.call("reorderChildrenV1", { parentThreadId, threadIds });
+      } catch (error) {
+        setMutationError(
+          error instanceof Error ? error.message : "Could not reorder thread",
+        );
+        await loadChildOrder().catch(() => undefined);
+      }
+    },
+    [childrenByParent, loadChildOrder, rpc],
+  );
+
   if (fatalError) {
     return (
       <div>
@@ -1719,14 +1844,31 @@ function RibbonSidebarList({
     root: PluginSidebarThread,
     depth = 0,
     includeDescendants = true,
-    rowContext?: {
-      kind: "pinned" | "placement";
-      roots: readonly PluginSidebarThread[];
-      groupId?: string;
+    rowContext?:
+      | {
+          kind: "pinned" | "placement";
+          roots: readonly PluginSidebarThread[];
+          groupId?: string;
+        }
+      | {
+          kind: "children";
+          roots: readonly PluginSidebarThread[];
+          parentThreadId: string;
+        },
+    // Whether this row is the first of its siblings, and whether it and each
+    // ancestor below the root are the last of theirs.
+    lineage: { firstChild: boolean; lastAtDepth: readonly boolean[] } = {
+      firstChild: false,
+      lastAtDepth: [],
     },
   ) => {
     const children = childrenByParent.get(root.id) ?? [];
     const childrenCollapsed = collapsedThreadIds.has(root.id);
+    const showsChildren =
+      includeDescendants &&
+      !childrenCollapsed &&
+      draggingThreadId !== root.id &&
+      children.length > 0;
     const indicatorThread = resolveThreadStatus(
       childrenCollapsed
         ? [root, ...descendants(root.id, childrenByParent)]
@@ -1742,10 +1884,10 @@ function RibbonSidebarList({
       .get("plugin:thread-stages:stages")
       ?.get(stageOwner.id)?.groupId;
     const reorderable =
-      depth === 0 &&
       !normalizedSearch &&
       !root.isArchived &&
-      rowContext !== undefined;
+      rowContext !== undefined &&
+      (depth === 0 || rowContext.kind === "children");
     return (
       <Fragment key={root.id}>
         {dragDestination?.indicatorBefore === root.id ? (
@@ -1754,8 +1896,8 @@ function RibbonSidebarList({
           </li>
         ) : null}
         <ThreadRow
-          rootThreadId={stageOwner.id}
           pullRequestNumberPosition={preferences.view.pullRequestNumberPosition}
+          tabularPullRequestDigits={preferences.view.tabularPullRequestDigits}
           active={activeThreadId === root.id}
           alignAdornmentsToEntireItem={
             settings.values?.threadAdornmentAlignment === "Entire item"
@@ -1797,9 +1939,20 @@ function RibbonSidebarList({
           }
           childrenCollapsed={childrenCollapsed}
           depth={depth}
+          firstChild={lineage.firstChild}
+          endsGroup={lineage.lastAtDepth.map(
+            (_, index) =>
+              !showsChildren &&
+              lineage.lastAtDepth.slice(index).every(Boolean),
+          )}
           hasChildren={children.length > 0}
           indicatorThread={indicatorThread}
           hasUnsubmittedDraft={draftThreadIds.has(root.id)}
+          hideIdleStageIconAtRest={
+            threadStage(root) === "Idle" &&
+            !indicatorThread.spinsStageRing &&
+            activeThreadId !== root.id
+          }
           icon={threadIcon(root, indicatorThread.spinsStageRing)}
           dragging={draggingThreadId === root.id}
           muted={
@@ -1847,11 +2000,29 @@ function RibbonSidebarList({
           sections={sections}
           thread={root}
         />
-        {includeDescendants &&
-        !childrenCollapsed &&
-        draggingThreadId !== root.id
-          ? children.map((child) => renderRoot(child, depth + 1))
-          : null}
+        {showsChildren ? (
+          <SortableContext items={children.map(({ id }) => id)}>
+            {children.map((child, index) =>
+              renderRoot(
+                child,
+                depth + 1,
+                true,
+                {
+                  kind: "children",
+                  roots: children,
+                  parentThreadId: root.id,
+                },
+                {
+                  firstChild: index === 0,
+                  lastAtDepth: [
+                    ...lineage.lastAtDepth,
+                    index === children.length - 1,
+                  ],
+                },
+              ),
+            )}
+          </SortableContext>
+        ) : null}
         {dragDestination?.indicatorAfter === root.id ? (
           <li className="list-none">
             <ThreadDropPreview />
@@ -1897,6 +2068,13 @@ function RibbonSidebarList({
             view: { ...current.view, pullRequestNumberPosition },
           }))
         }
+        tabularPullRequestDigits={preferences.view.tabularPullRequestDigits}
+        onTabularPullRequestDigitsChange={(tabularPullRequestDigits) =>
+          changePreferences((current) => ({
+            ...current,
+            view: { ...current.view, tabularPullRequestDigits },
+          }))
+        }
       />
     ) : null;
 
@@ -1904,6 +2082,13 @@ function RibbonSidebarList({
     <PullRequestDetailsProvider load={loadPullRequestDetails}>
       <ThreadDragProvider
         canDrop={(sourceId, target) => {
+          if (target.kind === "children") {
+            return (
+              !normalizedSearch &&
+              liveThreads.find(({ id }) => id === sourceId)?.parentThreadId ===
+                target.parentThreadId
+            );
+          }
           const source = rootThreads.find(({ id }) => id === sourceId);
           if (!source || normalizedSearch) return false;
           if (target.kind === "pinned") return source.isPinned;
@@ -1924,6 +2109,14 @@ function RibbonSidebarList({
         onDestination={setDragDestination}
         onCancel={clearDrag}
         onDrop={(threadId, destination) => {
+          if (destination.kind === "children") {
+            clearDrag();
+            const { parentThreadId, beforeThreadId } = destination;
+            moveQueue.current = moveQueue.current.then(() =>
+              reorderChildren(parentThreadId, threadId, beforeThreadId),
+            );
+            return;
+          }
           const id = ++moveSequence.current;
           setOptimisticMoves((current) => [
             ...current,
@@ -1968,12 +2161,20 @@ function RibbonSidebarList({
           data-sidebar-sticky-stack=""
           style={
             {
-              "--bb-sidebar-sticky-label-gap":
-                "calc((var(--bb-sidebar-sticky-row-height) - var(--bb-sidebar-sticky-label-height)) / 2 + 1px)",
+              // Headings are laid out like thread rows, as tall as one and
+              // 4px above the rows under them.
+              "--bb-sidebar-sticky-label-height":
+                "var(--bb-sidebar-sticky-row-height)",
+              "--bb-sidebar-sticky-label-gap": "4px",
             } as CSSProperties
           }
           data-ribbon-sidebar-ready={
-            placementsLoaded && stagesLoaded && previewsLoaded ? "" : undefined
+            placementsLoaded &&
+            stagesLoaded &&
+            previewsLoaded &&
+            childOrderLoaded
+              ? ""
+              : undefined
           }
           data-ribbon-sidebar-root=""
         >
@@ -2139,10 +2340,15 @@ function RibbonSidebarList({
             <>
               {onNewSection || displayOptions ? (
                 <div
-                  className={`bb-sidebar-hover-actions-row flex h-6 items-center pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} max-md:pointer-coarse:h-9`}
+                  className={`bb-sidebar-hover-actions-row flex h-(--bb-sidebar-row-height) items-center rounded-md pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} max-md:pointer-coarse:h-(--bb-sidebar-row-height-coarse)`}
                   data-sidebar="group-label"
+                  style={headingColorStyle()}
                 >
-                  <span className="min-w-0 flex-1 truncate">Threads</span>
+                  <span
+                    className={`min-w-0 flex-1 truncate ${HEADING_TEXT_CLASS}`}
+                  >
+                    Threads
+                  </span>
                   <GroupHeaderMenu
                     actions={null}
                     label="Threads"
@@ -2168,47 +2374,37 @@ function RibbonSidebarList({
                   <ThreadDragHeader
                     target={{ kind: "pinned", roots: pinnedRoots }}
                     disabled={Boolean(normalizedSearch)}
-                    className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} max-md:pointer-coarse:h-9`}
+                    className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-(--bb-sidebar-row-height) items-center rounded-md pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} max-md:pointer-coarse:h-(--bb-sidebar-row-height-coarse)`}
                     data-sidebar="group-label"
                     data-sidebar-sticky-tier="label"
+                    style={{ ...headingColorStyle(), ...STICKY_HEADING_STYLE }}
                   >
-                    <span className="flex min-w-0 flex-1 items-center">
-                      <span className="min-w-0 truncate">Pinned</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-expanded={!pinnedSectionCollapsed}
-                        aria-label={
-                          pinnedSectionCollapsed
-                            ? "Expand Pinned section"
-                            : "Collapse Pinned section"
-                        }
-                        className={`${
-                          pinnedSectionCollapsed
-                            ? ""
-                            : "bb-sidebar-hover-actions"
-                        } mx-2 size-5 shrink-0 p-0 text-subtle-foreground focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
-                        onClick={() =>
-                          changePreferences((current) => {
-                            const collapsed = new Set(current.collapsed);
-                            if (collapsed.has("builtin:pinned")) {
-                              collapsed.delete("builtin:pinned");
-                            } else {
-                              collapsed.add("builtin:pinned");
-                            }
-                            return { ...current, collapsed };
-                          })
-                        }
-                        type="button"
-                      >
-                        <Icon
-                          aria-hidden
-                          className={`size-3 transition-transform duration-150 ${
-                            pinnedSectionCollapsed ? "" : "rotate-90"
-                          }`}
-                          name="ChevronRight"
-                        />
-                      </Button>
+                    <button
+                      aria-expanded={!pinnedSectionCollapsed}
+                      aria-label={
+                        pinnedSectionCollapsed
+                          ? "Expand Pinned section"
+                          : "Collapse Pinned section"
+                      }
+                      className={HEADING_TOGGLE_CLASS}
+                      onClick={() =>
+                        changePreferences((current) => {
+                          const collapsed = new Set(current.collapsed);
+                          if (collapsed.has("builtin:pinned")) {
+                            collapsed.delete("builtin:pinned");
+                          } else {
+                            collapsed.add("builtin:pinned");
+                          }
+                          return { ...current, collapsed };
+                        })
+                      }
+                      type="button"
+                    />
+                    <span className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center">
+                      <span className={`min-w-0 truncate ${HEADING_TEXT_CLASS}`}>
+                        Pinned
+                      </span>
+                      <HeadingChevron collapsed={pinnedSectionCollapsed} />
                     </span>
                     <GroupHeaderMenu
                       actions={null}
@@ -2221,7 +2417,27 @@ function RibbonSidebarList({
                   dragDestination.atStart ? (
                     <ThreadDropPreview />
                   ) : null}
-                  {!pinnedSectionCollapsed ? (
+                  <GroupBody
+                    open={!pinnedSectionCollapsed}
+                    keepThreadId={
+                      activeThreadId !== null &&
+                      pinnedRoots
+                        .flatMap((root) => [
+                          root,
+                          ...descendants(root.id, childrenByParent),
+                        ])
+                        .some(({ id }) => id === activeThreadId)
+                        ? activeThreadId
+                        : null
+                    }
+                    folded={
+                      pinnedActivePreview ? (
+                        <ul className="space-y-px">
+                          {renderRoot(pinnedActivePreview, 0, false)}
+                        </ul>
+                      ) : null
+                    }
+                  >
                     <ul className="space-y-px">
                       {pinnedRoots.map((root) =>
                         renderRoot(root, 0, true, {
@@ -2230,11 +2446,7 @@ function RibbonSidebarList({
                         }),
                       )}
                     </ul>
-                  ) : pinnedActivePreview ? (
-                    <ul className="space-y-px">
-                      {renderRoot(pinnedActivePreview, 0, false)}
-                    </ul>
-                  ) : null}
+                  </GroupBody>
                   {dragDestination?.kind === "pinned" &&
                   !dragDestination.atStart &&
                   !dragDestination.indicatorBefore &&
@@ -2408,17 +2620,56 @@ function RibbonSidebarList({
                     <ThreadDragHeader
                       target={groupTarget}
                       disabled={Boolean(normalizedSearch) || !grouping}
-                      className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-6 items-center rounded-md bg-sidebar pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} transition-colors max-md:pointer-coarse:h-9`}
+                      className={`bb-sidebar-hover-actions-row sticky z-[60] flex h-(--bb-sidebar-row-height) items-center rounded-md pl-2 pr-0 ${CHROME_GROUP_HEADING_CLASS} transition-colors max-md:pointer-coarse:h-(--bb-sidebar-row-height-coarse)`}
                       data-sidebar="group-label"
                       data-sidebar-sticky-tier="label"
+                      {...(entityGroupIcon
+                        ? {
+                            [`data-ribbon-icons-${entityGroupIcon.kind}`]:
+                              group.id,
+                          }
+                        : {})}
+                      style={{
+                        ...headingColorStyle(entityGroupIcon?.kind),
+                        ...STICKY_HEADING_STYLE,
+                      }}
                     >
-                      <span className="relative z-10 flex min-w-0 flex-1 items-center text-left">
-                        <span className="flex min-w-0 items-center gap-2 text-left">
-                          {settings.values?.showGroupHeaderIcons !== false &&
-                          unorganizedGroup ? (
+                      {grouping ? (
+                        <button
+                          aria-expanded={!collapsed}
+                          aria-label={
+                            collapsed
+                              ? `Expand ${group.label} ${selectedGroupingKey === "builtin:projects" ? "project" : "section"}`
+                              : `Collapse ${group.label} ${selectedGroupingKey === "builtin:projects" ? "project" : "section"}`
+                          }
+                          className={HEADING_TOGGLE_CLASS}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            changePreferences((current) => {
+                              const next = new Set(current.collapsed);
+                              if (next.has(ref)) next.delete(ref);
+                              else next.add(ref);
+                              return { ...current, collapsed: next };
+                            });
+                          }}
+                          title={group.label}
+                          type="button"
+                        />
+                      ) : null}
+                      <span className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center text-left">
+                        <span
+                          className={`flex min-w-0 items-center gap-2 text-left ${HEADING_TEXT_CLASS}`}
+                        >
+                          {headerIcons === "Off" ? null : entityGroupIcon &&
+                            headerIcons === "Standardized" ? (
+                            <StandardHeadingIcon
+                              kind={entityGroupIcon.kind}
+                              collapsed={collapsed}
+                            />
+                          ) : unorganizedGroup ? (
                             <UnorganizedIcon />
-                          ) : settings.values?.showGroupHeaderIcons !== false &&
-                            entityGroupIcon ? (
+                          ) : entityGroupIcon ? (
                             <span
                               aria-hidden
                               {...(entityGroupIcon.kind === "project"
@@ -2427,9 +2678,9 @@ function RibbonSidebarList({
                               data-ribbon-sidebar-icon={
                                 entityGroupIcon.fallback
                               }
+                              style={HEADING_ICON_STYLE}
                             />
-                          ) : settings.values?.showGroupHeaderIcons !== false &&
-                            group.icon ? (
+                          ) : group.icon ? (
                             <ProviderIcon
                               icon={group.icon}
                               label={`${group.label} group icon`}
@@ -2443,41 +2694,14 @@ function RibbonSidebarList({
                           </span>
                         </span>
                         {grouping ? (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-expanded={!collapsed}
-                            aria-label={
-                              collapsed
-                                ? `Expand ${group.label} ${selectedGroupingKey === "builtin:projects" ? "project" : "section"}`
-                                : `Collapse ${group.label} ${selectedGroupingKey === "builtin:projects" ? "project" : "section"}`
-                            }
-                            className={`${collapsed ? "" : "bb-sidebar-hover-actions"} relative z-20 mx-2 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2 [&_[data-icon-root]]:size-3`}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              changePreferences((current) => {
-                                const next = new Set(current.collapsed);
-                                if (next.has(ref)) next.delete(ref);
-                                else next.add(ref);
-                                return { ...current, collapsed: next };
-                              });
-                            }}
-                            type="button"
-                          >
-                            <Icon
-                              aria-hidden
-                              className={`size-3 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
-                              name="ChevronRight"
-                            />
-                          </Button>
+                          <HeadingChevron collapsed={collapsed} />
                         ) : null}
                       </span>
                       <Button
                         variant="ghost"
                         size="icon"
                         type="button"
-                        className="bb-sidebar-hover-actions m-1 size-5 shrink-0 p-0 text-subtle-foreground ring-sidebar-ring focus-visible:bg-state-hover focus-visible:ring-2"
+                        className={`bb-sidebar-hover-actions relative z-20 m-1 size-5 shrink-0 p-0 ${HEADING_ACTION_CLASS} ring-sidebar-ring focus-visible:ring-2`}
                         aria-label={`New thread in ${group.label}`}
                         onClick={() =>
                           actions.openNewThread({
@@ -2493,7 +2717,7 @@ function RibbonSidebarList({
                           })
                         }
                       >
-                        <Icon aria-hidden name="Plus" className="size-4" />
+                        <Icon aria-hidden name="MessageSquarePlus" className="size-4" />
                       </Button>
                       <GroupHeaderMenu
                         onNewSection={onNewSection}
@@ -2510,7 +2734,7 @@ function RibbonSidebarList({
                           ) : collapsed && roots.length > 0 ? (
                             <span
                               aria-label={`${roots.length} ${roots.length === 1 ? "thread" : "threads"}`}
-                              className="tabular-nums text-xs text-subtle-foreground/60"
+                              className="tabular-nums text-xs text-[color:color-mix(in_oklab,var(--ribbon-heading-on,var(--subtle-foreground))_60%,transparent)]"
                             >
                               {roots.length}
                             </span>
@@ -2523,41 +2747,50 @@ function RibbonSidebarList({
                     dragDestination.atStart ? (
                       <ThreadDropPreview />
                     ) : null}
-                    <div className="space-y-px">
-                      {!collapsed ? (
-                        <>
-                          {bands.main.length > 0 ? (
-                            <ul className="space-y-px">
-                              {bands.main.map(renderSectionRow)}
-                            </ul>
-                          ) : null}
-                          <StagePreview
-                            key={`${group.id}/deferred`}
-                            stage="deferred"
-                            rows={bands.deferred}
-                            selectedRootId={selectedRootId}
-                            renderRow={renderSectionRow}
-                            revealAll={Boolean(normalizedSearch)}
-                          />
-                          <StagePreview
-                            key={`${group.id}/completed`}
-                            stage="completed"
-                            rows={bands.completed}
-                            selectedRootId={selectedRootId}
-                            renderRow={renderSectionRow}
-                            revealAll={Boolean(normalizedSearch)}
-                          />
-                        </>
-                      ) : activePreview ? (
-                        <ul className="space-y-px">
-                          {renderRoot(activePreview, 0, false, {
-                            kind: "placement",
-                            roots,
-                            groupId: group.id,
-                          })}
-                        </ul>
-                      ) : null}
-                    </div>
+                    <GroupBody
+                      open={!collapsed}
+                      keepThreadId={
+                        activeThreadId !== null &&
+                        groupThreads.some(({ id }) => id === activeThreadId)
+                          ? activeThreadId
+                          : null
+                      }
+                      folded={
+                        activePreview ? (
+                          <ul className="space-y-px">
+                            {renderRoot(activePreview, 0, false, {
+                              kind: "placement",
+                              roots,
+                              groupId: group.id,
+                            })}
+                          </ul>
+                        ) : null
+                      }
+                    >
+                      <div className="space-y-px">
+                        {bands.main.length > 0 ? (
+                          <ul className="space-y-px">
+                            {bands.main.map(renderSectionRow)}
+                          </ul>
+                        ) : null}
+                        <StagePreview
+                          key={`${group.id}/deferred`}
+                          stage="deferred"
+                          rows={bands.deferred}
+                          selectedRootId={selectedRootId}
+                          renderRow={renderSectionRow}
+                          revealAll={Boolean(normalizedSearch)}
+                        />
+                        <StagePreview
+                          key={`${group.id}/completed`}
+                          stage="completed"
+                          rows={bands.completed}
+                          selectedRootId={selectedRootId}
+                          renderRow={renderSectionRow}
+                          revealAll={Boolean(normalizedSearch)}
+                        />
+                      </div>
+                    </GroupBody>
                     {dragDestination?.kind === "placement" &&
                     dragDestination.groupId === group.id &&
                     !dragDestination.atStart &&

@@ -4,7 +4,7 @@ Keep every section or project visible, with stable thread order and workflow sta
 
 ![Ribbon sidebar](assets/screenshot.png)
 
-Install Ribbon and select **Ribbon sidebar** under **Settings → Appearance → Sidebar** (bb 0.43.4 or newer):
+Install Ribbon and select **Ribbon sidebar** under **Settings → Appearance → Sidebar** (bb 0.44.0 or newer):
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon
@@ -25,13 +25,19 @@ most recent completions. **Show N more deferred/completed** expands the rest,
 and **Show fewer** restores the preview. The open thread's hierarchy remains
 visible even outside that preview. Search reveals every matching result.
 
-Use a heading's chevron to collapse it; the label keeps bb's existing behavior.
-A collapsed group previews the open thread. Its plus button creates a thread
-in that section or project. Headings, icons, menus, row styles, and focus
+Click anywhere on a heading to collapse or expand it. A section or project
+whose icon has a color in the [Icons plugin](../bb-plugin-icons#readme) tints
+its heading with that color; every other heading is tinted gray. The **Group
+header icons** setting shows each group's own icon (On), none (Off), or
+Standardized: a book for every section, Unorganized included, and a folder for
+every project, open while the group is. The book's top page turns over on its
+spine and the folder's front falls forward, as the objects would. A collapsed group previews the open thread. Its plus
+button creates a thread in that section or project. Headings, icons, menus, row styles, and focus
 treatments use Ribbon's existing bb components and theme tokens.
 
 Drag a root to reorder it within its list, or onto another section's header to
-move it there. Dragging preserves its stage. Change stages through the thread
+move it there. Drag a child to reorder it among its siblings; it stays under
+its parent. Dragging preserves its stage. Change stages through the thread
 menu, CLI, or keyboard shortcuts. Completed stays ordered by completion time.
 Project grouping supports reordering within a project; bb owns project membership.
 Group rank survives stage changes, so returning a deferred or completed root
@@ -39,7 +45,8 @@ to the main list restores its place.
 
 bb owns section membership, pins, pinned order, and lifecycle. Ribbon stores
 section and project ranks separately from workflow stage. Children inherit
-their root's stage and remain nested. Forks inherit their source hierarchy's
+their root's stage and remain nested. Each parent keeps its own child order in
+every grouping; children not yet reordered enter at the top, newest first. Forks inherit their source hierarchy's
 section and stage; unparenting copies the former root's placement.
 
 Thread status indicators retain bb's priority for errors, input requests, active
@@ -74,6 +81,20 @@ A working row also shimmers across its icon, title, preview, and indicator, in
 place of the shimmer bb draws on the indicator alone. Turn off **Shimmer working
 rows** in Ribbon settings to keep bb's.
 
+With the optional [Thread stages plugin](../bb-plugin-thread-stages#readme)
+installed, type `@` and a stage name in the composer to mention a stage, such
+as `@Blocked`. A mentioned stage tells the agent to place the thread there, so
+a message can end with "then @Blocked", and a queued message can be just the
+mention.
+
+When you or another thread move a root to a different stage, Ribbon sends that
+thread "Thread stage updated: @Idle → @Blocked", with agent-only context that
+tells the agent who moved it. Without Thread stages, the stages are plain text.
+The message steers a running turn or starts one on an idle thread. Automatic
+placement and a thread moving itself through the CLI send nothing. Turn off
+**Message threads when their stage changes** in Ribbon settings to stop these
+messages.
+
 Completed hierarchies auto-archive after seven days by default. Ribbon settings
 can select 1 or 30 days, or Never. Completion and subsequent root or descendant
 updates restart the timer. Any pinned member prevents archival.
@@ -84,7 +105,7 @@ updates restart the timer. Any pinned member prevents archival.
 | ⇧⌘. | Ctrl+Shift+. | Return to Idle, or undo the latest filing in this section or project |
 | ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked |
 | ⌃⌘. | Ctrl+Alt+, | Defer |
-| ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list |
+| ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list, or a child among its siblings |
 | ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to that list's edge |
 | ⌃⌘↑ / ⌃⌘↓ | Ctrl+↑ / Ctrl+↓ | Move to the adjacent enabled stage |
 
@@ -110,6 +131,8 @@ bb sidebar list --scope builtin:sections/<section-id>
 bb sidebar show --self
 bb sidebar place --self --to plugin:thread-stages:stages/Completed
 bb sidebar place <thread> --to builtin:sections/<section-id> --before <thread>
+bb sidebar place <child> --before <sibling>
+bb sidebar children <thread>
 bb sidebar migrate thread-stages
 ```
 

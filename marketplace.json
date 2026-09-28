@@ -149,7 +149,7 @@
     {
       "id": "thread-stages",
       "displayName": "Thread stages",
-      "description": "Preserve existing stage shortcuts and migrate saved state to Ribbon sidebar.",
+      "description": "Mention stages in the composer, and preserve existing stage shortcuts and saved state for Ribbon sidebar.",
       "icon": {
         "url": "./plugins/bb-plugin-thread-stages/assets/icon.svg"
       },
@@ -178,7 +178,7 @@
     {
       "id": "thread-titles",
       "displayName": "Thread titles",
-      "description": "Name threads after their first turn and refine generic or inaccurate titles on the third user message.",
+      "description": "Title threads from their first message and first turn, and refine generic, inaccurate, or overlong titles on the third user message.",
       "icon": {
         "url": "./plugins/bb-plugin-thread-titles/assets/icon.svg"
       },

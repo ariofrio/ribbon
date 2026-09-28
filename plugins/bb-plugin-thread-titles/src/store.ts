@@ -3,8 +3,13 @@ import type { Thread } from "./history";
 
 export interface Job {
   threadId: string;
-  phase?: "initial" | "refinement";
+  // "message" titles the first message once bb's own title has landed;
+  // "initial" titles the first turn; "refinement" assesses the third message.
+  // Jobs saved without a phase are "initial".
+  phase?: "message" | "initial" | "refinement";
   initialWorkerId?: string | null;
+  // Workers of earlier phases, never recovered as a later phase's worker.
+  pastWorkerIds?: string[];
   baseline: string | null;
   fallback: string | null;
   captured: boolean;
@@ -20,8 +25,12 @@ export interface Job {
   // The worker ran on the automatic model rather than a selected one.
   automatic?: boolean;
   model?: string | null;
-  // This phase's one retry, on the automatic fallback model, has started.
+  // This phase's one retry has started: on the automatic fallback model, or
+  // on the same model when lengthRetry is set.
   onFallback?: boolean;
+  lengthRetry?: boolean;
+  // The over-long title that prompted a length retry, if a worker wrote one.
+  rejectedTitle?: string | null;
   // Failed workers, never recovered as a later worker in any phase.
   failedWorkerIds?: string[];
 }
@@ -55,7 +64,7 @@ export function createStore(bb: BbPluginApi) {
         return;
       const job: Job = {
         threadId: thread.id,
-        phase: "initial",
+        phase: "message",
         initialWorkerId: null,
         baseline: thread.title,
         fallback: thread.titleFallback,

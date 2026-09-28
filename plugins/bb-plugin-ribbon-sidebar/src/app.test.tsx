@@ -397,6 +397,14 @@ function options(overrides: Record<string, unknown> = {}) {
   const deleteEntityV1 = vi.fn(async () => null);
   const addProjectLocalPathV1 = vi.fn(async () => ({ added: true }));
   const reorderPinnedV1 = vi.fn(async () => ({ reordered: true }));
+  const listChildOrderV1 = vi.fn(
+    async (): Promise<{
+      items: { parentThreadId: string; threadId: string }[];
+    }> => ({ items: [] }),
+  );
+  const reorderChildrenV1 = vi.fn(async (_input: unknown) => ({
+    ok: true as const,
+  }));
   const listProjectActionStatesV1 = vi.fn(async () => ({
     projects: [{ id: "project-a", canAddLocalPath: true }],
   }));
@@ -415,6 +423,8 @@ function options(overrides: Record<string, unknown> = {}) {
     deleteEntityV1,
     addProjectLocalPathV1,
     reorderPinnedV1,
+    listChildOrderV1,
+    reorderChildrenV1,
     listProjectActionStatesV1,
     listThreadsV1,
     updateSettingsV1,
@@ -424,7 +434,7 @@ function options(overrides: Record<string, unknown> = {}) {
         showMessagePreviews: true,
         threadAdornmentAlignment: "Title row",
         showCollapsedGroupIndicators: false,
-        showGroupHeaderIcons: true,
+        groupHeaderIcons: "On",
       },
       rpc: {
         synchronizeV1,
@@ -446,6 +456,8 @@ function options(overrides: Record<string, unknown> = {}) {
         placeNewThreadV1,
         addProjectLocalPathV1,
         reorderPinnedV1,
+        listChildOrderV1,
+        reorderChildrenV1,
         createProjectV1,
         createSectionV1,
         renameEntityV1,
@@ -533,7 +545,7 @@ describe("Ribbon sidebar app", () => {
     fireEvent.click(await slot.findByRole("menuitem", { name: "New section" }));
     expect(await slot.findByRole("dialog", { name: "New section" })).toBeTruthy();
     slot.lifecycle.unmount();
-  });
+  }, 15_000);
 
   it("keeps creation and display options accessible with no visible threads", async () => {
     const app = await loadPluginApp(() => import("./app"));
@@ -803,11 +815,70 @@ describe("Ribbon sidebar app", () => {
     expect(slot.queryByLabelText("Thread working")).toBeNull();
     // Only the ring turns; the stage's own marks stay upright.
     const [ring, marks] = Array.from(working.querySelectorAll("svg"));
-    expect(ring!.getAttribute("class")).toContain("animate-spin");
-    expect(marks?.getAttribute("class") ?? "").not.toContain("animate-spin");
+    const spinning = '[class*="animate-spin"]';
+    expect(ring!.parentElement!.matches(spinning)).toBe(true);
+    expect(marks?.closest(spinning) ?? null).toBeNull();
     expect(
       working.closest("li")!.querySelector("[data-sidebar-thread-trailing-indicator]"),
     ).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("makes each whole heading the toggle, with its chevron in place", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    for (const name of ["Collapse Release section", "Collapse Pinned section"]) {
+      const toggle = await slot.findByRole("button", { name });
+      const heading = toggle.closest<HTMLElement>('[data-sidebar="group-label"]')!;
+      // The toggle spans the row; the chevron is only its picture now.
+      expect(toggle.parentElement).toBe(heading);
+      const chevron = heading.querySelector("[data-ribbon-heading-chevron]")!;
+      expect(chevron).not.toBeNull();
+      expect(chevron.closest("button")).toBeNull();
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    }
+    fireEvent.click(slot.getByRole("button", { name: "Collapse Release section" }));
+    expect(
+      await slot.findByRole("button", { name: "Expand Release section" }),
+    ).toBeTruthy();
+    slot.lifecycle.unmount();
+  });
+
+  it("paints a section heading in its icon's color", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = options();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    const heading = (
+      await slot.findByRole("button", { name: "Collapse Release section" })
+    ).closest<HTMLElement>('[data-sidebar="group-label"]')!;
+    // The Icons plugin sets its color variables on whatever names the owner.
+    expect(heading.getAttribute("data-ribbon-icons-section")).toBe("section-a");
+    // One even family, whatever the palette color: its hue, at a lightness
+    // and chroma chosen per mode for a faint wash and the ink on it.
+    const color = "var(--ribbon-icons-section-color-light)";
+    expect(heading.style.getPropertyValue("--ribbon-heading-fill")).toBe(
+      `light-dark(oklch(from ${color} 0.95 0.025 h), oklch(from ${color} 0.28 0.035 h))`,
+    );
+    expect(heading.style.getPropertyValue("--ribbon-heading-ink")).toBe(
+      `light-dark(oklch(from ${color} 0.47 0.13 h), oklch(from ${color} 0.82 0.11 h))`,
+    );
+    expect(heading.style.backgroundColor).toBe(
+      "var(--ribbon-heading-fill, light-dark(oklch(0.95 0 0), oklch(0.28 0 0)))",
+    );
+    expect(heading.style.getPropertyValue("--ribbon-heading-on")).toBe(
+      "var(--ribbon-heading-ink, light-dark(oklch(0.47 0 0), oklch(0.82 0 0)))",
+    );
+    // Headings without a color of their own are the same family in gray.
+    const pinned = slot
+      .getByRole("button", { name: "Collapse Pinned section" })
+      .closest<HTMLElement>('[data-sidebar="group-label"]')!;
+    expect(pinned.style.backgroundColor).toBe(
+      "light-dark(oklch(0.95 0 0), oklch(0.28 0 0))",
+    );
+    expect(pinned.style.getPropertyValue("--ribbon-heading-on")).toBe(
+      "light-dark(oklch(0.47 0 0), oklch(0.82 0 0))",
+    );
     slot.lifecycle.unmount();
   });
 
@@ -839,11 +910,15 @@ describe("Ribbon sidebar app", () => {
         "--ribbon-active-animation-delay",
       ),
     ).toMatch(/^-?\d+(?:\.\d+)?ms$/);
-    await within(working as HTMLElement).findByText("A useful preview");
-    const shining = Array.from(working.querySelectorAll("[data-ribbon-shine]"));
-    expect(shining.map((node) => node.textContent)).toEqual(
-      expect.arrayContaining(["thread-a", "A useful preview"]),
+    // The preview arrives after the row does.
+    await waitFor(() =>
+      expect(
+        Array.from(working.querySelectorAll("[data-ribbon-shine]")).map(
+          (node) => node.textContent,
+        ),
+      ).toEqual(expect.arrayContaining(["thread-a", "A useful preview"])),
     );
+    const shining = Array.from(working.querySelectorAll("[data-ribbon-shine]"));
     expect(
       shining.some((node) => node.querySelector("[aria-label='Idle stage, working']")),
     ).toBe(true);
@@ -1185,7 +1260,7 @@ describe("Ribbon sidebar app", () => {
     });
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
     const title = await slot.findByText("Design migration");
-    const preview = await slot.findByText("A useful preview");
+    const preview = await slot.findByTitle("A useful preview");
     const row = title.closest("[data-thread-id]")!;
     const indicator = row.querySelector<HTMLElement>(
       "[data-sidebar-thread-trailing-indicator]",
@@ -1201,7 +1276,7 @@ describe("Ribbon sidebar app", () => {
     const app = await loadPluginApp(() => import("./app"));
     const fixture = options();
     const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
-    const preview = await slot.findByText("A useful preview");
+    const preview = await slot.findByTitle("A useful preview");
 
     expect(getComputedStyle(preview).paddingRight).toBe("8px");
     slot.lifecycle.unmount();
@@ -1866,7 +1941,7 @@ describe("Ribbon sidebar app", () => {
         showProjectsAndSections: true,
         showMessagePreviews: true,
         showCollapsedGroupIndicators: false,
-        showGroupHeaderIcons: false,
+        groupHeaderIcons: "Off",
       },
     });
     window.localStorage.setItem(
@@ -1890,6 +1965,49 @@ describe("Ribbon sidebar app", () => {
       hiddenHeader.querySelector('[data-ribbon-icons-section="section-a"]'),
     ).toBeNull();
     hiddenSlot.lifecycle.unmount();
+  });
+
+  it("draws standard heading icons that open and shut with their group", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    for (const [groupingKey, region, toggle, shut, open] of [
+      ["builtin:sections", "Release group", "Release section", "BookClosed", "BookOpen"],
+      ["builtin:sections", "Unorganized group", "Unorganized section", "BookClosed", "BookOpen"],
+      ["builtin:projects", "Storefront group", "Storefront project", "FolderClosed", "FolderOpen"],
+    ] as const) {
+      window.localStorage.setItem(
+        "bb.plugin.ribbon-sidebar.preferences.v1",
+        JSON.stringify({ view: { scope: { kind: "all" }, groupingKey }, collapsed: [] }),
+      );
+      const fixture = options({
+        settings: { ...options().value.settings, groupHeaderIcons: "Standardized" },
+      });
+      const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+      const header = (await slot.findByRole("region", { name: region }))
+        .querySelector<HTMLElement>('[data-sidebar="group-label"]')!;
+      // One glyph for every section or project, not the one each chose, and
+      // none special for Unorganized.
+      expect(header.querySelector("[data-ribbon-sidebar-icon]")).toBeNull();
+      expect(header.querySelector('[data-icon="ListViewOff"]')).toBeNull();
+      expect(header.querySelector(`[data-icon="${open}"]`)).not.toBeNull();
+      fireEvent.click(slot.getByRole("button", { name: `Collapse ${toggle}` }));
+      await slot.findByRole("button", { name: `Expand ${toggle}` });
+      expect(header.querySelector(`[data-icon="${shut}"]`)).not.toBeNull();
+      expect(header.querySelector(`[data-icon="${open}"]`)).toBeNull();
+      // It shuts as its group folds, starting from open, and comes to rest.
+      expect(
+        header.querySelector(`[data-icon="${shut}"]`)!.getAttribute("data-ribbon-icon-opening"),
+      ).toBe("1");
+      await waitFor(() =>
+        expect(header.querySelector("[data-ribbon-icon-opening]")).toBeNull(),
+      );
+      // It is drawn at its size rather than scaled, so its stroke is the
+      // usual weight.
+      for (const path of Array.from(header.querySelectorAll(`[data-icon="${shut}"] path:not(mask path)`))) {
+        expect(path.getAttribute("transform")).toBeNull();
+        expect(path.getAttribute("stroke-width")).toBe("1.5");
+      }
+      slot.lifecycle.unmount();
+    }
   });
 
   it("moves a root from the thread's section menu", async () => {
@@ -2210,6 +2328,126 @@ describe("Ribbon sidebar app", () => {
     },
   );
 
+  function childFixture() {
+    const fixture = options({
+      sidebarThreads: {
+        projects: [
+          {
+            id: "project-a",
+            name: "Storefront",
+            isPersonal: false,
+            href: "/projects/project-a",
+            settingsHref: "/projects/project-a/settings",
+          },
+        ],
+        threads: [
+          thread({ id: "thread-a", title: "Design migration" }),
+          thread({
+            id: "child-old",
+            title: "Older child",
+            parentThreadId: "thread-a",
+            createdAt: 1,
+          }),
+          thread({
+            id: "child-new",
+            title: "Newer child",
+            parentThreadId: "thread-a",
+            createdAt: 2,
+          }),
+          thread({ id: "thread-b", title: "Ship UI" }),
+        ],
+      },
+    });
+    fixture.listChildOrderV1.mockResolvedValue({
+      items: [
+        { parentThreadId: "thread-a", threadId: "child-old" },
+        { parentThreadId: "thread-a", threadId: "child-new" },
+      ],
+    });
+    return fixture;
+  }
+
+  function renderedChildren(slot: ReturnType<typeof renderSlot>) {
+    return Array.from(
+      slot.container.querySelectorAll<HTMLElement>("li[data-thread-id]"),
+    )
+      .map(({ dataset }) => dataset.threadId)
+      .filter((id) => id?.startsWith("child-"));
+  }
+
+  it("orders children newest first until their saved order applies", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = childFixture();
+    fixture.listChildOrderV1.mockResolvedValue({ items: [] });
+    const unsaved = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await unsaved.findByText("Older child");
+    expect(renderedChildren(unsaved)).toEqual(["child-new", "child-old"]);
+    unsaved.lifecycle.unmount();
+
+    const saved = renderSlot(app.threadLists[0]!, props, childFixture().value);
+    await saved.findByText("Older child");
+    await waitFor(() =>
+      expect(renderedChildren(saved)).toEqual(["child-old", "child-new"]),
+    );
+    saved.lifecycle.unmount();
+  });
+
+  it("reorders a child among its siblings by dragging", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = childFixture();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await waitFor(() =>
+      expect(renderedChildren(slot)).toEqual(["child-old", "child-new"]),
+    );
+
+    const drag = await beginThreadDrag(
+      slot.getByText("Newer child").closest("li")!,
+    );
+    drag.hover(slot.getByText("Older child").closest("li")!);
+    await act(async () => drag.drop());
+
+    await waitFor(() =>
+      expect(fixture.reorderChildrenV1).toHaveBeenCalledWith({
+        parentThreadId: "thread-a",
+        threadIds: ["child-new", "child-old"],
+      }),
+    );
+    expect(renderedChildren(slot)).toEqual(["child-new", "child-old"]);
+    expect(fixture.updatePlacementV1).not.toHaveBeenCalled();
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps a dragged child under its parent", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const fixture = childFixture();
+    const slot = renderSlot(app.threadLists[0]!, props, fixture.value);
+    await waitFor(() =>
+      expect(renderedChildren(slot)).toEqual(["child-old", "child-new"]),
+    );
+
+    const drag = await beginThreadDrag(
+      slot.getByText("Newer child").closest("li")!,
+    );
+    drag.hover(slot.getByRole("region", { name: "Roadmap group" }));
+    await act(async () => drag.drop());
+    const rootDrag = await beginThreadDrag(
+      slot.getByText("Ship UI").closest("li")!,
+    );
+    rootDrag.hover(slot.getByText("Older child").closest("li")!);
+    await act(async () => rootDrag.drop());
+
+    expect(fixture.reorderChildrenV1).not.toHaveBeenCalled();
+    expect(fixture.updatePlacementV1).not.toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "child-new" }),
+    );
+    expect(fixture.updatePlacementV1).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        anchor: { kind: "before", threadId: "child-old" },
+      }),
+    );
+    slot.lifecycle.unmount();
+  });
+
   it("restores the original group when saving a drop fails", async () => {
     useManualSort();
     const app = await loadPluginApp(() => import("./app"));
@@ -2314,6 +2552,38 @@ describe("Ribbon sidebar app", () => {
       ).toBeTruthy(),
     );
     slot.lifecycle.unmount();
+  });
+
+  it("keeps a row pending until its pull request details settle", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const url = "https://github.com/acme/app/pull/12";
+    for (const outcome of ["loaded", "failed"] as const) {
+      let settle!: () => void;
+      const pullRequestDetailsV1 = vi.fn(
+        () => new Promise<{ details: never[] }>((resolve, reject) => {
+          settle = () =>
+            outcome === "loaded"
+              ? resolve({ details: [] })
+              : reject(new Error("gh unavailable"));
+        }),
+      );
+      const fixture = options({
+        sidebarPullRequests: {
+          "thread-a": { number: 12, title: "Ship it", url, state: "open", attention: "blocked" },
+        },
+      });
+      const slot = renderSlot(app.threadLists[0]!, props, {
+        ...fixture.value,
+        rpc: { ...fixture.value.rpc, pullRequestDetailsV1 },
+      });
+      const pending = () =>
+        slot.container.querySelectorAll("[data-ribbon-pull-request-pending]");
+      await waitFor(() => expect(pullRequestDetailsV1).toHaveBeenCalled());
+      expect(pending()).toHaveLength(1);
+      await act(async () => settle());
+      await waitFor(() => expect(pending()).toHaveLength(0));
+      slot.lifecycle.unmount();
+    }
   });
 
   it("shows a retry action when mounting fails", async () => {

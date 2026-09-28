@@ -14,22 +14,29 @@ describe("row shimmer styles", () => {
     );
   });
 
-  it("animates each mask position without an inherited animation", () => {
+  it("moves the wave by translation alone, which the compositor runs", () => {
     const css = shineStyles();
-    expect(css).not.toContain("@property --ribbon-shine");
-    expect(css).toContain("mask-position:calc(0px - var(--ribbon-shine-offset, 0px)) 0");
+    // A custom property or mask position animated per frame restyles and
+    // repaints every piece on the main thread.
+    expect(css).not.toContain("@property");
+    expect(css).not.toMatch(/@keyframes[^{]*\{[^}]*mask-position/);
+    // The window and its content slide one wave in opposite directions.
+    expect(css).toContain(
+      "@keyframes ribbon-shine-window{from{translate:0}to{translate:var(--ribbon-shine-width, 120px) 0}}",
+    );
+    expect(css).toContain(
+      "@keyframes ribbon-shine-content{from{translate:0}to{translate:calc(-1 * var(--ribbon-shine-width, 120px)) 0}}",
+    );
     // Only while motion is welcome; reduced motion leaves content untouched.
     expect(css).toMatch(/^@media \(prefers-reduced-motion: no-preference\)\{/m);
-    expect(css).toContain("var(--ribbon-shine-offset");
-    // Like bb's icon shimmer, one wave spans two element widths.
+    // Like bb's icon shimmer, one wave spans two element widths, and each
+    // piece's mask starts where the piece sits in its row.
     expect(css).toContain("mask-size:var(--ribbon-shine-width, 120px) 100%");
-    expect(css).toContain(
-      "mask-position:calc(var(--ribbon-shine-width, 120px) - var(--ribbon-shine-offset, 0px)) 0",
-    );
+    expect(css).toContain("mask-position:calc(-1 * var(--ribbon-shine-offset, 0px)) 0");
   });
 
   it("lets clicks through to the row's link", () => {
-    // A mask makes each piece a stacking context above the full-row link.
+    // A mask makes each window a stacking context above the full-row link.
     expect(shineStyles()).toMatch(
       /\[data-ribbon-shine-row\] \[data-ribbon-shine\]\{[^}]*pointer-events:none/,
     );
