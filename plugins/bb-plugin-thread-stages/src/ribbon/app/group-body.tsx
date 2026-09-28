@@ -188,7 +188,11 @@ export function GroupBody({
           fold is done. */}
       <div
         className={`min-h-0 min-w-0 ${
-          phase === "open" ? "" : "[clip-path:inset(0)] [&_[data-sidebar-sticky-tier]]:static!"
+          phase === "open"
+              ? ""
+              : // Sticky rows sit still while the body folds, and stay the
+                // box their tree lines are drawn against.
+                "[clip-path:inset(0)] [&_[data-sidebar-sticky-tier]]:relative! [&_[data-sidebar-sticky-tier]]:top-auto!"
         }`}
       >
         <FoldingContext.Provider value={phase !== "open"}>{children}</FoldingContext.Provider>
