@@ -1,5 +1,11 @@
 # bb-plugin-ribbon-sidebar
 
+## 0.8.3
+
+### Patch Changes
+
+- f624869: Install the sidebar checkbox dependency in production so bb can build the plugin from its release.
+
 ## 0.8.2
 
 ### Patch Changes
