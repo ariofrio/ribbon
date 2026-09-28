@@ -1,5 +1,7 @@
 import {
   useCallback,
+  useEffect,
+  useRef,
   type CSSProperties,
   type KeyboardEventHandler,
   type MouseEvent,
@@ -50,6 +52,9 @@ import {
 import { SplitPaneMiniMap } from "../rows/SplitPaneMiniMap.js";
 import { COARSE_POINTER_ROW_ACTION_SIZE_CLASS } from "@/components/ui/coarse-pointer-sizing";
 import { usePluginThreadRowStatusForThreads } from "./groupRollups.js";
+
+/** How long a name click waits for a second one before it folds the group. */
+const DOUBLE_CLICK_WINDOW_MS = 250;
 
 const EMPTY_SPLIT_INDICATOR_THREADS: readonly ThreadSplitIndicatorTarget[] = [];
 
@@ -148,12 +153,13 @@ export function TopLevelSidebarSection({
         aria-label={`${collapsedThreads.length} ${collapsedThreads.length === 1 ? "thread" : "threads"}`}
         data-sidebar-collapsed-count=""
         className={cn(
-          "pointer-events-none absolute right-0 top-1/2 z-20 inline-flex -translate-y-1/2 items-center justify-center text-xs tabular-nums opacity-60 max-md:static max-md:shrink-0 max-md:translate-y-0",
+          "pointer-events-none absolute right-0 top-1/2 z-20 inline-flex -translate-y-1/2 items-center justify-center text-xs tabular-nums max-md:static max-md:shrink-0 max-md:translate-y-0",
           COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
           actions && SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
         )}
       >
-        {collapsedThreads.length}
+        {/* The fade sets this span's opacity, so the dimming sits inside it. */}
+        <span className="opacity-60">{collapsedThreads.length}</span>
       </span>
     ) : null;
   const collapsedActivityIndicator = showCollapsedActivity ? (
@@ -195,9 +201,8 @@ export function TopLevelSidebarSection({
   const handleHeadingClick = useCallback<MouseEventHandler<HTMLDivElement>>(
     (event) => {
       // Every click toggles at once, with nothing waiting to tell a double
-      // click apart. The name is the rename hotspot, so clicks there toggle
-      // nothing: a double click on it would otherwise fold and unfold the
-      // group on its way to the editor.
+      // click apart. The name is the rename hotspot and toggles on its own,
+      // once a second click has had its chance to arrive.
       if (!ribbon || !collapseControl || labelEditor) return;
       if (
         event.target instanceof Element &&
@@ -210,6 +215,33 @@ export function TopLevelSidebarSection({
       collapseControl.onToggleCollapsed();
     },
     [collapseControl, labelEditor, ribbon],
+  );
+  // A click on the name folds the group only once it is not the first half
+  // of a double click, which renames instead.
+  const pendingNameClick = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelNameClick = useCallback(() => {
+    if (pendingNameClick.current !== null) {
+      clearTimeout(pendingNameClick.current);
+      pendingNameClick.current = null;
+    }
+  }, []);
+  useEffect(() => cancelNameClick, [cancelNameClick]);
+  const handleNameClick = useCallback<MouseEventHandler<HTMLSpanElement>>(
+    (event) => {
+      if (!ribbon || !collapseControl || labelEditor) return;
+      if (!onRename) {
+        collapseControl.onToggleCollapsed();
+        return;
+      }
+      event.stopPropagation();
+      cancelNameClick();
+      if (event.detail > 1) return;
+      pendingNameClick.current = setTimeout(() => {
+        pendingNameClick.current = null;
+        collapseControl.onToggleCollapsed();
+      }, DOUBLE_CLICK_WINDOW_MS);
+    },
+    [cancelNameClick, collapseControl, labelEditor, onRename, ribbon],
   );
   const handleCollapseControlClick = useCallback<
     MouseEventHandler<HTMLButtonElement>
@@ -288,11 +320,13 @@ export function TopLevelSidebarSection({
               )}
               data-sidebar-heading-name={ribbon ? "" : undefined}
               title={label}
+              onClick={ribbon ? handleNameClick : undefined}
               onDoubleClick={
                 onRename
                   ? (event) => {
                       event.preventDefault();
                       event.stopPropagation();
+                      cancelNameClick();
                       onRename();
                     }
                   : undefined
@@ -384,8 +418,9 @@ export function TopLevelSidebarSection({
       </SidebarStickyTier>
       {children == null ? null : ribbon ? (
         // Folds open and shut with bb's own easing, as Ribbon's groups did.
+        // The heading's own bottom margin is the whole gap to the first row.
         <GroupBody open={collapseControl?.isCollapsed !== true}>
-          <div className="mt-1">{children}</div>
+          {children}
         </GroupBody>
       ) : collapseControl?.isCollapsed ? null : (
         <div className="mt-1">{children}</div>

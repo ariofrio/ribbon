@@ -496,7 +496,9 @@ function ThreadRowComponent({
         ? `bg-sidebar-accent bb-sidebar-selected-row ${SIDEBAR_ROW_TEXT_CLASS}`
         : SIDEBAR_ROW_SELECTED_STATE_CLASS
       : SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,
-    ribbon?.muted && "text-subtle-foreground/75",
+    // A row outside Active stays dim while hovered and while open.
+    ribbon?.muted &&
+      "text-subtle-foreground/75 hover:text-subtle-foreground/75",
     !showActive && isOpenInSplit && SIDEBAR_ROW_OPEN_IN_SPLIT_STATE_CLASS,
     !showActive &&
       "has-[[data-state=open]]:bg-sidebar-accent has-[[data-sidebar-rename-anchor]:focus-visible]:bg-sidebar-accent",
