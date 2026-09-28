@@ -17,6 +17,7 @@ export type SidebarView = {
   filterGroupingKey: GroupingKey | null;
   iconGroupingKey: GroupingKey | null;
   pullRequestNumberPosition: PullRequestNumberPosition;
+  tabularPullRequestDigits: boolean;
   hide: HiddenThreadKinds;
   sort: SidebarSort;
 };
@@ -144,6 +145,7 @@ function storedPreferences(
           view.pullRequestNumberPosition === "hidden"
             ? view.pullRequestNumberPosition
             : "right",
+        tabularPullRequestDigits: view.tabularPullRequestDigits !== false,
         hide: storedHide(view.hide),
         sort: storedSort(view.sort),
       },
@@ -218,6 +220,8 @@ export function loadSidebarPreferences(
       hide: stored?.view.hide ?? { ...DEFAULT_HIDDEN_THREAD_KINDS },
       pullRequestNumberPosition:
         stored?.view.pullRequestNumberPosition ?? "right",
+      tabularPullRequestDigits:
+        stored?.view.tabularPullRequestDigits ?? true,
     },
     collapsed: stored?.collapsed ?? legacyCollapsed(storage, []),
   };

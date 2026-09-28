@@ -83,3 +83,15 @@ it("persists project grouping independently of section collapse state", () => {
     ),
   ).toBe(true);
 });
+
+it("keeps equal-width PR digits for existing preferences and saves an explicit choice", () => {
+  const preferences = loadSidebarPreferences(localStorage, []);
+  expect(preferences.view.tabularPullRequestDigits).toBe(true);
+  preferences.view.tabularPullRequestDigits = false;
+  saveSidebarPreferences(localStorage, preferences);
+  expect(loadSidebarPreferences(localStorage, []).view.tabularPullRequestDigits).toBe(false);
+  const saved = JSON.parse(localStorage.getItem(SIDEBAR_PREFERENCES_KEY)!);
+  delete saved.view.tabularPullRequestDigits;
+  localStorage.setItem(SIDEBAR_PREFERENCES_KEY, JSON.stringify(saved));
+  expect(loadSidebarPreferences(localStorage, []).view.tabularPullRequestDigits).toBe(true);
+});

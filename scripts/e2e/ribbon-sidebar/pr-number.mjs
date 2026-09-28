@@ -92,22 +92,57 @@ export async function verifyPrNumber({ stack, fixture }) {
       }
     }
 
-    await placement("right");
-    const digitWidths = await row.getByText("#12345", { exact: true }).evaluate((number) => {
-      const walker = document.createTreeWalker(number, NodeFilter.SHOW_TEXT);
-      let digits;
-      while ((digits = walker.nextNode()) && !digits.textContent.includes("12345")) {}
-      if (!digits) throw new Error("PR number text is missing");
-      const start = digits.textContent.indexOf("12345");
-      return Array.from({ length: 5 }, (_, index) => {
-        const range = document.createRange();
-        range.setStart(digits, start + index);
-        range.setEnd(digits, start + index + 1);
-        return range.getBoundingClientRect().width;
+    async function toggleEqualWidthDigits() {
+      await heading.hover();
+      await heading.getByRole("button", { name: "Atlas options" }).click();
+      await page.getByRole("menuitem", { name: "PR number Right", exact: true }).hover();
+      await page.getByRole("menuitemcheckbox", { name: "Equal-width digits" }).click();
+    }
+
+    async function waitForDigitStyle(variant) {
+      await page.waitForFunction(({ threadId, variant }) => {
+        const row = document.querySelector(`[data-ribbon-sidebar-root] a[data-sidebar-thread-id="${threadId}"]`)?.closest("li");
+        const number = [...(row?.querySelectorAll("span") ?? [])]
+          .find((node) => node.textContent === "#12345");
+        return number && getComputedStyle(number).fontVariantNumeric === variant;
+      }, { threadId: thread.id, variant });
+    }
+
+    async function digitWidths() {
+      return row.getByText("#12345", { exact: true }).evaluate((number) => {
+        const walker = document.createTreeWalker(number, NodeFilter.SHOW_TEXT);
+        let digits;
+        while ((digits = walker.nextNode()) && !digits.textContent.includes("12345")) {}
+        if (!digits) throw new Error("PR number text is missing");
+        const start = digits.textContent.indexOf("12345");
+        return Array.from({ length: 5 }, (_, index) => {
+          const range = document.createRange();
+          range.setStart(digits, start + index);
+          range.setEnd(digits, start + index + 1);
+          return range.getBoundingClientRect().width;
+        });
       });
-    });
-    assert.ok(Math.max(...digitWidths) - Math.min(...digitWidths) < 0.1,
-      `PR digits should have equal rendered widths: ${digitWidths.join(", ")}`);
+    }
+
+    await placement("right");
+    await waitForDigitStyle("tabular-nums");
+    let widths = await digitWidths();
+    assert.ok(Math.max(...widths) - Math.min(...widths) < 0.1,
+      `PR digits should default to equal widths: ${widths.join(", ")}`);
+    await toggleEqualWidthDigits();
+    await waitForDigitStyle("normal");
+    widths = await digitWidths();
+    assert.ok(Math.max(...widths) - Math.min(...widths) > 1,
+      `PR digits should regain proportional widths: ${widths.join(", ")}`);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await sidebar.waitFor({ timeout: 120_000 });
+    await placement("right");
+    await waitForDigitStyle("normal");
+    await toggleEqualWidthDigits();
+    await waitForDigitStyle("tabular-nums");
+    widths = await digitWidths();
+    assert.ok(Math.max(...widths) - Math.min(...widths) < 0.1,
+      `PR digits should return to equal widths: ${widths.join(", ")}`);
     // A right-aligned number keeps the indicator lane free at rest, so it
     // lines up with rows that draw an indicator and does not move on hover.
     await page.mouse.move(1000, 700);
@@ -137,12 +172,12 @@ export async function verifyPrNumber({ stack, fixture }) {
     assert.equal(hoveredEdge, rightEdges.indicatorless, "hovering does not move the number");
     await choose("Right", "Left");
     await placement("left");
-    await page.reload();
+    await page.reload({ waitUntil: "domcontentloaded" });
     await sidebar.waitFor({ timeout: 120_000 });
     await placement("left");
     await choose("Left", "Hidden", true);
     await placement("hidden");
-    await page.reload();
+    await page.reload({ waitUntil: "domcontentloaded" });
     await sidebar.waitFor({ timeout: 120_000 });
     await placement("hidden");
     const hiddenLabel = await row.getByRole("link").getAttribute("aria-label");
@@ -150,7 +185,7 @@ export async function verifyPrNumber({ stack, fixture }) {
     assert.doesNotMatch(hiddenLabel, /PR #12345/);
     await choose("Hidden", "Right");
     await placement("right");
-    await page.reload();
+    await page.reload({ waitUntil: "domcontentloaded" });
     await sidebar.waitFor({ timeout: 120_000 });
     await placement("right");
     await context.close();
