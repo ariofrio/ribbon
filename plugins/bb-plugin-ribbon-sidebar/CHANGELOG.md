@@ -1,5 +1,16 @@
 # bb-plugin-ribbon-sidebar
 
+## 0.6.0
+
+### Minor Changes
+
+- 5b4807e: Give each parent's child threads their own stable order. Reorder a child among its siblings by dragging it, with the move shortcuts, or with `bb sidebar place <child> --before|--after <sibling>`; `bb sidebar children` lists a thread's children in order. Children not yet reordered enter at the top, newest first.
+- 4c11203: Mention a stage in the composer with Thread stages, such as `@Blocked`, to ask the agent to move the thread there. Ribbon messages a thread with "Thread stage updated: @Idle → @Blocked" when you or another thread change its stage. Turn the messages off with **Message threads when their stage changes** in Ribbon settings.
+
+### Patch Changes
+
+- 0930e44: Draw the line beside child threads in their own stage-ring column, so it fills the slot of a hidden Idle ring and parts around a shown one.
+
 ## 0.5.2
 
 ### Patch Changes
