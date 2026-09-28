@@ -36,7 +36,8 @@ button creates a thread in that section or project. Headings, icons, menus, row 
 treatments use Ribbon's existing bb components and theme tokens.
 
 Drag a root to reorder it within its list, or onto another section's header to
-move it there. Dragging preserves its stage. Change stages through the thread
+move it there. Drag a child to reorder it among its siblings; it stays under
+its parent. Dragging preserves its stage. Change stages through the thread
 menu, CLI, or keyboard shortcuts. Completed stays ordered by completion time.
 Project grouping supports reordering within a project; bb owns project membership.
 Group rank survives stage changes, so returning a deferred or completed root
@@ -44,7 +45,8 @@ to the main list restores its place.
 
 bb owns section membership, pins, pinned order, and lifecycle. Ribbon stores
 section and project ranks separately from workflow stage. Children inherit
-their root's stage and remain nested. Forks inherit their source hierarchy's
+their root's stage and remain nested. Each parent keeps its own child order in
+every grouping; children not yet reordered enter at the top, newest first. Forks inherit their source hierarchy's
 section and stage; unparenting copies the former root's placement.
 
 Thread status indicators retain bb's priority for errors, input requests, active
@@ -89,7 +91,7 @@ updates restart the timer. Any pinned member prevents archival.
 | ⇧⌘. | Ctrl+Shift+. | Return to Idle, or undo the latest filing in this section or project |
 | ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked |
 | ⌃⌘. | Ctrl+Alt+, | Defer |
-| ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list |
+| ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list, or a child among its siblings |
 | ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to that list's edge |
 | ⌃⌘↑ / ⌃⌘↓ | Ctrl+↑ / Ctrl+↓ | Move to the adjacent enabled stage |
 
@@ -115,6 +117,8 @@ bb sidebar list --scope builtin:sections/<section-id>
 bb sidebar show --self
 bb sidebar place --self --to plugin:thread-stages:stages/Completed
 bb sidebar place <thread> --to builtin:sections/<section-id> --before <thread>
+bb sidebar place <child> --before <sibling>
+bb sidebar children <thread>
 bb sidebar migrate thread-stages
 ```
 
