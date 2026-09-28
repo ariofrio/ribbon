@@ -147,6 +147,24 @@ export const RIBBON_SIDEBAR_MIGRATIONS = [
     thread_id TEXT PRIMARY KEY,
     bb_order INTEGER NOT NULL CHECK (bb_order >= 0)
   );`,
+  // Idle is now Active, and Blocked split by who the thread waits on. Nothing
+  // recorded that, so Blocked threads wait on a third party until moved.
+  `
+    UPDATE group_assignment SET group_id = CASE group_id
+        WHEN 'Idle' THEN 'Active' ELSE 'BlockedOnThirdParty' END
+      WHERE grouping_key = 'plugin:thread-stages:stages'
+        AND group_id IN ('Idle', 'Blocked');
+    UPDATE group_assignment SET previous_group_id = CASE previous_group_id
+        WHEN 'Idle' THEN 'Active' ELSE 'BlockedOnThirdParty' END
+      WHERE grouping_key = 'plugin:thread-stages:stages'
+        AND previous_group_id IN ('Idle', 'Blocked');
+    UPDATE group_order SET group_id = CASE group_id
+        WHEN 'Idle' THEN 'Active' ELSE 'BlockedOnThirdParty' END
+      WHERE grouping_key = 'plugin:thread-stages:stages'
+        AND group_id IN ('Idle', 'Blocked');
+    UPDATE grouping_revision SET revision = revision + 1
+      WHERE grouping_key = 'plugin:thread-stages:stages';
+  `,
 ];
 
 interface AssignmentRow {

@@ -5,8 +5,8 @@ import { reportBackgroundCommand } from "./background-command.mjs";
 
 export async function verifyThreadIcons({ stack, fixture }) {
   const thread = fixture.threads.get(FEATURED_THREAD);
-  // Earlier filing and placement cases can move this shared thread out of Idle.
-  fixture.run(["sidebar", "place", thread.id, "--to", "plugin:thread-stages:stages/Idle"]);
+  // Earlier filing and placement cases can move this shared thread out of Active.
+  fixture.run(["sidebar", "place", thread.id, "--to", "plugin:thread-stages:stages/Active"]);
   await applyPluginState({ stack, ...fixture });
   fixture.run([
     "plugin",
@@ -74,10 +74,10 @@ export async function verifyThreadIcons({ stack, fixture }) {
       }, { threadId: thread.id, selector, mask });
     }
 
-    await paintedIcon('[aria-label="Idle stage"] svg', false);
+    await paintedIcon('[aria-label="Active stage"] svg', false);
     await page.reload();
     await sidebar.waitFor({ timeout: 120_000 });
-    await paintedIcon('[aria-label="Idle stage"] svg', false);
+    await paintedIcon('[aria-label="Active stage"] svg', false);
     const workingRow = sidebar.locator("li").filter({
       has: page.locator(`a[data-sidebar-thread-id="${workingThread.id}"]`),
     });
@@ -107,7 +107,7 @@ export async function verifyThreadIcons({ stack, fixture }) {
       target.locator("[data-ribbon-sidebar-icon-slot]").evaluate((node) =>
         getComputedStyle(node).opacity);
     await page.mouse.move(1200, 780);
-    assert.equal(await iconOpacity(row), "1", "The selected Idle thread keeps its stage icon");
+    assert.equal(await iconOpacity(row), "1", "The selected Active thread keeps its stage icon");
     assert.equal(await iconOpacity(workingRow), "1", "A working thread keeps its stage icon");
 
     const home = await context.newPage();
@@ -116,17 +116,17 @@ export async function verifyThreadIcons({ stack, fixture }) {
       const homeSidebar = home.locator("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]");
       await homeSidebar.waitFor({ timeout: 120_000 });
       const idleRow = homeSidebar.locator(`li[data-thread-id="${thread.id}"]`);
-      await idleRow.locator('[aria-label="Idle stage"]').waitFor();
+      await idleRow.locator('[aria-label="Active stage"]').waitFor();
       await home.mouse.move(1200, 780);
-      assert.equal(await iconOpacity(idleRow), "0", "An unselected Idle icon is hidden at rest");
+      assert.equal(await iconOpacity(idleRow), "0", "An unselected Active icon is hidden at rest");
       const titleLeft = await idleRow.getByText(thread.title, { exact: true }).evaluate((node) =>
         node.getBoundingClientRect().left);
       await idleRow.hover();
-      assert.equal(await iconOpacity(idleRow), "1", "Hover reveals the Idle icon");
+      assert.equal(await iconOpacity(idleRow), "1", "Hover reveals the Active icon");
       assert.equal(await idleRow.getByText(thread.title, { exact: true }).evaluate((node) =>
         node.getBoundingClientRect().left), titleLeft, "Hover does not shift the title");
       await home.mouse.move(1200, 780);
-      assert.equal(await iconOpacity(idleRow), "0", "Leaving the row hides the Idle icon again");
+      assert.equal(await iconOpacity(idleRow), "0", "Leaving the row hides the Active icon again");
 
       const link = idleRow.locator(`a[data-sidebar-thread-id="${thread.id}"]`);
       let focused = false;
@@ -135,8 +135,8 @@ export async function verifyThreadIcons({ stack, fixture }) {
         focused = await link.evaluate((node) => document.activeElement === node);
         if (focused) break;
       }
-      assert.ok(focused, "Keyboard navigation reaches the Idle thread");
-      assert.equal(await iconOpacity(idleRow), "1", "Keyboard focus reveals the Idle icon");
+      assert.ok(focused, "Keyboard navigation reaches the Active thread");
+      assert.equal(await iconOpacity(idleRow), "1", "Keyboard focus reveals the Active icon");
     } finally {
       await home.close();
     }

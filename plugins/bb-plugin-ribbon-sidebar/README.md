@@ -16,8 +16,8 @@ bb plugin install ribbon-sidebar@ribbon
 Use a heading’s **⋯ menu → New section** to create a section.
 Choose **⋯ menu → Group by → Section or Project**. The choice persists
 across reloads, and each grouping keeps its own order and collapsed headings.
-Inside each group, Idle and Blocked share one manually ordered list,
-followed immediately by Deferred and Completed.
+Inside each group, Active and both Blocked stages share one manually ordered
+list, followed immediately by Deferred and Completed.
 New roots enter at the top. Activity changes leave their positions unchanged.
 
 Deferred initially shows two roots in group order; Completed shows the two
@@ -86,8 +86,16 @@ Right is the default, and the choice persists on this client across reloads.
 Ribbon owns stages, shortcuts, and Completed retention. Running work never
 changes a stage: a working thread's stage icon turns its ring instead of
 showing bb's spinner, and a collapsed root's ring also turns for work in its
-hidden descendants. A pending question or approval stops the ring. Earlier
-versions had an Active stage; its threads return to Idle on upgrade.
+hidden descendants. A pending question or approval stops the ring.
+
+Each stage says whose move a thread is waiting on. **Active** is available,
+working, or waiting on you. **Blocked on other agent** waits for another bb
+thread to finish or deliver something, and **Blocked on third party** waits for
+someone or something outside bb, such as a reviewer, CI, or a vendor. Waiting
+on you is never Blocked. Earlier versions called Active "Idle" and had a single
+Blocked stage; on upgrade, Idle threads become Active and Blocked threads become
+Blocked on third party. **Enable Blocked stages** in Ribbon settings turns both
+Blocked stages on or off.
 
 A working row also shimmers across its icon, title, preview, and indicator, in
 place of the shimmer bb draws on the indicator alone. Turn off **Shimmer working
@@ -95,12 +103,12 @@ rows** in Ribbon settings to keep bb's.
 
 With the optional [Thread stages plugin](../bb-plugin-thread-stages#readme)
 installed, type `@` and a stage name in the composer to mention a stage, such
-as `@Blocked`. A mentioned stage tells the agent to place the thread there, so
-a message can end with "then @Blocked", and a queued message can be just the
-mention.
+as `@Blocked on other agent`. A mentioned stage tells the agent to place the
+thread there, so a message can end with "then @Blocked on other agent", and a
+queued message can be just the mention.
 
 When you or another thread move a thread to a different stage, Ribbon sends that
-thread "Thread stage updated: @Idle → @Blocked", with agent-only context that
+thread "Thread stage updated: @Active → @Blocked on third party", with agent-only context that
 tells the agent who moved it. Without Thread stages, the stages are plain text.
 The message steers a running turn or starts one on an idle thread. Automatic
 placement and a thread moving itself through the CLI send nothing. Turn off
@@ -116,8 +124,9 @@ member prevents archival.
 | macOS | Linux / Windows | Action |
 | --- | --- | --- |
 | ⌘. / ⌥⌘. | Ctrl+. / Ctrl+Alt+. | Complete and select the next main-list thread in this section or project |
-| ⇧⌘. | Ctrl+Shift+. | Return to Idle, or undo the latest filing in this section or project |
-| ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked |
+| ⇧⌘. | Ctrl+Shift+. | Return to Active, or undo the latest filing in this section or project |
+| ⌃⌥⌘. | Ctrl+Alt+Shift+. | Mark Blocked on other agent |
+| ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked on third party |
 | ⌃⌘. | Ctrl+Alt+, | Defer |
 | ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list, or a child among its siblings |
 | ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to that list's edge |
@@ -140,7 +149,8 @@ provides the old stage RPCs while saved keyboard bindings, including cleared
 bindings, migrate to Ribbon command IDs. New installations need only Ribbon.
 
 The placement CLI remains compatible, including the stored stage key
-`plugin:thread-stages:stages`:
+`plugin:thread-stages:stages`. Its stage IDs are `Deferred`, `Active`,
+`BlockedOnOtherAgent`, `BlockedOnThirdParty`, and `Completed`:
 
 ```sh
 bb sidebar groupings
@@ -148,7 +158,7 @@ bb sidebar groups builtin:sections
 bb sidebar list --scope builtin:sections/<section-id>
 bb sidebar show --self
 bb sidebar place --self --to plugin:thread-stages:stages/Completed
-bb sidebar list --include-children --scope plugin:thread-stages:stages/Blocked
+bb sidebar list --include-children --scope plugin:thread-stages:stages/BlockedOnOtherAgent
 bb sidebar place <thread> --to builtin:sections/<section-id> --before <thread>
 bb sidebar place <child> --before <sibling>
 bb sidebar children <thread>

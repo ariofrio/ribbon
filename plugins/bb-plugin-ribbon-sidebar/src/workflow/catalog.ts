@@ -1,5 +1,10 @@
 import { groupingCatalogSchema, type IconDataV1 } from "../contracts";
-import { WORKFLOW_STAGES, type WorkflowStage } from "./workflow-stage";
+import {
+  WORKFLOW_STAGES,
+  WORKFLOW_STAGE_LABELS,
+  isBlockedStage,
+  type WorkflowStage,
+} from "./workflow-stage";
 export const THREAD_STAGES_GROUPING_KEY =
   "plugin:thread-stages:stages" as const;
 const RING_RADIUS = 8.75;
@@ -52,9 +57,11 @@ const STAGE_RINGS = byStage((stage) =>
 );
 const STAGE_MARKS: Record<WorkflowStage, IconDataV1[]> = {
   Deferred: [],
-  Idle: [],
-  // A slash as long as Completed's dot is wide, round caps included.
-  Blocked: [strokedPath("M9 15 15 9")],
+  Active: [],
+  // A slash along the same diagonal, and as long, as the third party's arrow.
+  BlockedOnOtherAgent: [strokedPath("M9 15 15.5 8.5")],
+  // Something coming back in from outside.
+  BlockedOnThirdParty: [strokedPath("M15.5 8.5 9 15M9 10.25V15h4.75")],
   Completed: [
     {
       tag: "circle",
@@ -99,7 +106,7 @@ export function createGroupingCatalog(settings: {
   const optionalStageEnabled = (stage: WorkflowStage) =>
     stage === "Deferred"
       ? settings.showDeferredStage !== false
-      : stage === "Blocked"
+      : isBlockedStage(stage)
         ? settings.showBlockedStage !== false
         : true;
   return groupingCatalogSchema.parse({
@@ -110,10 +117,10 @@ export function createGroupingCatalog(settings: {
         singularLabel: "Stage",
         pluralLabel: "Stages",
         icon: STAGE_ICONS.Completed,
-        defaultGroupId: "Idle",
+        defaultGroupId: "Active",
         groups: WORKFLOW_STAGES.map((stage) => ({
           id: stage,
-          label: stage,
+          label: WORKFLOW_STAGE_LABELS[stage],
           icon: STAGE_ICONS[stage],
           visibleWhenEmpty: optionalStageEnabled(stage),
           acceptsAssignments: optionalStageEnabled(stage),

@@ -9,7 +9,7 @@ import {
 } from "../../screenshots/fixture.mjs";
 
 export async function verifyThreadReordering({ stack, fixture }) {
-  for (const thread of fixture.threads.values()) fixture.run(["sidebar", "place", thread.id, "--to", "plugin:thread-stages:stages/Idle"]);
+  for (const thread of fixture.threads.values()) fixture.run(["sidebar", "place", thread.id, "--to", "plugin:thread-stages:stages/Active"]);
   const browser = await chromium.launch({ args: ["--mute-audio"] });
   let releaseSave = () => {};
   let context;

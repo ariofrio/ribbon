@@ -27,11 +27,11 @@ export async function verifyChildStages({ stack, fixture }) {
   ]);
   fixture.run(["thread", "wait", child.id, "--status", "idle"]);
   const parentStage = stageFor(fixture, parent.id);
-  fixture.run(["sidebar", "place", child.id, "--to", `${STAGES}/Blocked`]);
-  assert.equal(stageFor(fixture, child.id), "Blocked");
+  fixture.run(["sidebar", "place", child.id, "--to", `${STAGES}/BlockedOnThirdParty`]);
+  assert.equal(stageFor(fixture, child.id), "BlockedOnThirdParty");
   assert.equal(stageFor(fixture, parent.id), parentStage);
   assert.ok(fixture.runJson([
-    "sidebar", "list", "--include-children", "--scope", `${STAGES}/Blocked`,
+    "sidebar", "list", "--include-children", "--scope", `${STAGES}/BlockedOnThirdParty`,
   ]).some(({ id }) => id === child.id));
 
   const browser = await chromium.launch({ args: ["--mute-audio"] });
@@ -47,7 +47,7 @@ export async function verifyChildStages({ stack, fixture }) {
       await sidebar.waitFor({ timeout: 120_000 });
       const row = sidebar.locator(`[data-thread-id="${child.id}"]`);
       await row.waitFor();
-      const icon = row.locator('[aria-label="Blocked stage"]');
+      const icon = row.locator('[aria-label="Blocked on third party stage"]');
       await icon.waitFor();
       const rendered = await icon.evaluate((node) => {
         const style = getComputedStyle(node);
@@ -60,9 +60,9 @@ export async function verifyChildStages({ stack, fixture }) {
       await row.hover();
       await row.getByRole("button", { name: "Thread actions" }).click();
       await page.getByRole("menuitem", { name: "Move to stage" }).click();
-      await page.getByRole("menuitem", { name: "Idle" }).click();
-      await row.locator('[aria-label="Idle stage"]').waitFor({ state: "attached" });
-      assert.equal(stageFor(fixture, child.id), "Idle");
+      await page.getByRole("menuitem", { name: "Active" }).click();
+      await row.locator('[aria-label="Active stage"]').waitFor({ state: "attached" });
+      assert.equal(stageFor(fixture, child.id), "Active");
       assert.equal(stageFor(fixture, parent.id), parentStage);
     } finally {
       await context.close();

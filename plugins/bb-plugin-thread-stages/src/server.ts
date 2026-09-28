@@ -13,11 +13,13 @@ import {
   createThreadStageMigrationSource,
 } from "./migration-source";
 import { registerStageMentions } from "./stage-mentions";
-import { WORKFLOW_STAGES } from "./workflow-stage";
+import { WORKFLOW_STAGES, parseWorkflowStage } from "./workflow-stage";
 
 const AUTO_ARCHIVE_OPTIONS = ["Never", "1 day", "7 days", "30 days"] as const;
 
 const workflowStageSchema = z.enum(WORKFLOW_STAGES);
+// Callers from before the rename still name Idle and Blocked.
+const requestedStageSchema = z.enum([...WORKFLOW_STAGES, "Idle", "Blocked"]);
 const assignmentSchema = z
   .object({
     threadId: z.string(),
@@ -46,7 +48,7 @@ export const rpcContract = defineRpcContract({
     input: z
       .object({
         threadId: z.string().min(1).max(256),
-        workflowStage: workflowStageSchema,
+        workflowStage: requestedStageSchema,
         scope: z
           .object({
             groupingKey: z.union([
@@ -101,9 +103,9 @@ export default async function plugin(bb: BbPluginApi) {
     },
     showBlockedStage: {
       type: "boolean",
-      label: "Show Blocked stage",
+      label: "Show Blocked stages",
       description:
-        "Allow threads to move into Blocked. A nonempty Blocked stage remains visible until it is emptied.",
+        "Allow threads to move into Blocked on other agent and Blocked on third party. A nonempty Blocked stage remains visible until it is emptied.",
       default: true,
     },
     autoArchiveCompletedAfter: {
@@ -120,7 +122,10 @@ export default async function plugin(bb: BbPluginApi) {
       bb.sdk.plugins.callRpc({
         pluginId: "ribbon-sidebar",
         method: "setWorkflowStage",
-        input,
+        input: {
+          ...input,
+          workflowStage: parseWorkflowStage(input.workflowStage)!,
+        },
         outputSchema: rpcContract.setWorkflowStage.output,
       }),
     reorderThread: (input) =>

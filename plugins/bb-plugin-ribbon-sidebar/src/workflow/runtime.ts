@@ -19,6 +19,7 @@ import { resolveStageChord } from "./workflow-chords";
 import { resolveWorkflowReorder } from "./workflow-reorder";
 import {
   enabledWorkflowStages,
+  isBlockedStage,
   parseWorkflowStage,
   type WorkflowStage,
 } from "./workflow-stage";
@@ -148,7 +149,7 @@ export function createWorkflowRuntime(
             scopedThreadIds.includes(placement.threadId) &&
             placement.origin === "ui" &&
             (placement.groupId === "Deferred" ||
-              placement.groupId === "Blocked" ||
+              isBlockedStage(placement.groupId) ||
               placement.groupId === "Completed"),
         )
         .map((placement) => {
@@ -158,7 +159,7 @@ export function createWorkflowRuntime(
           return {
             threadId: placement.threadId,
             previousStage,
-            previousSortKey: previousStage === "Idle" ? "preserve" : null,
+            previousSortKey: previousStage === "Active" ? "preserve" : null,
             updatedAt: placement.enteredAtMs ?? 0,
           };
         })
@@ -177,7 +178,7 @@ export function createWorkflowRuntime(
       if (chord.kind === "restore") {
         await updatePlacement({
           groupingKey: THREAD_STAGES_GROUPING_KEY,
-          groupId: "Idle",
+          groupId: "Active",
           threadId: chord.threadId,
           anchor:
             chord.sortKey !== null ? { kind: "preserve" } : { kind: "end" },
@@ -258,7 +259,7 @@ export function createWorkflowRuntime(
         threadId,
         workflowStage:
           assignments.find(({ threadId: id }) => id === threadId)
-            ?.workflowStage ?? "Idle",
+            ?.workflowStage ?? "Active",
         enabledStages: enabledWorkflowStages(await settings.get()),
         intent: { scope, direction },
       });

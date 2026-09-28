@@ -13,10 +13,12 @@ bb plugin install ribbon-sidebar@ribbon
 bb plugin install thread-stages@ribbon
 ```
 
-Type `@` and a stage name in the composer, such as `@Blocked`, to mention a
-stage. The mention tells the agent what the stage means and how to place the
-thread in it, so "do this, then @Blocked" asks the agent to move the thread
-when it is done. Ribbon's stage-change messages use the same mentions. The
+Type `@` and a stage name in the composer, such as `@Blocked on other agent`,
+to mention a stage. The mention tells the agent what the stage means and how to
+place the thread in it, so "do this, then @Blocked on other agent" asks the
+agent to move the thread when it is done. Mentions of `@Idle` and `@Blocked` in
+older messages still resolve: Idle is now Active, and Blocked is split into
+Blocked on other agent and Blocked on third party. Ribbon's stage-change messages use the same mentions. The
 menu offers the stages enabled in Ribbon settings.
 
 Ribbon migrates customized and explicitly cleared shortcut bindings to its own

@@ -19,7 +19,7 @@ describe("Thread stages provider contracts", () => {
           id: "stages",
           singularLabel: "Stage",
           pluralLabel: "Stages",
-          defaultGroupId: "Idle",
+          defaultGroupId: "Active",
           groups: [
             {
               id: "Deferred",
@@ -29,15 +29,22 @@ describe("Thread stages provider contracts", () => {
               defaultCollapsed: true,
             },
             {
-              id: "Idle",
-              label: "Idle",
+              id: "Active",
+              label: "Active",
               visibleWhenEmpty: true,
               acceptsAssignments: true,
               defaultCollapsed: false,
             },
             {
-              id: "Blocked",
-              label: "Blocked",
+              id: "BlockedOnOtherAgent",
+              label: "Blocked on other agent",
+              visibleWhenEmpty: true,
+              acceptsAssignments: true,
+              defaultCollapsed: false,
+            },
+            {
+              id: "BlockedOnThirdParty",
+              label: "Blocked on third party",
               visibleWhenEmpty: true,
               acceptsAssignments: true,
               defaultCollapsed: false,
@@ -74,11 +81,18 @@ describe("Thread stages provider contracts", () => {
       visibleWhenEmpty: false,
       acceptsAssignments: false,
     });
-    expect(grouping?.groups[2]).toMatchObject({
-      id: "Blocked",
-      visibleWhenEmpty: false,
-      acceptsAssignments: false,
-    });
+    expect(grouping?.groups.slice(2, 4)).toMatchObject([
+      {
+        id: "BlockedOnOtherAgent",
+        visibleWhenEmpty: false,
+        acceptsAssignments: false,
+      },
+      {
+        id: "BlockedOnThirdParty",
+        visibleWhenEmpty: false,
+        acceptsAssignments: false,
+      },
+    ]);
   });
 
   it("draws every stage glyph on one ring size", () => {
@@ -94,15 +108,24 @@ describe("Thread stages provider contracts", () => {
         attrs: expect.objectContaining({ r: 8, strokeDasharray: expect.any(String) }),
       }),
     ]);
-    expect(iconByStage.get("Idle")?.children).toEqual([ring]);
-    // Working is drawn on each stage's ring by Ribbon, not stored as a stage.
-    expect(iconByStage.has("Active")).toBe(false);
-    // A slash that, round caps included, spans Completed's dot.
-    expect(iconByStage.get("Blocked")?.children).toEqual([
+    expect(iconByStage.get("Active")?.children).toEqual([ring]);
+    // A slash for another agent, along the third party's arrow.
+    expect(iconByStage.get("BlockedOnOtherAgent")?.children).toEqual([
       ring,
       expect.objectContaining({
         tag: "path",
-        attrs: expect.objectContaining({ d: "M9 15 15 9", strokeLinecap: "round" }),
+        attrs: expect.objectContaining({ d: "M9 15 15.5 8.5", strokeLinecap: "round" }),
+      }),
+    ]);
+    // An arrow coming in from outside.
+    expect(iconByStage.get("BlockedOnThirdParty")?.children).toEqual([
+      ring,
+      expect.objectContaining({
+        tag: "path",
+        attrs: expect.objectContaining({
+          d: "M15.5 8.5 9 15M9 10.25V15h4.75",
+          strokeLinecap: "round",
+        }),
       }),
     ]);
     expect(iconByStage.get("Completed")?.children).toEqual([

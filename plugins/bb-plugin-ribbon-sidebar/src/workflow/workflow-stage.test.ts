@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   WORKFLOW_STAGES,
+  WORKFLOW_STAGE_LABELS,
   destinationOrder,
   enabledWorkflowStages,
   groupThreadsByStage,
@@ -9,36 +10,56 @@ import {
 } from "./workflow-stage";
 
 describe("thread statuses", () => {
-  it("keeps the supported labels stable and accepts friendly CLI spellings", () => {
+  it("keeps the supported stages stable and accepts friendly CLI spellings", () => {
     expect(WORKFLOW_STAGES).toEqual([
       "Deferred",
-      "Idle",
-      "Blocked",
+      "Active",
+      "BlockedOnOtherAgent",
+      "BlockedOnThirdParty",
       "Completed",
     ]);
     expect(parseWorkflowStage("backlog")).toBe("Deferred");
     expect(parseWorkflowStage("deferred")).toBe("Deferred");
-    expect(parseWorkflowStage("waiting")).toBe("Blocked");
-    expect(parseWorkflowStage("to-do")).toBe("Idle");
+    expect(parseWorkflowStage("active")).toBe("Active");
+    expect(parseWorkflowStage("to-do")).toBe("Active");
+    // Idle and Blocked are earlier names, kept for saved data and old messages.
+    expect(parseWorkflowStage("Idle")).toBe("Active");
+    expect(parseWorkflowStage("Blocked")).toBe("BlockedOnThirdParty");
+    expect(parseWorkflowStage("waiting")).toBe("BlockedOnThirdParty");
+    expect(parseWorkflowStage("Blocked on other agent")).toBe(
+      "BlockedOnOtherAgent",
+    );
+    expect(parseWorkflowStage("blocked-on-third-party")).toBe(
+      "BlockedOnThirdParty",
+    );
     // Working is shown on the stage icon, not stored as a stage.
     expect(parseWorkflowStage("working")).toBeNull();
-    expect(parseWorkflowStage("active")).toBeNull();
     expect(parseWorkflowStage("done")).toBe("Completed");
     expect(parseWorkflowStage("cancelled")).toBe("Completed");
     expect(parseWorkflowStage("not started")).toBeNull();
   });
 
-  it("keeps required stages while allowing Deferred and Blocked to be hidden", () => {
+  it("labels each stage for people", () => {
+    expect(WORKFLOW_STAGES.map((stage) => WORKFLOW_STAGE_LABELS[stage])).toEqual([
+      "Deferred",
+      "Active",
+      "Blocked on other agent",
+      "Blocked on third party",
+      "Completed",
+    ]);
+  });
+
+  it("keeps required stages while allowing Deferred and both Blocked stages to be hidden", () => {
     expect(
       enabledWorkflowStages({
         showDeferredStage: false,
         showBlockedStage: false,
       }),
-    ).toEqual(["Idle", "Completed"]);
+    ).toEqual(["Active", "Completed"]);
     expect(enabledWorkflowStages(undefined)).toEqual(WORKFLOW_STAGES);
   });
 
-  it("defaults unassigned threads to Idle and honors explicit sort keys", () => {
+  it("defaults unassigned threads to Active and honors explicit sort keys", () => {
     const threads = [
       { id: "unassigned", updatedAt: 30 },
       { id: "second", updatedAt: 20 },
@@ -46,11 +67,11 @@ describe("thread statuses", () => {
       { id: "working", updatedAt: 5 },
     ];
     const assignments: ThreadAssignment[] = [
-      { threadId: "second", workflowStage: "Idle", sortKey: "k", updatedAt: 2 },
-      { threadId: "first", workflowStage: "Idle", sortKey: "U", updatedAt: 1 },
+      { threadId: "second", workflowStage: "Active", sortKey: "k", updatedAt: 2 },
+      { threadId: "first", workflowStage: "Active", sortKey: "U", updatedAt: 1 },
       {
         threadId: "working",
-        workflowStage: "Blocked",
+        workflowStage: "BlockedOnThirdParty",
         sortKey: "U",
         updatedAt: 3,
       },
@@ -58,16 +79,16 @@ describe("thread statuses", () => {
 
     const groups = groupThreadsByStage(threads, assignments);
 
-    expect(groups["Idle"].map((thread) => thread.id)).toEqual([
+    expect(groups.Active.map((thread) => thread.id)).toEqual([
       "first",
       "second",
       "unassigned",
     ]);
-    expect(groups.Blocked.map((thread) => thread.id)).toEqual(["working"]);
+    expect(groups.BlockedOnThirdParty.map((thread) => thread.id)).toEqual(["working"]);
     expect(groups.Completed).toEqual([]);
   });
 
-  it("defaults assignments from an incompatible bundle to Idle", () => {
+  it("defaults assignments from an incompatible bundle to Active", () => {
     const assignments = [
       {
         threadId: "newer-status",
@@ -82,7 +103,7 @@ describe("thread statuses", () => {
       assignments,
     );
 
-    expect(groups["Idle"].map((thread) => thread.id)).toEqual(["newer-status"]);
+    expect(groups.Active.map((thread) => thread.id)).toEqual(["newer-status"]);
   });
 
   it("groups each thread by its own workflow stage", () => {
@@ -107,19 +128,19 @@ describe("thread statuses", () => {
       },
       {
         threadId: "grandchild",
-        workflowStage: "Blocked",
+        workflowStage: "BlockedOnThirdParty",
         sortKey: "c",
         updatedAt: 3,
       },
-      { threadId: "other", workflowStage: "Idle", sortKey: "d", updatedAt: 4 },
+      { threadId: "other", workflowStage: "Active", sortKey: "d", updatedAt: 4 },
     ];
 
     const groups = groupThreadsByStage(threads, assignments);
 
     expect(groups.Completed.map(({ id }) => id)).toEqual(["parent"]);
     expect(groups.Deferred.map(({ id }) => id)).toEqual(["child"]);
-    expect(groups.Blocked.map(({ id }) => id)).toEqual(["grandchild"]);
-    expect(groups["Idle"].map(({ id }) => id)).toEqual(["other"]);
+    expect(groups.BlockedOnThirdParty.map(({ id }) => id)).toEqual(["grandchild"]);
+    expect(groups.Active.map(({ id }) => id)).toEqual(["other"]);
   });
 
   it("computes reorder and cross-group destination orders", () => {
