@@ -1,10 +1,23 @@
 import {
+  createContext,
   type ReactNode,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
+
+/**
+ * Whether the group around a row is folding. bb windows long lists by what
+ * meets its scroller, and rows leaving the window mid-fold would jump the
+ * rest; a folding group keeps every row mounted until the fold is done.
+ */
+const FoldingContext = createContext(false);
+
+export function useFolding(): boolean {
+  return useContext(FoldingContext);
+}
 
 type Phase = "open" | "opening" | "closing" | "closed";
 
@@ -167,8 +180,18 @@ export function GroupBody({
         );
       }}
     >
-      <div className={`min-h-0 min-w-0 ${phase === "open" ? "" : "overflow-hidden"}`}>
-        {children}
+      {/* While folding, the body clips by clip-path rather than overflow:
+          bb windows long lists by what intersects its scroller, and an
+          overflow clip would count the folding rows as gone and unmount
+          them mid-fold. A sticky parent row inside would stick to the clip
+          instead of the list and jump, so it flows with the rest until the
+          fold is done. */}
+      <div
+        className={`min-h-0 min-w-0 ${
+          phase === "open" ? "" : "[clip-path:inset(0)] [&_[data-sidebar-sticky-tier]]:static!"
+        }`}
+      >
+        <FoldingContext.Provider value={phase !== "open"}>{children}</FoldingContext.Provider>
       </div>
     </div>
   );

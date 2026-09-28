@@ -168,6 +168,7 @@ import {
   useHeadingStyle,
 } from "../../ribbon/app/heading-icon.js";
 import { useIconsController } from "../../ribbon/app/icons.js";
+import { useFolding } from "../../ribbon/app/group-body.js";
 import { useRibbonData } from "../../ribbon/app/data.js";
 import { ActionMenuItem } from "../ui/action-menu-items.js";
 import { SiblingLineage } from "../../ribbon/app/rails.js";
@@ -1451,7 +1452,9 @@ const SectionTreeItemRow = memo(function SectionTreeItemRow({
     sectionDnd ?? null,
     sectionKey,
   );
-  const showChildren = !isCollapsed && section.items.length > 0;
+  // Ribbon's fold needs the rows still there to fold away; bb's own list
+  // drops them the moment the section collapses.
+  const showChildren = (ribbon !== null || !isCollapsed) && section.items.length > 0;
   const sectionThreads = useMemo(
     () => getProjectThreadItemDescendants(section.items),
     [section.items],
@@ -1899,7 +1902,10 @@ function useWindowedThreadItems({
     },
     [items, rowCountContext],
   );
+  // A folding group keeps every row, so none leaves the window mid-fold.
+  const folding = useFolding();
   const alwaysMountedKeys = useMemo(() => {
+    if (folding) return new Set(itemKeys);
     const keys = new Set<string>();
     for (const item of items) {
       if (
@@ -1911,7 +1917,7 @@ function useWindowedThreadItems({
       }
     }
     return keys.size > 0 ? keys : undefined;
-  }, [items, selectedThreadId, rename]);
+  }, [folding, itemKeys, items, selectedThreadId, rename]);
   return { itemKeys, estimateRows, getNavigationEntries, alwaysMountedKeys };
 }
 
