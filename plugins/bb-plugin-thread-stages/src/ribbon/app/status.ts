@@ -29,6 +29,7 @@ const LABELS: Record<ThreadStatus["indicator"], string | null> = {
  * for a row, hidden children included. A running agent turns the stage ring
  * rather than showing bb's spinner, so runtime alone is no indicator here; a
  * pull request's mark then slots in by how urgently it needs the user.
+ * Background work shows its icon but moves nothing else while the agent idles.
  */
 export function ribbonThreadStatus(
   state: ThreadListIndicatorState,
@@ -36,7 +37,12 @@ export function ribbonThreadStatus(
   pullRequest: PullRequestSignal | null,
 ): ThreadStatus {
   const resolved = resolveThreadListIndicator(state);
-  const hasWork = hasThreadListWorkingActivity(state);
+  const hasWork = hasThreadListWorkingActivity({
+    ...state,
+    isWorkflowActive: false,
+    isBackgroundAgentActive: false,
+    isBackgroundCommandActive: false,
+  });
   const indicator =
     resolved === "runtime"
       ? resolveThreadListIndicator({ ...state, isRuntimeActive: false })
