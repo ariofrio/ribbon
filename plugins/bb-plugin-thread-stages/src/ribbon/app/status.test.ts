@@ -34,6 +34,28 @@ describe("Ribbon row status", () => {
     expect(status.spinsStageRing).toBe(false);
   });
 
+  it.each([
+    ["isBackgroundAgentActive", "background-agent"],
+    ["isBackgroundCommandActive", "background-command"],
+    ["isWorkflowActive", "workflow"],
+  ] as const)("leaves an idle agent's ring still while %s, showing its icon", (key, indicator) => {
+    const status = ribbonThreadStatus({ ...idle, [key]: true }, null, null);
+    expect(status).toMatchObject({ indicator, spinsStageRing: false, isWorking: false });
+  });
+
+  it("turns the ring for a working agent and shows its background work", () => {
+    const status = ribbonThreadStatus(
+      { ...idle, isRuntimeActive: true, isBackgroundCommandActive: true },
+      null,
+      null,
+    );
+    expect(status).toMatchObject({
+      indicator: "background-command",
+      spinsStageRing: true,
+      isWorking: true,
+    });
+  });
+
   it("lets a failing pull request outrank an unread completion, and a ready one wait", () => {
     const unread = { ...idle, hasUnreadSuccess: true };
     expect(

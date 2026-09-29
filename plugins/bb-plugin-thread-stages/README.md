@@ -95,7 +95,9 @@ Running work never changes a stage. A working thread's stage icon turns its
 ring in place of bb's spinner, a collapsed root's ring also turns for work in
 its hidden descendants, and a pending question or approval stops the ring. A
 working row shimmers across its icon, title, and indicator; turn off
-**Shimmer working rows** to keep bb's shimmer on the indicator alone.
+**Shimmer working rows** to keep bb's shimmer on the indicator alone. A
+workflow, background agent, or background command left running by an idle
+agent shimmers only its indicator, and the ring holds still.
 
 A title runs to the row's edge unless something stands in the trailing
 lane: a status indicator, a PR number, or a toggle for hidden children.

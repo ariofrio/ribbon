@@ -873,7 +873,7 @@ function ThreadRowComponent({
                     hideIdleDraftLabel={
                       !hasHiddenChildren && trailingIndicatorKind === "draft"
                     }
-                    shine={!ribbonSettings.shimmerWorkingRows}
+                    shine={!ribbonShines}
                   />
                 ) : (
                   <ThreadTrailingIndicator

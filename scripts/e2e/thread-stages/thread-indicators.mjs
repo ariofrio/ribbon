@@ -48,6 +48,7 @@ export async function verifyThreadIndicators({ stack, fixture }) {
       page.setDefaultTimeout(30_000);
       let queuedWork = "none";
       let runtime = "idle";
+      let backgroundCommands = 0;
       function updateThread(value) {
         if (!value || typeof value !== "object") return;
         if (value.id === thread.id && value.runtime) {
@@ -57,6 +58,7 @@ export async function verifyThreadIndicators({ stack, fixture }) {
           value.hasPendingInteraction = false;
           value.lastReadAt = value.latestAttentionAt;
           if (value.activity) for (const key of Object.keys(value.activity)) value.activity[key] = 0;
+          if (value.activity) value.activity.activeBackgroundCommandCount = backgroundCommands;
         }
         for (const child of Object.values(value)) updateThread(child);
       }
@@ -144,7 +146,9 @@ export async function verifyThreadIndicators({ stack, fixture }) {
           };
         });
         if (provider !== "__builtin__") {
-          assert.equal(observation.glyphMasked, false, `${label}: the glyph should not shimmer alone`);
+          // Only work an idle agent left running shimmers its glyph alone.
+          const alone = label === "Background command running";
+          assert.equal(observation.glyphMasked, alone, `${label}: the glyph should${alone ? "" : " not"} shimmer alone`);
         }
         delete observation.glyphMasked;
         observations.push({ label: label ?? "idle draft", ...observation });
@@ -199,6 +203,24 @@ export async function verifyThreadIndicators({ stack, fixture }) {
       }
       runtime = "idle";
       await clearDraft();
+      backgroundCommands = 1;
+      await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
+      await ready();
+      await observe("Background command running");
+      if (provider !== "__builtin__") {
+        // Background work alone leaves the agent idle: the ring holds still
+        // and the row does not shimmer.
+        const still = await link.evaluate((node) => {
+          const container = node.closest("[data-thread-id]");
+          return {
+            rowShines: container.hasAttribute("data-ribbon-shine-row"),
+            ringTurns: container.getAnimations({ subtree: true })
+              .some((animation) => animation.animationName === "spin"),
+          };
+        });
+        assert.deepEqual(still, { rowShines: false, ringTurns: false });
+      }
+      backgroundCommands = 0;
       await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
       await ready();
       for (const tone of ["default", "running", "success", "error"]) {
