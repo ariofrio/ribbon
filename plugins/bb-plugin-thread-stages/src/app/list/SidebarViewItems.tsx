@@ -246,7 +246,7 @@ function SidebarViewItems({ page }: { page: SidebarViewPage }) {
                 }));
               }}
             >
-              PR number
+              Pull requests
               <span className="ml-auto inline-flex size-4 shrink-0 items-center justify-center">
                 {ribbon.view.pullRequestNumberPosition !== "hidden" && (
                   <Icon name="Check" className="size-4" />

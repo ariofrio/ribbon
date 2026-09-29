@@ -115,7 +115,7 @@ in the plugin's settings turns the marks off. Auto-merge, reviewers,
 and check counts come from the GitHub CLI (`gh`) signed in on the bb server's
 machine; without it, marks follow bb's own pull request status.
 
-**⋯ menu → Organize → Rows → PR number** shows the number beside each title
+**⋯ menu → Organize → Rows → Pull requests** shows the number beside each title
 or hides it along with its mark. **Equal-width PR digits** in the plugin's
 settings lines the numbers up.
 

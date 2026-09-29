@@ -99,7 +99,7 @@ export async function verifyPrNumber({ stack, fixture }) {
     async function togglePrNumber(keyboard = false) {
       await openOptions();
       const organize = page.getByRole("menuitem", { name: "Organize", exact: true });
-      const box = page.getByRole("menuitemcheckbox", { name: "PR number", exact: true });
+      const box = page.getByRole("menuitemcheckbox", { name: "Pull requests", exact: true });
       if (keyboard) {
         await organize.focus();
         await page.keyboard.press("ArrowRight");

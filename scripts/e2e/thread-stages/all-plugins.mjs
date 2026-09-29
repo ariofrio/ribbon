@@ -29,7 +29,7 @@ export async function verifyAllPlugins({ stack, fixture }) {
     await header.hover();
     await header.getByRole("button", { name: "Atlas section actions", exact: true }).click();
     await page.getByRole("menuitem", { name: "Organize", exact: true }).hover();
-    await page.getByRole("menuitemcheckbox", { name: "PR number", exact: true }).waitFor();
+    await page.getByRole("menuitemcheckbox", { name: "Pull requests", exact: true }).waitFor();
     await page.keyboard.press("Escape");
     await header.hover();
     await header.getByRole("button", { name: "Atlas section actions", exact: true }).click();
