@@ -2,8 +2,8 @@ import {
   useRealtime,
   useRealtimeConnectionState,
   useRpc,
-  type PluginRpcClient,
 } from "@get-bb/plugin-sdk/app";
+import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import {
   createContext,
   useCallback,
@@ -13,34 +13,42 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState,
-  useSyncExternalStore,
   type ReactNode,
 } from "react";
-import type { z } from "zod";
 import type { ChildRank } from "../child-order";
 import type { GroupingKey, PlacementRecordV1 } from "../placement-store";
 import type { rpcContract } from "../server";
 import type { ThreadAction, ThreadActionsRecord } from "../thread-actions-store";
 import { THREAD_STAGES_GROUPING_KEY } from "../workflow/catalog";
+import type { WorkflowStage } from "../workflow/workflow-stage";
 import {
-  parseWorkflowStage,
-  type WorkflowStage,
-} from "../workflow/workflow-stage";
+  resetRibbonAtoms,
+  ribbonActionsEditorAtom,
+  ribbonChildRanksAtom,
+  ribbonEnabledAtom,
+  ribbonErrorAtom,
+  ribbonLoadedAtom,
+  ribbonPlacementsAtom,
+  ribbonPreferencesAtom,
+  ribbonRpcAtom,
+  ribbonSnapshotAtom,
+  ribbonStagesAtom,
+  ribbonThreadActionsAtom,
+  ribbonThreadAtoms,
+  runRibbonThreadActionAtom,
+  stageIn,
+  type RibbonRpc,
+  type RibbonThread,
+  type SidebarSnapshot,
+} from "./atoms";
 import {
   PullRequestDetailsProvider,
   type PullRequestDetailsRequest,
 } from "./pull-request-details-store";
 import { publishShineStyles } from "./row-shine";
-import {
-  loadSidebarPreferences,
-  saveSidebarPreferences,
-  type SidebarPreferences,
-  type SidebarView,
-} from "./view-state";
+import { saveSidebarPreferences, type SidebarView } from "./view-state";
 
-export type SidebarSnapshot = z.output<typeof rpcContract.sidebarSnapshotV1.output>;
-export type RibbonRpc = PluginRpcClient<typeof rpcContract>;
+export type { RibbonRpc, RibbonThread, SidebarSnapshot } from "./atoms";
 
 export type PlacementAnchor =
   | { kind: "before" | "after"; threadId: string }
@@ -91,99 +99,16 @@ export function useRibbonData(): RibbonData | null {
   return useContext(RibbonDataContext);
 }
 
-/**
- * The same data as a store rows subscribe to a slice of. The context value
- * changes whenever anything in it does, and a row reading it would redraw
- * with every placement reload, error, or editor; a row reads its own stage
- * and actions through this instead, and redraws only when those change.
- */
-interface RibbonStore {
-  get(): RibbonData;
-  subscribe(listener: () => void): () => void;
-}
-
-const RibbonStoreContext = createContext<RibbonStore | null>(null);
-
 /** Whether the list runs under Ribbon's data provider at all. */
 export function useRibbonEnabled(): boolean {
-  return useContext(RibbonStoreContext) !== null;
-}
-
-/**
- * A slice of Ribbon's data, redrawn only when `equal` says the slice changed.
- * Null outside the provider.
- */
-export function useRibbonSelect<T>(
-  select: (data: RibbonData) => T,
-  equal: (previous: T, next: T) => boolean = Object.is,
-): T | null {
-  const store = useContext(RibbonStoreContext);
-  const last = useRef<{ value: T } | null>(null);
-  const snapshot = () => {
-    if (store === null) return null;
-    const next = select(store.get());
-    if (last.current !== null && equal(last.current.value, next)) {
-      return last.current.value;
-    }
-    last.current = { value: next };
-    return next;
-  };
-  return useSyncExternalStore(
-    store === null ? noSubscription : store.subscribe,
-    snapshot,
-    snapshot,
-  );
-}
-
-const noSubscription = () => () => {};
-
-export interface RibbonThread {
-  stage: WorkflowStage;
-  actions: ThreadActionsRecord | null;
-  pullRequestNumberPosition: SidebarView["pullRequestNumberPosition"];
-  runThreadAction: RibbonData["runThreadAction"];
-}
-
-function sameThreadActions(
-  left: ThreadActionsRecord | null,
-  right: ThreadActionsRecord | null,
-): boolean {
-  if (left === right) return true;
-  if (left === null || right === null) return false;
-  return (
-    left.hideTitle === right.hideTitle &&
-    left.actions.length === right.actions.length &&
-    left.actions.every((action, index) => {
-      const other = right.actions[index]!;
-      return (
-        action.id === other.id &&
-        action.label === other.label &&
-        action.prompt === other.prompt
-      );
-    })
-  );
-}
-
-function sameRibbonThread(left: RibbonThread, right: RibbonThread): boolean {
-  return (
-    left.stage === right.stage &&
-    left.pullRequestNumberPosition === right.pullRequestNumberPosition &&
-    left.runThreadAction === right.runThreadAction &&
-    sameThreadActions(left.actions, right.actions)
-  );
+  return useAtomValue(ribbonEnabledAtom);
 }
 
 /** What Ribbon adds to one row, redrawn only when the row's own share changes. */
 export function useRibbonThread(threadId: string): RibbonThread | null {
-  return useRibbonSelect(
-    (data) => ({
-      stage: data.stageOf(threadId),
-      actions: data.threadActions.get(threadId) ?? null,
-      pullRequestNumberPosition: data.view.pullRequestNumberPosition,
-      runThreadAction: data.runThreadAction,
-    }),
-    sameRibbonThread,
-  );
+  const enabled = useRibbonEnabled();
+  const thread = useAtomValue(ribbonThreadAtoms(threadId));
+  return enabled ? thread : null;
 }
 
 const ORDERED_GROUPINGS = ["builtin:sections", "builtin:projects"] as const;
@@ -202,28 +127,25 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
   const rpcRef = useRef(rpc);
   rpcRef.current = rpc;
   const connection = useRealtimeConnectionState();
-  const [snapshot, setSnapshot] = useState<SidebarSnapshot | null>(null);
-  const [placements, setPlacements] = useState<
-    ReadonlyMap<GroupingKey, readonly PlacementRecordV1[]>
-  >(new Map());
-  const [stages, setStages] = useState<ReadonlyMap<string, PlacementRecordV1>>(
-    new Map(),
-  );
-  const [childRanks, setChildRanks] = useState<readonly ChildRank[]>([]);
-  const [threadActions, setThreadActions] = useState<
-    ReadonlyMap<string, ThreadActionsRecord>
-  >(new Map());
-  const [loaded, setLoaded] = useState({
-    placements: false,
-    stages: false,
-    childOrder: false,
-    threadActions: false,
-  });
-  const [preferences, setPreferences] = useState<SidebarPreferences>(() =>
-    loadSidebarPreferences(window.localStorage),
-  );
-  const [error, setError] = useState<string | null>(null);
-  const [actionsEditor, setActionsEditor] = useState<string | null>(null);
+  const store = useStore();
+  // Rows read the store on their own; the atoms say the provider is here and
+  // which client to call, and go back to nothing once it is gone.
+  useLayoutEffect(() => {
+    store.set(ribbonEnabledAtom, true);
+    return () => resetRibbonAtoms(store);
+  }, [store]);
+  useLayoutEffect(() => {
+    store.set(ribbonRpcAtom, rpc);
+  }, [rpc, store]);
+  const [snapshot, setSnapshot] = useAtom(ribbonSnapshotAtom);
+  const [placements, setPlacements] = useAtom(ribbonPlacementsAtom);
+  const [stages, setStages] = useAtom(ribbonStagesAtom);
+  const [childRanks, setChildRanks] = useAtom(ribbonChildRanksAtom);
+  const [threadActions, setThreadActions] = useAtom(ribbonThreadActionsAtom);
+  const [loaded, setLoaded] = useAtom(ribbonLoadedAtom);
+  const [preferences, setPreferences] = useAtom(ribbonPreferencesAtom);
+  const [error, setError] = useAtom(ribbonErrorAtom);
+  const [actionsEditor, setActionsEditor] = useAtom(ribbonActionsEditorAtom);
   const latestRevisions = useRef(new Map<GroupingKey, number>());
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const stageRequest = useRef(0);
@@ -333,8 +255,7 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const stageOf = useCallback(
-    (threadId: string): WorkflowStage =>
-      parseWorkflowStage(stages.get(threadId)?.groupId ?? "Active") ?? "Active",
+    (threadId: string): WorkflowStage => stageIn(stages, threadId),
     [stages],
   );
   const enteredStageAt = useCallback(
@@ -469,16 +390,7 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const runThreadAction = useCallback<RibbonData["runThreadAction"]>(
-    async (threadId, actionId) => {
-      try {
-        await rpcRef.current.call("runThreadActionV1", { threadId, actionId });
-      } catch (error) {
-        setError(message(error, "Could not run thread action"));
-      }
-    },
-    [],
-  );
+  const runThreadAction = useSetAtom(runRibbonThreadActionAtom);
 
   const loadPullRequestDetails = useCallback(
     (requests: readonly PullRequestDetailsRequest[]) =>
@@ -543,34 +455,11 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  // Rows read the value as it is being rendered, and hear of it once the
-  // render commits; a listener that finds nothing new leaves its row alone.
-  const current = useRef(value);
-  current.current = value;
-  const listeners = useRef(new Set<() => void>());
-  const store = useMemo<RibbonStore>(
-    () => ({
-      get: () => current.current,
-      subscribe: (listener) => {
-        listeners.current.add(listener);
-        return () => {
-          listeners.current.delete(listener);
-        };
-      },
-    }),
-    [],
-  );
-  useLayoutEffect(() => {
-    for (const listener of listeners.current) listener();
-  }, [value]);
-
   return (
     <RibbonDataContext.Provider value={value}>
-      <RibbonStoreContext.Provider value={store}>
-        <PullRequestDetailsProvider load={loadPullRequestDetails}>
-          {children}
-        </PullRequestDetailsProvider>
-      </RibbonStoreContext.Provider>
+      <PullRequestDetailsProvider load={loadPullRequestDetails}>
+        {children}
+      </PullRequestDetailsProvider>
     </RibbonDataContext.Provider>
   );
 }
