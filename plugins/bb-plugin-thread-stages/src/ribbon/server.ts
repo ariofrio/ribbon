@@ -592,7 +592,7 @@ export default async function ribbonServer(
       })),
       {
         id: "unsectioned",
-        label: "Unorganized",
+        label: "Threads",
         acceptsAssignments: true,
         visibleWhenEmpty: true,
         defaultCollapsed: false,

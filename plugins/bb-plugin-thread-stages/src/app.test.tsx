@@ -175,7 +175,7 @@ describe("thread-list plugin", () => {
     expect(
       rpcCalls.map((call) => call.method).filter((method) => method.startsWith("listPref")),
     ).toEqual(["listPreferences"]);
-    expect(sectionHeaders()).toEqual(["Pinned", "Later", "Review", "Unorganized"]);
+    expect(sectionHeaders()).toEqual(["Pinned", "Later", "Review", "Threads"]);
     expect(threadIds()).toEqual([
       "thr_pinned",
       "thr_later",
@@ -313,7 +313,7 @@ describe("thread-list plugin", () => {
     renderList({ organizationMode: "project" });
 
     await screen.findByText("Pinned thread");
-    expect(sectionHeaders()).toEqual(["Pinned", "App", "Web", "Personal"]);
+    expect(sectionHeaders()).toEqual(["Pinned", "App", "Web", "Threads"]);
     const appGroup = screen
       .getByTitle("App")
       .closest("[data-sidebar-sticky-group]") as HTMLElement;
@@ -324,7 +324,7 @@ describe("thread-list plugin", () => {
       .closest("[data-sidebar-sticky-group]") as HTMLElement;
     expect(within(webGroup).getByText("Later thread")).not.toBeNull();
     const threadsGroup = screen
-      .getByTitle("Personal")
+      .getByTitle("Threads")
       .closest("[data-sidebar-sticky-group]") as HTMLElement;
     expect(within(threadsGroup).getByText("Personal thread")).not.toBeNull();
   });
@@ -362,10 +362,10 @@ describe("thread-list plugin", () => {
         },
       );
 
-      await screen.findByTitle("Personal");
+      await screen.findByTitle("Threads");
       expect(threadIds()).toEqual(["thr_personal"]);
       expect(sectionHeaders()).toEqual(
-        includeStandardProjects ? ["App", "Web", "Personal"] : ["Personal"],
+        includeStandardProjects ? ["App", "Web", "Threads"] : ["Threads"],
       );
     },
   );

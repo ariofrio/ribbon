@@ -1861,16 +1861,6 @@ function ProjectListComponent({
     actions: renderSectionDisplayOptions("pinned", "Pinned"),
     actionsOpen: isSectionDisplayOptionsOpen("pinned"),
   };
-  // Ribbon names bb's catch-all groups: the sectionless threads are
-  // Unorganized, and the personal project is Personal.
-  const threadsLabel =
-    ribbon === null
-      ? "Threads"
-      : organizationMode === "chronological"
-        ? "Unorganized"
-        : organizationMode === "project"
-          ? "Personal"
-          : "Threads";
   const personalOwner = useMemo(
     () =>
       personalProjectId === null
@@ -1882,8 +1872,8 @@ function ProjectListComponent({
     ribbon !== null && organizationMode === "project" ? personalOwner : null,
   );
   const threadsSection = {
-    label: threadsLabel,
-    actions: renderSectionDisplayOptions("threads", threadsLabel),
+    label: "Threads",
+    actions: renderSectionDisplayOptions("threads", "Threads"),
     actionsOpen: isSectionDisplayOptionsOpen("threads"),
     ...(ribbon === null || organizationMode === "machine"
       ? {}
