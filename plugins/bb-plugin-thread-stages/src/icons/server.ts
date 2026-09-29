@@ -105,7 +105,7 @@ const RESERVED_GLYPH_NAMES = new Set([
   "bubble-chat-add",
 ]);
 
-export function glyphOf(icon: string) {
+function glyphOf(icon: string) {
   return icon === DEFAULT_SECTION_ICON
     ? SECTION_GLYPH
     : (CATALOG_ICONS[icon] ?? CATALOG_ICONS[DEFAULT_PROJECT_ICON] ?? []);

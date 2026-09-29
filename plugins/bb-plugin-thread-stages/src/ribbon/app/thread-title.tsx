@@ -98,7 +98,3 @@ export function MarqueeText({
     </span>
   );
 }
-
-export function ThreadTitle({ title, pan }: { title: string; pan?: boolean }) {
-  return <MarqueeText text={title} pan={pan} />;
-}

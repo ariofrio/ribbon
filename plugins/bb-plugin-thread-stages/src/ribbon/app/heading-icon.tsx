@@ -13,7 +13,7 @@ import { StandardHeadingIcon, headingColorStyle } from "./heading";
 import { useIconsController, useOwnerColor } from "./icons";
 
 /** Whether headings carry an icon; Ribbon's Off still reads as off. */
-export function useHeadingIconsSetting(): boolean {
+function useHeadingIconsSetting(): boolean {
   const settings = useSettings();
   const value = settings.values?.groupHeaderIcons;
   return value !== false && value !== "Off";

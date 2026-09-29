@@ -52,7 +52,7 @@ function alreadyImported(
  * Returns the number of rows copied, or null when nothing ran: the import
  * already happened, or there is no database to import from.
  */
-export function importLegacyDatabase(
+function importLegacyDatabase(
   database: BetterSqlite3.Database,
   {
     key,

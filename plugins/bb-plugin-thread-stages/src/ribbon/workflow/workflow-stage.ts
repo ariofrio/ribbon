@@ -48,7 +48,7 @@ export interface SidebarThreadLike {
   updatedAt: number;
 }
 
-export const DEFAULT_WORKFLOW_STAGE: WorkflowStage = "Active";
+const DEFAULT_WORKFLOW_STAGE: WorkflowStage = "Active";
 
 function stageKey(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");

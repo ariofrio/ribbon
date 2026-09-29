@@ -9,7 +9,7 @@ function builtinRank(groupingKey: string): number {
   return 2;
 }
 
-export function compareGroupingOrder(
+function compareGroupingOrder(
   left: OrderableGrouping,
   right: OrderableGrouping,
 ): number {

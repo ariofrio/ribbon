@@ -28,7 +28,7 @@ const IDLE: RibbonSearch = {
 };
 
 /** A search-only row: an archived thread bb's live list does not carry. */
-export function archivedSearchThread(thread: SearchThread): SidebarThread {
+function archivedSearchThread(thread: SearchThread): SidebarThread {
   return {
     ...thread,
     displayTitle: thread.title ?? thread.titleFallback ?? "Untitled thread",

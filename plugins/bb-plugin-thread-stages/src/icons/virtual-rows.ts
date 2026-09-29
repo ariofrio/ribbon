@@ -1,6 +1,6 @@
 /** Icons per row on a roomy viewport, and the height one row occupies. */
 export const GRID_COLUMNS = 11;
-export const GRID_ITEM_SIZE = 28;
+const GRID_ITEM_SIZE = 28;
 export const GRID_GAP = 4;
 /** A 28px button plus the grid's 4px gap. */
 export const ROW_HEIGHT = GRID_ITEM_SIZE + GRID_GAP;
@@ -8,7 +8,7 @@ export const ROW_HEIGHT = GRID_ITEM_SIZE + GRID_GAP;
  * How far beyond the viewport a row is still worth drawing. A little over one
  * popover's worth, so a flick of the wheel lands on icons rather than on gaps.
  */
-export const ROW_OVERSCAN = 160;
+const ROW_OVERSCAN = 160;
 
 export interface RowRange {
   start: number;

@@ -11,7 +11,7 @@ import {
  * under this plugin's id, so this provider owns their resolution and draws
  * them with this plugin's icon.
  */
-export const STAGE_MENTION_PROVIDER_ID = "stage";
+const STAGE_MENTION_PROVIDER_ID = "stage";
 
 const STAGE_MEANINGS: Record<WorkflowStage, string> = {
   Deferred: "intentionally set aside for later",
@@ -42,7 +42,7 @@ function placement(stage: WorkflowStage): string {
   return `\`bb sidebar place <thread> --to plugin:thread-stages:stages/${stage}\``;
 }
 
-export function stageContext(stage: WorkflowStage | "Blocked"): string {
+function stageContext(stage: WorkflowStage | "Blocked"): string {
   if (stage === "Blocked") {
     return [
       `@Blocked was a workflow stage that Thread stages has since split into Blocked on other agent, ${STAGE_MEANINGS.BlockedOnOtherAgent}, and Blocked on third party, ${STAGE_MEANINGS.BlockedOnThirdParty}.`,
