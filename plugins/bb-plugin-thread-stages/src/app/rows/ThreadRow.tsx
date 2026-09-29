@@ -109,6 +109,15 @@ const RIBBON_ROW_BUTTON_CLASS = `${SIDEBAR_MORE_ACTION_TRIGGER_CLASS} shrink-0 c
 // so the two reaches meet. Under a coarse pointer bb already widens it.
 const RIBBON_CHEVRON_HIT_AREA_CLASS =
   "-mr-1 pointer-fine:after:absolute pointer-fine:after:left-1/2 pointer-fine:after:top-1/2 pointer-fine:after:h-7 pointer-fine:after:w-7 pointer-fine:after:-translate-x-1/2 pointer-fine:after:-translate-y-1/2 pointer-fine:after:content-['']";
+// A toggle shown only on hover takes no room at rest, so the title runs on
+// past where it will appear; hovering the row opens it up, reach and all.
+const RIBBON_CHEVRON_REVEAL_CLASS =
+  "overflow-hidden pointer-fine:h-5 pointer-fine:w-0 pointer-fine:-ml-1.5 pointer-fine:mr-0 pointer-fine:after:hidden pointer-fine:group-hover/thread-row:w-5 pointer-fine:group-hover/thread-row:ml-0 pointer-fine:group-hover/thread-row:-mr-1 pointer-fine:group-hover/thread-row:after:block pointer-fine:group-has-[:focus-visible]/thread-row:w-5 pointer-fine:group-has-[:focus-visible]/thread-row:ml-0 pointer-fine:group-has-[:focus-visible]/thread-row:-mr-1 pointer-fine:group-has-[:focus-visible]/thread-row:after:block";
+// Ribbon's title runs to the row's edge; the trailing lane is reserved only
+// while something stands in it at rest, or while hover fills it with actions.
+const RIBBON_LANE_RESERVED_CLASS = "pr-9";
+const RIBBON_LANE_ON_HOVER_CLASS =
+  "pr-2 group-hover/thread-row:pr-9 group-has-[:focus-visible]/thread-row:pr-9 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-9";
 import {
   ThreadActionsContextMenu,
   ThreadActionsMenu,
@@ -470,6 +479,20 @@ function ThreadRowComponent({
   // Ribbon's long titles fade at the edge, and pan on hover, in place of
   // bb's ellipsis.
   const ribbonMarquee = ribbon !== null && ribbonSettings.longTitles !== "Ellipsis";
+  // What stands in the lane at rest: an indicator, a right-hand PR number
+  // that would otherwise jump left on hover, a toggle for hidden children,
+  // or the row's own controls.
+  const ribbonLaneAtRest =
+    ribbon !== null &&
+    (miniMap !== null ||
+      ribbon.status.indicator !== "none" ||
+      ribbon.status.pluginStatus !== null ||
+      ribbon.status.pullRequestMark !== null ||
+      ribbon.pullRequest?.position === "right" ||
+      hasHiddenChildren ||
+      ribbon.actions.length > 0 ||
+      thread.archivedAt !== null ||
+      Boolean(shortcut));
   const shineRowRef = useRef<HTMLDivElement | null>(null);
   useRowShine(shineRowRef, ribbonShines, ribbonWorking);
   const lineage = useRowLineage();
@@ -596,6 +619,9 @@ function ThreadRowComponent({
             (reserveRowActionSpace
               ? "pr-7.5 max-md:pointer-coarse:pr-0"
               : SIDEBAR_HOVER_ACTIONS_INSET_CLASS),
+          ribbon !== null &&
+            !isEditing &&
+            (ribbonLaneAtRest ? RIBBON_LANE_RESERVED_CLASS : RIBBON_LANE_ON_HOVER_CLASS),
         )}
       >
         <a
@@ -755,6 +781,7 @@ function ThreadRowComponent({
             className={cn(
               isEditing && "hidden",
               ribbon !== null && RIBBON_CHEVRON_HIT_AREA_CLASS,
+              ribbon !== null && !isParentCollapsed && RIBBON_CHEVRON_REVEAL_CLASS,
             )}
             isCollapsed={isParentCollapsed}
             expandLabel={`Expand ${labelTitle} threads`}
@@ -775,6 +802,8 @@ function ThreadRowComponent({
         data-sidebar-thread-trailing=""
         className={cn(
           "flex shrink-0 items-center gap-0.5 group-data-[sidebar-touch-armed=true]/thread-row:hidden",
+          // Out of the row's flow, so the title decides how much of it to leave.
+          ribbon !== null && "absolute inset-y-0 right-0",
           isEditing && "hidden",
         )}
       >

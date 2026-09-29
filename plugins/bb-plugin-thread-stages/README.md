@@ -97,7 +97,10 @@ its hidden descendants, and a pending question or approval stops the ring. A
 working row shimmers across its icon, title, and indicator; turn off
 **Shimmer working rows** to keep bb's shimmer on the indicator alone.
 
-A title that outgrows its row fades out at the edge and, while the row is
+A title runs to the row's edge unless something stands in the trailing
+lane: a status indicator, a PR number, or a toggle for hidden children.
+Hovering the row opens the lane for its actions. A title that outgrows its
+row fades out at the edge and, while the row is
 hovered or focused, pans to its end and back. **Long titles** in the plugin's
 settings keeps the fade but not the pan, or cuts titles with bb's ellipsis
 instead. The pan respects reduced motion.
