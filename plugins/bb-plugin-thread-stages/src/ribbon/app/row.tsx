@@ -3,6 +3,7 @@ import {
   useSettings,
   type PluginSidebarThreadRowStatus,
 } from "@get-bb/plugin-sdk/app";
+import { useSetAtom } from "jotai";
 import { useState, type CSSProperties } from "react";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -12,7 +13,8 @@ import { longTitlesSetting } from "../long-titles";
 import { pullRequestSignal } from "../pull-request-status";
 import type { ThreadAction } from "../thread-actions-store";
 import type { WorkflowStage } from "../workflow/workflow-stage";
-import { useRibbonThread, type RibbonThread } from "./data";
+import { runRibbonThreadActionAtom } from "./atoms";
+import { useRibbonThread } from "./data";
 import { usePullRequestDetails } from "./pull-request-details-store";
 import { ribbonThreadStatus } from "./status";
 import { StageIcon } from "./stage-icon";
@@ -68,11 +70,12 @@ export function useRibbonRow(
   } | null;
   actions: readonly ThreadAction[];
   hideTitle: boolean;
-  runThreadAction: RibbonThread["runThreadAction"];
+  runThreadAction(threadId: string, actionId: string): Promise<void>;
 } | null {
   // The row's own slice of Ribbon's data, so a change elsewhere in the list
   // leaves this row alone.
   const ribbon = useRibbonThread(thread.id);
+  const runThreadAction = useSetAtom(runRibbonThreadActionAtom);
   const { tabularPullRequestDigits, pullRequestMarks } = useRibbonRowSettings();
   const { isLoading: pullRequestLoading, pullRequest } =
     experimental_useSidebarThreadPullRequest(thread.id);
@@ -132,7 +135,7 @@ export function useRibbonRow(
         : null,
     actions,
     hideTitle: actions.length > 0 && (record?.hideTitle ?? false),
-    runThreadAction: ribbon.runThreadAction,
+    runThreadAction,
   };
 }
 
