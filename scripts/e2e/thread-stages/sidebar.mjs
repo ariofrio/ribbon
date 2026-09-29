@@ -141,6 +141,25 @@ export function spawnChild(fixture, { parent, project, title, AGENT }) {
 }
 
 /**
+ * Waits for the parent to finish answering its child's finish. bb tells the
+ * parent a moment after the child idles, and the turn that starts leaves the
+ * parent unread; a parent read before that turn ends is unread again after.
+ */
+export async function parentAnswered(fixture, parent, child) {
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    const events = fixture.runJson(["thread", "log", parent.id, "--all"]);
+    const request = events.find((event) => {
+      const subject = event.type === "client/turn/requested" ? event.data.systemMessageSubject : null;
+      return subject?.threadId === child.id || subject?.outcomes?.some((outcome) => outcome.threadId === child.id);
+    });
+    if (request && events.some((event) => event.type === "turn/completed" && event.seq > request.seq)) return;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`${parent.id} never finished answering ${child.id}`);
+}
+
+/**
  * Runs an action that changes a list preference and waits for the debounced
  * write to reach the server, so a reload finds it.
  */

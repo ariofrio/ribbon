@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { AGENT, FEATURED_PROJECT, FEATURED_THREAD, THREADS } from "../../screenshots/fixture.mjs";
-import { launch, link, openContext, sidebar, spawnChild } from "./sidebar.mjs";
+import { launch, link, openContext, parentAnswered, sidebar, spawnChild } from "./sidebar.mjs";
 
 // The title runs to the row's edge unless something stands in the trailing
 // lane at rest; hovering the row opens the lane for its actions. A toggle for
@@ -28,6 +28,7 @@ export async function verifyTitleLane({ stack, fixture }) {
   const browser = await launch();
   try {
     fixture.run(["thread", "wait", plain.id, "--status", "idle"]);
+    await parentAnswered(fixture, parent, shown);
     fixture.run(["thread", "read", shown.id]);
     fixture.run(["thread", "update", plain.id, "--section", fixture.section.id]);
     fixture.run(["thread", "read", plain.id]);
@@ -55,26 +56,21 @@ export async function verifyTitleLane({ stack, fixture }) {
         indicator: indicator !== null,
       };
     }, id);
-    // A row just read, or whose child just finished, settles a moment later;
-    // a child's finish can also land on its parent as fresh unread work after
-    // the read, so the read is repeated until the row shows nothing.
+    // A row just read settles a moment later.
     const indicatorOf = (id) => page.evaluate((id) => {
       const node = document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${id}"] [data-sidebar-thread-trailing-indicator]`);
       return node ? (node.querySelector("[aria-label]")?.getAttribute("aria-label") ?? node.getAttribute("aria-label") ?? "unlabelled") : null;
     }, id);
     const settled = async (id, message) => {
-      const deadline = Date.now() + 20_000;
-      let reads = 0;
-      while (Date.now() < deadline) {
-        const shown = await indicatorOf(id);
-        if (shown === null) return;
-        if (shown.startsWith("Unread") && reads < 3) {
-          reads += 1;
-          fixture.run(["thread", "read", id]);
-        }
-        await page.waitForTimeout(250);
+      try {
+        await page.waitForFunction(
+          (id) => document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${id}"] [data-sidebar-thread-trailing-indicator]`) === null,
+          id,
+          { timeout: 20_000 },
+        );
+      } catch {
+        assert.fail(`${message}; it shows ${await indicatorOf(id)}`);
       }
-      assert.fail(`${message}; it shows ${await indicatorOf(id)}`);
     };
     const rest = async (id) => { await page.mouse.move(1000, 700); await page.waitForFunction(() => document.querySelector("[data-ribbon-sidebar-root] [data-thread-id]:hover") === null); return lane(id); };
     const hovered = async (id) => { await link(list, id).hover(); await page.waitForFunction((id) => document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${id}"]:hover`) !== null, id); return lane(id); };
