@@ -52,6 +52,46 @@ export type ProjectThreadItem =
 
 export const CHRONOLOGICAL_CONTAINER_ID = "chronological";
 
+/** The node for a thread anywhere among these items, however deep. */
+export function findThreadNode(
+  items: readonly ProjectThreadItem[],
+  threadId: string,
+): ProjectThreadNode | null {
+  for (const item of items) {
+    const nodes =
+      item.kind === "thread"
+        ? [item.node]
+        : item.kind === "environment"
+          ? item.group.nodes
+          : [];
+    for (const node of nodes) {
+      if (node.thread.id === threadId) return node;
+      const found = findThreadNode(node.children, threadId);
+      if (found !== null) return found;
+    }
+    if (item.kind === "section") {
+      const found = findThreadNode(item.group.items, threadId);
+      if (found !== null) return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * The open thread as the one row a folded group shows: itself at the top
+ * level, with no children of its own to unfold. Null when it is not here.
+ */
+export function foldedThreadPreview(
+  items: readonly ProjectThreadItem[],
+  threadId: string | undefined,
+): { kind: "thread"; node: ProjectThreadNode } | null {
+  if (threadId === undefined) return null;
+  const node = findThreadNode(items, threadId);
+  return node === null
+    ? null
+    : { kind: "thread", node: { ...node, children: [], depth: 0 } };
+}
+
 type ThreadItemComparator = (
   left: ProjectThreadItem,
   right: ProjectThreadItem,

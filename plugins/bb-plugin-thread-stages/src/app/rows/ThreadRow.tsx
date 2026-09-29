@@ -661,7 +661,10 @@ function ThreadRowComponent({
                       data-sidebar-thread-provider={provider.id}
                       role="img"
                       aria-label={provider.displayName}
-                      className="pointer-events-auto relative z-[31] flex size-4 shrink-0 items-center justify-center mr-1.5 text-muted-foreground"
+                      className={cn(
+                        "pointer-events-auto relative z-[31] flex size-4 shrink-0 items-center justify-center text-muted-foreground",
+                        ribbon ? "mr-2" : "mr-1.5",
+                      )}
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();

@@ -144,7 +144,8 @@ export function RibbonStageGlyph({
 }) {
   return (
     <span
-      className={`mr-1.5 flex shrink-0 self-center ${
+      // 8px to the title, as bb's top sidebar items keep between icon and label.
+      className={`mr-2 flex shrink-0 self-center ${
         hiddenAtRest
           ? "opacity-0 group-hover/thread-row:opacity-100 group-has-[:focus-visible]/thread-row:opacity-100 pointer-coarse:opacity-100"
           : ""

@@ -31,6 +31,7 @@ import { AppThreadSectionMoveProvider } from "../rows/ThreadSectionMoveProvider.
 import { useDialogState } from "../ui/useDialogState.js";
 import {
   buildProjectThreadGroups,
+  foldedThreadPreview,
   getProjectThreadItemDescendants,
   type ProjectThreadNode,
 } from "../model/project-thread-groups.js";
@@ -734,6 +735,7 @@ function ProjectModeSections({
     rootItems: groupRootItems,
     threads: nonPinnedThreads,
   });
+  const personalPreview = foldedThreadPreview(personalItems, selectedThreadId);
   const builtInSections: BuiltInSidebarSectionOptionsById = {
     pinned: pinnedSection,
     threads: {
@@ -759,6 +761,27 @@ function ProjectModeSections({
           onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
         />
       ),
+      // Folded, the section still shows the open thread, as Ribbon's did.
+      folded: personalPreview ? (
+        <ProjectThreadTree
+          projectId={personalProjectId ?? undefined}
+          dndParentKey={CHRONOLOGICAL_CONTAINER_ID}
+          rootItems={[personalPreview]}
+          threadListState={getProjectThreadListState({
+            status,
+            threads: personalThreads,
+          })}
+          selectedThreadId={selectedThreadId}
+          collapsedThreadIds={collapsedThreadIds}
+          collapsedEnvironmentIds={collapsedEnvironmentIds}
+          compareThreads={compareThreads}
+          variant="section"
+          onProjectSelect={onProjectSelect}
+          onToggleThreadCollapsed={onToggleThreadCollapsed}
+          onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
+        />
+      ) : null,
+      keepThreadId: personalPreview ? selectedThreadId : null,
     },
   };
 
@@ -1219,6 +1242,7 @@ export function MachineModeSections({
     rootItems: groupRootItems,
     threads: nonPinnedThreads,
   });
+  const unorganizedPreview = foldedThreadPreview(allThreadItems, selectedThreadId);
   const builtInSections: BuiltInSidebarSectionOptionsById = {
     pinned: pinnedSection,
     threads: {
@@ -1240,6 +1264,23 @@ export function MachineModeSections({
           onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
         />
       ),
+      // Folded, the section still shows the open thread, as Ribbon's did.
+      folded: unorganizedPreview ? (
+        <ProjectThreadTree
+          dndParentKey={CHRONOLOGICAL_CONTAINER_ID}
+          rootItems={[unorganizedPreview]}
+          threadListState={allThreadsListState}
+          compareThreads={compareThreads}
+          variant="section"
+          selectedThreadId={selectedThreadId}
+          collapsedThreadIds={collapsedThreadIds}
+          collapsedEnvironmentIds={collapsedEnvironmentIds}
+          onProjectSelect={onProjectSelect}
+          onToggleThreadCollapsed={onToggleThreadCollapsed}
+          onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
+        />
+      ) : null,
+      keepThreadId: unorganizedPreview ? selectedThreadId : null,
     },
   };
 
@@ -1795,11 +1836,28 @@ function ProjectListComponent({
       pinnedSidebarState.effectivePinnedThreadIds.has(thread.id) &&
       isSidebarProjectThread(thread),
   );
+  // Folded, the section still shows the open thread, as Ribbon's did.
+  const pinnedPreview = foldedThreadPreview(pinnedSidebarState.rootItems, selectedThreadId);
   const pinnedSection: BuiltInSidebarSectionOptions = {
     activity: getCollapsedChildActivity(pinnedSectionThreads, draftThreadIds),
     collapsedThreads: pinnedSectionThreads,
     label: "Pinned",
     content: pinnedSectionContent,
+    folded: pinnedPreview ? (
+      <PinnedThreadTree
+        rootItems={[pinnedPreview]}
+        rootNodes={[pinnedPreview.node]}
+        selectedThreadId={selectedThreadId}
+        collapsedThreadIds={collapsedThreadIds}
+        collapsedEnvironmentIds={collapsedEnvironmentIds}
+        onProjectSelect={onProjectSelect}
+        onToggleThreadCollapsed={toggleThreadCollapsed}
+        onToggleEnvironmentCollapsed={toggleEnvironmentCollapsed}
+        isPinnedReorderPending={isPinnedReorderPending}
+        onReorderPinnedRoot={handleReorderPinnedRoot}
+      />
+    ) : null,
+    keepThreadId: pinnedPreview ? selectedThreadId : null,
     actions: renderSectionDisplayOptions("pinned", "Pinned"),
     actionsOpen: isSectionDisplayOptionsOpen("pinned"),
   };

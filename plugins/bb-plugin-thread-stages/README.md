@@ -85,6 +85,10 @@ section, Unorganized included, and a folder for a project, open while the
 group is. The book's top page turns over on its spine and the folder's front
 falls forward as its group folds. **Group header icons** turns them all off.
 
+A folded group still shows the open thread as its one row, and a click on a
+heading anywhere but its buttons folds or unfolds it; a double click on the
+name renames it.
+
 ## Rows
 
 Running work never changes a stage. A working thread's stage icon turns its

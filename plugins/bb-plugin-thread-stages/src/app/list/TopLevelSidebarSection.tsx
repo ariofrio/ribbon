@@ -85,6 +85,10 @@ export interface TopLevelSidebarSectionProps {
   collapseControl?: TopLevelSidebarSectionCollapseControl;
   collapsedActivity?: CollapsedChildActivity;
   collapsedThreads?: readonly ThreadSplitIndicatorTarget[];
+  /** What a folded group shows in place of its rows: the open thread's row, as Ribbon's did. */
+  folded?: ReactNode;
+  /** The open thread's row, kept in view while the rows around it fold. */
+  keepThreadId?: string | null;
   dragBindings?: SidebarSortableDragBindings;
   sectionRef?: (element: HTMLDivElement | null) => void;
   sectionStyle?: CSSProperties;
@@ -111,6 +115,8 @@ export function TopLevelSidebarSection({
   collapseControl,
   collapsedActivity,
   collapsedThreads = EMPTY_SPLIT_INDICATOR_THREADS,
+  folded,
+  keepThreadId,
   dragBindings,
   sectionRef,
   sectionStyle,
@@ -293,8 +299,9 @@ export function TopLevelSidebarSection({
           )}
         >
           {leading ? (
-            // With the gap, the icon sits 6px before the name, as a row's glyph does before its title.
-            <span className={cn("inline-flex shrink-0 items-center", ribbon ? "mr-0.5" : "mr-1")} aria-hidden="true">
+            // With the gap, the icon sits 8px before the name, as a row's glyph
+            // does before its title and bb's top items keep before their labels.
+            <span className="mr-1 inline-flex shrink-0 items-center" aria-hidden="true">
               {leading}
             </span>
           ) : null}
@@ -408,7 +415,11 @@ export function TopLevelSidebarSection({
       {children == null ? null : ribbon ? (
         // Folds open and shut with bb's own easing, as Ribbon's groups did.
         // The heading's own bottom margin is the whole gap to the first row.
-        <GroupBody open={collapseControl?.isCollapsed !== true}>
+        <GroupBody
+          open={collapseControl?.isCollapsed !== true}
+          folded={folded}
+          keepThreadId={keepThreadId}
+        >
           {children}
         </GroupBody>
       ) : collapseControl?.isCollapsed ? null : (

@@ -25,6 +25,8 @@ export interface BuiltInSidebarSectionOptions {
   actionsOpen?: boolean;
   collapsedThreads?: readonly ThreadSplitIndicatorTarget[];
   content: ReactNode;
+  folded?: ReactNode;
+  keepThreadId?: string | null;
   label: string;
   leading?: ReactNode;
   headingStyle?: CSSProperties;
@@ -89,8 +91,10 @@ function BuiltInSidebarSection({
   consumeClickSuppression,
   content,
   disabled,
+  folded,
   id,
   isCollapsed,
+  keepThreadId,
   label,
   leading,
   headingStyle,
@@ -115,6 +119,8 @@ function BuiltInSidebarSection({
       }}
       consumeClickSuppression={consumeClickSuppression}
       dropParentKey={BUILT_IN_SECTION_DROP_PARENT_KEY[id]}
+      folded={folded}
+      keepThreadId={keepThreadId}
     >
       {content}
     </SortableSidebarSection>

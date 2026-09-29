@@ -115,6 +115,7 @@ import {
   getSidebarDndItemId,
   isSidebarProjectThread,
   projectThreadItemContainsThread,
+  foldedThreadPreview,
   type EnvironmentThreadGroup,
   type ProjectThreadItem,
   type ProjectThreadItemRowCountContext,
@@ -1507,6 +1508,8 @@ const SectionTreeItemRow = memo(function SectionTreeItemRow({
   ) : null;
 
   if (variant === "section" && depthOffset === 0) {
+    // Folded, the section still shows the open thread, as Ribbon's did.
+    const sectionPreview = foldedThreadPreview(section.items, selectedThreadId);
     const topLevelActions = (
       <SidebarHeaderControls
         label={`${sectionName} section`}
@@ -1563,6 +1566,14 @@ const SectionTreeItemRow = memo(function SectionTreeItemRow({
         }}
         collapsedActivity={section.activity}
         collapsedThreads={sectionThreads}
+        folded={
+          sectionPreview ? (
+            <SectionDndSortableList sectionDnd={sectionDnd} parentKey={section.key}>
+              <div className="relative space-y-px">{renderSectionItem(sectionPreview)}</div>
+            </SectionDndSortableList>
+          ) : null
+        }
+        keepThreadId={sectionPreview ? selectedThreadId : null}
         consumeClickSuppression={consumeClickSuppression}
         dragBindings={rename.isEditing ? undefined : dragBindings}
         dropParentKey={sectionKey}
@@ -2493,6 +2504,8 @@ function ProjectRowComponent({
     </SidebarHeaderControls>
   );
 
+  // Folded, the project still shows the open thread, as Ribbon's did.
+  const projectPreview = foldedThreadPreview(rootItems ?? [], selectedThreadId);
   return (
     <>
       <ProjectActionsContextMenu
@@ -2544,6 +2557,25 @@ function ProjectRowComponent({
             dragBindings={rename.isEditing ? undefined : projectDragBindings}
             sectionRef={projectRowRef}
             sectionStyle={projectRowStyle}
+            folded={
+              projectPreview ? (
+                <ProjectThreadTree
+                  projectId={project.id}
+                  dndParentKey={buildSidebarEntitySectionId("project", project.id)}
+                  rootItems={[projectPreview]}
+                  threadListState={threadListState}
+                  selectedThreadId={selectedThreadId}
+                  collapsedThreadIds={collapsedThreadIds}
+                  collapsedEnvironmentIds={collapsedEnvironmentIds}
+                  compareThreads={compareThreads}
+                  variant="section"
+                  onProjectSelect={onProjectSelect}
+                  onToggleThreadCollapsed={onToggleThreadCollapsed}
+                  onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
+                />
+              ) : null
+            }
+            keepThreadId={projectPreview ? selectedThreadId : null}
           >
             <ProjectThreadTree
               projectId={project.id}
