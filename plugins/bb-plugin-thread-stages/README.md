@@ -93,6 +93,11 @@ its hidden descendants, and a pending question or approval stops the ring. A
 working row shimmers across its icon, title, and indicator; turn off
 **Shimmer working rows** to keep bb's shimmer on the indicator alone.
 
+A title that outgrows its row fades out at the edge and, while the row is
+hovered or focused, pans to its end and back. **Long titles** in the plugin's
+settings keeps the fade but not the pan, or cuts titles with bb's ellipsis
+instead. The pan respects reduced motion.
+
 Use a thread's **⋯ menu → Edit actions** to add labeled prompts. Their
 buttons appear beside the thread title, colored like the section or project,
 and send the saved prompt to that thread when clicked. **Hide thread title**

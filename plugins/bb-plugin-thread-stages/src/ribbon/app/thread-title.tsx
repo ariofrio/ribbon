@@ -9,6 +9,15 @@ const PAN_PX_PER_SECOND = 30;
 const FADE_SECONDS = FADE_PX / (PAN_PX_PER_SECOND * (0.49 / 0.44));
 const PAN_DELAY_SECONDS = 0.3;
 
+// While the row is hovered or keyboard-focused, and motion is not reduced,
+// the title pans to its end and each fade slides into place as it goes.
+const PAN_CONTAINER_CLASS =
+  "motion-safe:group-hover/thread-row:[mask-position:var(--ribbon-marquee-fade-end)_0] motion-safe:group-hover/thread-row:[transition:mask-position_var(--ribbon-marquee-trailing-fade)_linear_var(--ribbon-marquee-trailing-fade-delay)] motion-safe:group-has-[:focus-visible]/thread-row:[mask-position:var(--ribbon-marquee-fade-end)_0] motion-safe:group-has-[:focus-visible]/thread-row:[transition:mask-position_var(--ribbon-marquee-trailing-fade)_linear_var(--ribbon-marquee-trailing-fade-delay)]";
+const PAN_LEADING_CLASS =
+  "motion-safe:group-hover/thread-row:[mask-position:var(--ribbon-marquee-fade-end)_0] motion-safe:group-hover/thread-row:[transition:mask-position_var(--ribbon-marquee-leading-fade)_linear_300ms] motion-safe:group-has-[:focus-visible]/thread-row:[mask-position:var(--ribbon-marquee-fade-end)_0] motion-safe:group-has-[:focus-visible]/thread-row:[transition:mask-position_var(--ribbon-marquee-leading-fade)_linear_300ms]";
+const PAN_TEXT_CLASS =
+  "motion-safe:group-hover/thread-row:[transform:translateX(var(--ribbon-marquee-pan))] motion-safe:group-hover/thread-row:[transition:transform_var(--ribbon-marquee-pan-duration)_cubic-bezier(0.44,0.49,0.71,0.95)_300ms] motion-safe:group-has-[:focus-visible]/thread-row:[transform:translateX(var(--ribbon-marquee-pan))] motion-safe:group-has-[:focus-visible]/thread-row:[transition:transform_var(--ribbon-marquee-pan-duration)_cubic-bezier(0.44,0.49,0.71,0.95)_300ms]";
+
 const fadeStyle = (gradient: string): CSSProperties => ({
   maskImage: gradient,
   maskSize: `calc(100% + ${FADE_PX}px) 100%`,
@@ -18,9 +27,12 @@ const fadeStyle = (gradient: string): CSSProperties => ({
 export function MarqueeText({
   text,
   onMeasure,
+  pan = true,
 }: {
   text: string;
   onMeasure?: (width: number) => void;
+  /** Whether the text pans to its end while its row is hovered; without it, the trailing fade stays put. */
+  pan?: boolean;
 }) {
   const containerRef = useRef<HTMLSpanElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
@@ -61,7 +73,7 @@ export function MarqueeText({
   return (
     <span
       ref={containerRef}
-      className="pointer-events-none w-max max-w-full min-w-0 overflow-hidden whitespace-nowrap [mask-position:-16px_0] motion-safe:group-hover/thread-row:[mask-position:var(--ribbon-marquee-fade-end)_0] motion-safe:group-hover/thread-row:[transition:mask-position_var(--ribbon-marquee-trailing-fade)_linear_var(--ribbon-marquee-trailing-fade-delay)] motion-safe:group-has-[:focus-visible]/thread-row:[mask-position:var(--ribbon-marquee-fade-end)_0] motion-safe:group-has-[:focus-visible]/thread-row:[transition:mask-position_var(--ribbon-marquee-trailing-fade)_linear_var(--ribbon-marquee-trailing-fade-delay)]"
+      className={`pointer-events-none w-max max-w-full min-w-0 overflow-hidden whitespace-nowrap [mask-position:-16px_0] ${pan ? PAN_CONTAINER_CLASS : ""}`}
       style={{
         ...fadeStyle(`linear-gradient(to right, black calc(100% - ${fadePx}px), transparent)`),
         "--ribbon-marquee-pan": `${-overflow}px`,
@@ -73,12 +85,12 @@ export function MarqueeText({
       } as CSSProperties}
     >
       <span
-        className="block [mask-position:-16px_0] motion-safe:group-hover/thread-row:[mask-position:var(--ribbon-marquee-fade-end)_0] motion-safe:group-hover/thread-row:[transition:mask-position_var(--ribbon-marquee-leading-fade)_linear_300ms] motion-safe:group-has-[:focus-visible]/thread-row:[mask-position:var(--ribbon-marquee-fade-end)_0] motion-safe:group-has-[:focus-visible]/thread-row:[transition:mask-position_var(--ribbon-marquee-leading-fade)_linear_300ms]"
+        className={`block [mask-position:-16px_0] ${pan ? PAN_LEADING_CLASS : ""}`}
         style={fadeStyle(`linear-gradient(to right, transparent, black ${fadePx}px)`)}
       >
         <span
           ref={textRef}
-          className="inline-block motion-safe:group-hover/thread-row:[transform:translateX(var(--ribbon-marquee-pan))] motion-safe:group-hover/thread-row:[transition:transform_var(--ribbon-marquee-pan-duration)_cubic-bezier(0.44,0.49,0.71,0.95)_300ms] motion-safe:group-has-[:focus-visible]/thread-row:[transform:translateX(var(--ribbon-marquee-pan))] motion-safe:group-has-[:focus-visible]/thread-row:[transition:transform_var(--ribbon-marquee-pan-duration)_cubic-bezier(0.44,0.49,0.71,0.95)_300ms]"
+          className={`inline-block ${pan ? PAN_TEXT_CLASS : ""}`}
         >
           {text}
         </span>
@@ -87,6 +99,6 @@ export function MarqueeText({
   );
 }
 
-export function ThreadTitle({ title }: { title: string }) {
-  return <MarqueeText text={title} />;
+export function ThreadTitle({ title, pan }: { title: string; pan?: boolean }) {
+  return <MarqueeText text={title} pan={pan} />;
 }

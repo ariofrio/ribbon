@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import type { SidebarThread } from "../../app/model/sidebar-thread.js";
 import type { ThreadListIndicatorState } from "../../app/model/thread-activity.js";
+import { longTitlesSetting } from "../long-titles";
 import { pullRequestSignal } from "../pull-request-status";
 import type { ThreadAction } from "../thread-actions-store";
 import type { WorkflowStage } from "../workflow/workflow-stage";
@@ -39,6 +40,7 @@ export function useRibbonRowSettings() {
     shimmerWorkingRows: settings.values?.shimmerWorkingRows !== false,
     tabularPullRequestDigits: settings.values?.tabularPullRequestDigits !== false,
     pullRequestMarks: settings.values?.pullRequestMarks !== false,
+    longTitles: longTitlesSetting(settings.values?.longTitles),
   };
 }
 

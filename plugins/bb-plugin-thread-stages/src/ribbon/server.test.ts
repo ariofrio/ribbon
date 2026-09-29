@@ -467,6 +467,7 @@ describe("Ribbon sidebar server", () => {
       "childThreadLines",
       "groupHeaderIcons",
       "shimmerWorkingRows",
+      "longTitles",
       "tabularPullRequestDigits",
       "pullRequestMarks",
     ]);
@@ -476,6 +477,11 @@ describe("Ribbon sidebar server", () => {
       childThreadLines: { type: "select", options: ["Bar", "Tree"], default: "Bar" },
       groupHeaderIcons: { type: "boolean", default: true },
       shimmerWorkingRows: { type: "boolean", default: true },
+      longTitles: {
+        type: "select",
+        options: ["Ellipsis", "Fade", "Fade and pan on hover"],
+        default: "Fade and pan on hover",
+      },
       tabularPullRequestDigits: { type: "boolean", default: true },
       pullRequestMarks: { type: "boolean", default: true },
     });

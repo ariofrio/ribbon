@@ -5,7 +5,7 @@
 Rebuilt as a fork of bb's own thread list, with the Active and split Blocked stages of Ribbon sidebar 0.8. Thread stages now draws the whole
 sidebar list itself — bb's sections, projects, machines, pins, nesting, rename,
 search, and menus — with workflow stages, stable manual order, stage bands with
-previews, stage rings and row shimmer, child thread lines, prompt action
+previews, stage rings and row shimmer, long titles that fade and pan, child thread lines, prompt action
 buttons, pull request numbers and marks, section and project icons with
 colored headings and standard icons where none is chosen, the `bb sidebar` CLI, stage mentions and change notices,
 stage shortcuts, and Completed auto-archive on top. Rows carry no archive

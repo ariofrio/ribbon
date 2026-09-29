@@ -22,6 +22,7 @@ import { registerThreadGroupInheritance } from "./group-inheritance";
 import { orderedGroupings } from "./grouping-order";
 import { importIcons, importRibbonSidebar } from "./import-legacy-plugins";
 import { reclaimLegacyDatabase } from "./legacy-database";
+import { DEFAULT_LONG_TITLES, LONG_TITLE_OPTIONS } from "./long-titles";
 import { AUTO_ARCHIVE_OPTIONS } from "./workflow/auto-archive";
 
 /** The Ribbon sidebar settings this plugin kept, by the names both use. */
@@ -421,6 +422,14 @@ export default async function ribbonServer(
       description:
         "Shimmer a working thread's whole row instead of its activity indicator.",
       default: true,
+    },
+    longTitles: {
+      type: "select",
+      label: "Long titles",
+      description:
+        "End a title that outgrows its row with an ellipsis, fade it out at the edge, or fade it and pan it to its end while the row is hovered.",
+      options: [...LONG_TITLE_OPTIONS],
+      default: DEFAULT_LONG_TITLES,
     },
     tabularPullRequestDigits: {
       type: "boolean",

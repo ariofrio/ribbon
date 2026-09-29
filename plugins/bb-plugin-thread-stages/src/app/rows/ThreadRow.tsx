@@ -91,6 +91,7 @@ import {
 import { useRibbonData } from "../../ribbon/app/data.js";
 import { useOwnerColor } from "../../ribbon/app/icons.js";
 import { RailBars, RailTree, useRowLineage } from "../../ribbon/app/rails.js";
+import { MarqueeText } from "../../ribbon/app/thread-title.js";
 import { sidebarOrganizationModeAtom } from "../preferences/atoms.js";
 import {
   ACTIVE_ROW_ATTRIBUTE,
@@ -466,6 +467,9 @@ function ThreadRowComponent({
   );
   const ribbonWorking = ribbon?.shines ?? false;
   const ribbonShines = ribbonWorking && ribbonSettings.shimmerWorkingRows;
+  // Ribbon's long titles fade at the edge, and pan on hover, in place of
+  // bb's ellipsis.
+  const ribbonMarquee = ribbon !== null && ribbonSettings.longTitles !== "Ellipsis";
   const shineRowRef = useRef<HTMLDivElement | null>(null);
   useRowShine(shineRowRef, ribbonShines, ribbonWorking);
   const lineage = useRowLineage();
@@ -681,7 +685,7 @@ function ThreadRowComponent({
                   className={cn(
                     "bb-thread-title",
                     (crossProjectLabel !== null || ribbon !== null) &&
-                      "min-w-0 truncate",
+                      (ribbonMarquee ? "min-w-0" : "min-w-0 truncate"),
                     ribbon !== null && "flex min-w-0 flex-1 items-center gap-2",
                   )}
                   title={labelTitle}
@@ -694,7 +698,14 @@ function ThreadRowComponent({
                 >
                   {ribbon ? (
                     <ShineContent className="flex items-center gap-2">
-                      <ThreadTitle threadId={thread.id} />
+                      {ribbonMarquee ? (
+                        <MarqueeText
+                          text={labelTitle}
+                          pan={ribbonSettings.longTitles === "Fade and pan on hover"}
+                        />
+                      ) : (
+                        <ThreadTitle threadId={thread.id} />
+                      )}
                     </ShineContent>
                   ) : (
                     <ThreadTitle threadId={thread.id} />
