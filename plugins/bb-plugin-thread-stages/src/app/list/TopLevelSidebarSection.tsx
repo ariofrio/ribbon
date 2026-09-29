@@ -1,7 +1,5 @@
 import {
   useCallback,
-  useEffect,
-  useRef,
   type CSSProperties,
   type KeyboardEventHandler,
   type MouseEvent,
@@ -53,9 +51,6 @@ import {
 import { SplitPaneMiniMap } from "../rows/SplitPaneMiniMap.js";
 import { COARSE_POINTER_ROW_ACTION_SIZE_CLASS } from "@/components/ui/coarse-pointer-sizing";
 import { usePluginThreadRowStatusForThreads } from "./groupRollups.js";
-
-/** How long a name click waits for a second one before it folds the group. */
-const DOUBLE_CLICK_WINDOW_MS = 250;
 
 const EMPTY_SPLIT_INDICATOR_THREADS: readonly ThreadSplitIndicatorTarget[] = [];
 
@@ -217,32 +212,17 @@ export function TopLevelSidebarSection({
     },
     [collapseControl, labelEditor, ribbon],
   );
-  // A click on the name folds the group only once it is not the first half
-  // of a double click, which renames instead.
-  const pendingNameClick = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cancelNameClick = useCallback(() => {
-    if (pendingNameClick.current !== null) {
-      clearTimeout(pendingNameClick.current);
-      pendingNameClick.current = null;
-    }
-  }, []);
-  useEffect(() => cancelNameClick, [cancelNameClick]);
+  // A click on the name folds the group at once. The second click of a
+  // double click folds nothing more and renames instead, so the group is
+  // left where the first click put it rather than folded and unfolded.
   const handleNameClick = useCallback<MouseEventHandler<HTMLSpanElement>>(
     (event) => {
       if (!ribbon || !collapseControl || labelEditor) return;
-      if (!onRename) {
-        collapseControl.onToggleCollapsed();
-        return;
-      }
       event.stopPropagation();
-      cancelNameClick();
-      if (event.detail > 1) return;
-      pendingNameClick.current = setTimeout(() => {
-        pendingNameClick.current = null;
-        collapseControl.onToggleCollapsed();
-      }, DOUBLE_CLICK_WINDOW_MS);
+      if (onRename && event.detail > 1) return;
+      collapseControl.onToggleCollapsed();
     },
-    [cancelNameClick, collapseControl, labelEditor, onRename, ribbon],
+    [collapseControl, labelEditor, onRename, ribbon],
   );
   const handleCollapseControlClick = useCallback<
     MouseEventHandler<HTMLButtonElement>
@@ -335,7 +315,6 @@ export function TopLevelSidebarSection({
                   ? (event) => {
                       event.preventDefault();
                       event.stopPropagation();
-                      cancelNameClick();
                       onRename();
                     }
                   : undefined
