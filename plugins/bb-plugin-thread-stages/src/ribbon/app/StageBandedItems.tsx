@@ -5,7 +5,7 @@ import {
 } from "../../app/model/project-thread-groups.js";
 import { getSidebarItemKey } from "../../app/rows/sidebarItemKeys.js";
 import { itemThread, stageBands } from "./bands";
-import { useRibbonData } from "./data";
+import { useRibbonSelect } from "./data";
 import { useRibbonList } from "./search";
 import { StagePreview } from "./stage-preview";
 
@@ -29,10 +29,16 @@ export function StageBandedItems({
   renderItem: (item: ProjectThreadItem) => ReactNode;
   revealAll?: boolean;
 }) {
-  const ribbon = useRibbonData();
   const { revealAll: searchReveals } = useRibbonList();
-  const stageOf = ribbon?.stageOf;
-  const enteredStageAt = ribbon?.enteredStageAt;
+  // Only the stages: a placement reload or an open editor is no reason to
+  // partition again.
+  const lookup = useRibbonSelect(
+    (data) => ({ stageOf: data.stageOf, enteredStageAt: data.enteredStageAt }),
+    (left, right) =>
+      left.stageOf === right.stageOf && left.enteredStageAt === right.enteredStageAt,
+  );
+  const stageOf = lookup?.stageOf;
+  const enteredStageAt = lookup?.enteredStageAt;
   const bands = useMemo(
     () =>
       stageOf && enteredStageAt

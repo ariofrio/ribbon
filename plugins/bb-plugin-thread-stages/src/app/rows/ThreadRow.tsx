@@ -88,7 +88,6 @@ import {
   useRibbonRow,
   useRibbonRowSettings,
 } from "../../ribbon/app/row.js";
-import { useRibbonData } from "../../ribbon/app/data.js";
 import { useOwnerColor } from "../../ribbon/app/icons.js";
 import { RailBars, RailTree, useRowLineage } from "../../ribbon/app/rails.js";
 import { MarqueeText } from "../../ribbon/app/thread-title.js";
@@ -457,7 +456,6 @@ function ThreadRowComponent({
     trailingIndicatorState,
     pluginThreadRowStatus,
   );
-  const ribbonData = useRibbonData();
   const ribbon = useRibbonRow(thread, trailingIndicatorState, pluginThreadRowStatus);
   // A pull request number on the right keeps its place under the pointer,
   // so the lane the hover actions take is held open for it at rest.
@@ -743,12 +741,12 @@ function ThreadRowComponent({
                   )}
                 </span>
               )}
-              {ribbon && ribbon.actions.length > 0 && ribbonData ? (
+              {ribbon && ribbon.actions.length > 0 ? (
                 <RibbonActionButtons
                   actions={ribbon.actions}
                   color={ribbonActionColor}
                   rowTitle={labelTitle}
-                  onRun={(actionId) => ribbonData.runThreadAction(thread.id, actionId)}
+                  onRun={(actionId) => ribbon.runThreadAction(thread.id, actionId)}
                 />
               ) : null}
               {ribbon?.pullRequest?.position === "right" ? ribbon.pullRequest.node : null}

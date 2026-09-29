@@ -12,7 +12,7 @@ import { longTitlesSetting } from "../long-titles";
 import { pullRequestSignal } from "../pull-request-status";
 import type { ThreadAction } from "../thread-actions-store";
 import type { WorkflowStage } from "../workflow/workflow-stage";
-import { useRibbonData } from "./data";
+import { useRibbonThread, type RibbonThread } from "./data";
 import { usePullRequestDetails } from "./pull-request-details-store";
 import { ribbonThreadStatus } from "./status";
 import { StageIcon } from "./stage-icon";
@@ -68,12 +68,15 @@ export function useRibbonRow(
   } | null;
   actions: readonly ThreadAction[];
   hideTitle: boolean;
+  runThreadAction: RibbonThread["runThreadAction"];
 } | null {
-  const ribbon = useRibbonData();
+  // The row's own slice of Ribbon's data, so a change elsewhere in the list
+  // leaves this row alone.
+  const ribbon = useRibbonThread(thread.id);
   const { tabularPullRequestDigits, pullRequestMarks } = useRibbonRowSettings();
   const { isLoading: pullRequestLoading, pullRequest } =
     experimental_useSidebarThreadPullRequest(thread.id);
-  const position = ribbon?.view.pullRequestNumberPosition ?? "right";
+  const position = ribbon?.pullRequestNumberPosition ?? "right";
   const visiblePullRequest = position === "hidden" ? null : pullRequest;
   // GitHub's finer state is fetched only where the marks that show it are on.
   const { details, pending } = usePullRequestDetails(
@@ -88,9 +91,9 @@ export function useRibbonRow(
     pluginStatus,
     pullRequestMarks ? signal : null,
   );
-  const stage = ribbon.stageOf(thread.id);
+  const stage = ribbon.stage;
   const lifecycle = signal ? PR_LIFECYCLE_ICONS[signal.lifecycle] : null;
-  const record = ribbon.threadActions.get(thread.id);
+  const record = ribbon.actions;
   const actions = thread.archivedAt === null ? (record?.actions ?? []) : [];
   return {
     stage,
@@ -129,6 +132,7 @@ export function useRibbonRow(
         : null,
     actions,
     hideTitle: actions.length > 0 && (record?.hideTitle ?? false),
+    runThreadAction: ribbon.runThreadAction,
   };
 }
 

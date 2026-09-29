@@ -170,7 +170,7 @@ import {
 } from "../../ribbon/app/heading-icon.js";
 import { useIconsController } from "../../ribbon/app/icons.js";
 import { useFolding } from "../../ribbon/app/group-body.js";
-import { useRibbonData } from "../../ribbon/app/data.js";
+import { useRibbonEnabled } from "../../ribbon/app/data.js";
 import { ActionMenuItem } from "../ui/action-menu-items.js";
 import { SiblingLineage } from "../../ribbon/app/rails.js";
 import { useRibbonDnd } from "../../ribbon/app/dnd.js";
@@ -1427,7 +1427,7 @@ const SectionTreeItemRow = memo(function SectionTreeItemRow({
   });
   const [isTopLevelActionsOpen, setIsTopLevelActionsOpen] = useState(false);
   const [isPickingIcon, setIsPickingIcon] = useState(false);
-  const ribbon = useRibbonData();
+  const ribbon = useRibbonEnabled();
   const icons = useIconsController();
   const sectionOwner = useMemo(
     () => ({ kind: "section" as const, id: section.id }),
@@ -1455,7 +1455,7 @@ const SectionTreeItemRow = memo(function SectionTreeItemRow({
   );
   // Ribbon's fold needs the rows still there to fold away; bb's own list
   // drops them the moment the section collapses.
-  const showChildren = (ribbon !== null || !isCollapsed) && section.items.length > 0;
+  const showChildren = (ribbon || !isCollapsed) && section.items.length > 0;
   const sectionThreads = useMemo(
     () => getProjectThreadItemDescendants(section.items),
     [section.items],
@@ -1747,7 +1747,7 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
     />
   );
   // Ribbon draws each child's own rails through its ring column.
-  const ribbonRails = useRibbonData() !== null;
+  const ribbonRails = useRibbonEnabled();
 
   if (!hasChildren && !sortableRef && nestPreviewThread === null) {
     return row;
@@ -2426,7 +2426,7 @@ function ProjectRowComponent({
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
   const [isRemovePending, setIsRemovePending] = useState(false);
   const [isPickingIcon, setIsPickingIcon] = useState(false);
-  const ribbon = useRibbonData();
+  const ribbon = useRibbonEnabled();
   const icons = useIconsController();
   const projectOwner = useMemo(
     () => ({ kind: "project" as const, id: project.id }),

@@ -13,7 +13,7 @@ import { LIST_HOVER_TRANSITION } from "@/components/ui/motion";
 import { CHROME_SECTION_LABEL_CLASS } from "@/components/ui/chrome-style-tokens";
 import { COARSE_POINTER_ROW_HEIGHT_CLASS } from "@/components/ui/coarse-pointer-sizing";
 import { CHROME_GROUP_HEADING_CLASS } from "../../ribbon/app/chrome-style-tokens.js";
-import { useRibbonData } from "../../ribbon/app/data.js";
+import { useRibbonEnabled } from "../../ribbon/app/data.js";
 import { HEADING_MUTED_CLASS, HEADING_TEXT_CLASS } from "../../ribbon/app/heading.js";
 import { GroupBody } from "../../ribbon/app/group-body.js";
 import {
@@ -126,7 +126,7 @@ export function TopLevelSidebarSection({
   const threadDropState = useSectionDropTargetState(dropParentKey);
   // Ribbon's heading: laid out like a thread row, and a toggle from end to
   // end, with the chevron a picture of it rather than the only way in.
-  const ribbon = useRibbonData() !== null;
+  const ribbon = useRibbonEnabled();
   const collapsedSplitIndicator = useThreadGroupSplitIndicator(
     collapsedThreads,
     collapseControl?.isCollapsed === true,
