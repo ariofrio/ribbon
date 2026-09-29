@@ -212,17 +212,16 @@ export function TopLevelSidebarSection({
     },
     [collapseControl, labelEditor, ribbon],
   );
-  // A click on the name folds the group at once. The second click of a
-  // double click folds nothing more and renames instead, so the group is
-  // left where the first click put it rather than folded and unfolded.
+  // Every click on the name folds the group at once, the second click of a
+  // double click included: it folds the group back to where it was as the
+  // rename editor opens.
   const handleNameClick = useCallback<MouseEventHandler<HTMLSpanElement>>(
     (event) => {
       if (!ribbon || !collapseControl || labelEditor) return;
       event.stopPropagation();
-      if (onRename && event.detail > 1) return;
       collapseControl.onToggleCollapsed();
     },
-    [collapseControl, labelEditor, onRename, ribbon],
+    [collapseControl, labelEditor, ribbon],
   );
   const handleCollapseControlClick = useCallback<
     MouseEventHandler<HTMLButtonElement>
