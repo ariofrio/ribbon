@@ -138,14 +138,20 @@ export function useIcons(rpc: IconsRpc): IconsController {
 
   const reload = useCallback(() => void refresh(), [refresh]);
 
-  return {
-    state,
-    projects,
-    reload,
-    catalog,
-    loadingCatalog,
-    loadCatalog,
-    apply,
-    reset,
-  };
+  // One object for as long as nothing in it changes: every heading and row
+  // reads this through context, and a fresh object on each render of the
+  // provider would redraw them all whenever the list around them rendered.
+  return useMemo(
+    () => ({
+      state,
+      projects,
+      reload,
+      catalog,
+      loadingCatalog,
+      loadCatalog,
+      apply,
+      reset,
+    }),
+    [apply, catalog, loadCatalog, loadingCatalog, projects, reload, reset, state],
+  );
 }

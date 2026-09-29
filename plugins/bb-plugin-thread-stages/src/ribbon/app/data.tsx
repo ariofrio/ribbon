@@ -10,9 +10,11 @@ import {
   useContext,
   useEffect,
   useInsertionEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import type { z } from "zod";
@@ -87,6 +89,101 @@ const RibbonDataContext = createContext<RibbonData | null>(null);
 
 export function useRibbonData(): RibbonData | null {
   return useContext(RibbonDataContext);
+}
+
+/**
+ * The same data as a store rows subscribe to a slice of. The context value
+ * changes whenever anything in it does, and a row reading it would redraw
+ * with every placement reload, error, or editor; a row reads its own stage
+ * and actions through this instead, and redraws only when those change.
+ */
+interface RibbonStore {
+  get(): RibbonData;
+  subscribe(listener: () => void): () => void;
+}
+
+const RibbonStoreContext = createContext<RibbonStore | null>(null);
+
+/** Whether the list runs under Ribbon's data provider at all. */
+export function useRibbonEnabled(): boolean {
+  return useContext(RibbonStoreContext) !== null;
+}
+
+/**
+ * A slice of Ribbon's data, redrawn only when `equal` says the slice changed.
+ * Null outside the provider.
+ */
+export function useRibbonSelect<T>(
+  select: (data: RibbonData) => T,
+  equal: (previous: T, next: T) => boolean = Object.is,
+): T | null {
+  const store = useContext(RibbonStoreContext);
+  const last = useRef<{ value: T } | null>(null);
+  const snapshot = () => {
+    if (store === null) return null;
+    const next = select(store.get());
+    if (last.current !== null && equal(last.current.value, next)) {
+      return last.current.value;
+    }
+    last.current = { value: next };
+    return next;
+  };
+  return useSyncExternalStore(
+    store === null ? noSubscription : store.subscribe,
+    snapshot,
+    snapshot,
+  );
+}
+
+const noSubscription = () => () => {};
+
+export interface RibbonThread {
+  stage: WorkflowStage;
+  actions: ThreadActionsRecord | null;
+  pullRequestNumberPosition: SidebarView["pullRequestNumberPosition"];
+  runThreadAction: RibbonData["runThreadAction"];
+}
+
+function sameThreadActions(
+  left: ThreadActionsRecord | null,
+  right: ThreadActionsRecord | null,
+): boolean {
+  if (left === right) return true;
+  if (left === null || right === null) return false;
+  return (
+    left.hideTitle === right.hideTitle &&
+    left.actions.length === right.actions.length &&
+    left.actions.every((action, index) => {
+      const other = right.actions[index]!;
+      return (
+        action.id === other.id &&
+        action.label === other.label &&
+        action.prompt === other.prompt
+      );
+    })
+  );
+}
+
+function sameRibbonThread(left: RibbonThread, right: RibbonThread): boolean {
+  return (
+    left.stage === right.stage &&
+    left.pullRequestNumberPosition === right.pullRequestNumberPosition &&
+    left.runThreadAction === right.runThreadAction &&
+    sameThreadActions(left.actions, right.actions)
+  );
+}
+
+/** What Ribbon adds to one row, redrawn only when the row's own share changes. */
+export function useRibbonThread(threadId: string): RibbonThread | null {
+  return useRibbonSelect(
+    (data) => ({
+      stage: data.stageOf(threadId),
+      actions: data.threadActions.get(threadId) ?? null,
+      pullRequestNumberPosition: data.view.pullRequestNumberPosition,
+      runThreadAction: data.runThreadAction,
+    }),
+    sameRibbonThread,
+  );
 }
 
 const ORDERED_GROUPINGS = ["builtin:sections", "builtin:projects"] as const;
@@ -446,11 +543,34 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
     ],
   );
 
+  // Rows read the value as it is being rendered, and hear of it once the
+  // render commits; a listener that finds nothing new leaves its row alone.
+  const current = useRef(value);
+  current.current = value;
+  const listeners = useRef(new Set<() => void>());
+  const store = useMemo<RibbonStore>(
+    () => ({
+      get: () => current.current,
+      subscribe: (listener) => {
+        listeners.current.add(listener);
+        return () => {
+          listeners.current.delete(listener);
+        };
+      },
+    }),
+    [],
+  );
+  useLayoutEffect(() => {
+    for (const listener of listeners.current) listener();
+  }, [value]);
+
   return (
     <RibbonDataContext.Provider value={value}>
-      <PullRequestDetailsProvider load={loadPullRequestDetails}>
-        {children}
-      </PullRequestDetailsProvider>
+      <RibbonStoreContext.Provider value={store}>
+        <PullRequestDetailsProvider load={loadPullRequestDetails}>
+          {children}
+        </PullRequestDetailsProvider>
+      </RibbonStoreContext.Provider>
     </RibbonDataContext.Provider>
   );
 }

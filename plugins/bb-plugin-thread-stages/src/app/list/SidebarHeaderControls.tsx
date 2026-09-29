@@ -20,7 +20,7 @@ import {
   SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
 } from "../rows/sidebarRowClasses.js";
 import { cn } from "@/lib/utils";
-import { useRibbonData } from "../../ribbon/app/data.js";
+import { useRibbonEnabled } from "../../ribbon/app/data.js";
 import { HEADING_ACTION_CLASS } from "../../ribbon/app/heading.js";
 
 /** Ribbon's heading buttons: a 28px box that is all hit area, inked like the heading. */
@@ -59,7 +59,7 @@ export function SidebarHeaderControls({
 }) {
   const creation = useContext(HeaderCreationContext);
   const compact = useIsCompactViewport();
-  const ribbon = useRibbonData() !== null;
+  const ribbon = useRibbonEnabled();
   const [page, setPage] = useState<"organize" | "sort" | "filter" | null>(null);
   const changeOpen = (next: boolean) => {
     if (!next) setPage(null);
