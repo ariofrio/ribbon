@@ -575,7 +575,7 @@ describe("Ribbon sidebar server", () => {
     });
   });
 
-  it("preserves explicit sections and leaves non-fork spawns Unorganized", async () => {
+  it("preserves explicit sections and leaves non-fork spawns in Threads", async () => {
     const fixture = setup();
     await plugin(fixture.bb);
 
@@ -1026,7 +1026,7 @@ describe("Ribbon sidebar server", () => {
       result.groupings
         .find(({ groupingKey }) => groupingKey === "builtin:sections")
         ?.groups.find(({ id }) => id === "unsectioned")?.label,
-    ).toBe("Unorganized");
+    ).toBe("Threads");
     expect(
       result.groupings
         .find(({ groupingKey }) => groupingKey === "builtin:projects")

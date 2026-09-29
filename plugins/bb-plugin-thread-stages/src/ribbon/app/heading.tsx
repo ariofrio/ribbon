@@ -105,7 +105,7 @@ const STANDARD_NAMES = {
 const FRAMES = { section: bookFrame, project: folderFrame };
 
 /**
- * One icon for every section, Unorganized included, and one for every project,
+ * One icon for every section, Threads included, and one for every project,
  * instead of the icon each chose: a book or a folder, open while its group is.
  *
  * Opening or shutting its group, the book's top page turns over on its spine

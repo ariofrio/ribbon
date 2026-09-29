@@ -147,17 +147,17 @@ export async function verifyThreadIcons({ stack, fixture }) {
 
     // A heading whose owner chose no icon carries the standard one: a book
     // for a section, open while the section is, in the heading's own ink.
-    // Unorganized owns nothing to choose for, so it always does.
+    // Threads owns nothing to choose for, so it always does.
     {
       const plain = sidebarRoot(page).locator('[data-sidebar="group-label"]').filter({
-        has: page.getByRole("button", { name: /^(Collapse|Expand) Unorganized section$/ }),
+        has: page.getByRole("button", { name: /^(Collapse|Expand) Threads section$/ }),
       });
       const standard = (name) => plain.locator(`svg[data-icon="${name}"]`);
       await standard("BookOpen").waitFor();
       const glyph = await standard("BookOpen").evaluate((svg) => {
         const box = svg.getBoundingClientRect();
         const label = [...svg.closest('[data-sidebar="group-label"]').querySelectorAll("span")]
-          .find((span) => span.childElementCount === 0 && span.textContent === "Unorganized");
+          .find((span) => span.childElementCount === 0 && span.textContent === "Threads");
         return { width: box.width, height: box.height, color: getComputedStyle(svg).color, ink: getComputedStyle(label).color };
       });
       assert.deepEqual(
@@ -182,7 +182,7 @@ export async function verifyThreadIcons({ stack, fixture }) {
         });
       }));
       await plain.hover();
-      await plain.getByRole("button", { name: "Collapse Unorganized section", exact: true }).click();
+      await plain.getByRole("button", { name: "Collapse Threads section", exact: true }).click();
       const frames = await shutting;
       const drawn = frames.slice(0, -1).map(Number);
       assert.equal(frames.at(-1), null, `The shut book should come to rest: ${JSON.stringify(frames)}`);
@@ -196,7 +196,7 @@ export async function verifyThreadIcons({ stack, fixture }) {
       assert.ok(openWidth / shutWidth > 1.5 && openWidth / shutWidth < 2.1,
         `The open book should be most of twice as wide as the shut one: ${openWidth} and ${shutWidth}`);
       await plain.hover();
-      await plain.getByRole("button", { name: "Expand Unorganized section", exact: true }).click();
+      await plain.getByRole("button", { name: "Expand Threads section", exact: true }).click();
       await standard("BookOpen").waitFor();
       // Atlas chose its own, which it keeps.
       await atlas.locator(`svg[data-icon="${SECTION.icon}"]`).waitFor();

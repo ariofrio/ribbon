@@ -28,7 +28,7 @@ export function useHeadingStyle(owner: IconOwner | null): CSSProperties {
 /**
  * The icon before a heading's label: the owner's own where one was chosen,
  * otherwise a standard book or folder that opens and shuts with the group,
- * or nothing while the setting is off. Unorganized owns no icon, so it gets
+ * or nothing while the setting is off. Threads owns no icon, so it gets
  * the section's book.
  */
 export function RibbonHeadingIcon({
