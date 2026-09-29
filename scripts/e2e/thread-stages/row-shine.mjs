@@ -54,14 +54,21 @@ export async function verifyRowShine({ stack, fixture }) {
     const page = await context.newPage();
     page.setDefaultTimeout(30_000);
     await page.route(/\/api\/v1\/(sidebar-bootstrap|threads(?:\/[^/?]+)?)(\?|$)/, async (route) => {
-      const response = await route.fetch({ maxRetries: route.request().method() === "GET" ? 2 : 0 });
-      if (!response.headers()["content-type"]?.includes("application/json")) {
-        await route.fulfill({ response });
-        return;
+      // A fetch still in flight as the page closes rejects; that is not a
+      // finding, and an uncaught rejection would end the whole run.
+      try {
+        const response = await route.fetch({ maxRetries: route.request().method() === "GET" ? 2 : 0 });
+        if (!response.headers()["content-type"]?.includes("application/json")) {
+          await route.fulfill({ response });
+          return;
+        }
+        const body = await response.json();
+        markWorking(body);
+        await route.fulfill({ response, json: body });
+      } catch (error) {
+        if (page.isClosed()) return;
+        throw error;
       }
-      const body = await response.json();
-      markWorking(body);
-      await route.fulfill({ response, json: body });
     });
     await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
     const list = sidebar(page);
@@ -83,6 +90,7 @@ export async function verifyRowShine({ stack, fixture }) {
 
     const busy = await mainThreadBusyShare(context, page);
     assert.ok(busy <= MAX_BUSY_SHARE, `shimmering rows kept the main thread ${Math.round(busy * 100)}% busy; the animation should run off it`);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
     await context.close();
   } finally {
     await browser.close();
