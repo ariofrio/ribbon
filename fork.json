@@ -1,0 +1,20 @@
+{
+  "$comment": "Plugins forked from bb's built-ins, and the bb release they are in step with. scripts/fork.mjs sync merges upstream's changes between this ref and a newer one, three-way, using the pinned ref as the base; fork.lock.json records what upstream held at the pin. The ref must match the release vendor-ui.json vendors components from. Under each fork, `path` is the upstream directory, `map` pairs upstream path prefixes with the fork's (longest match wins, \"\" catches the rest), and `owned` names the upstream files the fork rewrote to build outside bb's monorepo and never merges. A change that touches only mapped files can travel upstream: scripts/fork.mjs diff --commit <sha> prints it in upstream paths for git apply in a bb checkout.",
+  "upstream": "https://github.com/get-bb/bb.git",
+  "ref": "desktop-v0.44.0",
+  "forks": {
+    "plugins/bb-plugin-thread-stages": {
+      "path": "plugins/thread-list",
+      "map": {
+        "": "src/",
+        "skills/": "skills/",
+        "skills/thread-list/": "skills/thread-stages/"
+      },
+      "owned": [
+        "package.json",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ]
+    }
+  }
+}

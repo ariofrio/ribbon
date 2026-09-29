@@ -1,166 +1,220 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
-import { expect, it, vi } from "vitest";
-import plugin from "./server";
+import { describe, expect, it } from "vitest";
+import plugin, { migrateFromUiPreferences } from "./server.js";
+import { defaultPreferences } from "./shared/preferences.js";
 
-it("preserves the old stage and reorder RPCs as a one-way compatibility bridge", async () => {
-  const callRpc = vi.fn(async ({ method }: { method: string }) =>
-    method === "setWorkflowStage"
-      ? { destination: { kind: "stay" } }
-      : { assignments: [] },
-  );
-  const { bb, harness } = createFakePluginHost({
-    pluginId: "thread-stages",
-    sdk: { plugins: { callRpc } },
-  });
-  await plugin(bb);
-  try {
-    const input = { threadId: "root", workflowStage: "Completed" };
-    expect(await harness.behavior.callRpc("setWorkflowStage", input)).toEqual({
-      destination: { kind: "stay" },
-    });
-    expect(callRpc).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pluginId: "ribbon-sidebar",
-        method: "setWorkflowStage",
-        input,
-      }),
-    );
-    // Callers from before the rename still name Idle and Blocked.
-    await harness.behavior.callRpc("setWorkflowStage", {
-      threadId: "root",
-      workflowStage: "Blocked",
-    });
-    expect(callRpc).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        method: "setWorkflowStage",
-        input: { threadId: "root", workflowStage: "BlockedOnThirdParty" },
-      }),
-    );
-    await harness.behavior.callRpc("setWorkflowStage", {
-      threadId: "root",
-      workflowStage: "Idle",
-    });
-    expect(callRpc).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        method: "setWorkflowStage",
-        input: { threadId: "root", workflowStage: "Active" },
-      }),
-    );
-    const reorder = { threadId: "root", scope: "step", direction: -1 };
-    await harness.behavior.callRpc("reorderThread", reorder);
-    expect(callRpc).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pluginId: "ribbon-sidebar",
-        method: "reorderThread",
-        input: reorder,
-      }),
-    );
-    expect(
-      await harness.behavior.callRpc("getPlacementMigrationSnapshotV1", null),
-    ).toMatchObject({ placements: [] });
-  } finally {
-    await harness.lifecycle.dispose();
-  }
-});
+const PLUGIN_ID = "thread-list";
 
-it("offers stages as mentions that tell the agent how to place a thread", async () => {
-  const getSettings = vi.fn(async () => ({
-    ok: true,
-    schema: {},
-    values: { showDeferredStage: false },
-  }));
-  const { bb, harness } = createFakePluginHost({
-    pluginId: "thread-stages",
-    sdk: { plugins: { getSettings } },
-  });
-  await plugin(bb);
-  try {
-    const provider = harness.inspection.registrations.mentionProviders.find(
-      ({ id }) => id === "stage",
-    );
-    expect(provider).toBeDefined();
-    const search = async (query: string) =>
-      (
-        await provider!.search({
-          trigger: "@",
-          query,
-          projectId: null,
-          threadId: null,
-        })
-      ).map(({ id, title }) => ({ id, title }));
-
-    expect(await search("")).toEqual([]);
-    expect(await search("bl")).toEqual([
-      { id: "blockedonotheragent", title: "Blocked on other agent" },
-      { id: "blockedonthirdparty", title: "Blocked on third party" },
-    ]);
-    expect(await search("third")).toEqual([
-      { id: "blockedonthirdparty", title: "Blocked on third party" },
-    ]);
-    expect(await search("stage")).toEqual([
-      { id: "active", title: "Active" },
-      { id: "blockedonotheragent", title: "Blocked on other agent" },
-      { id: "blockedonthirdparty", title: "Blocked on third party" },
-      { id: "completed", title: "Completed" },
-    ]);
-    expect(await search("def")).toEqual([]);
-    expect(getSettings).toHaveBeenCalledWith({ pluginId: "ribbon-sidebar" });
-
-    const { context } = await provider!.resolve("blockedonthirdparty");
-    expect(context).toContain(
-      "@Blocked on third party is the Blocked on third party workflow stage",
-    );
-    expect(context).toContain(
-      "bb sidebar place <thread> --to plugin:thread-stages:stages/BlockedOnThirdParty",
-    );
-    expect(context).toContain("Waiting on the user is Active");
-    // Children have their own stage, so place the thread itself.
-    expect(context).not.toContain("place its root");
-
-    // Messages sent before the rename still resolve.
-    expect((await provider!.resolve("idle")).context).toContain(
-      "@Active is the Active workflow stage",
-    );
-    const retired = (await provider!.resolve("blocked")).context;
-    expect(retired).toContain("stages/BlockedOnOtherAgent");
-    expect(retired).toContain("stages/BlockedOnThirdParty");
-    expect(retired).toContain("Waiting on the user is Active");
-    expect(() => provider!.resolve("nowhere")).toThrow();
-  } finally {
-    await harness.lifecycle.dispose();
-  }
-});
-
-it("offers every stage when Ribbon's settings are unavailable", async () => {
-  const { bb, harness } = createFakePluginHost({
-    pluginId: "thread-stages",
+function setup(options: {
+  uiPreferences?: Record<string, { revision: number; value: unknown }>;
+  uiPreferencesFail?: boolean;
+} = {}) {
+  return createFakePluginHost({
+    pluginId: PLUGIN_ID,
     sdk: {
-      plugins: {
-        getSettings: async () => {
-          throw new Error("not installed");
+      system: {
+        uiPreferences: {
+          list: async () => {
+            if (options.uiPreferencesFail) throw new Error("offline");
+            return { preferences: options.uiPreferences ?? {} };
+          },
         },
       },
     },
   });
-  await plugin(bb);
-  try {
-    const provider = harness.inspection.registrations.mentionProviders.find(
-      ({ id }) => id === "stage",
-    );
-    const results = await provider!.search({
-      trigger: "@",
-      query: "stage",
-      projectId: null,
-      threadId: null,
+}
+
+describe("thread-list preferences rpc", () => {
+  it("lists defaults on a fresh install and round-trips a valid write", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    await expect(harness.behavior.callRpc("listPreferences", null)).resolves.toEqual({
+      preferences: defaultPreferences(),
     });
-    expect(results.map(({ title }) => title)).toEqual([
-      "Deferred",
-      "Active",
-      "Blocked on other agent",
-      "Blocked on third party",
-      "Completed",
+    expect(defaultPreferences().showProviderIcons).toBe(false);
+
+    await expect(
+      harness.behavior.callRpc("setPreference", {
+        key: "organizationMode",
+        value: "machine",
+      }),
+    ).resolves.toEqual({ key: "organizationMode", value: "machine" });
+    await expect(bb.storage.kv.get("preference:organizationMode")).resolves.toBe(
+      "machine",
+    );
+    const listed = (await harness.behavior.callRpc("listPreferences", null)) as {
+      preferences: { organizationMode: string };
+    };
+    expect(listed.preferences.organizationMode).toBe("machine");
+    expect(harness.realtimeSignals).toEqual([
+      { channel: "preferences", payload: { key: "organizationMode", value: "machine" } },
     ]);
-  } finally {
-    await harness.lifecycle.dispose();
+  });
+
+  it("rejects a value that fails the preference's schema and leaves storage alone", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    await expect(
+      harness.behavior.callRpc("setPreference", {
+        key: "organizationMode",
+        value: "sideways",
+      }),
+    ).rejects.toThrow(/Invalid value for organizationMode/);
+    await expect(bb.storage.kv.get("preference:organizationMode")).resolves.toBeUndefined();
+    await expect(
+      harness.behavior.callRpc("setPreference", {
+        key: "hiddenGroups",
+        value: ["project:a", "bogus"],
+      }),
+    ).rejects.toThrow(/Invalid value for hiddenGroups/);
+    await expect(
+      harness.behavior.callRpc("setPreference", {
+        key: "showProviderIcons",
+        value: "false",
+      }),
+    ).rejects.toThrow(/Invalid value for showProviderIcons/);
+  });
+
+  it("dedupes hidden groups and resets to the default", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    await expect(
+      harness.behavior.callRpc("setPreference", {
+        key: "hiddenGroups",
+        value: ["threads", "project:a", "project:a", "machine:m"],
+      }),
+    ).resolves.toEqual({
+      key: "hiddenGroups",
+      value: ["threads", "project:a", "machine:m"],
+    });
+    await expect(
+      harness.behavior.callRpc("resetPreference", { key: "hiddenGroups" }),
+    ).resolves.toEqual({ key: "hiddenGroups", value: [] });
+    await expect(bb.storage.kv.get("preference:hiddenGroups")).resolves.toBeUndefined();
+  });
+
+  it("falls back to the default when a stored value no longer parses", async () => {
+    const { bb, harness } = setup();
+    await bb.storage.kv.set("preference:chronologicalSort", "by-vibes");
+    await plugin(bb);
+    const listed = (await harness.behavior.callRpc("listPreferences", null)) as {
+      preferences: { chronologicalSort: string };
+    };
+    expect(listed.preferences.chronologicalSort).toBe("updated");
+  });
+});
+
+describe("migration from bb's sidebar preferences", () => {
+  it("copies non-default values once and never overwrites a value the plugin already has", async () => {
+    const { bb } = setup({
+      uiPreferences: {
+        "sidebar.organizationMode": { revision: 3, value: "machine" },
+        "sidebar.collapsedProjects": { revision: 1, value: ["proj_a"] },
+        "sidebar.chronologicalSort": { revision: 0, value: "updated" },
+        "sidebar.hiddenGroups": { revision: 2, value: ["not-a-group"] },
+      },
+    });
+    await bb.storage.kv.set("preference:collapsedProjects", ["proj_mine"]);
+    const first = await migrateFromUiPreferences(bb);
+    expect(first.migrated).toEqual(["organizationMode"]);
+    await expect(bb.storage.kv.get("preference:organizationMode")).resolves.toBe(
+      "machine",
+    );
+    await expect(bb.storage.kv.get("preference:collapsedProjects")).resolves.toEqual([
+      "proj_mine",
+    ]);
+    await expect(bb.storage.kv.get("preference:chronologicalSort")).resolves.toBeUndefined();
+    await expect(bb.storage.kv.get("preference:hiddenGroups")).resolves.toBeUndefined();
+
+    await bb.storage.kv.delete("preference:organizationMode");
+    const second = await migrateFromUiPreferences(bb);
+    expect(second.migrated).toEqual([]);
+    await expect(bb.storage.kv.get("preference:organizationMode")).resolves.toBeUndefined();
+  });
+
+  it("skips the migration without marking it done when bb cannot be read", async () => {
+    const { bb } = setup({ uiPreferencesFail: true });
+    expect((await migrateFromUiPreferences(bb)).migrated).toEqual([]);
+    await expect(bb.storage.kv.get("migration:ui-preferences:v1")).resolves.toBeUndefined();
+  });
+});
+
+describe("bb thread-list prefs", () => {
+  it("names the CLI after the plugin id", async () => {
+    const builtIn = setup();
+    await plugin(builtIn.bb);
+    expect(builtIn.harness.inspection.registrations.cli?.name).toBe(
+      "thread-list",
+    );
+
+    const copy = createFakePluginHost({ pluginId: "my-sidebar" });
+    await plugin(copy.bb);
+    expect(copy.harness.inspection.registrations.cli?.name).toBe("my-sidebar");
+  });
+
+  it("lists, gets, sets, and resets through the CLI", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+
+    const listed = await harness.behavior.runCli(["prefs", "list", "--json"]);
+    expect(listed.exitCode).toBe(0);
+    expect(JSON.parse(listed.stdout)).toEqual(defaultPreferences());
+
+    const set = await harness.behavior.runCli([
+      "prefs",
+      "set",
+      "manualSectionOrder",
+      '["threads","pinned","sections"]',
+    ]);
+    expect(set.exitCode).toBe(0);
+    expect(set.stdout).toBe('manualSectionOrder = ["threads","pinned","sections"]');
+
+    const bare = await harness.behavior.runCli(["prefs", "set", "organizationMode", "project"]);
+    expect(bare.exitCode).toBe(0);
+
+    const got = await harness.behavior.runCli(["prefs", "get", "organizationMode"]);
+    expect(got.stdout).toBe('"project"');
+
+    const iconsOn = await harness.behavior.runCli([
+      "prefs", "set", "showProviderIcons", "true",
+    ]);
+    expect(iconsOn.exitCode).toBe(0);
+    expect(iconsOn.stdout).toBe("showProviderIcons = true");
+    await expect(bb.storage.kv.get("preference:showProviderIcons")).resolves.toBe(true);
+    const resetIcons = await harness.behavior.runCli([
+      "prefs", "reset", "showProviderIcons", "--json",
+    ]);
+    expect(JSON.parse(resetIcons.stdout)).toEqual({
+      key: "showProviderIcons",
+      value: false,
+    });
+
+    const bad = await harness.behavior.runCli(["prefs", "set", "organizationMode", "nope"]);
+    expect(bad.exitCode).not.toBe(0);
+    expect(bad.stderr).toMatch(/Invalid value for organizationMode/);
+
+    const unknown = await harness.behavior.runCli(["prefs", "get", "colour"]);
+    expect(unknown.exitCode).not.toBe(0);
+    expect(unknown.stderr).toMatch(/Unknown preference: colour/);
+
+    const reset = await harness.behavior.runCli(["prefs", "reset", "organizationMode", "--json"]);
+    expect(JSON.parse(reset.stdout)).toEqual({
+      key: "organizationMode",
+      value: "chronological",
+    });
+  });
+});
+
+it("validates lifecycle selection through CLI and RPC and broadcasts it", async () => {
+  const { bb, harness } = setup();
+  await plugin(bb);
+  expect((await harness.behavior.runCli(["prefs", "set", "threadLifecycles", '["archived"]'])).exitCode).toBe(0);
+  await expect(bb.storage.kv.get("preference:threadLifecycles")).resolves.toEqual(["archived"]);
+  for (const value of [[], ["archived", "archived"], ["deleted"]]) {
+    await expect(harness.behavior.callRpc("setPreference", { key: "threadLifecycles", value })).rejects.toThrow(/Invalid value/);
   }
+  await expect(bb.storage.kv.get("preference:threadLifecycles")).resolves.toEqual(["archived"]);
+  expect(harness.realtimeSignals).toContainEqual({
+    channel: "preferences", payload: { key: "threadLifecycles", value: ["archived"] },
+  });
 });

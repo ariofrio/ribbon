@@ -210,7 +210,7 @@ export async function routeGitHubState(context, { environments }) {
       },
     });
   });
-  await context.route("**/api/v1/plugins/ribbon-sidebar/rpc/pullRequestDetailsV1", (route) => {
+  await context.route("**/api/v1/plugins/thread-stages/rpc/pullRequestDetailsV1", (route) => {
     const { requests } = route.request().postDataJSON();
     const byUrl = new Map(
       [...PULL_REQUESTS].map(([projectName, pr]) => [
@@ -430,7 +430,7 @@ export function seed({ stack, workspaceRoot, bb, assignStages = true }) {
   if (assignStages) {
     // A stage notice would start a turn on every placed thread and on every
     // thread a shot or suite moves later, rewriting what the fixture shows.
-    run(["plugin", "config", "ribbon-sidebar", "set", "messageOnStageChange", "false"]);
+    run(["plugin", "config", "thread-stages", "set", "messageOnStageChange", "false"]);
     for (const spec of THREADS) {
       if (spec.stage === null) continue;
       run([
@@ -473,7 +473,7 @@ export async function applyPluginState({ stack, projects, section }) {
     const { kind, id, icon, color } = owner;
     const response = await fetchFromStack(
       new URL(
-        `/api/v1/plugins/icons/rpc/setIcon`,
+        `/api/v1/plugins/thread-stages/rpc/setIcon`,
         stack.serverUrl,
       ),
       {

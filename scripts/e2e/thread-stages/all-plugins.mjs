@@ -1,0 +1,105 @@
+import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
+import { applyPluginState, FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
+import { heading, launch, openContext, section, sidebar } from "./sidebar.mjs";
+
+const MODIFIER = process.platform === "darwin" ? "Meta" : "Control";
+
+/** Every plugin installed at once, each reached through its public surface. */
+export async function verifyAllPlugins({ stack, fixture }) {
+  const thread = fixture.threads.get(FEATURED_THREAD);
+  const project = fixture.projects.get(FEATURED_PROJECT);
+  await applyPluginState({ stack, ...fixture });
+  const browser = await launch();
+  let context;
+  try {
+    context = await openContext(browser, { viewport: { width: 1280, height: 800 } });
+    await context.tracing.start({ snapshots: true, sources: true });
+    context.setDefaultTimeout(30_000);
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
+    await sidebar(page).waitFor({ timeout: 120_000 });
+    await page.locator("[data-missing-keyboard-shortcuts-ready]").waitFor({ state: "attached", timeout: 120_000 });
+
+    // Display options live in the heading menu, matching bb's sidebar.
+    const header = heading(section(page, fixture.section.id));
+    await header.hover();
+    await header.getByRole("button", { name: "Atlas section actions", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Organize", exact: true }).hover();
+    await page.getByRole("menuitemcheckbox", { name: "Pull requests", exact: true }).waitFor();
+    await page.keyboard.press("Escape");
+    await header.hover();
+    await header.getByRole("button", { name: "Atlas section actions", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Change icon", exact: true }).click();
+    await page.getByRole("searchbox", { name: "Search icons" }).waitFor();
+    await page.keyboard.press("Escape");
+    await page.waitForFunction((sectionId) => {
+      const label = document.querySelector(
+        `[data-ribbon-sidebar-root] [data-sidebar-section-id="${CSS.escape(sectionId)}"] [data-sidebar="group-label"]`,
+      );
+      return label && getComputedStyle(label).getPropertyValue("--ribbon-heading-on").trim() !== "";
+    }, fixture.section.id);
+
+    const sideChatResponse = page.waitForResponse((response) =>
+      response.url().endsWith("/plugins/missing-keyboard-shortcuts/rpc/createSideChat"));
+    await page.keyboard.press(`Shift+${MODIFIER}+KeyL`);
+    const sideChatResult = await (await sideChatResponse).json();
+    assert.equal(sideChatResult.ok, true);
+    const reply = page.getByRole("textbox", { name: "Reply…" });
+    try {
+      await reply.waitFor({ timeout: 120_000 });
+    } catch (error) {
+      console.error("Side-chat composer failure", {
+        pageErrors: errors,
+        thread: fixture.run(["thread", "show", sideChatResult.result.threadId]),
+        page: await page.locator("body").innerText(),
+      });
+      throw error;
+    }
+    await page.waitForFunction((composer) => document.activeElement === composer, await reply.elementHandle());
+    await page.keyboard.type("Side chat focus check");
+    assert.equal(await reply.innerText(), "Side chat focus check");
+
+    // The public command invokes the overlay's UI action. It still opens a
+    // real host terminal through the SDK and existing panel integration.
+    const terminalResponse = page.waitForResponse((response) =>
+      response.url().endsWith("/plugins/missing-keyboard-shortcuts/rpc/openTerminal"));
+    await page.keyboard.press("Control+Backquote");
+    assert.equal((await (await terminalResponse).json()).ok, true);
+    await page.locator(".xterm-screen").waitFor({ timeout: 120_000 });
+
+    await page.locator("body").evaluate((body) => {
+      body.tabIndex = -1;
+      body.focus();
+    });
+    await page.keyboard.press(`${MODIFIER}+Shift+KeyP`);
+    const commandSearch = page.getByRole("combobox", { name: "Search commands" });
+    await commandSearch.waitFor();
+    await commandSearch.fill(">file thread as completed");
+    const completeCommand = page.getByText("File thread as Completed", { exact: true });
+    await completeCommand.waitFor();
+    const stageResponse = page.waitForResponse((response) =>
+      response.url().endsWith("/plugins/thread-stages/rpc/setWorkflowStage"));
+    await completeCommand.click();
+    const stageResult = await (await stageResponse).json();
+    assert.equal(stageResult.ok, true);
+    const destination = stageResult.result.destination;
+    if (destination.kind === "thread") {
+      await page.waitForURL(new RegExp(`/threads/${destination.threadId}$`));
+    }
+
+    assert.deepEqual(errors, []);
+    await context.close();
+  } catch (error) {
+    const directory = resolve(".scratch/e2e");
+    await mkdir(directory, { recursive: true })
+      .then(() => context?.tracing.stop({ path: resolve(directory, "all-plugins.trace.zip") }))
+      .catch((diagnosticError) => console.error("Could not save the all-plugins trace:", diagnosticError));
+    throw error;
+  } finally {
+    await browser.close();
+  }
+}

@@ -7,8 +7,10 @@ import test from "node:test";
 import {
   digest,
   inspect,
+  ownedDirectories,
   pinMismatches,
   pinnedVersion,
+  pluginEntries,
   pluginFiles,
   readLiteral,
   resolveClosure,
@@ -304,4 +306,49 @@ test("a target that walks out of the plugin mid-path is refused", async () => {
     ),
     /escapes the plugin/u,
   );
+});
+
+test("a fork vendors into src/ itself, and the generator then owns only the directories it wrote", async () => {
+  const config = {
+    plugins: {
+      "plugins/a": ["icon"],
+      "plugins/fork": { root: "", items: ["dropdown-menu"] },
+    },
+  };
+  assert.deepEqual(pluginEntries(config), [
+    { pluginDirectory: "plugins/a", names: ["icon"], root: "vendor" },
+    { pluginDirectory: "plugins/fork", names: ["dropdown-menu"], root: "" },
+  ]);
+
+  const files = await pluginFiles("plugins/fork", ["dropdown-menu"], fetchOne, "");
+  assert.deepEqual([...files.keys()].sort(), [
+    "plugins/fork/src/components/ui/dropdown-menu.tsx",
+    "plugins/fork/src/components/ui/icon.tsx",
+    "plugins/fork/src/lib/utils.ts",
+  ]);
+
+  const lock = { files: Object.fromEntries([...files].map(([path, contents]) => [path, digest(contents)])) };
+  assert.deepEqual(ownedDirectories(lock, "plugins/fork"), ["components", "lib"]);
+  assert.deepEqual(ownedDirectories(lock, "plugins/a"), []);
+
+  const root = writeTree({
+    ...Object.fromEntries(files),
+    "plugins/fork/src/components/ui/stray.tsx": "export const Stray = 0;\n",
+    "plugins/fork/src/app/list.tsx": "export const List = 0;\n",
+    "plugins/fork/src/server.ts": "export default () => {};\n",
+  });
+  assert.deepEqual(vendoredOnDisk(root, "plugins/fork", "", ["components", "lib"]), [
+    "src/components/ui/dropdown-menu.tsx",
+    "src/components/ui/icon.tsx",
+    "src/components/ui/stray.tsx",
+    "src/lib/utils.ts",
+  ]);
+  const registry = "https://example.test/desktop-v0.44.0/{name}.json";
+  const problems = inspect(
+    root,
+    { registry, plugins: { "plugins/fork": { root: "", items: ["dropdown-menu"] } } },
+    { ...lock, registry },
+  );
+  assert.deepEqual(problems.untracked, ["plugins/fork/src/components/ui/stray.tsx"]);
+  assert.deepEqual(problems.edited, []);
 });

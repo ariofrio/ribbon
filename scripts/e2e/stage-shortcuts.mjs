@@ -48,7 +48,7 @@ export async function verifyStageShortcuts({ stack, fixture }) {
         }
         await editor.click();
         const responsePromise = page.waitForResponse(
-          (response) => response.url().endsWith("/plugins/ribbon-sidebar/rpc/setWorkflowStage"),
+          (response) => response.url().endsWith("/plugins/thread-stages/rpc/setWorkflowStage"),
           { timeout: 15_000 },
         );
         await page.keyboard.press(shortcut);

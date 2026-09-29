@@ -8,6 +8,7 @@ you need the detail, and run it rather than reasoning about it:
 | `npm run check:layout` — `scripts/plugin-layout.mjs` | sentence-case plugin names, entry points under `src/`, what may sit in a plugin root, the `files` exclusions for tests and screenshots, and the `@/` alias in both tsconfig and vitest |
 | `npm run check:ui` — `scripts/vendor-ui.mjs` | every file under `src/vendor/` is bb's, verbatim, and explained by `vendor-ui.json` |
 | `npm run check:heading-icons` — `scripts/heading-icons.mjs` | `assets/icons/` matches each plugin's own icon |
+| `npm run check:fork` — `scripts/fork.mjs` | every plugin forked from one of bb's built-ins is pinned to the release `vendor-ui.json` vendors from, and `fork.lock.json` agrees |
 | `npm test` — `scripts/screenshots/trigger.test.mjs`, `scripts/e2e-affects.test.mjs`, `scripts/changes.test.mjs`, `scripts/workflows.test.mjs` | which paths make CI recapture or run the end-to-end suites, that version bumps alone do neither, and that every CI job runs once and is required |
 
 What follows is here because no check can decide it, or because it has to be
@@ -19,6 +20,13 @@ decided before the work starts.
 - Layer plugin behavior by composing around a component rather than editing one. bb exports seams for this and its own app composes with them, so read how `apps/app/src/components/` solves the same problem first, and grep the vendored copies for what is available. A `className` from an outer component wins through `cn`, which covers most styling gaps.
 - Add or drop a component by editing the item list in `vendor-ui.json` and running `npm run build:ui`, never `npx shadcn add`.
 - A `scripts/` helper that imports plugin code reaches into `src/`, and anything it generates belongs in `src/` too.
+
+## Forks of bb's built-ins
+
+- A plugin listed in `fork.json` is a copy of a bb built-in that this repository changes freely. Its upstream files keep their upstream-relative paths under the prefixes `fork.json` maps, so a diff between the two trees is a diff of the same file. Keep it that way: do not move or rename an upstream file, and add the fork's own files beside them rather than reshaping the tree.
+- Put a fix that belongs upstream in its own commit that touches only mapped files, titled the way bb's commit should read. `npm run fork:diff -- --commit <sha>` prints that commit in upstream paths; `git apply` it in a bb checkout and open the pull request there. Keep fork-only work — the plugin's identity, its stages, everything bb would not take — in separate commits, so the two never need untangling.
+- Sync by running `npm run fork:sync -- desktop-v<version>` after moving the `vendor-ui.json` pin to the same release and running `npm run build:ui`. It three-way merges each upstream file against the pinned base and leaves conflict markers where both sides changed the same lines; the files `owned` in `fork.json` are reported, never merged. Resolve, run the plugin's `release:check`, and commit the sync on its own.
+- The fork's `src/components/`, `src/lib/`, and `src/hooks/` belong to `vendor-ui.mjs`, which writes bb's registry items there so upstream's `@/components/ui/*` imports resolve unchanged. Nothing of the fork's own goes in those directories.
 
 ## Workflow
 

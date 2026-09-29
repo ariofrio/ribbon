@@ -6,33 +6,6 @@
   "description": "A suite of bb plugins for managing large amounts of agents.",
   "plugins": [
     {
-      "id": "breadcrumbs",
-      "displayName": "Breadcrumbs",
-      "description": "Show a thread's section, project, and ancestors in its header.",
-      "icon": {
-        "url": "./plugins/bb-plugin-breadcrumbs/assets/icon.svg"
-      },
-      "tags": [
-        "interface",
-        "projects",
-        "navigation",
-        "threads"
-      ],
-      "author": {
-        "name": "Andres Riofrio",
-        "github": "ariofrio",
-        "url": "https://github.com/ariofrio"
-      },
-      "source": {
-        "git": {
-          "url": "https://github.com/ariofrio/ribbon.git",
-          "subdir": "plugins/bb-plugin-breadcrumbs",
-          "range": "*",
-          "tagPrefix": "breadcrumbs/"
-        }
-      }
-    },
-    {
       "id": "chatgpt-theme",
       "displayName": "ChatGPT theme",
       "description": "Restyle bb to match the OpenAI ChatGPT (Codex) desktop app.",
@@ -58,34 +31,6 @@
           "subdir": "plugins/bb-plugin-chatgpt-theme",
           "range": "*",
           "tagPrefix": "chatgpt-theme/"
-        }
-      }
-    },
-    {
-      "id": "icons",
-      "displayName": "Icons",
-      "description": "Give each section and project an icon and color.",
-      "icon": {
-        "url": "./plugins/bb-plugin-icons/assets/icon.svg"
-      },
-      "tags": [
-        "projects",
-        "icons",
-        "colors",
-        "interface",
-        "sidebar"
-      ],
-      "author": {
-        "name": "Andres Riofrio",
-        "github": "ariofrio",
-        "url": "https://github.com/ariofrio"
-      },
-      "source": {
-        "git": {
-          "url": "https://github.com/ariofrio/ribbon.git",
-          "subdir": "plugins/bb-plugin-icons",
-          "range": "*",
-          "tagPrefix": "icons/"
         }
       }
     },
@@ -118,38 +63,9 @@
       }
     },
     {
-      "id": "ribbon-sidebar",
-      "displayName": "Ribbon sidebar",
-      "description": "Organize every section in one sidebar with stable thread order and workflow stages.",
-      "icon": {
-        "url": "./plugins/bb-plugin-ribbon-sidebar/assets/icon.svg"
-      },
-      "tags": [
-        "sidebar",
-        "threads",
-        "projects",
-        "sections",
-        "productivity",
-        "cli"
-      ],
-      "author": {
-        "name": "Andres Riofrio",
-        "github": "ariofrio",
-        "url": "https://github.com/ariofrio"
-      },
-      "source": {
-        "git": {
-          "url": "https://github.com/ariofrio/ribbon.git",
-          "subdir": "plugins/bb-plugin-ribbon-sidebar",
-          "range": "*",
-          "tagPrefix": "ribbon-sidebar/"
-        }
-      }
-    },
-    {
       "id": "thread-stages",
       "displayName": "Thread stages",
-      "description": "Mention stages in the composer, and preserve existing stage shortcuts and saved state for Ribbon sidebar.",
+      "description": "bb's thread list with workflow stages, stable thread order, and section and project icons.",
       "icon": {
         "url": "./plugins/bb-plugin-thread-stages/assets/icon.svg"
       },

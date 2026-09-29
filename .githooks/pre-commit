@@ -1,4 +1,5 @@
 #!/bin/sh
-# Refuse a commit that hand-edits bb's vendored UI components. Same check CI
-# runs; it needs no network, so it stays cheap enough for every commit.
-exec npm run --silent check:ui
+# Refuse a commit that hand-edits bb's vendored UI components or moves a fork
+# pin without a sync. Same checks CI runs; neither needs the network, so they
+# stay cheap enough for every commit.
+npm run --silent check:ui && exec npm run --silent check:fork

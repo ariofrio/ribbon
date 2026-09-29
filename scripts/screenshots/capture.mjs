@@ -303,19 +303,19 @@ export async function openApp({ browser, stack, fixture, theme, viewport, style 
   // Capture the default flat section layout with every section expanded.
   await context.addInitScript(() =>
     window.localStorage.setItem(
-      "bb.plugin.ribbon-sidebar.preferences.v1",
+      "bb.plugin.thread-stages.preferences.v1",
       JSON.stringify({
         view: { scope: { kind: "all" }, groupingKey: "builtin:sections" },
         collapsed: [],
       }),
     ),
   );
-  // Thread stages no longer registers a list, so every shot starts on Ribbon.
+  // Every shot starts on Thread stages' list rather than bb's own.
   await context.addInitScript(() => {
     if (window.localStorage.getItem("bb.sidebar.threadListProvider") === null) {
       window.localStorage.setItem(
         "bb.sidebar.threadListProvider",
-        JSON.stringify("ribbon-sidebar/ribbon-sidebar"),
+        JSON.stringify("thread-stages/thread-stages"),
       );
     }
   });
