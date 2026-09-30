@@ -1,5 +1,4 @@
 import type {
-  PluginSidebarThread,
   PluginSidebarThreadIndicator,
   PluginSidebarThreadRowStatus,
 } from "@get-bb/plugin-sdk/app";
@@ -7,7 +6,7 @@ import PencilEdit01Icon from "@hugeicons/core-free-icons/PencilEdit01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Icon } from "@/components/ui/icon";
 import type { PullRequestMark } from "../pull-request-status";
-import { resolveThreadStatus, type ThreadStatus } from "./thread-status";
+import type { ThreadStatus } from "./thread-status";
 
 export function ThreadIndicator({
   indicator,
@@ -156,33 +155,4 @@ function ActiveIcon({
       className={`size-4 shrink-0 ${shine ? "animate-shine-icon" : ""} text-muted-foreground/50`}
     />
   );
-}
-
-// bb-app@0.43.4 provides each computed indicator and label, but does not export
-// aggregate precedence. Keep the replacement sidebar aligned with bb and the
-// compatible Thread stages renderer, including omission of unread-success.
-const INDICATOR_PRIORITY: readonly PluginSidebarThreadIndicator[] = [
-  "unread-error",
-  "waiting-for-input",
-  "working-draft",
-  "plan-mode",
-  "goal",
-  "runtime",
-  "workflow",
-  "background-agent",
-  "background-command",
-  "draft",
-];
-
-export function groupIndicator(
-  threads: readonly PluginSidebarThread[],
-  draftIds: ReadonlySet<string>,
-  pluginStatuses: ReadonlyMap<string, PluginSidebarThreadRowStatus>,
-): ThreadStatus | null {
-  const statuses = threads.map((thread) => resolveThreadStatus([thread], draftIds, pluginStatuses.get(thread.id)));
-  for (const indicator of INDICATOR_PRIORITY) {
-    const status = statuses.find((candidate) => candidate.indicator === indicator);
-    if (status) return status;
-  }
-  return statuses.find((status) => status.pluginStatus !== null) ?? null;
 }

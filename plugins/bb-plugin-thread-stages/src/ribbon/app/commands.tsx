@@ -64,7 +64,7 @@ function goTo(destination: ChordDestination, navigate: BbNavigate): void {
  * The grouping a shortcut reorders within: whichever the list is organized
  * by, read from the preference mirror bb's list keeps in this window.
  */
-export function shortcutGroupingKey(
+function shortcutGroupingKey(
   storage: Pick<Storage, "getItem">,
   pluginId: string,
 ): "builtin:sections" | "builtin:projects" {

@@ -47,7 +47,7 @@ function stageMention(stage: WorkflowStage, start: number): PromptMention {
  * that the move has already happened. Without Thread stages running, nothing
  * could resolve the mentions, so the stages are named in plain text.
  */
-export function stageChangeInput(
+function stageChangeInput(
   change: StageChange,
   withMentions: boolean,
 ): PromptInput[] {

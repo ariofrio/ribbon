@@ -6,7 +6,7 @@ import {
   type SetStateAction,
 } from "react";
 
-export function parseStoredStringSet(raw: string | null): Set<string> {
+function parseStoredStringSet(raw: string | null): Set<string> {
   if (raw === null) return new Set();
   try {
     const parsed: unknown = JSON.parse(raw);

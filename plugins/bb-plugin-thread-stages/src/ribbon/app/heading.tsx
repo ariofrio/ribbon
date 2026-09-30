@@ -3,14 +3,6 @@ import { bookFrame, folderFrame } from "./standard-icon-motion";
 import { Icon } from "@/components/ui/icon";
 
 /**
- * A group heading is one button: it covers the whole row, under the heading's
- * content, the way a thread row's link does. The content lets the pointer
- * through, and the heading's own buttons sit above it.
- */
-export const HEADING_TOGGLE_CLASS =
-  "absolute inset-0 cursor-pointer rounded-md outline-none ring-sidebar-ring focus-visible:ring-2";
-
-/**
  * A heading's label and controls read against its background: the owner's
  * contrasting color where the Icons plugin painted one, and their usual colors
  * everywhere else.
@@ -59,43 +51,6 @@ const GRAY = {
   ink: "light-dark(oklch(0.47 0 0), oklch(0.82 0 0))",
   hoverInk: "light-dark(oklch(0.34 0 0), oklch(0.94 0 0))",
 };
-
-/**
- * bb shields each sticky heading's top with a band of sidebar as tall as the
- * stack's padding. Headings sit a row's gap apart, so that band would paint
- * over the bottom of a collapsed heading above; the stack's own sticky band
- * already covers its padding.
- */
-export const STICKY_HEADING_STYLE: CSSProperties = {
-  ["--bb-sidebar-sticky-tier-shield-top-height" as string]: "0px",
-};
-
-/** The heading's icon takes the heading's ink. */
-export const HEADING_ICON_STYLE: CSSProperties = {
-  backgroundColor: "var(--ribbon-heading-on, currentColor)",
-};
-
-/**
- * The size the heading's toggle button was, set a little closer to the title,
- * and always shown.
- */
-export function HeadingChevron({ collapsed }: { collapsed: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className={`mr-2 ml-1 flex size-5 shrink-0 items-center justify-center ${HEADING_MUTED_CLASS}`}
-      data-ribbon-heading-chevron=""
-      // Only a picture of the heading's toggle, which lies under it.
-      style={{ pointerEvents: "none" }}
-    >
-      <Icon
-        aria-hidden
-        className={`size-3 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
-        name="ChevronRight"
-      />
-    </span>
-  );
-}
 
 const STANDARD_NAMES = {
   section: { open: "BookOpen", shut: "BookClosed" },
