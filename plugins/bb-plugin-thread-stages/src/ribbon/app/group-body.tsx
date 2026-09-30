@@ -80,7 +80,8 @@ export function GroupBody({
     }
     const closing = phase === "closing";
     // Read every size first, then start animating, so one layout serves all.
-    const pieces = foldingPieces(element, kept);
+    const flush = [kept, ...keptAncestors(element, kept)];
+    const pieces = foldingPieces(flush);
     const shown = pieces.map((piece) => {
       const style = getComputedStyle(piece);
       return {
@@ -92,7 +93,6 @@ export function GroupBody({
     });
     // The kept row, and each list around it, closes up its own margins, so
     // the body ends exactly as tall as the folded group's preview.
-    const flush = [kept, ...keptAncestors(element, kept)];
     const margins = flush.map((node) => {
       const style = getComputedStyle(node);
       return { marginTop: style.marginTop, marginBottom: style.marginBottom };
@@ -207,18 +207,21 @@ function keptRow(
 ): HTMLElement | null {
   if (!body || !threadId) return null;
   return body.querySelector<HTMLElement>(
-    `li[data-thread-id="${CSS.escape(threadId)}"]`,
+    `[data-thread-id="${CSS.escape(threadId)}"]`,
   );
 }
 
 /**
- * Every list, row, and control between rows that does not hold the one kept
- * in view: whole lists fold too, taking their margins with them.
+ * Everything beside the kept row or a wrapper around it: every other row,
+ * list, and control between rows folds whole, taking its margins with it.
  */
-function foldingPieces(body: HTMLElement, kept: HTMLElement): HTMLElement[] {
-  return Array.from(
-    body.querySelectorAll<HTMLElement>("ul, li, [data-ribbon-fold-piece]"),
-  ).filter((piece) => piece !== kept && !piece.contains(kept) && !kept.contains(piece));
+function foldingPieces(path: readonly HTMLElement[]): HTMLElement[] {
+  return path.flatMap((node) =>
+    Array.from(node.parentElement?.children ?? []).filter(
+      (sibling): sibling is HTMLElement =>
+        sibling !== node && sibling instanceof HTMLElement,
+    ),
+  );
 }
 
 /** The lists and wrappers between the kept row and the body. */
