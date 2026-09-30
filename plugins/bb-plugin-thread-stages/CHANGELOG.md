@@ -1,5 +1,32 @@
 # bb-plugin-thread-stages
 
+## 1.0.0
+
+### Major Changes
+
+- ad78e92: Rebuilt as a fork of bb's own thread list, with the Active and split Blocked stages of Ribbon sidebar 0.8. Thread stages now draws the whole
+  sidebar list itself — bb's sections, projects, machines, pins, nesting, rename,
+  search, and menus — with workflow stages, stable manual order, stage bands with
+  previews, stage rings and row shimmer, long titles that fade and pan, child thread lines, prompt action
+  buttons, pull request numbers and marks, section and project icons with
+  colored headings and standard icons where none is chosen, the `bb sidebar` CLI, stage mentions and change notices,
+  stage shortcuts, folded groups that keep their open thread in view, and Completed auto-archive on top. Rows carry no archive
+  button. It replaces the
+  Ribbon sidebar, Icons, and Breadcrumbs plugins, importing Ribbon's and Icons'
+  data on first load, and drops Ribbon's settings for Deferred and Blocked
+  stages, sidebar controls, collapsed-group indicators,
+  message previews, and adornment alignment, along with the Icons plugin's
+  header, prompt-box, and menu icons.
+
+### Patch Changes
+
+- 9eb675e: A thread whose agent is idle no longer turns its stage ring or shimmers its row for a workflow, background agent, or background command it left running; only that work's indicator shimmers, as in bb's own list.
+- 4b3b834: Fold a group holding the open thread with the same animation as any other group, the rows around the open thread closing in on it, instead of snapping shut or open.
+- 488b425: Redraw only the rows a change touches. Opening a thread redrew every row and heading, because the icons controller was a new object on each render of the list; and any placement reload, error, or editor redrew every row, because each read the whole of Ribbon's data. The controller now holds still while nothing in it changes, and a row subscribes to its own stage, prompt actions, and pull request number placement.
+- f40c10a: Title the sidebar's catch-all group Threads, as bb does, instead of Unorganized
+  by section and Personal by project, matching Customize list and Move to
+  section. The `bb sidebar` CLI names the sectionless group Threads too.
+
 ## 0.15.0
 
 ### Minor Changes
