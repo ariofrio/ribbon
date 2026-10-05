@@ -69,12 +69,10 @@ stages.
 
 ## Layout preferences
 
-The plugin also owns the list's layout state: `organizationMode`,
-`environmentGrouping`, `chronologicalSort`, `sortDirection`, `sectionOrder`,
-`manualSectionOrder`, `machineSectionOrder`, `hiddenGroups`,
-`threadLifecycles`, `showProviderIcons`, and the collapsed built-in sections,
-custom sections, projects, threads, environments, and machines.
-`bb thread-stages prefs list` prints every key with its description.
+The plugin also owns the list's layout state, such as how threads are
+organized and sorted, which groups are hidden, and which are collapsed.
+`bb thread-stages prefs list`, without `--json`, prints every key with its
+current value and description; read it rather than assuming which keys exist.
 
 bb's built-in thread list keeps its own copy of these preferences under
 `bb thread-list prefs`. This plugin draws the sidebar instead, so a change
