@@ -190,7 +190,7 @@ describe("Ribbon sidebar CLI", () => {
       ),
     });
     expect(topLevel.stdout).toContain(
-      "Inspect and change Ribbon sidebar placement",
+      "Inspect and change the Thread stages sidebar: placement and layout preferences",
     );
     expect(topLevel.stdout).toContain("bb sidebar rekey");
 

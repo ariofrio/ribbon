@@ -326,7 +326,7 @@ export function defineRibbonSidebarCli(
   const availableGroupings = () => orderedGroupings(context.groupings());
   return defineCli({
     name: "sidebar",
-    summary: "Inspect and change Ribbon sidebar placement",
+    summary: "Inspect and change the Thread stages sidebar: placement and layout preferences",
     usageErrorExitCode: 2,
     commands: {
       ...context.extraCommands,
