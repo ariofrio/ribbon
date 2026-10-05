@@ -1,6 +1,6 @@
 ---
 name: thread-stages
-description: Inspect and organize bb threads across sections, projects, and the Deferred, Active, Blocked on other agent, Blocked on third party, and Completed workflow stages. Use when deciding which stage a bb thread belongs in, including after asking the user something, selecting threads by sidebar organization or stage before bulk work or messaging, changing a thread's or child's stage, moving and ordering root threads, ordering children among siblings, or reading and changing the thread list's layout preferences. Discover the installed CLI rather than assuming its commands.
+description: Inspect and organize bb threads across sections, projects, and the Deferred, Active, Blocked on other agent, Blocked on third party, and Completed workflow stages. Use when deciding which stage a bb thread belongs in, including after asking the user something, selecting threads by sidebar organization or stage before bulk work or messaging, changing a thread's or child's stage, moving and ordering root threads, ordering children among siblings, managing saved prompt actions beside thread titles, or reading and changing the thread list's layout preferences. Discover the installed CLI rather than assuming its commands.
 ---
 
 # Thread stages
@@ -70,6 +70,36 @@ thread when someone else changes its stage, as "Thread stage updated: @Active
 → @Blocked on third party"; that move has already happened. Older messages may
 mention `@Idle`, now Active, or `@Blocked`, now split into the two Blocked
 stages.
+
+## Thread actions
+
+Thread actions are labeled buttons beside a thread's title. Running one sends
+its saved prompt to that thread, just like clicking the button.
+
+```sh
+bb sidebar actions list [<thread>] [--self] [--json]
+bb sidebar actions set [<thread>] [--self] --actions '<json-array>' [--hide-title] [--json]
+bb sidebar actions run <action-id> [<thread>] [--self] [--json]
+```
+
+Pass a thread ID or `--self`. `list` includes each action's ID, label, prompt,
+and the thread's `hideTitle` setting. `run` selects by action ID, not label.
+
+`set` replaces the entire ordered list and title setting; read the current
+list first when preserving existing buttons. Each action has a unique `id`
+(1–64 characters), a `label` (1–24), and a `prompt` (1–10000). Labels and
+prompts are trimmed. For example:
+
+```sh
+bb sidebar actions set --self --actions '[{"id":"review","label":"Review","prompt":"Review this change."}]'
+bb sidebar actions run review --self
+```
+
+`--hide-title` gives the buttons the whole row; omitting it shows the title.
+Use `--actions '[]'` to clear the buttons. `--actions-stdin` reads the JSON
+array from stdin instead of an argument. Invalid input leaves the saved
+actions unchanged, and archived threads reject changes. Changes appear in
+every open window.
 
 ## Layout preferences
 

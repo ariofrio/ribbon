@@ -286,6 +286,171 @@ function setup({
 }
 
 describe("Ribbon sidebar server", () => {
+  it("lists a thread's prompt actions through the CLI, including an empty thread", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    try {
+      const actions = [{ id: "review", label: "Review", prompt: "Review this change." }];
+      await harness.behavior.callRpc("saveThreadActionsV1", {
+        threadId: "thread-a", actions, hideTitle: true,
+      });
+      const listed = await harness.behavior.runCli([
+        "actions", "list", "--self", "--json",
+      ], { threadId: "thread-a" });
+      expect(listed.exitCode).toBe(0);
+      expect(JSON.parse(listed.stdout!)).toEqual({
+        threadId: "thread-a", actions, hideTitle: true,
+      });
+      const empty = await harness.behavior.runCli([
+        "actions", "list", "thread-child", "--json",
+      ]);
+      expect(empty.exitCode).toBe(0);
+      expect(JSON.parse(empty.stdout!)).toEqual({
+        threadId: "thread-child", actions: [], hideTitle: false,
+      });
+      const human = await harness.behavior.runCli(["actions", "list", "thread-a"]);
+      expect(human.stdout).toContain("Review this change.");
+    } finally {
+      await harness.dispose();
+    }
+  });
+
+  it("replaces and clears prompt actions through the CLI and notifies the UI", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    try {
+      const actions = [{ id: "review", label: " Review ", prompt: " Review this change. " }];
+      const saved = await harness.behavior.runCli([
+        "actions", "set", "--self", "--actions", JSON.stringify(actions),
+        "--hide-title", "--json",
+      ], { threadId: "thread-a" });
+      expect(saved.exitCode).toBe(0);
+      expect(await harness.behavior.callRpc("listThreadActionsV1", null)).toEqual({
+        threads: [{
+          threadId: "thread-a",
+          actions: [{ id: "review", label: "Review", prompt: "Review this change." }],
+          hideTitle: true,
+        }],
+      });
+      expect(harness.inspection.realtimeSignals).toContainEqual({
+        channel: "thread-actions-changed", payload: { threadId: "thread-a" },
+      });
+      const cleared = await harness.behavior.runCli([
+        "actions", "set", "thread-a", "--actions", "[]", "--json",
+      ]);
+      expect(cleared.exitCode).toBe(0);
+      expect(await harness.behavior.callRpc("listThreadActionsV1", null)).toEqual({ threads: [] });
+    } finally {
+      await harness.dispose();
+    }
+  });
+
+  it("runs a saved prompt action through the CLI and rejects a missing action", async () => {
+    const { bb, harness, send } = setup();
+    await plugin(bb);
+    try {
+      await harness.behavior.callRpc("saveThreadActionsV1", {
+        threadId: "thread-a",
+        actions: [{ id: "review", label: "Review", prompt: "Review this change." }],
+        hideTitle: false,
+      });
+      const result = await harness.behavior.runCli([
+        "actions", "run", "review", "--self", "--json",
+      ], { threadId: "thread-a" });
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(result.stdout!)).toEqual({ ok: true });
+      expect(send).toHaveBeenCalledExactlyOnceWith({
+        threadId: "thread-a",
+        input: [{ type: "text", text: "Review this change.", mentions: [] }],
+        mode: "auto",
+      });
+      const missing = await harness.behavior.runCli([
+        "actions", "run", "missing", "thread-a", "--json",
+      ]);
+      expect(missing.exitCode).not.toBe(0);
+      expect(missing.stderr).toContain("This thread action no longer exists.");
+      expect(send).toHaveBeenCalledTimes(1);
+    } finally {
+      await harness.dispose();
+    }
+  });
+
+  it.each([
+    "not json",
+    "{}",
+    JSON.stringify([{ id: "review", label: "Review", prompt: " " }]),
+    JSON.stringify([{ id: "review", label: "x".repeat(25), prompt: "Review" }]),
+    JSON.stringify([
+      { id: "review", label: "Review", prompt: "First" },
+      { id: "review", label: "Review", prompt: "Second" },
+    ]),
+    JSON.stringify([{ id: "review", label: "Review", prompt: "Review", extra: true }]),
+  ])("rejects invalid CLI actions without changing the saved actions: %s", async (input) => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    try {
+      const record = {
+        threadId: "thread-a",
+        actions: [{ id: "review", label: "Review", prompt: "Original" }],
+        hideTitle: true,
+      };
+      await harness.behavior.callRpc("saveThreadActionsV1", record);
+      const result = await harness.behavior.runCli([
+        "actions", "set", "thread-a", "--actions", input, "--json",
+      ]);
+      expect(result.exitCode).not.toBe(0);
+      expect(JSON.parse(result.stdout!)).toMatchObject({
+        ok: false, error: { code: "invalid_thread_actions" },
+      });
+      expect(await harness.behavior.callRpc("listThreadActionsV1", null)).toEqual({ threads: [record] });
+    } finally {
+      await harness.dispose();
+    }
+  });
+
+  it("rejects CLI action changes for archived and unknown threads", async () => {
+    const { bb, harness } = setup({
+      threads: [makeThreadResponse({ id: "thread-a", archivedAt: 100 })],
+    });
+    await plugin(bb);
+    try {
+      for (const threadId of ["thread-a", "missing"]) {
+        const result = await harness.behavior.runCli([
+          "actions", "set", threadId, "--actions", "[]", "--json",
+        ]);
+        expect(result.exitCode).not.toBe(0);
+      }
+      expect(await harness.behavior.callRpc("listThreadActionsV1", null)).toEqual({ threads: [] });
+    } finally {
+      await harness.dispose();
+    }
+  });
+
+  it("offers action help and rejects ambiguous or missing CLI targets", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    try {
+      for (const command of ["list", "set", "run"]) {
+        const help = await harness.behavior.runCli(["actions", command, "--help"]);
+        expect(help.exitCode).toBe(0);
+        expect(help.stdout).toContain("--self");
+      }
+      for (const argv of [
+        ["actions", "list"],
+        ["actions", "list", "--self"],
+        ["actions", "list", "thread-a", "--self"],
+        ["actions", "set", "thread-a"],
+        ["actions", "run", "--self"],
+        ["actions", "set", "thread-a", "--actions", "[]", "--typo"],
+      ]) {
+        const result = await harness.behavior.runCli(argv);
+        expect(result.exitCode).not.toBe(0);
+      }
+    } finally {
+      await harness.dispose();
+    }
+  });
+
   it("saves prompt actions and sends the selected prompt to its thread", async () => {
     const { bb, harness, send } = setup();
     await plugin(bb);
