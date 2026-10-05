@@ -6,6 +6,7 @@ import { ProjectList } from "./app/list/ProjectList.js";
 import { useSidebarThreadReveal } from "./app/list/useSidebarThreadReveal.js";
 import { registerWorkflowCommands } from "./ribbon/app/commands.js";
 import { RibbonDataProvider } from "./ribbon/app/data.js";
+import { DefaultSectionsProvider } from "./ribbon/app/default-sections.js";
 import { IconsProvider } from "./ribbon/app/icons.js";
 
 function ThreadList({
@@ -21,11 +22,13 @@ function ThreadList({
         <PreferencesSync />
         <RibbonDataProvider>
           <IconsProvider>
-            <ProjectList
-              activeThreadId={activeThreadId}
-              onProjectSelect={onNavigate}
-              searchQuery={searchQuery}
-            />
+            <DefaultSectionsProvider>
+              <ProjectList
+                activeThreadId={activeThreadId}
+                onProjectSelect={onNavigate}
+                searchQuery={searchQuery}
+              />
+            </DefaultSectionsProvider>
           </IconsProvider>
         </RibbonDataProvider>
       </TooltipProvider>

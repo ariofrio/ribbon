@@ -172,6 +172,10 @@ import { useIconsController } from "../../ribbon/app/icons.js";
 import { useFolding } from "../../ribbon/app/group-body.js";
 import { useRibbonEnabled } from "../../ribbon/app/data.js";
 import { ActionMenuItem } from "../ui/action-menu-items.js";
+import {
+  ProjectDefaultSectionMenu,
+  SectionDefaultProjectsMenu,
+} from "../../ribbon/app/default-sections.js";
 import { SiblingLineage } from "../../ribbon/app/rails.js";
 import { useRibbonDnd } from "../../ribbon/app/dnd.js";
 import {
@@ -1532,7 +1536,9 @@ const SectionTreeItemRow = memo(function SectionTreeItemRow({
             onRemoveSection ? () => onRemoveSection(section) : undefined
           }
           onChangeIcon={ribbon ? () => setIsPickingIcon(true) : undefined}
-        />
+        >
+          <SectionDefaultProjectsMenu sectionId={section.id} />
+        </SidebarSectionMenuItems>
       </SidebarHeaderControls>
     );
     return (
@@ -2497,6 +2503,7 @@ function ProjectRowComponent({
                 Change icon
               </ActionMenuItem>
             ) : null}
+            <ProjectDefaultSectionMenu surface={surface} projectId={project.id} />
             <ThreadListVisibilityMenuItems surface={surface} />
           </>
         )}
@@ -2510,7 +2517,10 @@ function ProjectRowComponent({
     <>
       <ProjectActionsContextMenu
         extraActions={(surface) => (
-          <ThreadListVisibilityMenuItems surface={surface} />
+          <>
+            <ProjectDefaultSectionMenu surface={surface} projectId={project.id} />
+            <ThreadListVisibilityMenuItems surface={surface} />
+          </>
         )}
         project={project}
         disabled={rename.isEditing}
