@@ -2,6 +2,11 @@
   "registry": "https://raw.githubusercontent.com/get-bb/bb/desktop-v0.44.0/packages/plugin-registry/r/{name}.json",
   "literals": {},
   "files": {
+    "plugins/bb-plugin-default-sections/src/vendor/components/ui/icon.tsx": "sha256-uk7MtBChKRwdgK/xJqok9GO0r1dMjNU13zDmqBeGL0c=",
+    "plugins/bb-plugin-default-sections/src/vendor/components/ui/motion.ts": "sha256-yWZQ5ENqVPIoDv74qVOxYL6uMARPNvevShRiltWFn4I=",
+    "plugins/bb-plugin-default-sections/src/vendor/components/ui/select.tsx": "sha256-Rq5/pKQMcLy/bwqEv1ZhvE/nUeBsMIBwa3YVdh7L2hI=",
+    "plugins/bb-plugin-default-sections/src/vendor/lib/portal-scope.ts": "sha256-y/I+gcRDZYWl5VpIk1kdDMIsGJ9U0ATXDLfhqMxy+Yg=",
+    "plugins/bb-plugin-default-sections/src/vendor/lib/utils.ts": "sha256-vr6aUNRqtgngie1XhQc2MRDM7ImQ1z+puGxY8iH1cKw=",
     "plugins/bb-plugin-thread-stages/src/components/ui/button.tsx": "sha256-0NKnWzoi0kR8yGQbp06XoqHiHzHr26AEQ/50+aXChRs=",
     "plugins/bb-plugin-thread-stages/src/components/ui/checkbox.tsx": "sha256-LglH9t261YwCriqdfM1hGt8Bp4GLPNjE6W8ShWKp+kU=",
     "plugins/bb-plugin-thread-stages/src/components/ui/chrome-style-tokens.ts": "sha256-C0oTx8/HFte2NoiVhAohOIZrPLO3cxR7AQqbOUmMiDs=",

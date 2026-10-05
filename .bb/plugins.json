@@ -8,6 +8,10 @@
       "source": "./plugins/bb-plugin-chatgpt-theme"
     },
     {
+      "name": "default-sections",
+      "source": "./plugins/bb-plugin-default-sections"
+    },
+    {
       "name": "missing-keyboard-shortcuts",
       "source": "./plugins/bb-plugin-missing-keyboard-shortcuts"
     },
