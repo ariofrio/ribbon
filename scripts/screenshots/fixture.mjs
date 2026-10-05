@@ -434,7 +434,7 @@ export function seed({ stack, workspaceRoot, bb, assignStages = true }) {
     for (const spec of THREADS) {
       if (spec.stage === null) continue;
       run([
-        "sidebar",
+        "thread-stages",
         "place",
         threads.get(spec.title).id,
         "--to",

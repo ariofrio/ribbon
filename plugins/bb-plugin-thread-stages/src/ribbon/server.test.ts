@@ -1075,7 +1075,7 @@ describe("Ribbon sidebar server", () => {
       "updateSettingsV1",
     ]);
     expect(harness.inspection.registrations.cli).toMatchObject({
-      name: "sidebar",
+      name: "thread-stages",
       rendersHelp: true,
       commands: expect.arrayContaining([
         expect.objectContaining({ name: "groupings" }),

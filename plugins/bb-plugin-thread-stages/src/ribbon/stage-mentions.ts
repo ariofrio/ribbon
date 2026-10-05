@@ -39,7 +39,7 @@ function parseStage(id: string): WorkflowStage | "Blocked" | null {
 }
 
 function placement(stage: WorkflowStage): string {
-  return `\`bb sidebar place <thread> --to plugin:thread-stages:stages/${stage}\``;
+  return `\`bb thread-stages place <thread> --to plugin:thread-stages:stages/${stage}\``;
 }
 
 function stageContext(stage: WorkflowStage | "Blocked"): string {
