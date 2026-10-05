@@ -74,10 +74,15 @@ stages.
 ## Layout preferences
 
 The plugin also owns the list's layout state: `organizationMode`,
-`chronologicalSort`, `sortDirection`, `sectionOrder`, `manualSectionOrder`,
-`machineSectionOrder`, `hiddenGroups`, `threadLifecycles`,
-`showProviderIcons`, and the collapsed sections, projects, threads,
-environments, and machines.
+`environmentGrouping`, `chronologicalSort`, `sortDirection`, `sectionOrder`,
+`manualSectionOrder`, `machineSectionOrder`, `hiddenGroups`,
+`threadLifecycles`, `showProviderIcons`, and the collapsed built-in sections,
+custom sections, projects, threads, environments, and machines.
+`bb sidebar prefs list` prints every key with its description.
+
+bb's built-in thread list keeps its own copy of these preferences under
+`bb thread-list prefs`. This plugin draws the sidebar instead, so a change
+made there never reaches it: use `bb sidebar prefs`.
 
 ```sh
 bb sidebar prefs list [--json]

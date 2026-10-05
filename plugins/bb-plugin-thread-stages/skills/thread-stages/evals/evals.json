@@ -1,0 +1,59 @@
+{
+  "skill_name": "thread-stages",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm preparing a routine bulk status notification. The visible roots are Billing cleanup (Active), Release checklist (Completed), Search indexing (Active, currently working), and Vendor access (Blocked on third party). I did not ask to resume anything. Which roots are in scope by default? Do not send any messages.",
+      "expected_output": "The agent excludes the Completed root by default while retaining the other visible roots, and explains that Completed is treated like archived work unless explicitly included or resumed.",
+      "files": [],
+      "expectations": [
+        "The in-scope roots are Billing cleanup, Search indexing, and Vendor access.",
+        "Release checklist is excluded because Completed roots are out of scope by default.",
+        "The response does not claim that Blocked on third party or Active roots are automatically excluded."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "You're the agent on a root bb thread. You just finished a draft migration plan and your last message asks me to pick between two rollout options before you continue. Before you end your turn, should this thread change stage? If so, give the exact bb sidebar command you would run; if not, say why. Don't run anything.",
+      "expected_output": "The agent leaves the thread in Active because waiting on the user is Active, and does not propose a Blocked stage or a placement command.",
+      "files": [],
+      "expectations": [
+        "The agent keeps the thread in Active.",
+        "The agent does not propose moving the thread to Blocked on other agent or Blocked on third party.",
+        "The agent does not give a bb sidebar place command that changes the stage."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Two root bb threads I own are stuck. Thread A can't continue until another bb thread lands the auth refactor it depends on. Thread B is waiting for the vendor to approve our SSO app. Which stage should each go in, and what exact command would place each one? Use <thread-a> and <thread-b> as placeholders. Don't run anything.",
+      "expected_output": "Thread A goes to Blocked on other agent and thread B to Blocked on third party, each placed by stage ID.",
+      "files": [],
+      "expectations": [
+        "Thread A is placed in Blocked on other agent with `bb sidebar place <thread-a> --to plugin:thread-stages:stages/BlockedOnOtherAgent`.",
+        "Thread B is placed in Blocked on third party with `bb sidebar place <thread-b> --to plugin:thread-stages:stages/BlockedOnThirdParty`."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Check which plugin owns the generic bb sidebar command in this environment and tell me whether it is Thread stages. If it is not Thread stages, tell me how you would explicitly invoke Thread stages instead. Do not change any state.",
+      "expected_output": "The agent runs the generic sidebar command first, checks its output for Thread stages, and uses or recommends the plugin-qualified Thread stages invocation only when Thread stages did not answer.",
+      "files": [],
+      "expectations": [
+        "The agent invokes `bb sidebar` before any plugin-qualified sidebar command.",
+        "The agent determines ownership from whether the command output identifies Thread stages.",
+        "When Thread stages does not answer, the agent identifies `bb plugin run thread-stages` as the explicit fallback."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Make my sidebar group threads by project, and stop collapsing sibling threads that share a worktree into one row. Give the exact commands you would run. Don't run anything.",
+      "expected_output": "The agent sets organizationMode and environmentGrouping through `bb sidebar prefs set`, not through bb's built-in `bb thread-list prefs`.",
+      "files": [],
+      "expectations": [
+        "The agent gives `bb sidebar prefs set organizationMode project` or an equivalent JSON value.",
+        "The agent gives `bb sidebar prefs set environmentGrouping false`.",
+        "The agent does not use `bb thread-list prefs` for either change."
+      ]
+    }
+  ]
+}
