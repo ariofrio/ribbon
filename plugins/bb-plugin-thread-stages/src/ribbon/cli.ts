@@ -325,8 +325,8 @@ export function defineRibbonSidebarCli(
 ): PluginCliRegistration {
   const availableGroupings = () => orderedGroupings(context.groupings());
   return defineCli({
-    name: "sidebar",
-    summary: "Inspect and change the Thread stages sidebar: placement and layout preferences",
+    name: "thread-stages",
+    summary: "Inspect and change thread stages, sidebar placement, and layout preferences",
     usageErrorExitCode: 2,
     commands: {
       ...context.extraCommands,

@@ -5,7 +5,7 @@ const THREAD = "Retire the v1 pricing endpoint";
 
 export async function verifyStageChangeMessages({ stack, fixture }) {
   const thread = fixture.threads.get(THREAD);
-  const place = (stage) => fixture.run(["sidebar", "place", thread.id, "--to", `${STAGES}/${stage}`]);
+  const place = (stage) => fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/${stage}`]);
   const setMessages = (enabled) =>
     fixture.run(["plugin", "config", "thread-stages", "set", "messageOnStageChange", String(enabled)]);
   const browser = await launch();

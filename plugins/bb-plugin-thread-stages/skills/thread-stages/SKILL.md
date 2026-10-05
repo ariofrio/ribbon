@@ -5,18 +5,14 @@ description: Inspect and organize bb threads across sections, projects, and the 
 
 # Thread stages
 
-Start by running `bb sidebar`. Its output must identify Thread stages before
-relying on that command, because another installed plugin may have registered
-the same name first. If it is not identified, invoke the plugin explicitly with
-`bb plugin run thread-stages` for the rest of the task.
-
-Discover the available operations and arguments from the CLI's own help as
-needed. Do not rely on a memorized command surface.
+Start by running `bb thread-stages`, and discover the available operations
+and arguments from its help as needed. Do not rely on a memorized command
+surface.
 
 ## Selecting threads
 
-Use the joined thread view, `bb sidebar list --json`, before selecting roots
-for bulk work or messaging. It combines bb thread metadata with section,
+Use the joined thread view, `bb thread-stages list --json`, before selecting
+roots for bulk work or messaging. It combines bb thread metadata with section,
 project, and workflow stage, so selection rules based on organization should
 be applied to that complete view rather than reconstructed from separate
 partial lists.
@@ -44,7 +40,7 @@ user a question, requested approval, or finished work for them to review. The
 user is not a third party.
 
 Place a thread by stage ID:
-`bb sidebar place --self --to plugin:thread-stages:stages/BlockedOnOtherAgent`.
+`bb thread-stages place --self --to plugin:thread-stages:stages/BlockedOnOtherAgent`.
 
 Each child has its own stage and remains nested beneath its parent. A child
 can be reordered among its siblings, while its stage remains independent.
@@ -78,22 +74,22 @@ The plugin also owns the list's layout state: `organizationMode`,
 `manualSectionOrder`, `machineSectionOrder`, `hiddenGroups`,
 `threadLifecycles`, `showProviderIcons`, and the collapsed built-in sections,
 custom sections, projects, threads, environments, and machines.
-`bb sidebar prefs list` prints every key with its description.
+`bb thread-stages prefs list` prints every key with its description.
 
 bb's built-in thread list keeps its own copy of these preferences under
 `bb thread-list prefs`. This plugin draws the sidebar instead, so a change
-made there never reaches it: use `bb sidebar prefs`.
+made there never reaches it: use `bb thread-stages prefs`.
 
 ```sh
-bb sidebar prefs list [--json]
-bb sidebar prefs get <key> [--json]
-bb sidebar prefs set <key> <value> [--json]
-bb sidebar prefs reset <key> [--json]
+bb thread-stages prefs list [--json]
+bb thread-stages prefs get <key> [--json]
+bb thread-stages prefs set <key> <value> [--json]
+bb thread-stages prefs reset <key> [--json]
 ```
 
 `set` takes JSON; a bare word is read as a string, so
-`bb sidebar prefs set organizationMode project` and
-`bb sidebar prefs set manualSectionOrder '["pinned","sections","threads"]'`
+`bb thread-stages prefs set organizationMode project` and
+`bb thread-stages prefs set manualSectionOrder '["pinned","sections","threads"]'`
 both work. A value the key's schema rejects fails with
 `invalid_preference_value` and leaves the stored value alone. Every open
 window applies a change immediately. Sections themselves and a thread's

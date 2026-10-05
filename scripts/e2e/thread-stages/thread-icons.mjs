@@ -27,7 +27,7 @@ export async function reportBackgroundCommand(page, threadId) {
 export async function verifyThreadIcons({ stack, fixture }) {
   const thread = fixture.threads.get(FEATURED_THREAD);
   // Earlier filing and placement cases can move this shared thread out of Active.
-  fixture.run(["sidebar", "place", thread.id, "--to", `${STAGES}/Active`]);
+  fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/Active`]);
   await applyPluginState({ stack, ...fixture });
   const browser = await launch();
   try {

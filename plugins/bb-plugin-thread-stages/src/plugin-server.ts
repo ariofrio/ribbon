@@ -10,7 +10,7 @@ import {
  * The plugin's server entry: bb's thread-list preferences (server.ts, from
  * upstream) and Ribbon's stages, order, actions, and icons (ribbon/server.ts).
  * A plugin registers one CLI, so the layout preference commands ride on the
- * `bb sidebar` CLI under `prefs`.
+ * `bb thread-stages` CLI under `prefs`.
  */
 export default async function plugin(bb: BbPluginApi) {
   const preferences = registerPreferences(bb);

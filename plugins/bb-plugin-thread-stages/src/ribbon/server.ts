@@ -372,13 +372,13 @@ function fullGroup(group: GroupingDescriptor["groups"][number]) {
 }
 
 export interface RibbonServerOptions {
-  /** Commands registered on the `bb sidebar` CLI beside the placement ones. */
+  /** Commands registered on the `bb thread-stages` CLI beside the placement ones. */
   extraCommands?: Record<string, ReturnType<typeof cliCommand>>;
 }
 
 /**
  * Stages, stable order, prompt actions, pull request details, icons, and the
- * `bb sidebar` CLI: everything Ribbon sidebar, Thread stages, and Icons ran
+ * `bb thread-stages` CLI: everything Ribbon sidebar, Thread stages, and Icons ran
  * on the server, on the thread list this plugin forked from bb.
  */
 export default async function ribbonServer(
