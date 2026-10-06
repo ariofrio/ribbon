@@ -3,7 +3,7 @@ import { AGENT, FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixt
 import { launch, openContext, row, sidebar, spawnChild, STAGES } from "./sidebar.mjs";
 
 export function stageFor(fixture, threadId) {
-  const shown = fixture.runJson(["sidebar", "show", threadId]);
+  const shown = fixture.runJson(["thread-stages", "show", threadId]);
   return Array.isArray(shown)
     ? shown.find(({ placement }) => placement.groupingKey === STAGES)?.placement.groupId
     : shown.stage;
@@ -14,11 +14,11 @@ export async function verifyChildStages({ stack, fixture }) {
   const project = fixture.projects.get(FEATURED_PROJECT);
   const child = spawnChild(fixture, { parent, project, title: "Independent child stage", AGENT });
   const parentStage = stageFor(fixture, parent.id);
-  fixture.run(["sidebar", "place", child.id, "--to", `${STAGES}/BlockedOnThirdParty`]);
+  fixture.run(["thread-stages", "place", child.id, "--to", `${STAGES}/BlockedOnThirdParty`]);
   assert.equal(stageFor(fixture, child.id), "BlockedOnThirdParty");
   assert.equal(stageFor(fixture, parent.id), parentStage);
   assert.ok(fixture.runJson([
-    "sidebar", "list", "--include-children", "--scope", `${STAGES}/BlockedOnThirdParty`,
+    "thread-stages", "list", "--include-children", "--scope", `${STAGES}/BlockedOnThirdParty`,
   ]).some(({ id }) => id === child.id));
 
   const browser = await launch();

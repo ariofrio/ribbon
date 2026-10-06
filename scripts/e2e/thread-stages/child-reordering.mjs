@@ -44,9 +44,9 @@ export async function verifyChildReordering({ stack, fixture }) {
     await olderRow.waitFor();
     assert.deepEqual(await childOrder(), [older.id, newer.id], "child order survives reload");
 
-    fixture.run(["sidebar", "place", newer.id, "--before", older.id]);
+    fixture.run(["thread-stages", "place", newer.id, "--before", older.id]);
     await waitForOrder(page, newer.id, older.id);
-    const listed = fixture.runJson(["sidebar", "children", parent.id]);
+    const listed = fixture.runJson(["thread-stages", "children", parent.id]);
     assert.deepEqual(
       listed.map(({ id }) => id).filter((id) => id === older.id || id === newer.id),
       [newer.id, older.id],

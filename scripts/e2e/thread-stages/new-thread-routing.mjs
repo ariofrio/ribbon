@@ -56,7 +56,7 @@ export async function verifyNewThreadRouting({ stack, fixture }) {
     const deadline = Date.now() + 30_000;
     let placed = null;
     while (Date.now() <= deadline) {
-      const placements = fixture.runJson(["sidebar", "show", threadId]);
+      const placements = fixture.runJson(["thread-stages", "show", threadId]);
       placed = placements.find(({ placement }) => placement.groupingKey === groupingKey)?.placement.groupId;
       if (placed === groupId) {
         await link(group, threadId).waitFor();
@@ -80,7 +80,7 @@ export async function waitForStageCatalog({ bb, cliEnv }) {
   const deadline = Date.now() + 120_000;
   for (;;) {
     try {
-      const output = execFileSync(bb, ["sidebar", "groupings", "--json"], { env: cliEnv, encoding: "utf8" });
+      const output = execFileSync(bb, ["thread-stages", "groupings", "--json"], { env: cliEnv, encoding: "utf8" });
       if (JSON.parse(output).some(({ groupingKey }) => groupingKey === STAGES)) return;
     } catch {
       // The plugin is loaded; the catalog may still be in flight.

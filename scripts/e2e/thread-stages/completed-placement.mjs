@@ -5,7 +5,7 @@ import { launch, openContext, row, section, sidebar, STAGES } from "./sidebar.mj
 export async function verifyCompletedPlacement({ stack, fixture }) {
   const returning = fixture.threads.get("Add keyboard navigation to filters");
   const shortcut = fixture.threads.get(FEATURED_THREAD);
-  const place = (thread, stage) => fixture.run(["sidebar", "place", thread.id, "--to", `${STAGES}/${stage}`]);
+  const place = (thread, stage) => fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/${stage}`]);
   const browser = await launch();
   try {
     const context = await openContext(browser, { viewport: { width: 1280, height: 1000 } });
