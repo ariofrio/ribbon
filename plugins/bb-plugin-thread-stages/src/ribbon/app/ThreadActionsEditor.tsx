@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Icon } from "@/components/ui/icon";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import type { ThreadAction } from "../thread-actions-store";
 import { useRibbonData } from "./data";
@@ -86,7 +86,7 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
   return (
     <form
       aria-label="Edit thread actions"
-      className="space-y-2 p-1"
+      className="space-y-2"
       onKeyDown={(event) => {
         // Text editing stays in the form; Escape returns to its parent menu.
         if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
@@ -129,27 +129,20 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
         flush();
       }}
     >
-      <Table aria-label="Thread actions" className="table-fixed">
-        <TableHeader>
-          <TableRow>
-            <TableHead className="h-6 w-[32%] px-3 text-xs font-normal">Label</TableHead>
-            <TableHead className="h-6 px-3 text-xs font-normal">Prompt</TableHead>
-            <TableHead className="h-6 w-8 px-1 max-md:pointer-coarse:w-11"><span className="sr-only">Remove</span></TableHead>
-          </TableRow>
-        </TableHeader>
+      <Table aria-label="Thread actions" className="table-fixed border-separate border-spacing-0">
         <TableBody>
           {actions.map((action, index) => (
-            <TableRow key={action.id} data-action-id={action.id} className="border-border/50 hover:bg-state-hover focus-within:bg-state-hover">
-              <TableCell className="p-1 align-top">
+            <TableRow key={action.id} data-action-id={action.id} className="group border-0 hover:bg-transparent">
+              <TableCell className="w-[32%] rounded-l-sm px-0.5 py-px align-top group-hover:bg-state-hover group-focus-within:bg-state-hover max-md:pointer-coarse:py-0">
                 <Input
                   aria-label={`Action ${index + 1} button label`}
-                  className="h-7 rounded-sm border-transparent px-2 text-xs leading-4 hover:border-input focus-visible:border-input max-md:pointer-coarse:leading-6"
+                  className="h-6 rounded-sm border-transparent px-1.5 py-[0.1875rem] text-xs leading-4 hover:border-input focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:leading-6"
                   ref={(field) => {
                     if (field) labelFields.current.set(action.id, field);
                     else labelFields.current.delete(action.id);
                   }}
                   maxLength={24}
-                  placeholder={isEmpty(action) ? "New action" : "Label"}
+                  placeholder="Button label"
                   value={action.label}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.nativeEvent.isComposing) {
@@ -162,10 +155,10 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
                   ))}
                 />
               </TableCell>
-              <TableCell className="p-1 align-top">
+              <TableCell className="px-0.5 py-px align-top group-hover:bg-state-hover group-focus-within:bg-state-hover max-md:pointer-coarse:py-0">
                 <Textarea
                   aria-label={`Action ${index + 1} prompt`}
-                  className="h-7 min-h-7 resize-none rounded-sm border-transparent px-2 py-1 text-xs leading-4 hover:border-input focus-visible:border-input max-md:pointer-coarse:h-10 max-md:pointer-coarse:min-h-10 max-md:pointer-coarse:leading-6"
+                  className="h-6 min-h-6 resize-none rounded-sm border-transparent px-1.5 py-[0.1875rem] text-xs leading-4 hover:border-input focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:h-10 max-md:pointer-coarse:min-h-10 max-md:pointer-coarse:leading-6"
                   rows={1}
                   maxLength={10000}
                   placeholder="Prompt to send"
@@ -180,22 +173,24 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
                   }}
                 />
               </TableCell>
-              <TableCell className="p-1 align-top">
-                {!isEmpty(action) ? <Button
+              <TableCell className="w-7 rounded-r-sm px-0.5 py-px align-top group-hover:bg-state-hover group-focus-within:bg-state-hover max-md:pointer-coarse:w-11 max-md:pointer-coarse:py-0">
+                <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-6 text-muted-foreground hover:text-foreground [&_[data-icon-root]]:size-3.5 max-md:pointer-coarse:h-10 max-md:pointer-coarse:w-9"
-                  aria-label={`Remove action ${index + 1}`}
+                  className="h-6 w-6 rounded-sm text-muted-foreground hover:text-foreground [&_[data-icon-root]]:size-3.5 max-md:pointer-coarse:h-10 max-md:pointer-coarse:w-9"
+                  aria-label={`${actions.length === 1 ? "Clear" : "Remove"} action ${index + 1}`}
                   onClick={() => {
-                    const next = withEmptyRow(draft.current.filter(({ id }) => id !== action.id));
+                    const next = draft.current.length === 1
+                      ? [{ ...action, label: "", prompt: "" }]
+                      : withEmptyRow(draft.current.filter(({ id }) => id !== action.id));
                     focusAfterRemoval.current = (next[index] ?? next[next.length - 1]!).id;
                     changeActions(next);
                     flush();
                   }}
                 >
                   <Icon name="X" aria-hidden />
-                </Button> : null}
+                </Button>
               </TableCell>
             </TableRow>
           ))}

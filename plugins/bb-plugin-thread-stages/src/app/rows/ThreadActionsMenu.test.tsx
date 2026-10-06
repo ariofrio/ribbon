@@ -117,4 +117,11 @@ it("keeps fields editable and serializes autosaves and removal while a save is p
     actions: [],
   });
   expect(screen.getAllByRole("textbox")).toHaveLength(2);
+  const emptyLabel = screen.getByRole("textbox", { name: "Action 1 button label" });
+  fireEvent.click(screen.getByRole("button", { name: "Clear action 1" }));
+  expect(screen.getAllByRole("textbox")).toHaveLength(2);
+  expect(screen.getByRole("textbox", { name: "Action 1 button label" })).toBe(emptyLabel);
+  expect(document.activeElement).toBe(emptyLabel);
+  await act(async () => { await Promise.resolve(); });
+  expect(calls).toBe(4);
 });

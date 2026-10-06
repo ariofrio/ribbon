@@ -64,7 +64,10 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
           await trigger.click();
         }
         const edit = page.getByRole("menuitem", { name: "Edit actions", exact: true });
-        const menuFontSize = await edit.evaluate((node) => getComputedStyle(node).fontSize);
+        const menuMetrics = await edit.evaluate((node) => {
+          const style = getComputedStyle(node);
+          return { fontSize: style.fontSize, radius: style.borderRadius, padding: Number.parseFloat(style.paddingLeft), height: Number.parseFloat(style.height) };
+        });
         if (compact) await activate(edit);
         else await edit.hover();
         const form = page.getByRole("form", { name: "Edit thread actions" });
@@ -72,14 +75,45 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         const label = (index) => form.getByRole("textbox", { name: `Action ${index} button label` });
         const prompt = (index) => form.getByRole("textbox", { name: `Action ${index} prompt` });
         const remove = (index) => form.getByRole("button", { name: `Remove action ${index}` });
+        assert.equal(await form.getByRole("columnheader").count(), 0, "Placeholders replace the table header");
+        assert.equal(await form.getByPlaceholder("Button label").inputValue(), "");
+        assert.equal(await form.getByPlaceholder("Prompt to send").inputValue(), "");
         const appearance = await label(1).evaluate((field) => {
           const style = getComputedStyle(field);
           return { fontSize: style.fontSize, height: style.height, border: style.borderColor, background: style.backgroundColor };
         });
-        assert.equal(appearance.fontSize, compact ? "16px" : menuFontSize);
-        assert.equal(appearance.height, compact ? "40px" : "28px");
+        assert.equal(appearance.fontSize, compact ? "16px" : menuMetrics.fontSize);
+        assert.equal(appearance.height, compact ? "40px" : "24px");
         assert.equal(appearance.border, "rgba(0, 0, 0, 0)", "Idle fields use the menu's quiet border treatment");
-        await activate(label(1));
+        const clearEmpty = form.getByRole("button", { name: "Clear action 1" });
+        await activate(clearEmpty);
+        await focused(page, label(1));
+        assert.equal(await form.getByRole("textbox").count(), 2, "Clearing the last row keeps one blank row");
+        await page.keyboard.press("Tab");
+        await page.keyboard.press("Shift+Tab");
+        const focusedMetrics = await label(1).evaluate((field) => {
+          const row = field.closest("tr");
+          const first = row.cells[0];
+          const last = row.cells[2];
+          const style = getComputedStyle(field);
+          return {
+            radiusLeft: getComputedStyle(first).borderTopLeftRadius,
+            radiusRight: getComputedStyle(last).borderTopRightRadius,
+            background: getComputedStyle(first).backgroundColor,
+            height: row.getBoundingClientRect().height,
+            padding: field.getBoundingClientRect().left - first.getBoundingClientRect().left + Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.borderLeftWidth),
+            borderWidth: style.borderLeftWidth,
+            shadowDimensions: (style.boxShadow.match(/-?\d+(?:\.\d+)?px/g) ?? []).map(Number.parseFloat),
+          };
+        });
+        assert.equal(focusedMetrics.radiusLeft, menuMetrics.radius);
+        assert.equal(focusedMetrics.radiusRight, menuMetrics.radius);
+        assert.notEqual(focusedMetrics.background, "rgba(0, 0, 0, 0)", "Focus highlights the rounded row");
+        assert.equal(focusedMetrics.height, compact ? 40 : menuMetrics.height,
+          compact ? "Touch rows keep bb's native input height" : "Desktop rows match the menu item height");
+        assert.ok(Math.abs(focusedMetrics.padding - menuMetrics.padding) <= 1, "Text starts at the menu item inset");
+        assert.equal(focusedMetrics.borderWidth, "1px");
+        assert.ok(focusedMetrics.shadowDimensions.every((size) => size === 0), "A single border marks focus without a second outer ring");
         await page.keyboard.type("Review");
         await page.keyboard.press("Enter");
         await focused(page, prompt(1));
@@ -113,6 +147,8 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         await page.keyboard.press("Tab");
         await focused(page, prompt(2));
         assert.equal(await form.getByRole("textbox").count(), 4, "Leaving an empty row collapses redundant empty rows without losing focus");
+        await page.keyboard.press("Tab");
+        await focused(page, remove(2));
         if (compact) {
           await page.keyboard.press("Tab");
           await focused(page, page.getByRole("menuitem", { name: "Back" }));
@@ -160,9 +196,9 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         await page.mouse.wheel(0, 400);
         await page.waitForFunction((field) => field.scrollTop > 0, await prompt(1).elementHandle());
         await activate(label(1));
-        assert.ok((await prompt(1).boundingBox()).height <= (compact ? 40 : 28), "Prompts collapse when focus leaves them");
+        assert.ok((await prompt(1).boundingBox()).height <= (compact ? 40 : 24), "Prompts collapse when focus leaves them");
         await activate(prompt(1));
-        if (!compact) assert.equal(fieldMetrics.fontSize, menuFontSize, "Editor text matches bb's menu typography");
+        if (!compact) assert.equal(fieldMetrics.fontSize, menuMetrics.fontSize, "Editor text matches bb's menu typography");
         assert.equal(await form.evaluate((node) => node.scrollWidth > node.clientWidth), false, "The table fits without horizontal overflow");
         if (compact) await activate(page.getByRole("menuitem", { name: "Back" }));
         else await page.mouse.click(1000, 650);
@@ -189,6 +225,9 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
           await cleared;
           await focused(page, label(1));
           assert.equal(await form.getByRole("textbox").count(), 2);
+          await form.getByRole("button", { name: "Clear action 1" }).click();
+          await focused(page, label(1));
+          assert.equal(await label(1).inputValue(), "");
           await page.mouse.click(1000, 650);
         }
         assert.deepEqual(errors, [], "The editor workflow raises no runtime errors");
