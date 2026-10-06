@@ -23,7 +23,6 @@ import { THREAD_STAGES_GROUPING_KEY } from "../workflow/catalog";
 import type { WorkflowStage } from "../workflow/workflow-stage";
 import {
   resetRibbonAtoms,
-  ribbonActionsEditorAtom,
   ribbonChildRanksAtom,
   ribbonEnabledAtom,
   ribbonErrorAtom,
@@ -84,12 +83,8 @@ export interface RibbonData {
   saveThreadActions(
     threadId: string,
     actions: ThreadAction[],
-    hideTitle: boolean,
   ): Promise<void>;
   runThreadAction(threadId: string, actionId: string): Promise<void>;
-  /** The thread whose prompt actions are being edited, if any. */
-  actionsEditor: string | null;
-  editActions(threadId: string | null): void;
   rpc: RibbonRpc;
 }
 
@@ -145,7 +140,6 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
   const [loaded, setLoaded] = useAtom(ribbonLoadedAtom);
   const [preferences, setPreferences] = useAtom(ribbonPreferencesAtom);
   const [error, setError] = useAtom(ribbonErrorAtom);
-  const [actionsEditor, setActionsEditor] = useAtom(ribbonActionsEditorAtom);
   const latestRevisions = useRef(new Map<GroupingKey, number>());
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const stageRequest = useRef(0);
@@ -365,7 +359,7 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
   );
 
   const saveThreadActions = useCallback<RibbonData["saveThreadActions"]>(
-    async (threadId, actions, hideTitle) => {
+    async (threadId, actions) => {
       setError(null);
       const next = actions.map((action) => ({
         ...action,
@@ -375,12 +369,11 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
       await rpcRef.current.call("saveThreadActionsV1", {
         threadId,
         actions: next,
-        hideTitle: next.length > 0 && hideTitle,
       });
       setThreadActions((current) => {
         const updated = new Map(current);
         if (next.length > 0) {
-          updated.set(threadId, { threadId, actions: next, hideTitle: next.length > 0 && hideTitle });
+          updated.set(threadId, { threadId, actions: next });
         } else {
           updated.delete(threadId);
         }
@@ -428,12 +421,9 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
       reorderChildren,
       saveThreadActions,
       runThreadAction,
-      actionsEditor,
-      editActions: setActionsEditor,
       rpc,
     }),
     [
-      actionsEditor,
       changeView,
       childRanks,
       enteredStageAt,

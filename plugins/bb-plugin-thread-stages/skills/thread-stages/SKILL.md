@@ -74,14 +74,14 @@ its saved prompt to that thread, just like clicking the button.
 
 ```sh
 bb thread-stages actions list [<thread>] [--self] [--json]
-bb thread-stages actions set [<thread>] [--self] --actions '<json-array>' [--hide-title] [--json]
+bb thread-stages actions set [<thread>] [--self] --actions '<json-array>' [--json]
 bb thread-stages actions run <action-id> [<thread>] [--self] [--json]
 ```
 
-Pass a thread ID or `--self`. `list` includes each action's ID, label, prompt,
-and the thread's `hideTitle` setting. `run` selects by action ID, not label.
+Pass a thread ID or `--self`. `list` includes each action's ID, label, and prompt.
+`run` selects by action ID, not label.
 
-`set` replaces the entire ordered list and title setting; read the current
+`set` replaces the entire ordered list; read the current
 list first when preserving existing buttons. Each action has a unique `id`
 (1–64 characters), a `label` (1–24), and a `prompt` (1–10000). Labels and
 prompts are trimmed. For example:
@@ -91,7 +91,6 @@ bb thread-stages actions set --self --actions '[{"id":"review","label":"Review",
 bb thread-stages actions run review --self
 ```
 
-`--hide-title` gives the buttons the whole row; omitting it shows the title.
 Use `--actions '[]'` to clear the buttons. `--actions-stdin` reads the JSON
 array from stdin instead of an argument. Invalid input leaves the saved
 actions unchanged, and archived threads reject changes. Changes appear in

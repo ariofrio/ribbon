@@ -299,17 +299,18 @@ describe("Ribbon sidebar server", () => {
       ], { threadId: "thread-a" });
       expect(listed.exitCode).toBe(0);
       expect(JSON.parse(listed.stdout!)).toEqual({
-        threadId: "thread-a", actions, hideTitle: true,
+        threadId: "thread-a", actions,
       });
       const empty = await harness.behavior.runCli([
         "actions", "list", "thread-child", "--json",
       ]);
       expect(empty.exitCode).toBe(0);
       expect(JSON.parse(empty.stdout!)).toEqual({
-        threadId: "thread-child", actions: [], hideTitle: false,
+        threadId: "thread-child", actions: [],
       });
       const human = await harness.behavior.runCli(["actions", "list", "thread-a"]);
       expect(human.stdout).toContain("Review this change.");
+      expect(human.stdout).not.toContain("Hide thread title");
     } finally {
       await harness.dispose();
     }
@@ -322,18 +323,27 @@ describe("Ribbon sidebar server", () => {
       const actions = [{ id: "review", label: " Review ", prompt: " Review this change. " }];
       const saved = await harness.behavior.runCli([
         "actions", "set", "--self", "--actions", JSON.stringify(actions),
-        "--hide-title", "--json",
+        "--json",
       ], { threadId: "thread-a" });
       expect(saved.exitCode).toBe(0);
       expect(await harness.behavior.callRpc("listThreadActionsV1", null)).toEqual({
         threads: [{
           threadId: "thread-a",
           actions: [{ id: "review", label: "Review", prompt: "Review this change." }],
-          hideTitle: true,
         }],
       });
       expect(harness.inspection.realtimeSignals).toContainEqual({
         channel: "thread-actions-changed", payload: { threadId: "thread-a" },
+      });
+      const retiredOption = await harness.behavior.runCli([
+        "actions", "set", "thread-a", "--actions", "[]", "--hide-title",
+      ]);
+      expect(retiredOption.exitCode).not.toBe(0);
+      expect(await harness.behavior.callRpc("listThreadActionsV1", null)).toEqual({
+        threads: [{
+          threadId: "thread-a",
+          actions: [{ id: "review", label: "Review", prompt: "Review this change." }],
+        }],
       });
       const cleared = await harness.behavior.runCli([
         "actions", "set", "thread-a", "--actions", "[]", "--json",
@@ -352,7 +362,6 @@ describe("Ribbon sidebar server", () => {
       await harness.behavior.callRpc("saveThreadActionsV1", {
         threadId: "thread-a",
         actions: [{ id: "review", label: "Review", prompt: "Review this change." }],
-        hideTitle: false,
       });
       const result = await harness.behavior.runCli([
         "actions", "run", "review", "--self", "--json",
@@ -392,7 +401,6 @@ describe("Ribbon sidebar server", () => {
       const record = {
         threadId: "thread-a",
         actions: [{ id: "review", label: "Review", prompt: "Original" }],
-        hideTitle: true,
       };
       await harness.behavior.callRpc("saveThreadActionsV1", record);
       const result = await harness.behavior.runCli([
@@ -458,9 +466,9 @@ describe("Ribbon sidebar server", () => {
       const actions = ["Review", "Test", "Explain", "Summarize"].map((label) => ({
         id: label.toLowerCase(), label, prompt: `${label} this change.`,
       }));
-      await harness.behavior.callRpc("saveThreadActionsV1", { threadId: "thread-a", actions, hideTitle: true });
+      await harness.behavior.callRpc("saveThreadActionsV1", { threadId: "thread-a", actions });
       expect(await harness.behavior.callRpc("listThreadActionsV1", null)).toEqual({
-        threads: [{ threadId: "thread-a", actions, hideTitle: true }],
+        threads: [{ threadId: "thread-a", actions }],
       });
       await harness.behavior.callRpc("runThreadActionV1", {
         threadId: "thread-a", actionId: "review",
@@ -473,7 +481,7 @@ describe("Ribbon sidebar server", () => {
       await expect(harness.behavior.callRpc("runThreadActionV1", {
         threadId: "thread-a", actionId: "missing",
       })).rejects.toThrow();
-      await harness.behavior.callRpc("saveThreadActionsV1", { threadId: "thread-a", actions: [], hideTitle: true });
+      await harness.behavior.callRpc("saveThreadActionsV1", { threadId: "thread-a", actions: [] });
       expect(await harness.behavior.callRpc("listThreadActionsV1", null)).toEqual({ threads: [] });
     } finally {
       await harness.dispose();

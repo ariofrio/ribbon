@@ -33,10 +33,11 @@ export async function verifyThreadActions({ stack, fixture }) {
     const target = row(list, thread.id);
     await target.hover();
     await target.getByRole("button", { name: "Thread actions" }).click();
-    await page.getByRole("menuitem", { name: "Edit actions" }).click();
-    const dialog = page.getByRole("dialog", { name: "Edit thread actions" });
-    const hideTitle = dialog.getByRole("checkbox", { name: "Hide thread title" });
-    assert.equal(await hideTitle.isDisabled(), true);
+    await page.getByRole("menuitem", { name: "Edit actions" }).hover();
+    const editor = page.getByRole("menu", { name: "Edit actions", exact: true });
+    await editor.waitFor();
+    assert.equal(await page.getByRole("dialog", { name: "Edit thread actions" }).count(), 0);
+    assert.equal(await editor.getByRole("checkbox").count(), 0);
     const labels = [
       "Review",
       "Run every relevant test",
@@ -45,13 +46,12 @@ export async function verifyThreadActions({ stack, fixture }) {
       "Check the pull request status",
     ];
     for (const [index, label] of labels.entries()) {
-      await dialog.getByRole("button", { name: "Add action" }).click();
-      await dialog.getByRole("textbox", { name: `Action ${index + 1} button label` }).fill(label);
-      await dialog.getByRole("textbox", { name: `Action ${index + 1} prompt` }).fill(`${label} in this thread.`);
+      await editor.getByRole("button", { name: "Add action" }).click();
+      await editor.getByRole("textbox", { name: `Action ${index + 1} button label` }).fill(label);
+      await editor.getByRole("textbox", { name: `Action ${index + 1} prompt` }).fill(`${label} in this thread.`);
     }
-    assert.equal(await hideTitle.isDisabled(), false);
-    await dialog.getByRole("button", { name: "Save actions" }).click();
-    await dialog.waitFor({ state: "hidden" });
+    await editor.getByRole("button", { name: "Save actions" }).click();
+    await editor.waitFor({ state: "hidden" });
     const action = target.getByRole("button", { name: `Review in ${thread.title}` });
     await action.waitFor();
     assert.equal(await target.getByRole("button", { name: / in / }).count(), labels.length);
@@ -137,14 +137,19 @@ export async function verifyThreadActions({ stack, fixture }) {
     const hoverColor = await action.evaluate((button) => getComputedStyle(button).backgroundColor);
     assert.notEqual(hoverColor, restColor, "The action has a distinct hover fill");
 
-    await target.hover();
-    await target.getByRole("button", { name: "Thread actions" }).click();
-    await page.getByRole("menuitem", { name: "Edit actions" }).click();
-    await hideTitle.check();
-    await dialog.getByRole("button", { name: "Save actions" }).click();
-    await dialog.waitFor({ state: "hidden" });
-    await target.getByText(thread.title, { exact: true }).waitFor({ state: "hidden" });
-    assert.equal(await action.isVisible(), true, "Actions remain visible without the title");
+    // Older saved display preferences cannot hide the title anymore.
+    const legacySaved = await page.request.post(rpc("saveThreadActionsV1"), {
+      data: {
+        threadId: thread.id,
+        actions: labels.map((label, index) => ({ id: `legacy-${index}`, label: label.slice(0, 24), prompt: `${label} in this thread.` })),
+        hideTitle: true,
+      },
+    });
+    assert.equal(legacySaved.status(), 200);
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
+    await list.waitFor({ timeout: 120_000 });
+    await target.getByText(thread.title, { exact: true }).waitFor({ state: "attached" });
+    assert.equal(await action.isVisible(), true, "Actions remain visible beside the title");
 
     const before = page.url();
     await page.mouse.move(1000, 700);
@@ -180,12 +185,6 @@ export async function verifyThreadActions({ stack, fixture }) {
     await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
     await list.waitFor({ timeout: 120_000 });
     await action.waitFor();
-    await target.hover();
-    await target.getByRole("button", { name: "Thread actions" }).click();
-    await page.getByRole("menuitem", { name: "Edit actions" }).click();
-    await hideTitle.uncheck();
-    await dialog.getByRole("button", { name: "Save actions" }).click();
-    await dialog.waitFor({ state: "hidden" });
     // Five actions beside a PR number can leave the title no width at all.
     await target.getByText(thread.title, { exact: true }).waitFor({ state: "attached" });
     await target.evaluate((node) => { node.style.width = "230px"; });

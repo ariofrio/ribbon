@@ -118,7 +118,7 @@ export const rpcContract = defineRpcContract({
       .object({
         threads: z.array(
           z
-            .object({ threadId: z.string(), actions: threadActionsSchema, hideTitle: z.boolean() })
+            .object({ threadId: z.string(), actions: threadActionsSchema })
             .strict(),
         ),
       })
@@ -129,7 +129,8 @@ export const rpcContract = defineRpcContract({
       .object({
         threadId: z.string().min(1).max(256),
         actions: threadActionsSchema,
-        hideTitle: z.boolean(),
+        // Accept older clients' display preference without applying it.
+        hideTitle: z.boolean().optional(),
       })
       .strict(),
     output: z.object({ ok: z.literal(true) }).strict(),
@@ -820,12 +821,12 @@ export default async function ribbonServer(
     },
   });
 
-  async function saveThreadActions({ threadId, actions, hideTitle }: ThreadActionsRecord) {
+  async function saveThreadActions({ threadId, actions }: ThreadActionsRecord) {
     const thread = await bb.sdk.threads.get({ threadId });
     if (thread.archivedAt !== null) {
       throw new Error("Archived threads cannot have actions.");
     }
-    threadActions.save(threadId, actions, hideTitle);
+    threadActions.save(threadId, actions);
     bb.realtime.publish("thread-actions-changed", { threadId });
     return { ok: true as const };
   }
@@ -981,7 +982,7 @@ export default async function ribbonServer(
         async list(threadId) {
           await bb.sdk.threads.get({ threadId });
           return threadActions.list().find((record) => record.threadId === threadId)
-            ?? { threadId, actions: [], hideTitle: false };
+            ?? { threadId, actions: [] };
         },
       }),
     },

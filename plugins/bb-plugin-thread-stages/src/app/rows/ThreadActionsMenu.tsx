@@ -35,7 +35,8 @@ import { CompactLongPressMenu } from "../ui/compact-long-press-menu.js";
 import { copyToClipboardWithToast } from "../ui/clipboard.js";
 import type { SidebarThread } from "../model/sidebar-thread.js";
 import { useThreadSectionMove } from "./ThreadSectionMoveProvider.js";
-import { RibbonThreadMenuItems } from "../../ribbon/app/menu.js";
+import { RibbonThreadActionsMenu, RibbonThreadStageMenu } from "../../ribbon/app/menu.js";
+import { ThreadActionsEditor } from "../../ribbon/app/ThreadActionsEditor.js";
 
 interface ThreadActionsMenuBaseProps {
   thread: SidebarThread;
@@ -64,11 +65,12 @@ interface ThreadActionsContextMenuProps extends ThreadActionsMenuBaseProps {
 }
 
 type ThreadActionsMenuSurface = "context" | "dropdown";
-type ThreadActionsCompactStep = "actions" | "move";
+type ThreadActionsCompactStep = "actions" | "move" | "edit";
 
 interface ThreadActionsMenuItemsProps extends ThreadActionsMenuBaseProps {
   compactStep?: ThreadActionsCompactStep;
   onCompactStepChange?: (step: ThreadActionsCompactStep) => void;
+  onActionsSaved?: () => void;
   responsiveActions?: readonly ThreadActionsMenuResponsiveAction[];
   surface: ThreadActionsMenuSurface;
 }
@@ -201,6 +203,7 @@ function ThreadActionsMenuItems({
   onRename,
   compactStep = "actions",
   onCompactStepChange,
+  onActionsSaved,
   responsiveActions = [],
   surface,
 }: ThreadActionsMenuItemsProps) {
@@ -213,6 +216,26 @@ function ThreadActionsMenuItems({
   const isArchived = thread.archivedAt != null;
   const isPinned = thread.pinnedAt !== null;
   const threadUrl = getThreadUrl(thread);
+
+  if (isDrawer && compactStep === "edit") {
+    return (
+      <>
+        <DropdownMenuItem onSelect={(event) => {
+          event.preventDefault();
+          onCompactStepChange?.("actions");
+        }}>
+          <Icon name="ChevronLeft" aria-hidden />
+          Back
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Edit actions</DropdownMenuLabel>
+        <ThreadActionsEditor threadId={thread.id} onSaved={() => {
+          onCompactStepChange?.("actions");
+          onActionsSaved?.();
+        }} />
+      </>
+    );
+  }
 
   if (isDrawer && compactStep === "move") {
     return (
@@ -280,6 +303,7 @@ function ThreadActionsMenuItems({
       >
         {isRead ? "Mark unread" : "Mark read"}
       </ActionMenuItem>
+      {showSeparators ? <ActionMenuSeparator surface={surface} /> : null}
       <ActionMenuItem
         surface={surface}
         icon={isPinned ? "PinOff" : "Pin"}
@@ -295,6 +319,8 @@ function ThreadActionsMenuItems({
         surface={surface}
         thread={thread}
       />
+      <RibbonThreadStageMenu thread={thread} surface={surface} drawer={isDrawer} />
+      {showSeparators ? <ActionMenuSeparator surface={surface} /> : null}
       <ActionMenuItem
         surface={surface}
         icon="Edit"
@@ -304,7 +330,13 @@ function ThreadActionsMenuItems({
       >
         Rename
       </ActionMenuItem>
-      <RibbonThreadMenuItems thread={thread} surface={surface} drawer={isDrawer} />
+      <RibbonThreadActionsMenu
+        thread={thread}
+        surface={surface}
+        drawer={isDrawer}
+        onOpenEditor={() => onCompactStepChange?.("edit")}
+        onSaved={onActionsSaved}
+      />
       {showSeparators ? <ActionMenuSeparator surface={surface} /> : null}
       <ActionMenuItem
         surface={surface}
@@ -336,10 +368,12 @@ function ThreadActionsMenuItems({
 }
 
 function useThreadActionsMenuLifecycle(onOpenChange?: (open: boolean) => void) {
+  const [open, setOpen] = useState(false);
   const [compactStep, setCompactStep] =
     useState<ThreadActionsCompactStep>("actions");
   const handleOpenChange = useCallback(
     (open: boolean) => {
+      setOpen(open);
       if (!open) {
         setCompactStep("actions");
       }
@@ -348,7 +382,7 @@ function useThreadActionsMenuLifecycle(onOpenChange?: (open: boolean) => void) {
     [onOpenChange],
   );
 
-  return { compactStep, setCompactStep, handleOpenChange };
+  return { open, compactStep, setCompactStep, handleOpenChange };
 }
 
 export function ThreadArchiveQuickAction({
@@ -408,11 +442,11 @@ export function ThreadActionsMenu({
   onOpenChange,
   triggerClassName,
 }: ThreadActionsMenuProps) {
-  const { compactStep, setCompactStep, handleOpenChange } =
+  const { open, compactStep, setCompactStep, handleOpenChange } =
     useThreadActionsMenuLifecycle(onOpenChange);
 
   return (
-    <DropdownMenu onOpenChange={handleOpenChange}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -441,6 +475,7 @@ export function ThreadActionsMenu({
           onRename={onRename}
           compactStep={compactStep}
           onCompactStepChange={setCompactStep}
+          onActionsSaved={() => handleOpenChange(false)}
           responsiveActions={responsiveActions}
           surface="dropdown"
         />
@@ -534,6 +569,7 @@ function ThreadActionsDesktopContextMenu({
           onOpenInSplit={onOpenInSplit}
           onRename={onRename}
           surface="context"
+          onActionsSaved={() => handleOpenChange(false)}
         />
       </ContextMenuContent>
     </ContextMenu>

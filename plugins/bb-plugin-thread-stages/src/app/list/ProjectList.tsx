@@ -127,7 +127,6 @@ import {
   type SidebarProject,
 } from "../model/use-sidebar-data.js";
 import { useRibbonData } from "../../ribbon/app/data.js";
-import { ThreadActionsEditor } from "../../ribbon/app/ThreadActionsEditor.js";
 import {
   RibbonHeadingIcon,
   useHeadingStyle,
@@ -2118,7 +2117,6 @@ function ProjectListComponent({
               {ribbon.error}
             </div>
           ) : null}
-          <ThreadActionsEditor />
         </>
       ) : null}
     </SidebarHeaderActionsProvider>

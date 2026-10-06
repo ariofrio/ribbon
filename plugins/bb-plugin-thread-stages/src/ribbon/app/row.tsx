@@ -69,7 +69,6 @@ export function useRibbonRow(
     pending: boolean;
   } | null;
   actions: readonly ThreadAction[];
-  hideTitle: boolean;
   runThreadAction(threadId: string, actionId: string): Promise<void>;
 } | null {
   // The row's own slice of Ribbon's data, so a change elsewhere in the list
@@ -134,7 +133,6 @@ export function useRibbonRow(
           }
         : null,
     actions,
-    hideTitle: actions.length > 0 && (record?.hideTitle ?? false),
     runThreadAction,
   };
 }

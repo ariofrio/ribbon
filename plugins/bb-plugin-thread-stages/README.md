@@ -107,16 +107,15 @@ hovered or focused, pans to its end and back. **Long titles** in the plugin's
 settings keeps the fade but not the pan, or cuts titles with bb's ellipsis
 instead. The pan respects reduced motion.
 
-Use a thread's **⋯ menu → Edit actions** to add labeled prompts. Their
+Use **Edit actions** in a thread's context menu or ⋯ menu to add labeled prompts. Their
 buttons appear beside the thread title, colored like the section or project,
-and send the saved prompt to that thread when clicked. **Hide thread title**
-gives them the whole row.
+and send the saved prompt to that thread when clicked.
 
 The same actions are available through `bb thread-stages actions list`, `set`, and
 `run`. Pass a thread ID or `--self`; `set --actions '<json-array>'` replaces
 the buttons, and `run <action-id>` sends a saved prompt. See the
 [Thread actions skill reference](skills/thread-stages/SKILL.md#thread-actions)
-for the JSON format and title setting.
+for the JSON format.
 
 A thread's pull request adds its status. Its icon beside the PR number is
 green while open, amber once auto-merge is on or it is in the merge queue,

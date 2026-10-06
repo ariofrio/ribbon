@@ -707,40 +707,36 @@ function ThreadRowComponent({
                   </TooltipContent>
                 </Tooltip>
               ) : null}
-              {ribbon?.hideTitle ? (
-                <span className="min-w-0 flex-1" />
-              ) : (
-                <span
-                  className={cn(
-                    "bb-thread-title",
-                    (crossProjectLabel !== null || ribbon !== null) &&
-                      (ribbonMarquee ? "min-w-0" : "min-w-0 truncate"),
-                    ribbon !== null && "flex min-w-0 flex-1 items-center gap-2",
-                  )}
-                  title={labelTitle}
-                  onDoubleClick={startTitleEditing}
-                  // Inline, past bb's own rule for the class: the title takes
-                  // only what the buttons and number beside it leave, so it
-                  // is the first to give way as the row narrows.
-                  style={ribbon ? { flex: "1 1 0%" } : undefined}
-                  {...(ribbon ? { [SHINE_ATTRIBUTE]: "" } : {})}
-                >
-                  {ribbon ? (
-                    <ShineContent className="flex items-center gap-2">
-                      {ribbonMarquee ? (
-                        <MarqueeText
-                          text={labelTitle}
-                          pan={ribbonSettings.longTitles === "Fade and pan on hover"}
-                        />
-                      ) : (
-                        <ThreadTitle threadId={thread.id} />
-                      )}
-                    </ShineContent>
-                  ) : (
-                    <ThreadTitle threadId={thread.id} />
-                  )}
-                </span>
-              )}
+              <span
+                className={cn(
+                  "bb-thread-title",
+                  (crossProjectLabel !== null || ribbon !== null) &&
+                    (ribbonMarquee ? "min-w-0" : "min-w-0 truncate"),
+                  ribbon !== null && "flex min-w-0 flex-1 items-center gap-2",
+                )}
+                title={labelTitle}
+                onDoubleClick={startTitleEditing}
+                // Inline, past bb's own rule for the class: the title takes
+                // only what the buttons and number beside it leave, so it
+                // is the first to give way as the row narrows.
+                style={ribbon ? { flex: "1 1 0%" } : undefined}
+                {...(ribbon ? { [SHINE_ATTRIBUTE]: "" } : {})}
+              >
+                {ribbon ? (
+                  <ShineContent className="flex items-center gap-2">
+                    {ribbonMarquee ? (
+                      <MarqueeText
+                        text={labelTitle}
+                        pan={ribbonSettings.longTitles === "Fade and pan on hover"}
+                      />
+                    ) : (
+                      <ThreadTitle threadId={thread.id} />
+                    )}
+                  </ShineContent>
+                ) : (
+                  <ThreadTitle threadId={thread.id} />
+                )}
+              </span>
               {ribbon && ribbon.actions.length > 0 ? (
                 <RibbonActionButtons
                   actions={ribbon.actions}
