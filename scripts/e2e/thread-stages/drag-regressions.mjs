@@ -34,6 +34,7 @@ export async function verifyDragRegressions({ stack, fixture, cases }) {
     });
     const group = section(page, fixture.section.id);
     const row = (id) => link(group, id);
+    await group.getByRole("button", { name: "Show 1 more deferred", exact: true }).click();
     for (const thread of threads.slice(0, 8)) await row(thread.id).waitFor({ timeout: 120_000 });
     const mainIds = new Set(threads.slice(0, 6).map((t) => t.id));
     const order = async () => (await rowOrder(group)).filter((id) => mainIds.has(id));
