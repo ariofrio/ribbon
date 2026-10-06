@@ -48,10 +48,14 @@ Inside each group, Active and both Blocked stages share one manually ordered
 list, followed by Deferred and then Completed. New roots enter at the top, and
 activity leaves positions unchanged.
 
-Deferred and Completed each show the first two roots in their saved order;
-**Show N more deferred/completed** expands the rest, and **Show
-fewer** restores the preview. The open thread stays visible even outside the
-preview, and search reveals every matching result.
+Deferred and Completed preview roots in their saved order; entering Completed
+inserts a thread first. **Completed and Deferred preview rows** sets a limit of 1–5 rows
+per stage, defaulting to 2, including **Show N more deferred/completed**.
+With two or more threads, the default shows one thread and that button;
+a single thread shows on its own. At limit 1, a single thread shows on its
+own; multiple threads show only the button. The open thread replaces a preview
+row when needed. **Show fewer** restores the preview, and search reveals every
+matching result.
 
 Drag a root to reorder it within its list, onto its section's heading to put
 it first, or onto another section to move it there. Drag a child to reorder

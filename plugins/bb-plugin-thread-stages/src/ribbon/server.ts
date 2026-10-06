@@ -25,6 +25,7 @@ import { importIcons, importRibbonSidebar } from "./import-legacy-plugins";
 import { reclaimLegacyDatabase } from "./legacy-database";
 import { DEFAULT_LONG_TITLES, LONG_TITLE_OPTIONS } from "./long-titles";
 import { AUTO_ARCHIVE_OPTIONS } from "./workflow/auto-archive";
+import { DEFAULT_STAGE_PREVIEW_ROWS, STAGE_PREVIEW_ROW_OPTIONS } from "./stage-preview-rows";
 
 /** The Ribbon sidebar settings this plugin kept, by the names both use. */
 const RIBBON_SETTINGS = [
@@ -390,6 +391,14 @@ export default async function ribbonServer(
       description:
         "Send a thread a stage notice when you or another thread move it to a different stage.",
       default: true,
+    },
+    stagePreviewRows: {
+      type: "select",
+      label: "Completed and Deferred preview rows",
+      description:
+        "Maximum rows per stage preview, including Show more. One thread always shows on its own.",
+      options: [...STAGE_PREVIEW_ROW_OPTIONS],
+      default: String(DEFAULT_STAGE_PREVIEW_ROWS),
     },
     childThreadLines: {
       type: "select",
