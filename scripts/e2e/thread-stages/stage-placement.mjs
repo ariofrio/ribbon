@@ -40,6 +40,25 @@ export async function verifyStagePlacement({ stack, fixture }) {
       const grouping = organization === "project" ? "builtin:projects" : "builtin:sections";
       const groupId = organization === "project" ? projectId : fixture.section.id;
 
+      async function mainOrder() {
+        return group.locator('[aria-label$=" stage"]').evaluateAll((icons) =>
+          icons.filter((icon) =>
+            ["Active stage", "Blocked on other agent stage", "Blocked on third party stage"].includes(icon.getAttribute("aria-label")))
+            .map((icon) => icon.closest("[data-thread-id]"))
+            .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)
+            .map((row) => row.dataset.threadId));
+      }
+      async function afterOther() {
+        await page.waitForFunction(({ selector, first, second }) => {
+          const group = document.querySelector(selector);
+          const a = group.querySelector(`[data-thread-id="${first}"]`);
+          const b = group.querySelector(`[data-thread-id="${second}"]`);
+          return a && b && a.getBoundingClientRect().top < b.getBoundingClientRect().top;
+        }, {
+          selector: `[data-ribbon-sidebar-root] [data-sidebar-${organization === "project" ? "project" : "section"}-id="${groupId}"]`,
+          first: other.id, second: returning.id,
+        });
+      }
       async function first(stage, thread = returning) {
         await row(group, thread.id).getByLabel(`${labels[stage]} stage`, { exact: true }).waitFor();
         await page.waitForFunction(({ selector, id, deferred }) => {
@@ -85,18 +104,22 @@ export async function verifyStagePlacement({ stack, fixture }) {
           place(returning, "Active");
           fixture.run(["thread-stages", "place", returning.id, "--to", `${grouping}/${groupId}`, "--after", other.id]);
           await row(group, returning.id).getByLabel("Active stage", { exact: true }).waitFor();
+          await afterOther();
+          const before = await mainOrder();
           await move(stage, method);
-          await first(stage);
           if (stage === "Deferred") {
+            await first(stage);
             await move("Active", method);
-            await page.waitForFunction(({ first, second }) => {
-              const a = document.querySelector(`${first} [data-thread-id="${second[0]}"]`);
-              const b = document.querySelector(`${first} [data-thread-id="${second[1]}"]`);
-              return a && b && a.getBoundingClientRect().top < b.getBoundingClientRect().top;
-            }, { first: `[data-ribbon-sidebar-root] [data-sidebar-${organization === "project" ? "project" : "section"}-id="${groupId}"]`, second: [other.id, returning.id] });
+            await afterOther();
           } else {
+            assert.deepEqual(await mainOrder(), before);
+            await move(stage === "BlockedOnOtherAgent" ? "BlockedOnThirdParty" : "BlockedOnOtherAgent", method);
+            assert.deepEqual(await mainOrder(), before);
             await move("Active", method);
-            await first("Active");
+            await page.reload({ waitUntil: "domcontentloaded" });
+            await sidebar(page).waitFor({ timeout: 120_000 });
+            await row(group, returning.id).getByLabel("Active stage", { exact: true }).waitFor();
+            assert.deepEqual(await mainOrder(), before);
           }
         }
       }

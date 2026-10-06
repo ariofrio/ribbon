@@ -620,6 +620,7 @@ export function createPlacementStore(
         `).run(groupingKey, groupId, threadId, isMain(toStage) ? fromStage : "Active", current.sort_key);
       }
       if (!isMain(toStage)) continue;
+      if (isMain(fromStage) && anchor === undefined) continue;
       const retained = preserve
         ? database.prepare(`
             SELECT sort_key FROM main_stage_order

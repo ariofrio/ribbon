@@ -190,9 +190,7 @@ export async function verifyDragRegressions({ stack, fixture, cases }) {
         await gate;
         await route.fulfill({ response });
       });
-      // A stage change triggers a placement read. Use the first row so the
-      // stage's default top placement leaves the order under test unchanged.
-      fixture.run(["thread-stages", "place", initial[0], "--to", `${STAGES}/BlockedOnThirdParty`]);
+      fixture.run(["thread-stages", "place", initial[1], "--to", `${STAGES}/BlockedOnThirdParty`]);
       await Promise.race([
         readCaptured,
         new Promise((_, reject) => {

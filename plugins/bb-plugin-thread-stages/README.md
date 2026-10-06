@@ -56,11 +56,12 @@ preview, and search reveals every matching result.
 Drag a root to reorder it within its list, onto its section's heading to put
 it first, or onto another section to move it there. Drag a child to reorder
 it among its siblings; it stays under its parent and keeps its stage.
-Roots entering a stage go to the top of its list through the UI or CLI, and
-can then be reordered by dragging, shortcuts, or CLI placement. Active and
-both Blocked stages share the main list; Deferred and Completed keep their
-own orders. Returning a deferred or completed root to Active restores its
-main-list position, and undo restores the position before a stage move.
+Active and both Blocked stages share the main list; changing between those
+stages keeps a root's position. Deferred and Completed keep their own orders.
+Moving a root into another list defaults to the top through the UI or CLI,
+and it can then be reordered by dragging, shortcuts, or CLI placement.
+Returning a deferred or completed root to Active restores its main-list
+position, and undo restores the position before a stage move.
 bb owns section membership, pins, and lifecycle; project
 membership is bb's under project grouping too.
 

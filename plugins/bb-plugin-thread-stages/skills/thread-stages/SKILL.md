@@ -45,9 +45,10 @@ Place a thread by stage ID:
 Each child has its own stage and remains nested beneath its parent. A child
 can be reordered among its siblings, while its stage remains independent.
 
-New root threads enter at the top of their section or project. Stage changes
-enter at the top through either the UI or CLI. Active and both Blocked stages
-share the main list; Deferred and Completed each keep their own order.
+New root threads enter at the top of their section or project. Active and both
+Blocked stages share the main list; changing between those stages keeps a
+root's position. Deferred and Completed each keep their own order. Moving a
+root into another list defaults to the top through either the UI or CLI.
 Returning from Deferred or Completed to Active restores the main-list
 position, and the undo shortcut restores the position before a stage move.
 Reorder Deferred or Completed roots with `place --to

@@ -551,7 +551,7 @@ describe("Ribbon sidebar server", () => {
   );
 
   it.each(["cli", "menu", "shortcut"])(
-    "places stage entries first through %s and restores the main position on return",
+    "preserves main-list stage transitions through %s and places preview entries first",
     async (method) => {
       const { bb, harness } = setup({
         threads: ["a", "b", "c"].map((id) => makeThreadResponse({
@@ -579,14 +579,15 @@ describe("Ribbon sidebar server", () => {
         return result.value.items.map(({ threadId }) => threadId);
       };
       try {
-        for (const stage of ["BlockedOnOtherAgent", "BlockedOnThirdParty"]) {
+        for (const stage of [
+          "BlockedOnOtherAgent", "BlockedOnThirdParty", "Active",
+          "BlockedOnOtherAgent", "Active", "BlockedOnThirdParty",
+          "BlockedOnOtherAgent", "Active",
+        ]) {
           await place("c", stage);
           for (const key of ["builtin:sections", "builtin:projects"]) {
-            expect(await ids(key)).toEqual(["c", "a", "b"]);
+            expect(await ids(key)).toEqual(["a", "b", "c"]);
           }
-          await place("c", "Active");
-          await harness.behavior.runCli(["place", "c", "--to", "builtin:sections/section-a", "--after", "b"]);
-          await harness.behavior.runCli(["place", "c", "--to", "builtin:projects/project-a", "--after", "b"]);
         }
         for (const stage of ["Deferred", "Completed"]) {
           await place("a", stage);
@@ -604,7 +605,7 @@ describe("Ribbon sidebar server", () => {
     },
   );
 
-  it("honors explicit stage-entry anchors and restores a Blocked move with undo", async () => {
+  it("honors explicit main-list stage anchors and restores their position with undo", async () => {
     const { bb, harness } = setup({
       threads: ["a", "b", "c", "other"].map((id) => makeThreadResponse({
         id,
@@ -623,14 +624,18 @@ describe("Ribbon sidebar server", () => {
     }));
     try {
       const original = await orders();
-      await harness.behavior.callRpc("setWorkflowStage", {
-        threadId: "c", workflowStage: "BlockedOnThirdParty",
+      await harness.behavior.callRpc("updatePlacementV1", {
+        groupingKey: "plugin:thread-stages:stages", threadId: "c",
+        groupId: "BlockedOnThirdParty", anchor: { kind: "start" }, origin: "ui",
       });
       expect(await orders()).toEqual(keys.map(() => ["c", "a", "b", "other"]));
       // Active on an already Active thread undoes the latest UI filing.
       await harness.behavior.callRpc("setWorkflowStage", { threadId: "a", workflowStage: "Active" });
       expect(await orders()).toEqual(original);
-      await harness.behavior.runCli(["place", "b", "--to", "plugin:thread-stages:stages/BlockedOnThirdParty"]);
+      await harness.behavior.runCli(["place", "a", "--to", "plugin:thread-stages:stages/BlockedOnThirdParty"]);
+      await harness.behavior.runCli([
+        "place", "b", "--to", "plugin:thread-stages:stages/BlockedOnThirdParty", "--before", "a",
+      ]);
       await harness.behavior.runCli([
         "place", "c", "--to", "plugin:thread-stages:stages/BlockedOnThirdParty", "--after", "b",
       ]);
