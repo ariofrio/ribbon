@@ -50,9 +50,9 @@ activity leaves positions unchanged.
 
 Deferred previews roots in group order and Completed previews the most recent
 completions. **Completed and Deferred preview rows** sets a limit of 1–5 rows
-per stage, defaulting to 3, including **Show N more deferred/completed**.
-With three or more threads, the default shows two threads and that button;
-one or two threads show on their own. At limit 1, a single thread shows on its
+per stage, defaulting to 2, including **Show N more deferred/completed**.
+With two or more threads, the default shows one thread and that button;
+a single thread shows on its own. At limit 1, a single thread shows on its
 own; multiple threads show only the button. The open thread replaces a preview
 row when needed. **Show fewer** restores the preview, and search reveals every
 matching result.

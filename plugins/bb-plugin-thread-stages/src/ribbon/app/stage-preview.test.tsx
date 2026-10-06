@@ -21,11 +21,10 @@ it("counts only hidden rows and keeps the selected root within the preview budge
     />,
   );
   expect(view.getAllByRole("link").map((link) => link.textContent)).toEqual([
-    "thread-0",
     "thread-7",
   ]);
   expect(
-    view.getByRole("button", { name: "Show 6 more completed" }),
+    view.getByRole("button", { name: "Show 7 more completed" }),
   ).toBeTruthy();
 });
 it.each([
@@ -67,17 +66,17 @@ it("keyboard expansion enters the revealed rows and shortening returns focus to 
       renderRow={renderRow}
     />,
   );
-  fireEvent.click(view.getByRole("button", { name: "Show 6 more deferred" }), {
+  fireEvent.click(view.getByRole("button", { name: "Show 7 more deferred" }), {
     detail: 0,
   });
   expect(document.activeElement).toBe(
-    view.getByRole("link", { name: "thread-2" }),
+    view.getByRole("link", { name: "thread-1" }),
   );
   fireEvent.click(view.getByRole("button", { name: "Show fewer deferred" }));
   expect(document.activeElement).toBe(
-    view.getByRole("button", { name: "Show 6 more deferred" }),
+    view.getByRole("button", { name: "Show 7 more deferred" }),
   );
-  expect(view.getAllByRole("link")).toHaveLength(2);
+  expect(view.getAllByRole("link")).toHaveLength(1);
   vi.unstubAllGlobals();
 });
 it("search reveals every matching result without an overflow control", () => {
