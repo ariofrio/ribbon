@@ -32,9 +32,10 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     await page.waitForURL(`**/threads/${revealed}`);
     const fewer = group.getByRole("button", { name: "Show fewer completed", exact: true });
     await fewer.click();
-    await group.getByRole("button", { name: "Show 2 more completed", exact: true }).waitFor();
-    assert.equal(await completed.count(), 3, "The selected completion remains visible outside the two-row preview");
-    assert.equal(await page.evaluate(() => document.activeElement?.textContent), "Show 2 more completed");
+    await group.getByRole("button", { name: "Show 3 more completed", exact: true }).waitFor();
+    assert.equal(await completed.count(), 2, "The selected completion replaces a preview row");
+    assert.ok(await row(group, revealed).isVisible(), "The selected completion stays visible");
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent), "Show 3 more completed");
     await row(group, shortcut.id).locator("a[data-sidebar-thread-id]").click();
     await group.getByRole("button", { name: "Show 3 more completed", exact: true }).waitFor();
     async function first(thread) {
@@ -59,8 +60,38 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     place(returning, "Active");
     place(returning, "Completed");
     await first(returning);
+    const previewRows = (stage) => group.locator("[data-thread-id]").filter({
+      has: page.getByLabel(`${stage} stage`, { exact: true }),
+    });
+    for (const limit of [1, 2, 3, 4, 5]) {
+      fixture.run(["plugin", "config", "thread-stages", "set", "stagePreviewRows", String(limit)]);
+      await group.getByRole("button", { name: `Show ${7 - limit} more completed`, exact: true }).waitFor();
+      assert.equal(await completed.count(), limit - 1);
+      assert.equal(await previewRows("Deferred").count(), 1, "A single Deferred thread stays visible at every limit");
+    }
+    // Move the drawn completions to exercise Deferred's overflow with the same setting.
+    const deferredIds = await completed.evaluateAll((nodes) => nodes.map((node) => node.dataset.threadId));
+    try {
+      for (const id of deferredIds) place({ id }, "Deferred");
+      fixture.run(["plugin", "config", "thread-stages", "set", "stagePreviewRows", "3"]);
+      const deferredCount = deferredIds.length + 1;
+      await group.getByRole("button", { name: `Show ${deferredCount - 2} more deferred`, exact: true }).waitFor();
+      assert.equal(await previewRows("Deferred").count(), 2);
+      fixture.run(["plugin", "config", "thread-stages", "set", "stagePreviewRows", "1"]);
+      const deferredMore = group.getByRole("button", { name: `Show ${deferredCount} more deferred`, exact: true });
+      await deferredMore.waitFor();
+      assert.equal(await previewRows("Deferred").count(), 0);
+      await deferredMore.click();
+      assert.equal(await previewRows("Deferred").count(), deferredCount);
+      await group.getByRole("button", { name: "Show fewer deferred", exact: true }).click();
+      await deferredMore.waitFor();
+      assert.equal(await previewRows("Deferred").count(), 0);
+    } finally {
+      for (const id of deferredIds) place({ id }, "Completed");
+    }
     await context.close();
   } finally {
+    fixture.run(["plugin", "config", "thread-stages", "set", "stagePreviewRows", "3"]);
     place(shortcut, "Active");
     place(returning, "Completed");
     await browser.close();

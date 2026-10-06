@@ -7,8 +7,7 @@ import {
 } from "react";
 import { CHROME_SECTION_LABEL_CLASS } from "./chrome-style-tokens";
 import { Button } from "@/components/ui/button";
-
-const PREVIEW_LIMIT = 2;
+import { DEFAULT_STAGE_PREVIEW_ROWS } from "../stage-preview-rows";
 
 /** A flat continuation of section rows, with the current hierarchy kept visible. */
 export function StagePreview<T extends { id: string }>({
@@ -17,23 +16,32 @@ export function StagePreview<T extends { id: string }>({
   selectedRootId,
   renderRow,
   revealAll = false,
+  rowLimit = DEFAULT_STAGE_PREVIEW_ROWS,
 }: {
   stage: "deferred" | "completed";
   rows: readonly T[];
   selectedRootId: string | null;
   renderRow(row: T): ReactNode;
   revealAll?: boolean;
+  rowLimit?: number;
 }) {
   const [expanded, setExpanded] = useState(false);
   const list = useRef<HTMLUListElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const focusAfter = useRef<string | "button" | null>(null);
   const id = useId();
+  const previewLimit =
+    rows.length <= 1 || rows.length < rowLimit ? rows.length : rowLimit - 1;
+  const selectedOutsidePreview =
+    previewLimit > 0 &&
+    rows.slice(previewLimit).some((row) => row.id === selectedRootId);
   const visible =
     expanded || revealAll
       ? rows
       : rows.filter(
-          (row, index) => index < PREVIEW_LIMIT || row.id === selectedRootId,
+          (row, index) =>
+            index < previewLimit - Number(selectedOutsidePreview) ||
+            (previewLimit > 0 && row.id === selectedRootId),
         );
   const hidden = rows.length - visible.length;
   useLayoutEffect(() => {
@@ -49,14 +57,14 @@ export function StagePreview<T extends { id: string }>({
     element?.focus({ preventScroll: true });
     element?.scrollIntoView({ block: "nearest" });
   }, [expanded]);
-  if (visible.length === 0) return null;
+  if (rows.length === 0) return null;
   return (
     <>
       <ul className="space-y-px" id={id} ref={list}>
         {visible.map(renderRow)}
       </ul>
       {!revealAll &&
-      (hidden > 0 || (expanded && rows.length > PREVIEW_LIMIT)) ? (
+      (hidden > 0 || (expanded && rows.length > previewLimit)) ? (
         <Button
           ref={button}
           aria-controls={id}

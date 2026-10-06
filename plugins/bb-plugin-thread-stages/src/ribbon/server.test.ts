@@ -464,6 +464,7 @@ describe("Ribbon sidebar server", () => {
       // Behavior, then appearance: bb draws them in this order.
       "autoArchiveCompletedAfter",
       "messageOnStageChange",
+      "stagePreviewRows",
       "childThreadLines",
       "groupHeaderIcons",
       "shimmerWorkingRows",
@@ -474,6 +475,7 @@ describe("Ribbon sidebar server", () => {
     expect(harness.inspection.registrations.settingsDescriptors).toMatchObject({
       autoArchiveCompletedAfter: { type: "select", default: "7 days" },
       messageOnStageChange: { type: "boolean", default: true },
+      stagePreviewRows: { type: "select", options: ["1", "2", "3", "4", "5"], default: "3" },
       childThreadLines: { type: "select", options: ["Bar", "Tree"], default: "Bar" },
       groupHeaderIcons: { type: "boolean", default: true },
       shimmerWorkingRows: { type: "boolean", default: true },
