@@ -1047,13 +1047,13 @@ it("skips a thread whose machine offers no Codex Luna model", async () => {
   expect(h.spawned).toHaveLength(0);
 });
 
-it("runs every title worker on the selected model on the thread's host", async () => {
+it("runs title workers with a provider-defined service tier on the thread's host", async () => {
   const h = await setup();
   const selection = {
     providerId: "claude-code",
     model: "claude-sonnet-5",
     reasoningLevel: "medium",
-    serviceTier: "fast",
+    serviceTier: "priority",
   };
   await h.harness.behavior.callRpc("selection.set", { selection });
   expect(await h.harness.behavior.callRpc("selection.get", null)).toMatchObject(

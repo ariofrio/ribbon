@@ -1,3 +1,4 @@
+import { NO_THREAD_IDS, useThreadsHaveDraft } from "./sidebarDraftPresence.js";
 import {
   useCallback,
   type CSSProperties,
@@ -132,11 +133,16 @@ export function TopLevelSidebarSection({
     collapseControl?.isCollapsed === true,
   );
   const pluginStatus = usePluginThreadRowStatusForThreads(collapsedThreads);
+  const hiddenThreadsHaveDraft = useThreadsHaveDraft(
+    collapseControl?.isCollapsed === true
+      ? collapsedActivity?.threadIds ?? NO_THREAD_IDS
+      : NO_THREAD_IDS,
+  );
   const hasCollapsedActivity =
     collapsedActivity !== undefined &&
     (collapsedActivity.pending ||
       collapsedActivity.working ||
-      collapsedActivity.hasUnsubmittedDraft ||
+      hiddenThreadsHaveDraft ||
       collapsedActivity.unread ||
       collapsedActivity.unreadError);
   const showCollapsedActivity =
@@ -247,7 +253,9 @@ export function TopLevelSidebarSection({
   const stopCollapseControlKeyDown = useCallback<
     KeyboardEventHandler<HTMLButtonElement>
   >((event) => {
-    event.stopPropagation();
+    if (event.key === "Enter" || event.key === " ") {
+      event.stopPropagation();
+    }
   }, []);
 
   return (

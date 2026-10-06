@@ -98,7 +98,6 @@ function thread(
     lifecycleOwnerThreadId: null,
     runtime: {
       displayStatus: "idle",
-      hostReconnectGraceExpiresAt: null,
     },
     ...values,
   };
@@ -140,8 +139,7 @@ function setup() {
           updatedAt: 40,
           runtime: {
             displayStatus: "active",
-            hostReconnectGraceExpiresAt: null,
-          },
+                },
         }),
       ],
       updatePlacement: (input: Parameters<typeof store.updatePlacement>[0]) =>

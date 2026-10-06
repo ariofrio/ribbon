@@ -9,7 +9,7 @@ project icons.
 </picture>
 
 Install it and select **Thread stages** under **Settings → Appearance →
-Sidebar** (bb 0.44.0 or newer):
+Sidebar** (bb 0.45.0 or newer):
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon
@@ -19,7 +19,7 @@ bb plugin install thread-stages@ribbon
 ## Where it comes from
 
 This plugin is a fork of bb's own sidebar thread list, the built-in
-[`plugins/thread-list`](https://github.com/get-bb/bb/tree/desktop-v0.44.0/plugins/thread-list),
+[`plugins/thread-list`](https://github.com/get-bb/bb/tree/desktop-v0.45.0/plugins/thread-list),
 so it keeps everything bb's list does — pinned threads, custom sections,
 projects, machines, nested threads, drag to reorder, inline rename, search,
 the Organize, Sort, and Filter menus, and bb's own status glyphs — and adds

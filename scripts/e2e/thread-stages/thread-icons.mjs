@@ -212,6 +212,7 @@ export async function verifyThreadIcons({ stack, fixture }) {
           number: 123, title: "Sidebar pull request", state: prState,
           url: "https://github.com/example/project/pull/123",
           baseRefName: "main", headRefName: "feature", updatedAt: "2026-09-18T00:00:00Z",
+          autoMerge: false, inMergeQueue: false,
           checks: { state: "no_checks", totalCount: 0, passedCount: 0, failedCount: 0, pendingCount: 0 },
           review: { state: "none", reviewRequestCount: 0 },
           mergeability: { state: "mergeable", mergeStateStatus: null, mergeable: null },

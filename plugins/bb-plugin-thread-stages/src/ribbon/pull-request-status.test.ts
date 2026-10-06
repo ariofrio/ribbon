@@ -13,6 +13,11 @@ function pr(overrides: Partial<SidebarPullRequest> = {}): SidebarPullRequest {
     url: "https://github.com/acme/app/pull/12",
     state: "open",
     attention: "none",
+    experimental_autoMerge: false,
+    experimental_inMergeQueue: null,
+    experimental_checks: { state: "unknown" },
+    experimental_review: { state: "none" },
+    experimental_mergeability: { state: "unknown" },
     ...overrides,
   };
 }
