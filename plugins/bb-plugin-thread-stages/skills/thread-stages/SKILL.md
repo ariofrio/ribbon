@@ -45,6 +45,12 @@ Place a thread by stage ID:
 Each child has its own stage and remains nested beneath its parent. A child
 can be reordered among its siblings, while its stage remains independent.
 
+New root threads enter at the top of their section or project. A root entering
+Completed goes to the top of its Completed list through either the UI or CLI.
+Reorder Completed roots with `place --to plugin:thread-stages:stages/Completed`
+and `--before` or `--after` another Completed root. Their section or project
+rank is retained for returning to the main list.
+
 Treat **Completed** threads as out of scope by default. Exclude them from bulk
 operations, messages, and notifications unless the user explicitly includes
 them or intends to resume them. Do not archive a thread merely to mark it

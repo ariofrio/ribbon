@@ -619,6 +619,47 @@ describe("Ribbon sidebar server", () => {
 
 
 
+  it.each(["builtin:sections", "builtin:projects"] as const)(
+    "reorders Completed with shortcuts in saved stage order within the current %s group",
+    async (groupingKey) => {
+      const threads = ["a", "b", "c", "other"].map((id) =>
+        makeThreadResponse({
+          id,
+          projectId: id === "other" ? "project-b" : "project-a",
+          sectionId: id === "other" ? "section-b" : "section-a",
+        }),
+      );
+      const { bb, harness } = setup({ threads, settings: { messageOnStageChange: false } });
+      await plugin(bb);
+      const order = () => harness.behavior.callRpc("listPlacementsV1", {
+        groupingKey: "plugin:thread-stages:stages", groupIds: ["Completed"],
+      });
+      const groupOrder = await harness.behavior.callRpc("listPlacementsV1", { groupingKey });
+      for (const id of ["a", "b", "c", "other"]) {
+        await harness.behavior.runCli([
+          "place", id, "--to", "plugin:thread-stages:stages/Completed",
+        ]);
+      }
+      expect(await order()).toMatchObject({
+        value: { items: ["other", "c", "b", "a"].map((threadId) => ({ threadId })) },
+      });
+      await harness.behavior.callRpc("reorderThread", {
+        threadId: "c", scope: "step", direction: 1, groupingKey,
+      });
+      expect(await order()).toMatchObject({
+        value: { items: ["other", "b", "c", "a"].map((threadId) => ({ threadId })) },
+      });
+      await harness.behavior.callRpc("reorderThread", {
+        threadId: "b", scope: "edge", direction: 1, groupingKey,
+      });
+      expect(await order()).toMatchObject({
+        value: { items: ["other", "c", "a", "b"].map((threadId) => ({ threadId })) },
+      });
+      expect(await harness.behavior.callRpc("listPlacementsV1", { groupingKey })).toEqual(groupOrder);
+      await harness.lifecycle.dispose();
+    },
+  );
+
   it("defines only the settings still in flux; the rest are decided", async () => {
     const { bb, harness } = setup();
     await plugin(bb);

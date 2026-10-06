@@ -32,13 +32,13 @@ export function bandOf(stage: WorkflowStage | undefined): StageBand {
 
 /**
  * Partitions a group's roots, in their retained order, into the main list
- * (Active and both Blocked stages), Deferred, and Completed. Only Completed re-sorts, by
- * completion time, so a root keeps its rank through every other stage.
+ * (Active and both Blocked stages), Deferred, and Completed. Completed uses
+ * its saved stage order; every other stage keeps the section or project rank.
  */
 export function stageBands(
   items: readonly ProjectThreadItem[],
   stageOf: (threadId: string) => WorkflowStage | undefined,
-  completedAt: (threadId: string) => number,
+  completedRank: (threadId: string) => number,
 ): StageBands {
   const bands: StageBands = { main: [], deferred: [], completed: [] };
   for (const item of items) {
@@ -50,9 +50,9 @@ export function stageBands(
     bands[bandOf(stageOf(thread.id))].push(item);
   }
   bands.completed.sort((left, right) => {
-    const leftAt = completedAt(itemThread(left)?.id ?? "");
-    const rightAt = completedAt(itemThread(right)?.id ?? "");
-    return rightAt - leftAt;
+    const leftRank = completedRank(itemThread(left)?.id ?? "");
+    const rightRank = completedRank(itemThread(right)?.id ?? "");
+    return leftRank - rightRank;
   });
   return bands;
 }
