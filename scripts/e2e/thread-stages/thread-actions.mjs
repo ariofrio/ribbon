@@ -51,6 +51,7 @@ export async function verifyThreadActions({ stack, fixture }) {
       await editor.getByRole("textbox", { name: `Action ${index + 1} button label` }).fill(label);
       await editor.getByRole("textbox", { name: `Action ${index + 1} prompt` }).fill(`${label} in this thread.`);
     }
+    await editor.focus();
     const tableLayout = await editor.getByRole("table", { name: "Thread actions" }).evaluate((table) => {
       const fields = [...table.querySelectorAll("input, textarea")].map((field) => {
         const box = field.getBoundingClientRect();
@@ -74,14 +75,19 @@ export async function verifyThreadActions({ stack, fixture }) {
     assert.equal(await editor.getByRole("textbox").count(), 14, "Extra empty rows remain while the editor is focused");
     await editor.focus();
     assert.equal(await editor.getByRole("textbox").count(), 12, "Unfocusing the table collapses extra empty rows");
-    const autosaved = page.waitForResponse((response) => response.url().endsWith("/rpc/saveThreadActionsV1") && response.status() === 200);
+    const autosaved = page.waitForResponse((response) => response.url().endsWith("/rpc/saveThreadActionsV1") && response.status() === 200
+      && response.request().postDataJSON().actions[4]?.prompt === `${labels[4]} in this thread. Again.`);
     await editor.getByRole("textbox", { name: "Action 5 prompt" }).fill(`${labels[4]} in this thread. Again.`);
     await page.keyboard.press("Escape");
+    await editor.waitFor({ state: "hidden" });
     await autosaved;
     await page.keyboard.press("Escape");
-    await editor.waitFor({ state: "hidden" });
     const action = target.getByRole("button", { name: `Review in ${thread.title}` });
-    await action.waitFor();
+    await action.waitFor().catch(async (cause) => {
+      const records = await page.request.post(rpc("listThreadActionsV1"), { data: "null", headers: { "content-type": "application/json" } });
+      console.error("Saved actions and rendered row", JSON.stringify(await records.json()), await target.innerText());
+      throw cause;
+    });
     assert.equal(await target.getByRole("button", { name: / in / }).count(), labels.length);
     await target.evaluate((node) => { node.style.width = "1100px"; });
     await page.waitForFunction(({ id, title }) => {

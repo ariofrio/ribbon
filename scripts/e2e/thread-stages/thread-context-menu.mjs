@@ -111,6 +111,9 @@ export async function verifyThreadContextMenu({ stack, fixture }) {
       await removed;
       assert.equal(await editor.getByRole("textbox").count(), 2, "Removing an action leaves one blank row");
       await page.keyboard.press("Escape");
+      await editor.waitFor({ state: "hidden" });
+      assert.equal(await menu.isVisible(), true, "Escape returns from the editor to its parent menu");
+      await page.keyboard.press("Escape");
       await menu.waitFor({ state: "hidden" });
       await row.click({ button: "right" });
       await menu.getByRole("menuitem", { name: "Rename" }).click();

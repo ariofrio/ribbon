@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   ContextMenu,
@@ -214,11 +214,12 @@ function ThreadActionsMenuItems({
   const isArchived = thread.archivedAt != null;
   const isPinned = thread.pinnedAt !== null;
   const threadUrl = getThreadUrl(thread);
+  const editorBack = useRef<HTMLElement | null>(null);
 
   if (isDrawer && compactStep === "edit") {
     return (
       <>
-        <DropdownMenuItem onSelect={(event) => {
+        <DropdownMenuItem ref={(node) => { editorBack.current = node; }} onSelect={(event) => {
           event.preventDefault();
           onCompactStepChange?.("actions");
         }}>
@@ -227,7 +228,7 @@ function ThreadActionsMenuItems({
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Edit actions</DropdownMenuLabel>
-        <ThreadActionsEditor threadId={thread.id} />
+        <ThreadActionsEditor threadId={thread.id} onTabBoundary={() => editorBack.current?.focus()} />
       </>
     );
   }

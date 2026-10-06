@@ -14,6 +14,7 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { TouchInteraction01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useRef, useState } from "react";
 import type { SidebarThread } from "../../app/model/sidebar-thread.js";
 import {
   ActionMenuSeparator,
@@ -101,6 +102,8 @@ export function RibbonThreadActionsMenu({
   onOpenEditor?: () => void;
 }) {
   const ribbon = useRibbonData();
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLDivElement>(null);
   if (ribbon === null || thread.archivedAt !== null) return null;
   const icon = <HugeiconsIcon icon={TouchInteraction01Icon} className="size-4 shrink-0" aria-hidden />;
   if (drawer) {
@@ -118,19 +121,27 @@ export function RibbonThreadActionsMenu({
   const Sub = surface === "context" ? ContextMenuSub : DropdownMenuSub;
   const SubTrigger = surface === "context" ? ContextMenuSubTrigger : DropdownMenuSubTrigger;
   const SubContent = surface === "context" ? ContextMenuSubContent : DropdownMenuSubContent;
+  const closeEditor = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
   return (
-    <Sub>
-      <SubTrigger>{icon}Edit actions</SubTrigger>
+    <Sub open={open} onOpenChange={setOpen}>
+      <SubTrigger ref={trigger}>{icon}Edit actions</SubTrigger>
       <SubContent
         aria-label="Edit actions"
         className="max-h-[min(32rem,calc(100dvh-2rem))] w-96 max-w-[calc(100vw-2rem)] overflow-y-auto"
+        onEscapeKeyDown={(event) => {
+          event.preventDefault();
+          closeEditor();
+        }}
         onFocus={(event) => {
           if (event.target === event.currentTarget) {
             event.currentTarget.querySelector<HTMLElement>("input:not(:disabled), button:not(:disabled)")?.focus();
           }
         }}
       >
-        <ThreadActionsEditor threadId={thread.id} />
+        <ThreadActionsEditor threadId={thread.id} onExit={closeEditor} />
       </SubContent>
     </Sub>
   );
