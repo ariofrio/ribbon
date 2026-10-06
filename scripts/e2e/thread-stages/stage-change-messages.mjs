@@ -17,34 +17,16 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
     context.setDefaultTimeout(30_000);
     const page = await context.newPage();
     await page.goto(new URL(`/threads/${thread.id}`, stack.serverUrl).href);
-    // Only the notice's paragraph holds this text beside a mention pill.
-    const notice = page
-      .locator("p, div")
-      .filter({ hasText: /^Thread stage updated:/ })
-      .filter({ has: page.locator("[data-prompt-mention]") })
-      .last();
-    await notice.waitFor({ timeout: 60_000 });
-    // bb looks up a plugin's branding icon after the pill first draws.
-    await notice.evaluate(
-      (node) =>
-        new Promise((resolve) => {
-          const done = () =>
-            [...node.querySelectorAll("[data-prompt-mention]")].every((pill) =>
-              getComputedStyle(pill.firstElementChild).maskImage.includes("thread-stages"));
-          if (done()) return resolve();
-          const observer = new MutationObserver(() => {
-            if (!done()) return;
-            observer.disconnect();
-            resolve();
-          });
-          observer.observe(node, { subtree: true, childList: true, attributes: true });
-        }),
-    );
-    const mentions = notice.locator("[data-prompt-mention]");
-    await mentions.first().waitFor({ state: "visible" });
-    await mentions.last().waitFor({ state: "visible" });
-    const pills = await mentions.evaluateAll((nodes) =>
-      nodes.map((node) => {
+    // Query and measure together: the live timeline can replace a notice
+    // between evaluateAll's element query and its callback.
+    const rendered = await page.waitForFunction(() => {
+      // Only the notice's paragraph holds this text beside a mention pill.
+      const notice = [...document.querySelectorAll("p")]
+        .filter((node) => /^Thread stage updated:/.test(node.textContent)
+          && node.querySelector("[data-prompt-mention]"))
+        .at(-1);
+      if (!notice) return false;
+      const pills = [...notice.querySelectorAll("[data-prompt-mention]")].map((node) => {
         const style = getComputedStyle(node);
         const icon = node.firstElementChild;
         return {
@@ -54,8 +36,14 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
           width: node.getBoundingClientRect().width,
           icon: icon !== null && icon.getBoundingClientRect().width > 0 && getComputedStyle(icon).maskImage.includes("thread-stages"),
         };
-      }),
-    );
+      });
+      // bb resolves the branding icon after the pill first draws.
+      return pills.length === 2 && pills.every((pill) =>
+        pill.width > 0 && pill.radius > 0 && pill.display !== "none" && pill.icon)
+        ? pills : false;
+    }, undefined, { timeout: 60_000 });
+    const pills = await rendered.jsonValue();
+    await rendered.dispose();
     assert.deepEqual(pills.map(({ label }) => label), ["Completed", "Active"]);
     for (const pill of pills) {
       assert.notEqual(pill.display, "none");
