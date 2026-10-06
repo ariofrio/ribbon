@@ -103,6 +103,8 @@ export async function verifyCollapsedPreview({ stack, fixture, cases }) {
   const api = fixture.threads.get(THREADS.find((spec) => spec.project === "atlas-api" && spec.stage === null).title);
   const apiProject = fixture.projects.get("atlas-api");
   const href = (thread, proj) => new URL(`/projects/${proj.id}/threads/${thread.id}`, stack.serverUrl).href;
+  // Moving selection must not replace this row in a collapsed stage preview.
+  fixture.run(["thread-stages", "place", featured.id, "--to", "plugin:thread-stages:stages/Active"]);
   fixture.run(["thread", "update", api.id, "--clear-section"]);
   const browser = await launch();
   try {
