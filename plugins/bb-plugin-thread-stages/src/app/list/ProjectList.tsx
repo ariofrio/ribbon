@@ -1882,7 +1882,7 @@ function ProjectListComponent({
             <RibbonHeadingIcon
               owner={organizationMode === "project" ? personalOwner : null}
               collapsed={collapsedSidebarSectionIds.has("threads")}
-              unorganized={organizationMode === "chronological"}
+              threads
             />
           ),
           headingStyle:

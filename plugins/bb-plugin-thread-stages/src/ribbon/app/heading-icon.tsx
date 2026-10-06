@@ -27,24 +27,24 @@ export function useHeadingStyle(owner: IconOwner | null): CSSProperties {
 
 /**
  * The icon before a heading's label: the owner's own where one was chosen,
- * otherwise a standard book or folder that opens and shuts with the group,
- * or nothing while the setting is off. Threads owns no icon, so it gets
- * the section's book.
+ * otherwise a standard book, folder or pair of messages that opens and shuts
+ * with the group, or nothing while the setting is off. Threads has no icon to
+ * choose, by section or by project, so it always gets the messages.
  */
 export function RibbonHeadingIcon({
   owner,
   collapsed,
-  unorganized = false,
+  threads = false,
 }: {
   owner: IconOwner | null;
   collapsed: boolean;
-  unorganized?: boolean;
+  threads?: boolean;
 }) {
   const enabled = useHeadingIconsSetting();
   const controller = useIconsController();
   if (!enabled) return null;
   const chosen =
-    !unorganized &&
+    !threads &&
     owner !== null &&
     (controller?.state?.icons.some(
       (item) => item.kind === owner.kind && item.id === owner.id,
@@ -52,7 +52,7 @@ export function RibbonHeadingIcon({
   if (!chosen) {
     return (
       <StandardHeadingIcon
-        kind={unorganized ? "section" : (owner?.kind ?? "section")}
+        kind={threads ? "threads" : (owner?.kind ?? "section")}
         collapsed={collapsed}
       />
     );
