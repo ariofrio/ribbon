@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Icon } from "@/components/ui/icon";
@@ -7,22 +8,64 @@ import { Textarea } from "@/components/ui/textarea";
 import type { ThreadAction } from "../thread-actions-store";
 import { useRibbonData } from "./data";
 
+const emptyAction = (): ThreadAction => ({ id: crypto.randomUUID(), label: "", prompt: "" });
+const isEmpty = ({ label, prompt }: ThreadAction) => !label.trim() && !prompt.trim();
+const withEmptyRow = (actions: ThreadAction[]) =>
+  actions.length === 0 || !isEmpty(actions[actions.length - 1]!) ? [...actions, emptyAction()] : actions;
+
 /** Labeled prompts edited in a thread's menu and drawn as buttons on its row. */
-export function ThreadActionsEditor({
-  threadId,
-  onSaved,
-}: {
-  threadId: string;
-  onSaved: () => void;
-}) {
+export function ThreadActionsEditor({ threadId }: { threadId: string }) {
   const ribbon = useRibbonData();
   const [actions, setActions] = useState<ThreadAction[]>(
-    () => [...(ribbon?.threadActions.get(threadId)?.actions ?? [])],
+    () => withEmptyRow([...(ribbon?.threadActions.get(threadId)?.actions ?? [])]),
   );
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const draft = useRef(actions);
+  const saved = useRef(ribbon?.threadActions.get(threadId)?.actions ?? []);
+  const queue = useRef(Promise.resolve());
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mounted = useRef(false);
+  const saveThreadActions = ribbon?.saveThreadActions;
+  const flush = useCallback(() => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+    const snapshot = draft.current;
+    queue.current = queue.current.then(async () => {
+      if (!saveThreadActions) return;
+      const next = snapshot.flatMap((action) => {
+        const label = action.label.trim();
+        const prompt = action.prompt.trim();
+        if (label && prompt) return [{ ...action, label, prompt }];
+        // Keep a saved action while either field is being edited to an empty value.
+        const previous = !isEmpty(action) && saved.current.find(({ id }) => id === action.id);
+        return previous ? [previous] : [];
+      });
+      if (JSON.stringify(next) === JSON.stringify(saved.current)) return;
+      try {
+        await saveThreadActions(threadId, next);
+        saved.current = next;
+        if (mounted.current) setError(null);
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : "Could not save thread actions";
+        if (mounted.current) setError(message);
+        else toast.error(message);
+      }
+    });
+  }, [saveThreadActions, threadId]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      flush();
+    };
+  }, [flush]);
+  const changeActions = (next: ThreadAction[]) => {
+    draft.current = withEmptyRow(next);
+    setActions(draft.current);
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = setTimeout(flush, 300);
+  };
   if (ribbon === null) return null;
-  const invalid = actions.some(({ label, prompt }) => !label.trim() || !prompt.trim());
   return (
     <form
       aria-label="Edit thread actions"
@@ -31,17 +74,17 @@ export function ThreadActionsEditor({
         // Text editing and tabbing stay in the form; Escape still dismisses the menu.
         if (event.key !== "Escape") event.stopPropagation();
       }}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          const lastFilled = draft.current.reduce((last, action, index) => isEmpty(action) ? last : index, -1);
+          draft.current = withEmptyRow(draft.current.slice(0, lastFilled + 2));
+          setActions(draft.current);
+        }
+        flush();
+      }}
       onSubmit={(event) => {
         event.preventDefault();
-        if (invalid || pending) return;
-        setPending(true);
-        setError(null);
-        void ribbon.saveThreadActions(threadId, actions)
-          .then(onSaved)
-          .catch((cause: unknown) => {
-            setError(cause instanceof Error ? cause.message : "Could not save thread actions");
-          })
-          .finally(() => setPending(false));
+        flush();
       }}
     >
       <Table aria-label="Thread actions" className="table-fixed">
@@ -61,9 +104,8 @@ export function ThreadActionsEditor({
                   className="h-8 px-2"
                   maxLength={24}
                   placeholder="Label"
-                  disabled={pending}
                   value={action.label}
-                  onChange={(event) => setActions(actions.map((item) =>
+                  onChange={(event) => changeActions(actions.map((item) =>
                     item.id === action.id ? { ...item, label: event.target.value } : item,
                   ))}
                 />
@@ -75,48 +117,32 @@ export function ThreadActionsEditor({
                   rows={1}
                   maxLength={10000}
                   placeholder="Prompt to send"
-                  disabled={pending}
                   value={action.prompt}
-                  onChange={(event) => setActions(actions.map((item) =>
+                  onChange={(event) => changeActions(actions.map((item) =>
                     item.id === action.id ? { ...item, prompt: event.target.value } : item,
                   ))}
                 />
               </TableCell>
               <TableCell className="p-1 align-top">
-                <Button
+                {!isEmpty(action) ? <Button
                   type="button"
                   variant="ghost"
                   size="icon"
                   className="h-8 w-7 max-md:pointer-coarse:h-10"
                   aria-label={`Remove action ${index + 1}`}
-                  disabled={pending}
-                  onClick={() => setActions(actions.filter(({ id }) => id !== action.id))}
+                  onClick={() => {
+                    changeActions(actions.filter(({ id }) => id !== action.id));
+                    flush();
+                  }}
                 >
                   <Icon name="Trash2" aria-hidden />
-                </Button>
+                </Button> : null}
               </TableCell>
             </TableRow>
           ))}
-          <TableRow>
-            <TableCell colSpan={3} className="p-1">
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-8 w-full justify-start px-2 max-md:pointer-coarse:h-10"
-                disabled={pending}
-                onClick={() => setActions([...actions, { id: crypto.randomUUID(), label: "", prompt: "" }])}
-              >
-                <Icon name="Plus" aria-hidden />
-                Add action
-              </Button>
-            </TableCell>
-          </TableRow>
         </TableBody>
       </Table>
       {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
-      <div className="flex justify-end px-1">
-        <Button type="submit" size="sm" disabled={pending || invalid}>Save actions</Button>
-      </div>
     </form>
   );
 }

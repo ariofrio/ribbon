@@ -14,7 +14,6 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { TouchInteraction01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useState } from "react";
 import type { SidebarThread } from "../../app/model/sidebar-thread.js";
 import {
   ActionMenuSeparator,
@@ -95,16 +94,13 @@ export function RibbonThreadActionsMenu({
   surface,
   drawer = false,
   onOpenEditor,
-  onSaved,
 }: {
   thread: SidebarThread;
   surface: ActionMenuSurface;
   drawer?: boolean;
   onOpenEditor?: () => void;
-  onSaved?: () => void;
 }) {
   const ribbon = useRibbonData();
-  const [open, setOpen] = useState(false);
   if (ribbon === null || thread.archivedAt !== null) return null;
   const icon = <HugeiconsIcon icon={TouchInteraction01Icon} className="size-4 shrink-0" aria-hidden />;
   if (drawer) {
@@ -123,7 +119,7 @@ export function RibbonThreadActionsMenu({
   const SubTrigger = surface === "context" ? ContextMenuSubTrigger : DropdownMenuSubTrigger;
   const SubContent = surface === "context" ? ContextMenuSubContent : DropdownMenuSubContent;
   return (
-    <Sub open={open} onOpenChange={setOpen}>
+    <Sub>
       <SubTrigger>{icon}Edit actions</SubTrigger>
       <SubContent
         aria-label="Edit actions"
@@ -134,10 +130,7 @@ export function RibbonThreadActionsMenu({
           }
         }}
       >
-        <ThreadActionsEditor threadId={thread.id} onSaved={() => {
-          setOpen(false);
-          onSaved?.();
-        }} />
+        <ThreadActionsEditor threadId={thread.id} />
       </SubContent>
     </Sub>
   );

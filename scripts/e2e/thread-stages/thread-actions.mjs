@@ -38,6 +38,8 @@ export async function verifyThreadActions({ stack, fixture }) {
     await editor.waitFor();
     assert.equal(await page.getByRole("dialog", { name: "Edit thread actions" }).count(), 0);
     assert.equal(await editor.getByRole("checkbox").count(), 0);
+    assert.equal(await editor.getByRole("button", { name: "Add action" }).count(), 0);
+    assert.equal(await editor.getByRole("button", { name: "Save actions" }).count(), 0);
     const labels = [
       "Review",
       "Run every relevant test",
@@ -46,7 +48,6 @@ export async function verifyThreadActions({ stack, fixture }) {
       "Check the pull request status",
     ];
     for (const [index, label] of labels.entries()) {
-      await editor.getByRole("button", { name: "Add action" }).click();
       await editor.getByRole("textbox", { name: `Action ${index + 1} button label` }).fill(label);
       await editor.getByRole("textbox", { name: `Action ${index + 1} prompt` }).fill(`${label} in this thread.`);
     }
@@ -66,7 +67,18 @@ export async function verifyThreadActions({ stack, fixture }) {
       assert.equal(prompt.x, tableLayout.fields[1].x, "Prompt columns align across all rows");
       assert.ok(label.height <= 36 && prompt.height <= 36, "Fields start at compact heights");
     }
-    await editor.getByRole("button", { name: "Save actions" }).click();
+    const blankLabel = editor.getByRole("textbox", { name: "Action 6 button label" });
+    await blankLabel.fill("Temporary");
+    assert.equal(await editor.getByRole("textbox").count(), 14, "Editing the bottom row appends a new empty row");
+    await blankLabel.fill("");
+    assert.equal(await editor.getByRole("textbox").count(), 14, "Extra empty rows remain while the editor is focused");
+    await editor.focus();
+    assert.equal(await editor.getByRole("textbox").count(), 12, "Unfocusing the table collapses extra empty rows");
+    const autosaved = page.waitForResponse((response) => response.url().endsWith("/rpc/saveThreadActionsV1") && response.status() === 200);
+    await editor.getByRole("textbox", { name: "Action 5 prompt" }).fill(`${labels[4]} in this thread. Again.`);
+    await page.keyboard.press("Escape");
+    await autosaved;
+    await page.keyboard.press("Escape");
     await editor.waitFor({ state: "hidden" });
     const action = target.getByRole("button", { name: `Review in ${thread.title}` });
     await action.waitFor();

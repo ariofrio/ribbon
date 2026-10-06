@@ -70,7 +70,6 @@ type ThreadActionsCompactStep = "actions" | "move" | "edit";
 interface ThreadActionsMenuItemsProps extends ThreadActionsMenuBaseProps {
   compactStep?: ThreadActionsCompactStep;
   onCompactStepChange?: (step: ThreadActionsCompactStep) => void;
-  onActionsSaved?: () => void;
   responsiveActions?: readonly ThreadActionsMenuResponsiveAction[];
   surface: ThreadActionsMenuSurface;
 }
@@ -203,7 +202,6 @@ function ThreadActionsMenuItems({
   onRename,
   compactStep = "actions",
   onCompactStepChange,
-  onActionsSaved,
   responsiveActions = [],
   surface,
 }: ThreadActionsMenuItemsProps) {
@@ -229,10 +227,7 @@ function ThreadActionsMenuItems({
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Edit actions</DropdownMenuLabel>
-        <ThreadActionsEditor threadId={thread.id} onSaved={() => {
-          onCompactStepChange?.("actions");
-          onActionsSaved?.();
-        }} />
+        <ThreadActionsEditor threadId={thread.id} />
       </>
     );
   }
@@ -335,7 +330,6 @@ function ThreadActionsMenuItems({
         surface={surface}
         drawer={isDrawer}
         onOpenEditor={() => onCompactStepChange?.("edit")}
-        onSaved={onActionsSaved}
       />
       {showSeparators ? <ActionMenuSeparator surface={surface} /> : null}
       <ActionMenuItem
@@ -475,7 +469,6 @@ export function ThreadActionsMenu({
           onRename={onRename}
           compactStep={compactStep}
           onCompactStepChange={setCompactStep}
-          onActionsSaved={() => handleOpenChange(false)}
           responsiveActions={responsiveActions}
           surface="dropdown"
         />
@@ -569,7 +562,6 @@ function ThreadActionsDesktopContextMenu({
           onOpenInSplit={onOpenInSplit}
           onRename={onRename}
           surface="context"
-          onActionsSaved={() => handleOpenChange(false)}
         />
       </ContextMenuContent>
     </ContextMenu>

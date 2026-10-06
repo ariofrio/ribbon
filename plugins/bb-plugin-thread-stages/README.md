@@ -107,8 +107,10 @@ hovered or focused, pans to its end and back. **Long titles** in the plugin's
 settings keeps the fade but not the pan, or cuts titles with bb's ellipsis
 instead. The pan respects reduced motion.
 
-Use **Edit actions** in a thread's context menu or ⋯ menu to add labeled prompts. Their
-buttons appear beside the thread title, colored like the section or project,
+Use **Edit actions** in a thread's context menu or ⋯ menu to edit labeled prompts.
+Fill the empty row at the bottom to add an action; edits save automatically once
+both fields are filled. Extra empty rows collapse when the table loses focus.
+Action buttons appear beside the thread title, colored like the section or project,
 and send the saved prompt to that thread when clicked.
 
 The same actions are available through `bb thread-stages actions list`, `set`, and

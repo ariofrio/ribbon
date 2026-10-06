@@ -77,42 +77,39 @@ export async function verifyThreadContextMenu({ stack, fixture }) {
       await page.keyboard.press("ArrowRight");
       const editor = page.getByRole("menu", { name: "Edit actions", exact: true });
       await editor.waitFor();
-      const addAction = await editor.getByRole("button", { name: "Add action" }).elementHandle();
-      await page.waitForFunction((node) => document.activeElement === node, addAction).catch(async (cause) => {
-        throw new Error(`Keyboard entry must focus Add action; focused ${await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 500))}`, { cause });
-      });
-      await page.keyboard.press("Enter");
       const label = editor.getByRole("textbox", { name: "Action 1 button label" });
       const prompt = editor.getByRole("textbox", { name: "Action 1 prompt" });
+      const labelNode = await label.elementHandle();
+      await page.waitForFunction((node) => document.activeElement === node, labelNode);
+      assert.equal(await editor.getByRole("button", { name: "Add action" }).count(), 0);
+      assert.equal(await editor.getByRole("button", { name: "Save actions" }).count(), 0);
       const labelBox = await label.boundingBox();
       const promptBox = await prompt.boundingBox();
       assert.ok(Math.abs(labelBox.y - promptBox.y) < 3 && promptBox.x >= labelBox.x + labelBox.width,
         "Labels and prompts share a compact table row");
-      await page.keyboard.press("Shift+Tab");
-      await page.keyboard.press("Shift+Tab");
-      await page.keyboard.press("Shift+Tab");
       assert.equal(await label.evaluate((node) => document.activeElement === node), true);
       await page.keyboard.type("Review");
       await page.keyboard.press("ArrowLeft");
       await page.keyboard.type("!");
       assert.equal(await label.inputValue(), "Revie!w", "menu navigation does not swallow text editing keys");
       await page.keyboard.press("Tab");
-      await page.keyboard.type("Review this thread.");
       const failedSave = page.waitForResponse((response) => response.url().endsWith("/rpc/saveThreadActionsV1"));
       await page.route("**/rpc/saveThreadActionsV1", (route) => route.fulfill({
         status: 500,
         json: { error: { message: "Could not save thread actions" } },
       }), { times: 1 });
-      await page.keyboard.press("Tab");
-      await page.keyboard.press("Tab");
-      await page.keyboard.press("Tab");
-      await page.keyboard.press("Enter");
+      await page.keyboard.type("Review this thread.");
       await failedSave;
       await editor.getByRole("alert").waitFor();
       assert.equal(await label.inputValue(), "Revie!w", "failed saves keep the draft editable");
-      await editor.getByRole("button", { name: "Remove action 1", exact: true }).focus();
+      const retry = page.waitForResponse((response) => response.url().endsWith("/rpc/saveThreadActionsV1") && response.status() === 200);
+      await page.keyboard.press("Tab");
+      await retry;
+      await editor.getByRole("alert").waitFor({ state: "hidden" });
+      const removed = page.waitForResponse((response) => response.url().endsWith("/rpc/saveThreadActionsV1") && response.status() === 200);
       await page.keyboard.press("Enter");
-      assert.equal(await editor.getByRole("textbox").count(), 0);
+      await removed;
+      assert.equal(await editor.getByRole("textbox").count(), 2, "Removing an action leaves one blank row");
       await page.keyboard.press("Escape");
       await menu.waitFor({ state: "hidden" });
       await row.click({ button: "right" });
