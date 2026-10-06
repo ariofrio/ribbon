@@ -4,7 +4,7 @@ import { launch, openContext, sidebar } from "./sidebar.mjs";
 
 const url = "https://github.com/example/project/pull/12345";
 
-function pullRequest(attention) {
+export function pullRequest(attention) {
   return {
     outcome: "available",
     pullRequest: {

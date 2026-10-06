@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
 import { launch, openContext, row, sidebar } from "./sidebar.mjs";
+import { pullRequest } from "./pr-status.mjs";
 
 export async function verifyRowActions({ stack, fixture }) {
   const project = fixture.projects.get(FEATURED_PROJECT);
@@ -41,6 +42,30 @@ export async function verifyRowActions({ stack, fixture }) {
     await page.getByRole("menuitem", { name: "Customize row actions", exact: true }).click();
     await list.getByText("Customize row actions", { exact: true }).waitFor();
     await context.close();
+
+    const mobile = await openContext(browser, {
+      viewport: { width: 600, height: 900 }, hasTouch: true, isMobile: true,
+    });
+    const mobilePage = await mobile.newPage();
+    await mobilePage.route("**/api/v1/environments/*/pull-request*", (route) =>
+      route.fulfill({ json: pullRequest("blocked") }));
+    await mobilePage.route("**/rpc/pullRequestDetailsV1", (route) =>
+      route.fulfill({ status: 500, json: { ok: false, error: { message: "gh unavailable" } } }));
+    await mobilePage.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
+    await mobilePage.getByTestId("app-sidebar-trigger-overlay").getByRole("button").tap();
+    const mobileRow = row(sidebar(mobilePage), thread.id);
+    await mobileRow.getByText("#12345", { exact: true }).waitFor({ timeout: 120_000 });
+    const coarse = await mobileRow.evaluate((element) => ({
+      pointer: matchMedia("(pointer: coarse)").matches,
+      padding: parseFloat(getComputedStyle(element.querySelector("a[data-sidebar-thread-id]").parentElement).paddingRight),
+      actionWidth: element.querySelector('button[aria-label="Copy thread link"]').getBoundingClientRect().width,
+      rowWidth: element.getBoundingClientRect().width,
+    }));
+    assert.equal(coarse.pointer, true);
+    assert.ok(coarse.rowWidth > 0);
+    assert.equal(coarse.actionWidth, 0, "desktop hover actions are hidden on touch screens");
+    assert.equal(coarse.padding, 36, "hidden hover actions leave the normal trailing lane on touch screens");
+    await mobile.close();
   } finally {
     await browser.close();
     fixture.run(["thread-stages", "prefs", "set", "rowActions", JSON.stringify(previous.value)]);

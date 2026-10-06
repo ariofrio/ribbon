@@ -221,7 +221,9 @@ export const REORDER_PLACEMENT_CLASS: Record<SidebarReorderPlacement, string> =
 
 function getHoverActionsInsetStyle(actionCount: number, ribbon: boolean): CSSProperties {
   return {
-    "--bb-sidebar-hover-actions-inset": `calc(var(--spacing) * ${7.5 * actionCount + (ribbon ? 9 : 0)})`,
+    "--bb-sidebar-hover-actions-inset": ribbon
+      ? `calc(var(--spacing) * (9 + 7.5 * var(--ribbon-quick-action-count, ${actionCount})))`
+      : `calc(var(--spacing) * ${7.5 * actionCount})`,
   } as CSSProperties;
 }
 
@@ -647,6 +649,7 @@ function ThreadRowComponent({
           ribbon !== null &&
             !isEditing &&
             (ribbonLaneAtRest ? RIBBON_LANE_RESERVED_CLASS : RIBBON_LANE_ON_HOVER_CLASS),
+          ribbon !== null && "max-md:pointer-coarse:[--ribbon-quick-action-count:0]",
         )}
         style={getHoverActionsInsetStyle(
           thread.archivedAt !== null ? 1 : rowActionIds.length,
