@@ -52,6 +52,7 @@ const ATTENTION_SIGNALS: Partial<
   conflicts: { mark: "failing", label: "Merge conflicts" },
   checks_pending: { mark: "waiting", label: "Waiting on CI" },
   review_requested: { mark: "waiting", label: "Waiting on review" },
+  queued: { mark: "waiting", label: "Queued to merge" },
   blocked: { mark: "waiting", label: "Blocked" },
   ready_to_merge: { mark: "ready", label: "Ready to merge" },
 };
@@ -65,6 +66,51 @@ function joinReasons(parts: readonly string[]): string {
         : part.charAt(0).toLocaleLowerCase() + part.slice(1),
     )
     .join(" · ");
+}
+
+function publicSignal(pullRequest: SidebarPullRequest): PullRequestSignal {
+  if (pullRequest.experimental_inMergeQueue || pullRequest.attention === "queued") {
+    return { lifecycle: "auto", mark: "waiting", label: "Queued to merge" };
+  }
+  const autoMerge = pullRequest.experimental_autoMerge;
+  const prefix = autoMerge ? ["Auto-merge on"] : [];
+  const failing: string[] = [];
+  if (pullRequest.experimental_mergeability.state === "conflicts")
+    failing.push("Merge conflicts");
+  if (pullRequest.experimental_checks.state === "failing")
+    failing.push("CI failing");
+  if (pullRequest.experimental_review.state === "changes_requested")
+    failing.push("Changes requested");
+  if (failing.length > 0) {
+    return {
+      lifecycle: autoMerge ? "auto" : "open",
+      mark: "failing",
+      label: joinReasons([...prefix, ...failing]),
+    };
+  }
+  const approved =
+    pullRequest.experimental_review.state === "approved" ? ["Approved"] : [];
+  const waiting: string[] = [];
+  if (
+    ["review_required", "review_requested"].includes(
+      pullRequest.experimental_review.state,
+    )
+  )
+    waiting.push("review");
+  if (pullRequest.experimental_checks.state === "pending") waiting.push("CI");
+  const signal =
+    waiting.length > 0
+      ? { mark: "waiting" as const, label: `Waiting on ${waiting.join(" and ")}` }
+      : ATTENTION_SIGNALS[pullRequest.attention] ??
+        (pullRequest.experimental_mergeability.state === "blocked"
+          ? { mark: "waiting" as const, label: "Blocked by branch protection" }
+          : null);
+  const reasons = [...prefix, ...approved, ...(signal ? [signal.label] : [])];
+  return {
+    lifecycle: autoMerge ? "auto" : "open",
+    mark: signal?.mark ?? null,
+    label: reasons.length > 0 ? joinReasons(reasons) : null,
+  };
 }
 
 function detailedSignal(
@@ -131,12 +177,7 @@ export function pullRequestSignal(
     return { lifecycle: pullRequest.state, mark: null, label: null };
   }
   if (details === null) {
-    const signal = ATTENTION_SIGNALS[pullRequest.attention];
-    return {
-      lifecycle: "open",
-      mark: signal?.mark ?? null,
-      label: signal?.label ?? null,
-    };
+    return publicSignal(pullRequest);
   }
   return {
     lifecycle: details.autoMerge || details.inMergeQueue ? "auto" : "open",
