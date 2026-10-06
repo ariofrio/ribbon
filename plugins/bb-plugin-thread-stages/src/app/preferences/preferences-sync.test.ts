@@ -90,7 +90,7 @@ describe("preferences sync", () => {
     const store = getDefaultStore();
     expect(hydratePreferencesFromMirror()).toBe(true);
     expect(store.get(createSyncedPreferenceAtom("organizationMode"))).toBe("project");
-    expect(store.get(createSyncedPreferenceAtom("chronologicalSort"))).toBe("updated");
+    expect(store.get(createSyncedPreferenceAtom("chronologicalSort"))).toBe("none");
     mirror.setItem(MIRROR_KEY, "{not json");
     expect(hydratePreferencesFromMirror()).toBe(false);
   });

@@ -150,6 +150,18 @@ afterEach(() => {
 });
 
 describe("thread-list plugin", () => {
+  it("offers Custom instead of Updated at for the saved manual order", async () => {
+    setPreferencesMirrorStorageForTest(null);
+    renderList({ organizationMode: "chronological" });
+    const trigger = await screen.findByRole("button", { name: /^Threads actions(?:;|$)/ });
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const sort = await screen.findByRole("menuitem", { name: "Sort by" });
+    fireEvent.keyDown(sort, { key: "ArrowRight" });
+    expect(await screen.findByRole("menuitemradio", { name: "Custom" })).not.toBeNull();
+    expect(screen.getByRole("menuitemradio", { name: "Updated at" })).not.toBeNull();
+    expect(screen.queryByRole("menuitemradio", { name: /^Updated at,/ })).toBeNull();
+  }, 15_000);
+
   it("shows the navigation skeleton until preferences load", () => {
     setPreferencesMirrorStorageForTest(null);
     renderSlot(registration, props(), {

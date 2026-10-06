@@ -1706,9 +1706,7 @@ function ProjectListComponent({
   const groupThreadsByEnvironment = useAtomValue(
     sidebarGroupThreadsByEnvironmentAtom,
   );
-  const [chronologicalSort, setChronologicalSort] = useAtom(
-    sidebarChronologicalSortAtom,
-  );
+  const chronologicalSort = useAtomValue(sidebarChronologicalSortAtom);
   const sortDirection = useAtomValue(sidebarSortDirectionAtom);
   const activeRename = useSidebarRenameState();
   const ribbonReady = ribbon?.ready ?? false;
@@ -1716,7 +1714,10 @@ function ProjectListComponent({
   const ribbonChildRanks = ribbon?.childRanks;
   const sidebarThreadComparator = useMemo<ThreadComparator>(() => {
     // Ribbon's retained order stands in for the sort wherever it has ranks.
-    if (ribbonReady && ribbonPlacements && ribbonChildRanks) {
+    if (
+      chronologicalSort === "none" &&
+      ribbonReady && ribbonPlacements && ribbonChildRanks
+    ) {
       const groupingKey = placementGroupingKey(organizationMode);
       return createRibbonComparator(
         placementRanks(groupingKey ? (ribbonPlacements.get(groupingKey) ?? []) : []),
@@ -1768,11 +1769,6 @@ function ProjectListComponent({
     normalizedCollapsedSidebarSectionIds,
     setCollapsedSidebarSectionIdList,
   ]);
-  useEffect(() => {
-    if (chronologicalSort === "none") {
-      setChronologicalSort("updated");
-    }
-  }, [chronologicalSort, setChronologicalSort]);
   const pinnedSidebarState = useMemo(
     () =>
       buildPinnedSidebarState({

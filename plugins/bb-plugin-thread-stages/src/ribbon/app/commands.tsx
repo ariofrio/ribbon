@@ -9,6 +9,7 @@ import {
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { preferencesMirrorStorageKey } from "../../app/preferences/preferences-sync.js";
+import type { threadListRpcContract } from "../../server.js";
 import type { rpcContract } from "../server";
 import {
   WORKFLOW_COMMANDS,
@@ -83,6 +84,7 @@ function shortcutGroupingKey(
 
 function WorkflowShortcuts() {
   const rpc = useRpc<typeof rpcContract>();
+  const preferencesRpc = useRpc<typeof threadListRpcContract>();
   const navigate = useBbNavigate();
   const pluginId = experimental_usePluginId();
   useEffect(() => {
@@ -111,6 +113,13 @@ function WorkflowShortcuts() {
                 threadId,
                 scope: action.scope,
                 direction: action.direction,
+              }).then(async () => {
+                if (action.scope !== "stage") {
+                  await preferencesRpc.call("setPreference", {
+                    key: "chronologicalSort",
+                    value: "none",
+                  });
+                }
               });
         void request.catch((error: unknown) => {
           toast.error(rpcErrorMessage(error, "Failed to move the thread"));
@@ -119,7 +128,7 @@ function WorkflowShortcuts() {
       { signal },
     );
     return () => controller.abort();
-  }, [navigate, pluginId, rpc]);
+  }, [navigate, pluginId, preferencesRpc, rpc]);
   return null;
 }
 

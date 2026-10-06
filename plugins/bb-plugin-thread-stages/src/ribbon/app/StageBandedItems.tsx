@@ -11,6 +11,7 @@ import { ribbonStageLookupAtom } from "./atoms";
 import { useRibbonList } from "./search";
 import { StagePreview } from "./stage-preview";
 import { stagePreviewRowsSetting } from "../stage-preview-rows";
+import { sidebarChronologicalSortAtom } from "../../app/preferences/atoms.js";
 
 /**
  * A group's roots in Ribbon's shape: the main list, then Deferred and
@@ -40,12 +41,13 @@ export function StageBandedItems({
   const lookup = useAtomValue(ribbonStageLookupAtom);
   const stageOf = lookup?.stageOf;
   const stageRank = lookup?.stageRank;
+  const custom = useAtomValue(sidebarChronologicalSortAtom) === "none";
   const bands = useMemo(
     () =>
       stageOf && stageRank
-        ? stageBands(items, stageOf, stageRank)
+        ? stageBands(items, stageOf, custom ? stageRank : undefined)
         : null,
-    [stageRank, items, stageOf],
+    [stageRank, items, stageOf, custom],
   );
   if (bands === null) return <>{renderMain(items)}</>;
   const rows = (band: readonly ProjectThreadItem[]) =>

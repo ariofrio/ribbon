@@ -1,4 +1,6 @@
 import { useCallback, useMemo } from "react";
+import { useSetAtom } from "jotai";
+import { sidebarChronologicalSortAtom } from "../../app/preferences/atoms.js";
 import type { SidebarThread } from "../../app/model/sidebar-thread.js";
 import type { SidebarReorderPlacement } from "../../app/rows/sidebarThreadRowDroppable.js";
 import type { OrganizationMode } from "../../shared/preferences.js";
@@ -51,6 +53,7 @@ export function sameReorderableBand(
 
 export function useRibbonDnd(mode: OrganizationMode): RibbonDndHandlers | null {
   const ribbon = useRibbonData();
+  const setSort = useSetAtom(sidebarChronologicalSortAtom);
   const groupingKey = placementGroupingKey(mode);
   const stageOf = ribbon?.stageOf;
   const updatePlacement = ribbon?.updatePlacement;
@@ -75,7 +78,10 @@ export function useRibbonDnd(mode: OrganizationMode): RibbonDndHandlers | null {
             ? anchor.thread.id
             : (siblingIds[siblingIds.indexOf(anchor.thread.id) + 1] ?? null);
         const order = moveChild(siblingIds, active.id, beforeId);
-        if (order) await reorderChildren(active.parentThreadId, order);
+        if (order) {
+          setSort("none");
+          await reorderChildren(active.parentThreadId, order);
+        }
         return;
       }
       const reorderGrouping = stageOf?.(active.id) === "Completed"
@@ -88,12 +94,13 @@ export function useRibbonDnd(mode: OrganizationMode): RibbonDndHandlers | null {
           : reorderGrouping === "builtin:projects"
             ? anchor.thread.projectId
             : (anchor.thread.sectionId ?? "unsectioned");
+      setSort("none");
       await updatePlacement(active.id, reorderGrouping, groupId, {
         kind: anchor.placement,
         threadId: anchor.thread.id,
       });
     },
-    [groupingKey, reorderChildren, stageOf, updatePlacement],
+    [groupingKey, reorderChildren, setSort, stageOf, updatePlacement],
   );
 
   const onMoveThread = useCallback<RibbonDndHandlers["onMoveThread"]>(
@@ -105,6 +112,7 @@ export function useRibbonDnd(mode: OrganizationMode): RibbonDndHandlers | null {
         "edge" in anchor
           ? { kind: anchor.edge }
           : { kind: anchor.placement, threadId: anchor.thread.id };
+      setSort("none");
       await updatePlacement(
         active.id,
         groupingKey,
@@ -121,7 +129,7 @@ export function useRibbonDnd(mode: OrganizationMode): RibbonDndHandlers | null {
       }
       return true;
     },
-    [groupingKey, stageOf, updatePlacement],
+    [groupingKey, setSort, stageOf, updatePlacement],
   );
 
   return useMemo(

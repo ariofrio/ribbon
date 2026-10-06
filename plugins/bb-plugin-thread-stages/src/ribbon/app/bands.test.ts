@@ -38,4 +38,16 @@ describe("stage bands", () => {
     expect(bandOf(undefined)).toBe("main");
     expect(bandOf("BlockedOnThirdParty")).toBe("main");
   });
+
+  it("keeps automatic sorting within every stage band", () => {
+    const stages = new Map([
+      ["a", "Completed"], ["b", "Deferred"], ["c", "Active"],
+      ["d", "Completed"], ["e", "Deferred"], ["f", "BlockedOnOtherAgent"],
+    ] as const);
+    const bands = stageBands(["a", "b", "c", "d", "e", "f"].map(item), (id) => stages.get(id as never));
+    const ids = (items: ProjectThreadItem[]) => items.map((each) => itemThread(each)?.id);
+    expect(ids(bands.main)).toEqual(["c", "f"]);
+    expect(ids(bands.deferred)).toEqual(["b", "e"]);
+    expect(ids(bands.completed)).toEqual(["a", "d"]);
+  });
 });

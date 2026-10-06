@@ -7,7 +7,9 @@ import {
   rowOrder, section, sidebar, STAGES,
 } from "./sidebar.mjs";
 
-export async function verifyThreadReordering({ stack, fixture }) {
+export async function verifyThreadReordering({ stack, fixture, initialSort = "none" }) {
+  const savedSort = fixture.runJson(["thread-stages", "prefs", "get", "chronologicalSort"]).value;
+  fixture.run(["thread-stages", "prefs", "set", "chronologicalSort", initialSort]);
   for (const thread of fixture.threads.values()) fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/Active`]);
   const browser = await launch();
   let releaseSave = () => {};
@@ -122,6 +124,7 @@ export async function verifyThreadReordering({ stack, fixture }) {
       .catch((diagnosticError) => console.error("Could not save the thread-reordering trace:", diagnosticError));
     throw error;
   } finally {
+    fixture.run(["thread-stages", "prefs", "set", "chronologicalSort", savedSort]);
     for (const spec of THREADS) if (spec.stage) fixture.run(["thread-stages", "place", fixture.threads.get(spec.title).id, "--to", `${STAGES}/${spec.stage}`]);
     releaseSave();
     await browser.close();

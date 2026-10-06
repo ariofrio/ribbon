@@ -86,8 +86,8 @@ export const preferenceDefinitions = {
   ),
   chronologicalSort: definePreference(
     chronologicalSortSchema,
-    "updated",
-    "Sort field for the chronological organization.",
+    "none",
+    "Thread sort field in every organization: none keeps the saved Custom order, updated, created, or alpha sorts automatically.",
     "sidebar.chronologicalSort",
   ),
   sortDirection: definePreference(

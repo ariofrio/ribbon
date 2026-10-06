@@ -48,6 +48,13 @@ Inside each group, Active and both Blocked stages share one manually ordered
 list, followed by Deferred and then Completed. New roots enter at the top, and
 activity leaves positions unchanged.
 
+**⋯ menu → Sort by → Custom** selects this saved manual order and is the
+default. Updated at, Created at, and Alphabetical sort rows within each stage
+list instead; switching back to Custom restores their saved positions. The
+choice applies across groups and organizations. In the CLI, `chronologicalSort`
+is `none` for Custom, or `updated`, `created`, or `alpha` for automatic sorting.
+Dragging or using a shortcut to reorder rows switches back to Custom.
+
 Deferred and Completed preview roots in their saved order; entering Completed
 inserts a thread first. **Completed and Deferred preview rows** sets a limit of 1–5 rows
 per stage, defaulting to 2, including **Show N more deferred/completed**.
