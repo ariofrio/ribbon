@@ -337,20 +337,16 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
   const setStage = useCallback<RibbonData["setStage"]>(
     async (threadId, stage) => {
       setError(null);
-      const group = snapshot?.groupings
-        .find((grouping) => grouping.groupingKey === THREAD_STAGES_GROUPING_KEY)
-        ?.groups.find(({ id }) => id === stage);
       const result = await rpcRef.current.call("updatePlacementV1", {
         groupingKey: THREAD_STAGES_GROUPING_KEY,
         groupId: stage,
         threadId,
-        anchor: { kind: group?.defaultPlacement ?? "preserve" },
         origin: "ui",
       });
       if (!result.ok) setError(result.error.message);
       await Promise.all([loadPlacements(), loadStages()]);
     },
-    [loadPlacements, loadStages, snapshot],
+    [loadPlacements, loadStages],
   );
 
   const reorderChildren = useCallback<RibbonData["reorderChildren"]>(

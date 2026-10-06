@@ -4,7 +4,7 @@ import {
   pinnedThreadIds,
   type ReorderThreadLike,
 } from "./workflow-reorder";
-import type { ThreadAssignment, WorkflowStage } from "./workflow-stage";
+import { isBlockedStage, type ThreadAssignment, type WorkflowStage } from "./workflow-stage";
 
 /** Where the client should go once the chord has been applied. */
 export type ChordDestination =
@@ -81,7 +81,8 @@ export function resolveStageChord({
       kind: "restore",
       threadId: candidate.threadId,
       sortKey:
-        candidate.previousStage === "Active" ? candidate.previousSortKey : null,
+        candidate.previousStage === "Active" || isBlockedStage(candidate.previousStage ?? undefined)
+          ? candidate.previousSortKey : null,
       next: { kind: "thread", threadId: candidate.threadId },
     };
   }

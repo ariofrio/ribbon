@@ -172,6 +172,17 @@ export const RIBBON_SIDEBAR_MIGRATIONS = [
   RETIRED_STAGE_RENAME,
 ];
 
+export const MAIN_STAGE_ORDER_MIGRATION = `
+  CREATE TABLE main_stage_order (
+    grouping_key TEXT NOT NULL,
+    group_id TEXT NOT NULL,
+    thread_id TEXT NOT NULL,
+    stage_id TEXT NOT NULL,
+    sort_key TEXT NOT NULL,
+    PRIMARY KEY (grouping_key, group_id, thread_id, stage_id)
+  );
+`;
+
 interface AssignmentRow {
   grouping_key: GroupingKey;
   thread_id: string;
@@ -290,6 +301,9 @@ export function createPlacementStore(
   options: PlacementStoreOptions,
 ): PlacementStore {
   const now = options.now ?? Date.now;
+  const hasMainStageOrder = Boolean(database.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'main_stage_order'",
+  ).get());
   const clearEligibleRoots = database.prepare("DELETE FROM eligible_root");
   const deleteEligibleRoot = database.prepare(
     "DELETE FROM eligible_root WHERE thread_id = ?",
@@ -580,6 +594,62 @@ export function createPlacementStore(
     }
   }
 
+  function placeInMainList(
+    threadId: string,
+    fromStage: string | null,
+    toStage: string,
+    anchor: PlacementAnchorV1 | undefined,
+    writeTime: number,
+  ) {
+    if (!hasMainStageOrder || !getEligibleRoot.get(threadId)) return;
+    const preserve = anchor?.kind === "preserve";
+    const isMain = (stage: string | null) =>
+      stage === "Active" || stage === "BlockedOnOtherAgent" || stage === "BlockedOnThirdParty";
+    for (const groupingKey of ["builtin:sections", "builtin:projects"] as const) {
+      const descriptor = options.grouping(groupingKey);
+      if (!descriptor) continue;
+      const groupId = currentGroupId(descriptor, threadId);
+      if (groupId === null) continue;
+      materializeOrder(groupingKey, groupId, orderedMemberIds(descriptor, groupId), writeTime);
+      const current = getOrder.get(groupingKey, groupId, threadId) as OrderRow;
+      if (isMain(fromStage)) {
+        database.prepare(`
+          INSERT INTO main_stage_order VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(grouping_key, group_id, thread_id, stage_id)
+          DO UPDATE SET sort_key = excluded.sort_key
+        `).run(groupingKey, groupId, threadId, isMain(toStage) ? fromStage : "Active", current.sort_key);
+      }
+      if (!isMain(toStage)) continue;
+      if (isMain(fromStage) && anchor === undefined) continue;
+      const retained = preserve
+        ? database.prepare(`
+            SELECT sort_key FROM main_stage_order
+            WHERE grouping_key = ? AND group_id = ? AND thread_id = ? AND stage_id = ?
+          `).get(groupingKey, groupId, threadId, toStage) as { sort_key: string } | undefined
+        : undefined;
+      const ordered = (listOrders.all(groupingKey, groupId) as OrderRow[])
+        .filter((row) => row.thread_id !== threadId);
+      let index = anchor?.kind === "end" ? ordered.length : 0;
+      if (anchor?.kind === "before" || anchor?.kind === "after") {
+        const at = ordered.findIndex((row) => row.thread_id === anchor.threadId);
+        if (at >= 0) index = at + (anchor.kind === "after" ? 1 : 0);
+      }
+      const nextKey = preserve ? retained?.sort_key ?? current.sort_key : createOrderKeyBetween(
+        ordered[index - 1]?.sort_key ?? null, ordered[index]?.sort_key ?? null,
+      );
+      if (nextKey === current.sort_key) continue;
+      upsertOrder.run(groupingKey, groupId, threadId, nextKey, writeTime);
+      ensureRevision.run(groupingKey);
+      incrementRevision.run(groupingKey);
+    }
+  }
+
+  function forgetMainStageOrder(threadId: string) {
+    if (hasMainStageOrder) {
+      database.prepare("DELETE FROM main_stage_order WHERE thread_id = ?").run(threadId);
+    }
+  }
+
   const reconcile = database.transaction(
     (
       eligibleRootThreadIds: readonly string[],
@@ -596,6 +666,7 @@ export function createPlacementStore(
 
       const changed = new Set<GroupingKey>();
       for (const threadId of childThreadIds) {
+        forgetMainStageOrder(threadId);
         const affectedAssignmentKeys = listNonStageAssignmentKeys.all(
           threadId,
           THREAD_STAGES_GROUPING_KEY,
@@ -659,6 +730,7 @@ export function createPlacementStore(
           changed.add(grouping.groupingKey);
         }
       } else if (eligible === "child") {
+        forgetMainStageOrder(threadId);
         deleteEligibleRoot.run(threadId);
         insertEligibleChildAtEnd.run(threadId);
         const affectedAssignmentKeys = listNonStageAssignmentKeys.all(
@@ -688,6 +760,7 @@ export function createPlacementStore(
           changed.add(THREAD_STAGES_GROUPING_KEY);
         }
       } else {
+        forgetMainStageOrder(threadId);
         const affectedAssignmentKeys = database
           .prepare(
             "SELECT grouping_key FROM group_assignment WHERE thread_id = ?",
@@ -733,6 +806,7 @@ export function createPlacementStore(
       assertUniqueThreadIds([threadId], "Deleted thread");
       return database
         .transaction(() => {
+          forgetMainStageOrder(threadId);
           const assignmentKeys = database
             .prepare(
               "SELECT grouping_key FROM group_assignment WHERE thread_id = ?",
@@ -759,6 +833,10 @@ export function createPlacementStore(
     deleteGroupOrder(groupingKey, groupId) {
       return database
         .transaction(() => {
+          if (hasMainStageOrder) {
+            database.prepare("DELETE FROM main_stage_order WHERE grouping_key = ? AND group_id = ?")
+              .run(groupingKey, groupId);
+          }
           ensureRevision.run(groupingKey);
           const deleted = deleteGroupOrders.run(groupingKey, groupId).changes;
           if (deleted > 0) incrementRevision.run(groupingKey);
@@ -1208,6 +1286,15 @@ export function createPlacementStore(
           }
 
           if (freshCurrentGroup !== input.groupId) {
+            if (
+              input.groupingKey === THREAD_STAGES_GROUPING_KEY &&
+              freshDestination.defaultPlacement === "start"
+            ) {
+              placeInMainList(
+                input.threadId, freshCurrentGroup, input.groupId,
+                input.anchor, writeTime,
+              );
+            }
             if (freshGrouping.membership.kind === "ribbon") {
               upsertAssignment.run(
                 input.groupingKey,

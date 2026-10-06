@@ -78,13 +78,14 @@ export function useRibbonDnd(mode: OrganizationMode): RibbonDndHandlers | null {
         if (order) await reorderChildren(active.parentThreadId, order);
         return;
       }
-      const reorderGrouping = stageOf?.(active.id) === "Completed"
+      const stage = stageOf?.(active.id) ?? "Active";
+      const reorderGrouping = bandOf(stage) !== "main"
         ? THREAD_STAGES_GROUPING_KEY
         : groupingKey;
       if (reorderGrouping === null) return;
       const groupId =
         reorderGrouping === THREAD_STAGES_GROUPING_KEY
-          ? "Completed"
+          ? stage
           : reorderGrouping === "builtin:projects"
             ? anchor.thread.projectId
             : (anchor.thread.sectionId ?? "unsectioned");
@@ -112,11 +113,11 @@ export function useRibbonDnd(mode: OrganizationMode): RibbonDndHandlers | null {
         placementAnchor,
       );
       if (
-        stageOf?.(active.id) === "Completed" &&
-        ("edge" in anchor || stageOf(anchor.thread.id) === "Completed")
+        stageOf && bandOf(stageOf(active.id)) !== "main" &&
+        ("edge" in anchor || stageOf(anchor.thread.id) === stageOf(active.id))
       ) {
         await updatePlacement(
-          active.id, THREAD_STAGES_GROUPING_KEY, "Completed", placementAnchor,
+          active.id, THREAD_STAGES_GROUPING_KEY, stageOf(active.id), placementAnchor,
         );
       }
       return true;
