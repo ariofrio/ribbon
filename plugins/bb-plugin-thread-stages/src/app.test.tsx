@@ -188,6 +188,17 @@ describe("thread-list plugin", () => {
     ).not.toBeNull();
   });
 
+  it.each(["chronological", "project"] as const)(
+    "gives the Threads heading the standard messages icon by %s",
+    async (organizationMode) => {
+      setPreferencesMirrorStorageForTest(null);
+      renderList({ organizationMode });
+      const threads = await screen.findByTitle("Threads");
+      const label = threads.closest('[data-sidebar-sticky-tier="label"]') as HTMLElement;
+      expect(label.querySelector("svg[data-icon]")?.getAttribute("data-icon")).toBe("MessagesOpen");
+    },
+  );
+
   it("groups pinned worktree roots when environment grouping is enabled", async () => {
     setPreferencesMirrorStorageForTest(null);
     const environment = {

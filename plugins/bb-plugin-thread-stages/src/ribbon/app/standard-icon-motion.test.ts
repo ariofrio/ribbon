@@ -1,6 +1,6 @@
-import { FolderClosedIcon } from "@hugeicons/core-free-icons";
+import { FolderClosedIcon, MessageMultiple01Icon } from "@hugeicons/core-free-icons";
 import { describe, expect, it } from "vitest";
-import { type IconFrame, bookFrame, folderFrame } from "./standard-icon-motion";
+import { type IconFrame, bookFrame, folderFrame, messagesFrame } from "./standard-icon-motion";
 
 const strokes = (layer: IconFrame["layers"][number]) => layer.d;
 
@@ -77,6 +77,7 @@ function apart(a: IconFrame, b: IconFrame): number {
 describe.each([
   ["book", bookFrame],
   ["folder", folderFrame],
+  ["messages", messagesFrame],
 ])("the standard %s", (_, frame) => {
   it("sets off and comes to rest without a jump", () => {
     expect(apart(frame(0), frame(0.002))).toBeLessThan(0.1);
@@ -145,6 +146,77 @@ describe("the standard folder", () => {
   it("hides the back wherever the front is over it", () => {
     for (const open of [0, 0.5, 1]) {
       expect(folderFrame(open).layers[0]!.covers).not.toBe("");
+    }
+  });
+});
+
+/** The polygons of a layer's `covers`, an absolute M/L/Z path. */
+const polygons = (covers: string): Point[][] =>
+  covers
+    .split("M")
+    .filter(Boolean)
+    .map((part) => part.replace("Z", "").split("L").map((pair) => pair.trim().split(/\s+/).map(Number) as Point));
+
+const inside = ([x, y]: Point, polygon: Point[]) => {
+  let within = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i]!;
+    const [xj, yj] = polygon[j]!;
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) within = !within;
+  }
+  return within;
+};
+
+const fromEdge = ([x, y]: Point, polygon: Point[]) =>
+  Math.min(
+    ...polygon.map((a, i) => {
+      const b = polygon[(i + 1) % polygon.length]!;
+      const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+      const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+      return Math.hypot(x - a[0] - t * dx, y - a[1] - t * dy);
+    }),
+  );
+
+describe("the standard messages", () => {
+  const icon = (key: string) => MessageMultiple01Icon.find(([, attributes]) => attributes.key === key)![1].d as string;
+
+  it("is message-multiple-01 when open", () => {
+    const open = messagesFrame(1);
+    // The front bubble and its text, stroke for stroke.
+    const front = [...sample(strokes(open.layers[0]!), 48)];
+    const off = [...sample(icon("2"), 48), ...sample(icon("0"), 48)].filter(
+      ([x, y]) => !front.some(([px, py]) => Math.hypot(px - x, py - y) < 0.6),
+    );
+    expect(off).toEqual([]);
+    // The back bubble reaches the icon's own bottom and right edges.
+    const back = bounds(strokes(open.layers[1]!));
+    const drawn = bounds(icon("1"));
+    expect(back.right).toBeCloseTo(drawn.right, 1);
+    expect(back.bottom).toBeCloseTo(drawn.bottom, 1);
+  });
+
+  it("is one bubble when shut: the second is tucked out of sight behind the first", () => {
+    const shut = messagesFrame(0);
+    const front = polygons(shut.layers[0]!.covers);
+    // Hidden wherever the front covers it, or within the gap kept around the
+    // front's outline, which reaches a stroke's width past it.
+    const showing = sample(strokes(shut.layers[1]!), 12).filter(
+      (point) => !front.some((polygon) => inside(point, polygon) || fromEdge(point, polygon) < shut.gap! + 0.75 - 0.75),
+    );
+    expect(showing).toEqual([]);
+  });
+
+  it("slides the second bubble out without turning or resizing it", () => {
+    const back = [0, 0.25, 0.5, 0.75, 1].map((open) => {
+      const frame = messagesFrame(open);
+      const front = bounds(strokes(frame.layers[0]!));
+      const drawn = bounds(strokes(frame.layers[1]!));
+      return { dx: drawn.right - front.right, dy: drawn.bottom - front.bottom, width: drawn.right - drawn.left };
+    });
+    for (let i = 1; i < back.length; i += 1) {
+      expect(back[i]!.dx).toBeGreaterThan(back[i - 1]!.dx);
+      expect(back[i]!.dy).toBeGreaterThan(back[i - 1]!.dy);
+      expect(back[i]!.width).toBeCloseTo(back[0]!.width, 5);
     }
   });
 });

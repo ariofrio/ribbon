@@ -86,9 +86,10 @@ favicon colors. Changes save as you click and appear in every window.
 
 A heading with a color is tinted by its hue; every other heading is gray. A
 heading whose group chose no icon carries a standard one: a book for a
-section, Threads included, and a folder for a project, open while the
-group is. The book's top page turns over on its spine and the folder's front
-falls forward as its group folds. **Group header icons** turns them all off.
+section, a folder for a project, and two messages for Threads, open while the
+group is. The book's top page turns over on its spine, the folder's front
+falls forward, and the second message slides back behind the first as its
+group folds. **Group header icons** turns them all off.
 
 A folded group still shows the open thread as its one row, and a click on a
 heading anywhere but its buttons folds or unfolds it; a double click on the

@@ -6,7 +6,8 @@
  * top page turns over on the spine and lands flat on the left, the spine
  * uncurling beneath it and the pages bowing into the gutter. A folder stands
  * with its front panel against its back; opening it, the front falls forward
- * on the fold along its bottom.
+ * on the fold along its bottom. Two message bubbles stand one behind the
+ * other; opening them, the back one slides out from behind the front one.
  *
  * Each part is a panel with no thickness, posed in 3D and drawn with parallel
  * projection, as icons are: every edge that is a crease, a fold or a panel's
@@ -373,9 +374,47 @@ function folderSolids(open: number): Solid[] {
   ];
 }
 
+// message-multiple-01's front bubble, point by point, and its two lines.
+const MESSAGE = trace(
+  "M12.345 17.4868C15.9006 17.2526 18.7328 14.4069 18.9658 10.8344C19.0114 10.1353 19.0114 9.41131 18.9658 8.71219C18.7328 5.13969 15.9006 2.29401 12.345 2.05985C11.132 1.97997 9.86553 1.98013 8.65499 2.05985C5.09943 2.29401 2.26725 5.13969 2.0342 8.71219C1.9886 9.41131 1.9886 10.1353 2.0342 10.8344C2.11908 12.1356 2.69992 13.3403 3.38372 14.3576C3.78076 15.0697 3.51873 15.9586 3.10518 16.735C2.807 17.2948 2.65791 17.5747 2.77762 17.7769C2.89732 17.9791 3.16472 17.9856 3.69951 17.9985C4.75712 18.024 5.47028 17.7269 6.03638 17.3134C6.35744 17.0788 6.51798 16.9615 6.62862 16.9481C6.73926 16.9346 6.957 17.0234 7.39241 17.2011C7.78374 17.3608 8.23812 17.4593 8.65499 17.4868C9.86553 17.5665 11.132 17.5666 12.345 17.4868",
+);
+const TEXT: V2[][] = [
+  [[7.5, 8], [10.5, 8]],
+  [[7.5, 12], [13.5, 12]],
+];
+// Its back bubble is the front one mirrored, down to the right. Shut, it is
+// tucked behind the front one, so only one shows. A bubble's mirror image
+// cannot hide behind it, its tail sticks out past the rounded corner; a
+// twentieth smaller, about the corner the icon draws it at, it can.
+const MIRRORED = MESSAGE.map(([x, y]): V2 => [23.98 - x, y + 4.06]);
+const BEHIND_CORNER: V2 = [Math.max(...MIRRORED.map(([x]) => x)), Math.max(...MIRRORED.map(([, y]) => y))];
+const BEHIND = MIRRORED.map(([x, y]): V2 => [
+  BEHIND_CORNER[0] + (x - BEHIND_CORNER[0]) * 0.95,
+  BEHIND_CORNER[1] + (y - BEHIND_CORNER[1]) * 0.95,
+]);
+// The shortest slide back that puts all of it out of sight.
+const TUCKED: V2 = [-3.75, -5.75];
+
+// Seen square on, as the icon is drawn.
+const FLAT_VIEW: View = {
+  at: ([x, , z]) => [x, 21 - z],
+  toward: [0, -1, 0],
+};
+
+function messagesSolids(open: number): Solid[] {
+  const upright = ([x, y]: V2, depth: number): V3 => [x, depth, 21 - y];
+  const away = 1 - open;
+  return [
+    { faces: [MESSAGE.map((p) => upright(p, 0))], lines: TEXT.map((line) => line.map((p) => upright(p, 0))) },
+    { faces: [BEHIND.map(([x, y]) => upright([x + TUCKED[0] * away, y + TUCKED[1] * away], 1))] },
+  ];
+}
+
 export interface IconFrame {
   /** Each part, nearest first: its strokes, and what it hides behind it. */
   layers: { d: string; covers: string }[];
+  /** How far past a nearer part's outline what lies behind it stays hidden. */
+  gap?: number;
 }
 
 /**
@@ -399,7 +438,7 @@ function clockwise(points: V2[]): V2[] {
 function framed(
   solids: (open: number) => Solid[],
   view: View,
-  { follow, round }: { follow: boolean; round: boolean },
+  { follow, round, scale: fixed, gap }: { follow: boolean; round: boolean; scale?: number; gap?: number },
 ) {
   const bounds = (open: number) => {
     const points = draw(solids(open), view).flatMap((layer) =>
@@ -411,7 +450,7 @@ function framed(
     return { width: x1 - x0, height: y1 - y0, x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
   };
   const [shut, spread] = [bounds(0), bounds(1)];
-  const scale = Math.min(20 / shut.width, 18 / shut.height, 23 / spread.width);
+  const scale = fixed ?? Math.min(20 / shut.width, 18 / shut.height, 23 / spread.width);
   const rest = new Map<number, IconFrame>();
   const frame = (open: number): IconFrame => {
     const along = follow ? open : 0;
@@ -425,6 +464,7 @@ function framed(
           .join(""),
         covers: layer.fills.map((fill) => `M${clockwise(fill.map(place)).map(point).join("L")}Z`).join(""),
       })),
+      ...(gap === undefined ? {} : { gap }),
     };
   };
   // Most headings are at rest, so their poses are drawn once.
@@ -440,3 +480,9 @@ function framed(
 export const bookFrame = framed(bookSolids, BOOK_VIEW, { follow: true, round: false });
 /** The folder at `open`, from 0 shut to 1 open. */
 export const folderFrame = framed(folderSolids, FOLDER_VIEW, { follow: false, round: true });
+/**
+ * The two messages at `open`, from 0 shut to 1 open, drawn as
+ * message-multiple-01 is: at its own size, with a gap where the back bubble
+ * passes behind the front one.
+ */
+export const messagesFrame = framed(messagesSolids, FLAT_VIEW, { follow: true, round: false, scale: 1, gap: 1 });
