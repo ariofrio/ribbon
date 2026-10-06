@@ -61,6 +61,10 @@ export async function verifyStagePlacement({ stack, fixture }) {
       }
       async function first(stage, thread = returning) {
         await row(group, thread.id).getByLabel(`${labels[stage]} stage`, { exact: true }).waitFor();
+        if (stage === "Deferred") {
+          const more = group.getByRole("button", { name: /^Show \d+ more deferred$/ });
+          if (await more.count()) await more.click();
+        }
         await page.waitForFunction(({ selector, id, deferred }) => {
           const group = document.querySelector(selector);
           const icons = [...group.querySelectorAll('[aria-label$=" stage"]')].filter((icon) =>
@@ -124,8 +128,10 @@ export async function verifyStagePlacement({ stack, fixture }) {
         }
       }
       place(other, "Deferred");
+      await first("Deferred", other);
       place(returning, "Deferred");
       await first("Deferred");
+      await link(group, other.id).waitFor();
       console.log(`Checking ${organization} Deferred drag and keyboard reordering`);
       await pickUp(page, link(group, returning.id));
       await carryTo(page, link(group, other.id), "after");
