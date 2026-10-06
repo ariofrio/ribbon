@@ -125,7 +125,7 @@ export function createGroupingCatalog(settings: {
           visibleWhenEmpty: optionalStageEnabled(stage),
           acceptsAssignments: optionalStageEnabled(stage),
           defaultCollapsed: stage === "Deferred" || stage === "Completed",
-          ...(stage === "Completed" ? { defaultPlacement: "start" } : {}),
+          defaultPlacement: "start",
         })),
       },
     ],

@@ -31,6 +31,12 @@ describe("sidebar stage icons", () => {
 });
 
 describe("stage catalog", () => {
+  it("places newly entering threads at the start of every stage", () => {
+    const [grouping] = createGroupingCatalog({}).groupings;
+    expect(grouping!.groups.map(({ defaultPlacement }) => defaultPlacement))
+      .toEqual(WORKFLOW_STAGES.map(() => "start"));
+  });
+
   it("labels the stages and marks the two Blocked stages apart", () => {
     const [grouping] = createGroupingCatalog({}).groupings;
     expect(grouping!.defaultGroupId).toBe("Active");

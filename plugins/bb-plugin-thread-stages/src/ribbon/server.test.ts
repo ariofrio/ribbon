@@ -501,8 +501,8 @@ describe("Ribbon sidebar server", () => {
       await plugin(bb);
       try {
         for (const [threadId, groupId] of [
-          ["first", "BlockedOnThirdParty"],
           ["second", "BlockedOnThirdParty"],
+          ["first", "BlockedOnThirdParty"],
         ]) {
           await harness.behavior.callRpc("updatePlacementV1", {
             groupingKey: "plugin:thread-stages:stages",
@@ -549,6 +549,96 @@ describe("Ribbon sidebar server", () => {
       }
     },
   );
+
+  it.each(["cli", "menu", "shortcut"])(
+    "places stage entries first through %s and restores the main position on return",
+    async (method) => {
+      const { bb, harness } = setup({
+        threads: ["a", "b", "c"].map((id) => makeThreadResponse({
+          id, projectId: "project-a", sectionId: "section-a",
+        })),
+        settings: { messageOnStageChange: false },
+      });
+      await plugin(bb);
+      const stages = "plugin:thread-stages:stages";
+      const place = async (threadId: string, groupId: string) => {
+        if (method === "cli") {
+          await harness.behavior.runCli(["place", threadId, "--to", `${stages}/${groupId}`]);
+        } else if (method === "shortcut") {
+          await harness.behavior.callRpc("setWorkflowStage", { threadId, workflowStage: groupId });
+        } else {
+          await harness.behavior.callRpc("updatePlacementV1", {
+            groupingKey: stages, threadId, groupId, origin: "ui",
+          });
+        }
+      };
+      const ids = async (groupingKey: string, groupIds?: string[]) => {
+        const result = await harness.behavior.callRpc("listPlacementsV1", { groupingKey, groupIds }) as {
+          value: { items: { threadId: string }[] };
+        };
+        return result.value.items.map(({ threadId }) => threadId);
+      };
+      try {
+        for (const stage of ["BlockedOnOtherAgent", "BlockedOnThirdParty"]) {
+          await place("c", stage);
+          for (const key of ["builtin:sections", "builtin:projects"]) {
+            expect(await ids(key)).toEqual(["c", "a", "b"]);
+          }
+          await place("c", "Active");
+          await harness.behavior.runCli(["place", "c", "--to", "builtin:sections/section-a", "--after", "b"]);
+          await harness.behavior.runCli(["place", "c", "--to", "builtin:projects/project-a", "--after", "b"]);
+        }
+        for (const stage of ["Deferred", "Completed"]) {
+          await place("a", stage);
+          await place("b", stage);
+          expect(await ids(stages, [stage])).toEqual(["b", "a"]);
+          await place("b", "Active");
+          await place("a", "Active");
+          for (const key of ["builtin:sections", "builtin:projects"]) {
+            expect(await ids(key)).toEqual(["a", "b", "c"]);
+          }
+        }
+      } finally {
+        await harness.lifecycle.dispose();
+      }
+    },
+  );
+
+  it("honors explicit stage-entry anchors and restores a Blocked move with undo", async () => {
+    const { bb, harness } = setup({
+      threads: ["a", "b", "c", "other"].map((id) => makeThreadResponse({
+        id,
+        projectId: id === "other" ? "project-b" : "project-a",
+        sectionId: id === "other" ? "section-b" : "section-a",
+      })),
+      settings: { messageOnStageChange: false },
+    });
+    await plugin(bb);
+    const keys = ["builtin:sections", "builtin:projects"] as const;
+    const orders = async () => Promise.all(keys.map(async (groupingKey) => {
+      const result = await harness.behavior.callRpc("listPlacementsV1", { groupingKey }) as {
+        value: { items: { threadId: string }[] };
+      };
+      return result.value.items.map(({ threadId }) => threadId);
+    }));
+    try {
+      const original = await orders();
+      await harness.behavior.callRpc("setWorkflowStage", {
+        threadId: "c", workflowStage: "BlockedOnThirdParty",
+      });
+      expect(await orders()).toEqual(keys.map(() => ["c", "a", "b", "other"]));
+      // Active on an already Active thread undoes the latest UI filing.
+      await harness.behavior.callRpc("setWorkflowStage", { threadId: "a", workflowStage: "Active" });
+      expect(await orders()).toEqual(original);
+      await harness.behavior.runCli(["place", "b", "--to", "plugin:thread-stages:stages/BlockedOnThirdParty"]);
+      await harness.behavior.runCli([
+        "place", "c", "--to", "plugin:thread-stages:stages/BlockedOnThirdParty", "--after", "b",
+      ]);
+      expect(await orders()).toEqual(keys.map(() => ["b", "c", "a", "other"]));
+    } finally {
+      await harness.lifecycle.dispose();
+    }
+  });
 
   it("places a newly Completed thread first, as the stage catalog says", async () => {
     const { bb, harness } = setup({
