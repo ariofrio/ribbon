@@ -34,6 +34,7 @@ export async function verifyTitleLane({ stack, fixture }) {
     fixture.run(["thread", "read", plain.id]);
     // Unread, the parent would show an indicator and keep its lane.
     fixture.run(["thread", "read", parent.id]);
+    fixture.run(["sidebar", "place", parent.id, "--to", "plugin:thread-stages:stages/Active"]);
     fixture.run(["sidebar", "place", plain.id, "--to", "plugin:thread-stages:stages/Active"]);
     const context = await openContext(browser);
     const page = await context.newPage();
