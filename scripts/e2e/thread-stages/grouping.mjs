@@ -84,7 +84,7 @@ export async function verifyGrouping({ stack, fixture }) {
     await webHeading.getByRole("button", { name: `Expand ${webProject.name} section`, exact: true }).click();
     await webThread.waitFor();
     const second = fixture.threads.get("Replace the legacy filter drawer").id;
-    fixture.run(["sidebar", "place", second, "--to", `${STAGES}/Active`]);
+    fixture.run(["thread-stages", "place", second, "--to", `${STAGES}/Active`]);
     const secondRow = link(web, second);
     await web.locator(`[data-thread-id="${second}"]`).getByLabel("Active stage", { exact: true }).waitFor();
     const ids = new Set([second, featuredId]);
@@ -132,7 +132,7 @@ export async function verifyGrouping({ stack, fixture }) {
     await secondRow.waitFor();
     assert.deepEqual(await order(web), [...initialProjectOrder].reverse(), "Project order survives switching and reload");
     await chooseOrganization(webProject.name, "Custom");
-    fixture.run(["sidebar", "place", second, "--to", `${STAGES}/Deferred`]);
+    fixture.run(["thread-stages", "place", second, "--to", `${STAGES}/Deferred`]);
     await context.close();
   } finally {
     releaseSave();

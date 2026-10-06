@@ -8,7 +8,7 @@ import {
 export async function verifyDragRegressions({ stack, fixture, cases }) {
   const threads = [...fixture.threads.values()];
   for (const [index, thread] of threads.entries()) {
-    fixture.run(["sidebar", "place", thread.id, "--to", `${STAGES}/${index < 6 ? "Active" : index < 8 ? "Deferred" : "Completed"}`]);
+    fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/${index < 6 ? "Active" : index < 8 ? "Deferred" : "Completed"}`]);
   }
   const children = [];
   if (cases.includes("nested")) {
@@ -190,7 +190,7 @@ export async function verifyDragRegressions({ stack, fixture, cases }) {
         await gate;
         await route.fulfill({ response });
       });
-      fixture.run(["sidebar", "place", initial[1], "--to", `${STAGES}/BlockedOnThirdParty`]);
+      fixture.run(["thread-stages", "place", initial[1], "--to", `${STAGES}/BlockedOnThirdParty`]);
       await Promise.race([
         readCaptured,
         new Promise((_, reject) => {
@@ -233,6 +233,6 @@ export async function verifyDragRegressions({ stack, fixture, cases }) {
     await browser.close();
     for (const child of children) fixture.run(["thread", "archive", child.id]);
     for (const spec of THREADS)
-      if (spec.stage) fixture.run(["sidebar", "place", fixture.threads.get(spec.title).id, "--to", `${STAGES}/${spec.stage}`]);
+      if (spec.stage) fixture.run(["thread-stages", "place", fixture.threads.get(spec.title).id, "--to", `${STAGES}/${spec.stage}`]);
   }
 }

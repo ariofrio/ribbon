@@ -10,7 +10,7 @@ const PARENT = "Replace the legacy filter drawer";
 export async function verifyChildRails({ stack, fixture, cases }) {
   const parent = fixture.threads.get(PARENT);
   const project = fixture.projects.get("atlas-web");
-  fixture.run(["sidebar", "place", parent.id, "--to", `${STAGES}/Active`]);
+  fixture.run(["thread-stages", "place", parent.id, "--to", `${STAGES}/Active`]);
   const setLines = (value) => fixture.run(["plugin", "config", "thread-stages", "set", "childThreadLines", value]);
   setLines("Bar");
   const children = ["First child rail", "Last child rail"].map((title) =>
@@ -43,7 +43,7 @@ export async function verifyChildRails({ stack, fixture, cases }) {
   } finally {
     await browser.close();
     for (const child of children) fixture.run(["thread", "archive", child.id]);
-    fixture.run(["sidebar", "place", parent.id, "--to", `${STAGES}/Deferred`]);
+    fixture.run(["thread-stages", "place", parent.id, "--to", `${STAGES}/Deferred`]);
     setLines("Tree");
   }
 }

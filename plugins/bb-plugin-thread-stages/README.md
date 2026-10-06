@@ -112,7 +112,7 @@ buttons appear beside the thread title, colored like the section or project,
 and send the saved prompt to that thread when clicked. **Hide thread title**
 gives them the whole row.
 
-The same actions are available through `bb sidebar actions list`, `set`, and
+The same actions are available through `bb thread-stages actions list`, `set`, and
 `run`. Pass a thread ID or `--self`; `set --actions '<json-array>'` replaces
 the buttons, and `run <action-id>` sends a saved prompt. See the
 [Thread actions skill reference](skills/thread-stages/SKILL.md#thread-actions)
@@ -184,24 +184,24 @@ one is installed; they draw nothing bb's list does not.
 
 ## CLI
 
-The placement CLI keeps its name and the stored stage key
-`plugin:thread-stages:stages`:
+The Ribbon sidebar's `bb sidebar` CLI is now `bb thread-stages`, with the same
+commands and the same stored stage key `plugin:thread-stages:stages`:
 
 ```sh
-bb sidebar groupings
-bb sidebar groups builtin:sections
-bb sidebar list --scope builtin:sections/<section-id>
-bb sidebar show --self
-bb sidebar place --self --to plugin:thread-stages:stages/Completed
-bb sidebar list --include-children --scope plugin:thread-stages:stages/BlockedOnThirdParty
-bb sidebar place <thread> --to builtin:sections/<section-id> --before <thread>
-bb sidebar place <child> --before <sibling>
-bb sidebar children <thread>
+bb thread-stages groupings
+bb thread-stages groups builtin:sections
+bb thread-stages list --scope builtin:sections/<section-id>
+bb thread-stages show --self
+bb thread-stages place --self --to plugin:thread-stages:stages/Completed
+bb thread-stages list --include-children --scope plugin:thread-stages:stages/BlockedOnThirdParty
+bb thread-stages place <thread> --to builtin:sections/<section-id> --before <thread>
+bb thread-stages place <child> --before <sibling>
+bb thread-stages children <thread>
 ```
 
-Use `bb sidebar` to discover the full command surface. `list --json` joins
-thread metadata, project, section, and stage. Archived and hidden threads are
-excluded unless requested with `--include-archived` or `--include-hidden`.
+Use `bb thread-stages` to discover the full command surface. `list --json`
+joins thread metadata, project, section, and stage. Archived and hidden threads
+are excluded unless requested with `--include-archived` or `--include-hidden`.
 Add `--include-children` to list nested threads with their own stages.
 
 The list's layout preferences — organization mode, sort, section order,
@@ -209,10 +209,10 @@ hidden groups, and collapsed groups — are bb's, stored by the plugin and
 synced to every open window:
 
 ```sh
-bb sidebar prefs list [--json]
-bb sidebar prefs get <key> [--json]
-bb sidebar prefs set <key> <value> [--json]
-bb sidebar prefs reset <key> [--json]
+bb thread-stages prefs list [--json]
+bb thread-stages prefs get <key> [--json]
+bb thread-stages prefs set <key> <value> [--json]
+bb thread-stages prefs reset <key> [--json]
 ```
 
 ## Development
