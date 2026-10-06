@@ -50,7 +50,17 @@ async function verifyGroup({ page, list, group, label, prefKey, openThread, othe
     const body = ids.map((id) => root.querySelector(`[data-thread-id="${id}"]`)?.closest("[data-ribbon-group-body]"))[0];
     return ids.every((id) => (root.querySelector(`[data-thread-id="${id}"]`)?.getBoundingClientRect().height ?? 0) > 0) &&
       body != null && getComputedStyle(body.firstElementChild).clipPath === "none";
-  }, [all], { timeout: 10_000 });
+  }, [all], { timeout: 10_000 }).catch(async (error) => {
+    console.error("Unfold readiness", await group.evaluate((node, ids) => ({
+      rows: ids.map((id) => {
+        const row = node.querySelector(`[data-thread-id="${id}"]`);
+        const body = row?.closest("[data-ribbon-group-body]");
+        return { id, height: row?.getBoundingClientRect().height ?? null, clipPath: body ? getComputedStyle(body.firstElementChild).clipPath : null };
+      }),
+      text: node.innerText,
+    }), all));
+    throw error;
+  });
   await group.getByRole("button", { name: `Collapse ${label} section`, exact: true }).hover();
   await recordFold(group);
   await withPreferenceSaved(page, prefKey, () =>
@@ -93,6 +103,8 @@ export async function verifyCollapsedPreview({ stack, fixture, cases }) {
   const api = fixture.threads.get(THREADS.find((spec) => spec.project === "atlas-api" && spec.stage === null).title);
   const apiProject = fixture.projects.get("atlas-api");
   const href = (thread, proj) => new URL(`/projects/${proj.id}/threads/${thread.id}`, stack.serverUrl).href;
+  // Moving selection must not replace this row in a collapsed stage preview.
+  fixture.run(["thread-stages", "place", featured.id, "--to", "plugin:thread-stages:stages/Active"]);
   fixture.run(["thread", "update", api.id, "--clear-section"]);
   const browser = await launch();
   try {

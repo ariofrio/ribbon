@@ -48,10 +48,14 @@ Inside each group, Active and both Blocked stages share one manually ordered
 list, followed by Deferred and then Completed. New roots enter at the top, and
 activity leaves positions unchanged.
 
-Deferred and Completed each show the first two roots in their saved order;
-**Show N more deferred/completed** expands the rest, and **Show
-fewer** restores the preview. The open thread stays visible even outside the
-preview, and search reveals every matching result.
+Deferred and Completed preview roots in their saved order; entering Completed
+inserts a thread first. **Completed and Deferred preview rows** sets a limit of 1–5 rows
+per stage, defaulting to 2, including **Show N more deferred/completed**.
+With two or more threads, the default shows one thread and that button;
+a single thread shows on its own. At limit 1, a single thread shows on its
+own; multiple threads show only the button. The open thread replaces a preview
+row when needed. **Show fewer** restores the preview, and search reveals every
+matching result.
 
 Drag a root to reorder it within its list, onto its section's heading to put
 it first, or onto another section to move it there. Drag a child to reorder
@@ -85,9 +89,10 @@ favicon colors. Changes save as you click and appear in every window.
 
 A heading with a color is tinted by its hue; every other heading is gray. A
 heading whose group chose no icon carries a standard one: a book for a
-section, Threads included, and a folder for a project, open while the
-group is. The book's top page turns over on its spine and the folder's front
-falls forward as its group folds. **Group header icons** turns them all off.
+section, a folder for a project, and two messages for Threads, open while the
+group is. The book's top page turns over on its spine, the folder's front
+falls forward, and the second message slides back behind the first as its
+group folds. **Group header icons** turns them all off.
 
 A folded group still shows the open thread as its one row, and a click on a
 heading anywhere but its buttons folds or unfolds it; a double click on the
