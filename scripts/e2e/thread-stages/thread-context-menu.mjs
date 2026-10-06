@@ -83,6 +83,12 @@ export async function verifyThreadContextMenu({ stack, fixture }) {
       });
       await page.keyboard.press("Enter");
       const label = editor.getByRole("textbox", { name: "Action 1 button label" });
+      const prompt = editor.getByRole("textbox", { name: "Action 1 prompt" });
+      const labelBox = await label.boundingBox();
+      const promptBox = await prompt.boundingBox();
+      assert.ok(Math.abs(labelBox.y - promptBox.y) < 3 && promptBox.x >= labelBox.x + labelBox.width,
+        "Labels and prompts share a compact table row");
+      await page.keyboard.press("Shift+Tab");
       await page.keyboard.press("Shift+Tab");
       await page.keyboard.press("Shift+Tab");
       assert.equal(await label.evaluate((node) => document.activeElement === node), true);
@@ -99,11 +105,12 @@ export async function verifyThreadContextMenu({ stack, fixture }) {
       }), { times: 1 });
       await page.keyboard.press("Tab");
       await page.keyboard.press("Tab");
+      await page.keyboard.press("Tab");
       await page.keyboard.press("Enter");
       await failedSave;
       await editor.getByRole("alert").waitFor();
       assert.equal(await label.inputValue(), "Revie!w", "failed saves keep the draft editable");
-      await editor.getByRole("button", { name: "Remove", exact: true }).focus();
+      await editor.getByRole("button", { name: "Remove action 1", exact: true }).focus();
       await page.keyboard.press("Enter");
       assert.equal(await editor.getByRole("textbox").count(), 0);
       await page.keyboard.press("Escape");

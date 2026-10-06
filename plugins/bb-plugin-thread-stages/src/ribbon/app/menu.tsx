@@ -127,7 +127,7 @@ export function RibbonThreadActionsMenu({
       <SubTrigger>{icon}Edit actions</SubTrigger>
       <SubContent
         aria-label="Edit actions"
-        className="max-h-[min(32rem,calc(100dvh-2rem))] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto"
+        className="max-h-[min(32rem,calc(100dvh-2rem))] w-96 max-w-[calc(100vw-2rem)] overflow-y-auto"
         onFocus={(event) => {
           if (event.target === event.currentTarget) {
             event.currentTarget.querySelector<HTMLElement>("input:not(:disabled), button:not(:disabled)")?.focus();

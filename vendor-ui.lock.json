@@ -21,6 +21,7 @@
     "plugins/bb-plugin-thread-stages/src/components/ui/popover.tsx": "sha256-tnZSxQYNhQmiHv2m7ta2sPDzNeO7g9bTnwzqdMlkpg8=",
     "plugins/bb-plugin-thread-stages/src/components/ui/responsive-overlay.tsx": "sha256-V7ohNvZgz60uF+gK9IzIr2bURvWj9fxrEqS8JVjCYso=",
     "plugins/bb-plugin-thread-stages/src/components/ui/skeleton.tsx": "sha256-wBzY8RvRkf595d4srHto/Ss2UW1YNoFbqxmGjG0tzW0=",
+    "plugins/bb-plugin-thread-stages/src/components/ui/table.tsx": "sha256-KOxwza0nUQ3yiTm2C8hjnEi71WK2lwFjE8mpKBhtvrM=",
     "plugins/bb-plugin-thread-stages/src/components/ui/textarea.tsx": "sha256-BsCosTcRIWyyTvSPJwBgkSwqED3VMifve6UR6V2Q+B8=",
     "plugins/bb-plugin-thread-stages/src/components/ui/tooltip.tsx": "sha256-pfn1njL0QgIHxXF1Jjb97x02OJiSsfjF0i7+zHE/9q4=",
     "plugins/bb-plugin-thread-stages/src/hooks/useBrowserDimmingModal.ts": "sha256-Psct6KnDnpSx4wVqredwge7TFBoGfynYVQmK0/DzIMA=",

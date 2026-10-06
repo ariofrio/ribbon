@@ -50,6 +50,22 @@ export async function verifyThreadActions({ stack, fixture }) {
       await editor.getByRole("textbox", { name: `Action ${index + 1} button label` }).fill(label);
       await editor.getByRole("textbox", { name: `Action ${index + 1} prompt` }).fill(`${label} in this thread.`);
     }
+    const tableLayout = await editor.getByRole("table", { name: "Thread actions" }).evaluate((table) => {
+      const fields = [...table.querySelectorAll("input, textarea")].map((field) => {
+        const box = field.getBoundingClientRect();
+        return { x: box.x, y: box.y, width: box.width, height: box.height };
+      });
+      return { fields, height: table.getBoundingClientRect().height };
+    });
+    assert.ok(tableLayout.height < 280, "Five actions fit in a compact table");
+    for (let index = 0; index < labels.length; index++) {
+      const label = tableLayout.fields[index * 2];
+      const prompt = tableLayout.fields[index * 2 + 1];
+      assert.ok(Math.abs(label.y - prompt.y) < 3 && prompt.x >= label.x + label.width,
+        "Each label and prompt share one row");
+      assert.equal(prompt.x, tableLayout.fields[1].x, "Prompt columns align across all rows");
+      assert.ok(label.height <= 36 && prompt.height <= 36, "Fields start at compact heights");
+    }
     await editor.getByRole("button", { name: "Save actions" }).click();
     await editor.waitFor({ state: "hidden" });
     const action = target.getByRole("button", { name: `Review in ${thread.title}` });
