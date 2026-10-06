@@ -15,6 +15,7 @@ import {
   listPlacementsInputSchema,
   listPlacementsOutputSchema,
   pullRequestDetailsSchema,
+  threadActionsSchema,
   updatePlacementInputSchema,
   updatePlacementOutputSchema,
 } from "./contracts";
@@ -45,7 +46,8 @@ import {
 import { sidebarThreadsFromSearchResult } from "./search-results";
 import { sidebarMigrations } from "./sidebar-migrations";
 import { registerStageMentions } from "./stage-mentions";
-import { createThreadActionsStore } from "./thread-actions-store";
+import { threadActionCliCommands } from "./thread-actions-cli";
+import { createThreadActionsStore, type ThreadActionsRecord } from "./thread-actions-store";
 import {
   createGroupingCatalog,
   THREAD_STAGES_GROUPING_KEY,
@@ -108,18 +110,6 @@ const ribbonThreadSchema = z
     latestAttentionAt: z.number(),
   })
   .strict();
-const threadActionSchema = z
-  .object({
-    id: z.string().min(1).max(64),
-    label: z.string().trim().min(1).max(24),
-    prompt: z.string().trim().min(1).max(10000),
-  })
-  .strict();
-const threadActionsSchema = z.array(threadActionSchema).refine(
-  (actions) => new Set(actions.map(({ id }) => id)).size === actions.length,
-  "Action IDs must be unique.",
-);
-
 export const rpcContract = defineRpcContract({
   ...workflowRpcMethods,
   listThreadActionsV1: {
@@ -830,30 +820,34 @@ export default async function ribbonServer(
     },
   });
 
+  async function saveThreadActions({ threadId, actions, hideTitle }: ThreadActionsRecord) {
+    const thread = await bb.sdk.threads.get({ threadId });
+    if (thread.archivedAt !== null) {
+      throw new Error("Archived threads cannot have actions.");
+    }
+    threadActions.save(threadId, actions, hideTitle);
+    bb.realtime.publish("thread-actions-changed", { threadId });
+    return { ok: true as const };
+  }
+
+  async function runThreadAction({ threadId, actionId }: { threadId: string; actionId: string }) {
+    const action = threadActions.get(threadId, actionId);
+    if (!action) throw new Error("This thread action no longer exists.");
+    await bb.sdk.threads.send({
+      threadId,
+      input: [{ type: "text", text: action.prompt, mentions: [] }],
+      mode: "auto",
+    });
+    return { ok: true as const };
+  }
+
   bb.rpc.register(rpcContract, {
     ...workflow,
     listThreadActionsV1() {
       return { threads: threadActions.list() };
     },
-    async saveThreadActionsV1({ threadId, actions, hideTitle }) {
-      const thread = await bb.sdk.threads.get({ threadId });
-      if (thread.archivedAt !== null) {
-        throw new Error("Archived threads cannot have actions.");
-      }
-      threadActions.save(threadId, actions, hideTitle);
-      bb.realtime.publish("thread-actions-changed", { threadId });
-      return { ok: true as const };
-    },
-    async runThreadActionV1({ threadId, actionId }) {
-      const action = threadActions.get(threadId, actionId);
-      if (!action) throw new Error("This thread action no longer exists.");
-      await bb.sdk.threads.send({
-        threadId,
-        input: [{ type: "text", text: action.prompt, mentions: [] }],
-        mode: "auto",
-      });
-      return { ok: true as const };
-    },
+    saveThreadActionsV1: saveThreadActions,
+    runThreadActionV1: runThreadAction,
     async createSectionV1({ name }) {
       const section = await bb.sdk.threadSections.create({ name });
       await refreshCatalogsAndRoots();
@@ -979,7 +973,18 @@ export default async function ribbonServer(
       };
     },
     reorderChildren,
-    extraCommands,
+    extraCommands: {
+      ...extraCommands,
+      ...threadActionCliCommands({
+        save: saveThreadActions,
+        run: runThreadAction,
+        async list(threadId) {
+          await bb.sdk.threads.get({ threadId });
+          return threadActions.list().find((record) => record.threadId === threadId)
+            ?? { threadId, actions: [], hideTitle: false };
+        },
+      }),
+    },
   });
   bb.cli.register({
     ...cli,

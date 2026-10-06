@@ -112,6 +112,12 @@ buttons appear beside the thread title, colored like the section or project,
 and send the saved prompt to that thread when clicked. **Hide thread title**
 gives them the whole row.
 
+The same actions are available through `bb thread-stages actions list`, `set`, and
+`run`. Pass a thread ID or `--self`; `set --actions '<json-array>'` replaces
+the buttons, and `run <action-id>` sends a saved prompt. See the
+[Thread actions skill reference](skills/thread-stages/SKILL.md#thread-actions)
+for the JSON format and title setting.
+
 A thread's pull request adds its status. Its icon beside the PR number is
 green while open, amber once auto-merge is on or it is in the merge queue,
 purple when merged, red when closed, and muted while a draft. The status

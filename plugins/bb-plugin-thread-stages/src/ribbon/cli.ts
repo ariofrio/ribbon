@@ -109,7 +109,7 @@ function groupRef(value: string | undefined) {
   };
 }
 
-function resolveThreadId(
+export function resolveThreadId(
   positional: string | undefined,
   self: boolean,
   invocation: RibbonSidebarCliInvocation,
