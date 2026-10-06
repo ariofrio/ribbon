@@ -90,10 +90,11 @@ export function stageIn(
 export const ribbonStageLookupAtom = atom((get) => {
   if (!get(ribbonEnabledAtom)) return null;
   const stages = get(ribbonStagesAtom);
+  const ranks = new Map([...stages.keys()].map((id, index) => [id, index]));
   return {
     stageOf: (threadId: string) => stageIn(stages, threadId),
-    /** When the thread entered its current stage, or 0. */
-    enteredStageAt: (threadId: string) => stages.get(threadId)?.enteredAtMs ?? 0,
+    /** The saved position in the thread's stage, or the end if not yet loaded. */
+    stageRank: (threadId: string) => ranks.get(threadId) ?? Infinity,
   };
 });
 

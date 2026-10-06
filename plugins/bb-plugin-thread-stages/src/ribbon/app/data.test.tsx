@@ -4,6 +4,7 @@ import { memo } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RibbonDataProvider, useRibbonData, useRibbonThread } from "./data";
 import { ribbonRpcStubs } from "./test-support";
+import { THREAD_STAGES_GROUPING_KEY } from "../workflow/catalog";
 
 const realtime = new Map<string, () => void>();
 let stubs: Record<string, (input: unknown) => unknown> = {};
@@ -50,6 +51,39 @@ function stages(stageOfA: string) {
 }
 
 describe("RibbonDataProvider rows", () => {
+  it("shows a Completed reorder before the placement save answers", async () => {
+    const initial = [
+      { threadId: "thr_a", groupId: "Completed", enteredAtMs: 2 },
+      { threadId: "thr_b", groupId: "Completed", enteredAtMs: 1 },
+    ];
+    stubs = ribbonRpcStubs({ stages: initial }) as typeof stubs;
+    let finishSave!: () => void;
+    const pending = new Promise<void>((resolve) => { finishSave = resolve; });
+    stubs.updatePlacementV1 = async () => {
+      await pending;
+      stubs = ribbonRpcStubs({ stages: [...initial].reverse() }) as typeof stubs;
+      return { ok: true, value: { revision: 2 } };
+    };
+    function CompletedOrder() {
+      const ribbon = useRibbonData();
+      return <>
+        <button onClick={() => void ribbon?.updatePlacement(
+          "thr_b", THREAD_STAGES_GROUPING_KEY, "Completed", { kind: "before", threadId: "thr_a" },
+        )}>reorder</button>
+        <output>{[...(ribbon?.stages.keys() ?? [])].join(",")}</output>
+      </>;
+    }
+    render(<RibbonDataProvider><CompletedOrder /></RibbonDataProvider>);
+    try {
+      await waitFor(() => expect(screen.getByRole("status").textContent).toBe("thr_a,thr_b"));
+      act(() => screen.getByText("reorder").click());
+      await waitFor(() => expect(screen.getByRole("status").textContent).toBe("thr_b,thr_a"));
+    } finally {
+      await act(async () => { finishSave(); });
+    }
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("thr_b,thr_a"));
+  });
+
   it("re-renders a row only when what it draws from changes", async () => {
     stubs = stages("Deferred");
     render(

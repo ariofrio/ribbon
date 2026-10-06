@@ -1,21 +1,22 @@
 import assert from "node:assert/strict";
 import { FEATURED_THREAD } from "../../screenshots/fixture.mjs";
-import { launch, openContext, row, section, sidebar, STAGES } from "./sidebar.mjs";
+import { carryTo, dropMarker, launch, link, openContext, pickUp, row, section, sidebar, STAGES } from "./sidebar.mjs";
 
 export async function verifyCompletedPlacement({ stack, fixture }) {
   const returning = fixture.threads.get("Add keyboard navigation to filters");
   const shortcut = fixture.threads.get(FEATURED_THREAD);
   const place = (thread, stage) => fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/${stage}`]);
   const browser = await launch();
+  let releaseSave = () => {};
   try {
     const context = await openContext(browser, { viewport: { width: 1280, height: 1000 } });
     context.setDefaultTimeout(20_000);
     context.setDefaultNavigationTimeout(20_000);
-    const page = await context.newPage();
+    let page = await context.newPage();
     await page.goto(stack.serverUrl);
     const list = sidebar(page);
     await list.waitFor({ timeout: 120_000 });
-    const group = section(page, fixture.section.id);
+    let group = section(page, fixture.section.id);
     const completed = group.locator("[data-thread-id]").filter({ has: page.getByLabel("Completed stage", { exact: true }) });
     await group.getByRole("button", { name: "Show 4 more completed", exact: true }).waitFor();
     assert.equal(await completed.count(), 1);
@@ -39,11 +40,11 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     await row(group, shortcut.id).locator("a[data-sidebar-thread-id]").click();
     await group.getByRole("button", { name: "Show 4 more completed", exact: true }).waitFor();
     async function first(thread) {
-      console.log("Checking newest completion:", thread.title);
-      await page.waitForFunction((id) => {
-        const icon = document.querySelector('[data-ribbon-sidebar-root] [aria-label="Completed stage"]');
+      console.log("Checking first completion:", thread.title);
+      await page.waitForFunction(({ id, sectionId }) => {
+        const icon = document.querySelector(`[data-ribbon-sidebar-root] [data-sidebar-section-id="${sectionId}"] [aria-label="Completed stage"]`);
         return icon?.closest("[data-thread-id]")?.dataset.threadId === id;
-      }, thread.id);
+      }, { id: thread.id, sectionId: fixture.section.id });
     }
     place(returning, "Active");
     await row(group, returning.id).getByLabel("Active stage", { exact: true }).waitFor();
@@ -89,8 +90,67 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     } finally {
       for (const id of deferredIds) place({ id }, "Completed");
     }
+    fixture.run(["plugin", "config", "thread-stages", "set", "stagePreviewRows", "2"]);
+    place(shortcut, "Active");
+    place(shortcut, "Completed");
+    place(returning, "Active");
+    place(returning, "Completed");
+    await group.getByRole("button", { name: "Show 5 more completed", exact: true }).click();
+    await first(returning);
+
+    fixture.run(["thread-stages", "place", returning.id, "--to", `${STAGES}/Completed`, "--after", shortcut.id]);
+    await first(shortcut);
+
+    const gate = new Promise((resolve) => { releaseSave = resolve; });
+    await page.route("**/rpc/updatePlacementV1", async (route) => {
+      await gate;
+      await route.continue();
+    }, { times: 1 });
+    const dragged = page.waitForResponse((response) => response.url().endsWith("/rpc/updatePlacementV1"));
+    void dragged.catch(() => undefined);
+    await pickUp(page, link(group, returning.id));
+    await carryTo(page, link(group, shortcut.id), "before");
+    await dropMarker(group).waitFor();
+    await page.mouse.up();
+    await first(returning);
+    releaseSave();
+    assert.ok((await dragged).ok());
+
+    async function reopen() {
+      const url = page.url();
+      const next = await context.newPage();
+      await page.close({ runBeforeUnload: false });
+      page = next;
+      await page.goto(url, { waitUntil: "domcontentloaded" });
+      await sidebar(page).waitFor({ timeout: 120_000 });
+      group = section(page, fixture.section.id);
+      await group.getByRole("button", { name: "Show 5 more completed", exact: true }).click();
+    }
+    await reopen();
+    await first(returning);
+    await link(group, returning.id).click();
+    await page.waitForURL(`**/threads/${returning.id}`);
+    await page.locator('[data-app-composer-role="primary"] [contenteditable="true"]').click();
+    const reordered = page.waitForResponse((response) => response.url().endsWith("/rpc/reorderThread"));
+    await page.keyboard.press(process.platform === "darwin" ? "Alt+Meta+ArrowDown" : "Alt+Control+ArrowDown");
+    assert.ok((await reordered).ok());
+    await first(shortcut);
+    await reopen();
+    await first(shortcut);
+
+    const placements = fixture.runJson(["thread-stages", "show", returning.id]);
+    const stage = placements.find(({ placement }) => placement.groupingKey === STAGES).placement;
+    const completedBefore = stage.enteredAtMs;
+    fixture.run(["thread-stages", "place", returning.id, "--to", `${STAGES}/Completed`, "--before", shortcut.id]);
+    await first(returning);
+    const afterReorder = fixture.runJson(["thread-stages", "show", returning.id])
+      .find(({ placement }) => placement.groupingKey === STAGES).placement;
+    assert.equal(afterReorder.enteredAtMs, completedBefore, "Reordering must preserve the completion time used by auto-archive");
+    await reopen();
+    await first(returning);
     await context.close();
   } finally {
+    releaseSave();
     fixture.run(["plugin", "config", "thread-stages", "set", "stagePreviewRows", "2"]);
     place(shortcut, "Active");
     place(returning, "Completed");

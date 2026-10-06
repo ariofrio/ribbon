@@ -48,8 +48,8 @@ Inside each group, Active and both Blocked stages share one manually ordered
 list, followed by Deferred and then Completed. New roots enter at the top, and
 activity leaves positions unchanged.
 
-Deferred previews roots in group order and Completed previews the most recent
-completions. **Completed and Deferred preview rows** sets a limit of 1–5 rows
+Deferred and Completed preview roots in their saved order; entering Completed
+inserts a thread first. **Completed and Deferred preview rows** sets a limit of 1–5 rows
 per stage, defaulting to 2, including **Show N more deferred/completed**.
 With two or more threads, the default shows one thread and that button;
 a single thread shows on its own. At limit 1, a single thread shows on its
@@ -60,7 +60,8 @@ matching result.
 Drag a root to reorder it within its list, onto its section's heading to put
 it first, or onto another section to move it there. Drag a child to reorder
 it among its siblings; it stays under its parent and keeps its stage.
-Completed stays ordered by completion time. Group rank survives stage
+Newly Completed roots enter at the top through the UI or CLI, and can then be
+reordered by dragging, shortcuts, or CLI placement. Group rank survives stage
 changes, so returning a deferred or completed root to the main list restores
 its place. bb owns section membership, pins, and lifecycle; project
 membership is bb's under project grouping too.
@@ -169,7 +170,7 @@ thread as Completed is how it leaves the list.
 | ⌃⌥⌘. | Ctrl+Alt+Shift+. | Mark Blocked on other agent |
 | ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked on third party |
 | ⌃⌘. | Ctrl+Alt+, | Defer |
-| ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list, or a child among its siblings |
+| ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main, Deferred, or Completed list, or a child among its siblings |
 | ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to that list's edge |
 | ⌃⌘↑ / ⌃⌘↓ | Ctrl+↑ / Ctrl+↓ | Move to the adjacent stage |
 
