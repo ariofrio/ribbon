@@ -79,6 +79,9 @@ export function createWorkflowRuntime(
     const rank = new Map(
       groupOrder.items.map((item, index) => [item.threadId, index]),
     );
+    const stageRanks = new Map(
+      placementState.items.map((item, index) => [item.threadId, index]),
+    );
     placementState.items.sort(
       (a, b) => (rank.get(a.threadId) ?? 0) - (rank.get(b.threadId) ?? 0),
     );
@@ -99,6 +102,7 @@ export function createWorkflowRuntime(
       }),
       placements: placementState.items,
       revision: placementState.revision,
+      stageRanks,
       orderRevision: groupOrder.revision,
       orderPlacements: groupOrder.items,
     };
@@ -251,8 +255,12 @@ export function createWorkflowRuntime(
         scope !== "stage" &&
         assignments.find((item) => item.threadId === threadId)
           ?.workflowStage === "Completed"
-      )
-        return { assignments };
+      ) {
+        assignments.sort((left, right) =>
+          (placementState.stageRanks.get(left.threadId) ?? Infinity) -
+          (placementState.stageRanks.get(right.threadId) ?? Infinity),
+        );
+      }
       const move = resolveWorkflowReorder({
         threads,
         assignments,
@@ -272,11 +280,13 @@ export function createWorkflowRuntime(
         });
         return { assignments };
       }
+      const stagePlacement =
+        move.kind === "stage" || move.workflowStage === "Completed";
       await updatePlacement({
         groupingKey:
-          move.kind === "stage" ? THREAD_STAGES_GROUPING_KEY : groupingKey,
+          stagePlacement ? THREAD_STAGES_GROUPING_KEY : groupingKey,
         groupId:
-          move.kind === "stage"
+          stagePlacement
             ? move.workflowStage
             : (groupId ?? "unsectioned"),
         threadId,
@@ -289,7 +299,7 @@ export function createWorkflowRuntime(
                 ? { kind: "after", threadId: move.previousThreadId }
                 : { kind: "preserve" },
         expectedRevision:
-          move.kind === "stage"
+          stagePlacement
             ? placementState.revision
             : placementState.orderRevision,
         origin: "ui",
