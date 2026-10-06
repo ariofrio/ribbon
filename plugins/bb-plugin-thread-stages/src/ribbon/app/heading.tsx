@@ -1,5 +1,5 @@
 import { type CSSProperties, useId, useLayoutEffect, useRef, useState } from "react";
-import { bookFrame, folderFrame } from "./standard-icon-motion";
+import { bookFrame, folderFrame, messagesFrame } from "./standard-icon-motion";
 import { Icon } from "@/components/ui/icon";
 
 /**
@@ -55,28 +55,31 @@ const GRAY = {
 const STANDARD_NAMES = {
   section: { open: "BookOpen", shut: "BookClosed" },
   project: { open: "FolderOpen", shut: "FolderClosed" },
+  threads: { open: "MessagesOpen", shut: "MessagesClosed" },
 } as const;
 
-const FRAMES = { section: bookFrame, project: folderFrame };
+const FRAMES = { section: bookFrame, project: folderFrame, threads: messagesFrame };
 
 /**
- * One icon for every section, Threads included, and one for every project,
- * instead of the icon each chose: a book or a folder, open while its group is.
+ * One icon for every section, one for every project, and one for Threads,
+ * instead of the icon each chose: a book, a folder, or two messages, open
+ * while its group is.
  *
- * Opening or shutting its group, the book's top page turns over on its spine
- * and the folder's front falls forward or stands back up, as the objects would.
+ * Opening or shutting its group, the book's top page turns over on its spine,
+ * the folder's front falls forward or stands back up, and the second message
+ * slides out from behind the first or back behind it, as the objects would.
  * Without motion it is drawn straight in its new pose.
  */
 export function StandardHeadingIcon({
   kind,
   collapsed,
 }: {
-  kind: "project" | "section";
+  kind: keyof typeof FRAMES;
   collapsed: boolean;
 }) {
   const target = collapsed ? 0 : 1;
   const moving = useOpening(target);
-  const { layers } = FRAMES[kind](moving ?? target);
+  const { layers, gap } = FRAMES[kind](moving ?? target);
   const mask = useId();
   return (
     <svg
@@ -99,7 +102,13 @@ export function StandardHeadingIcon({
             {covers ? (
               <mask height="48" id={id} maskUnits="userSpaceOnUse" width="48" x="-12" y="-12">
                 <rect fill="white" height="48" width="48" x="-12" y="-12" />
-                <path d={covers} fill="black" />
+                <path
+                  d={covers}
+                  fill="black"
+                  {...(gap === undefined
+                    ? {}
+                    : { stroke: "black", strokeLinejoin: "round" as const, strokeWidth: 1.5 + 2 * gap })}
+                />
               </mask>
             ) : null}
             <path
