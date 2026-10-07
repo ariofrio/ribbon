@@ -83,7 +83,7 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
           return { fontSize: style.fontSize, height: style.height, border: style.borderColor, background: style.backgroundColor };
         });
         assert.equal(appearance.fontSize, compact ? "16px" : menuMetrics.fontSize);
-        assert.equal(appearance.height, compact ? "40px" : "24px");
+        assert.equal(appearance.height, compact ? "42px" : "26px");
         assert.equal(appearance.border, "rgba(0, 0, 0, 0)", "Idle fields use the menu's quiet border treatment");
         const clearEmpty = form.getByRole("button", { name: "Clear action 1" });
         await activate(clearEmpty);
@@ -111,6 +111,7 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
             borderWidth: style.borderLeftWidth,
             shadowDimensions: (style.boxShadow.match(/-?\d+(?:\.\d+)?px/g) ?? []).map(Number.parseFloat),
             labelInsets: insets(field, first),
+            promptInsets: insets(row.cells[1].querySelector("textarea"), row.cells[1]),
             clearInsets: insets(last.querySelector("button"), last),
           };
         });
@@ -118,10 +119,11 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         assert.equal(focusedMetrics.radiusRight, menuMetrics.radius);
         assert.notEqual(focusedMetrics.background, "rgba(0, 0, 0, 0)", "Focus highlights the rounded row");
         assert.equal(focusedMetrics.height, compact ? 42 : menuMetrics.height,
-          compact ? "Touch rows inset bb's native input height" : "Desktop rows match the menu item height");
-        assert.deepEqual(focusedMetrics.labelInsets, [1, 1, 1, 1], "Label fields have equal insets from the rounded row highlight");
-        assert.deepEqual(focusedMetrics.clearInsets, [1, 1, 1, 1], "X buttons have equal insets from the rounded row highlight");
-        assert.ok(Math.abs(focusedMetrics.padding - menuMetrics.padding) <= 1, "Text starts at the menu item inset");
+          compact ? "Touch rows keep their height as controls fill them" : "Desktop rows match the menu item height");
+        assert.deepEqual(focusedMetrics.labelInsets, [0, 0, 0, 0], "Label fields fill the rounded row highlight");
+        assert.deepEqual(focusedMetrics.promptInsets, [0, 0, 0, 0], "Prompt fields fill the rounded row highlight");
+        assert.deepEqual(focusedMetrics.clearInsets, [0, 0, 0, 0], "X buttons fill the rounded row highlight");
+        assert.equal(focusedMetrics.padding, menuMetrics.padding, "Text starts at the menu item inset");
         assert.equal(focusedMetrics.borderWidth, "1px");
         assert.ok(focusedMetrics.shadowDimensions.every((size) => size === 0), "A single border marks focus without a second outer ring");
         await page.keyboard.press("Enter");
@@ -151,6 +153,8 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         assert.ok(promptBox.height > labelBox.height + 8, "Focused multiline prompts expand to expose their text");
         await page.keyboard.press("Tab");
         await focused(page, remove(1));
+        assert.match(await remove(1).evaluate((button) => getComputedStyle(button).boxShadow), /inset/,
+          "The X button's keyboard focus ring stays visible inside its flush bounds");
         await page.keyboard.press("Tab");
         await focused(page, label(2));
         await page.keyboard.type("Test");
@@ -226,7 +230,7 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         await page.mouse.wheel(0, 400);
         await page.waitForFunction((field) => field.scrollTop > 0, await prompt(1).elementHandle());
         await activate(label(1));
-        assert.ok((await prompt(1).boundingBox()).height <= (compact ? 40 : 24), "Prompts collapse when focus leaves them");
+        assert.ok((await prompt(1).boundingBox()).height <= (compact ? 42 : 26), "Prompts collapse when focus leaves them");
         await activate(prompt(1));
         if (!compact) assert.equal(fieldMetrics.fontSize, menuMetrics.fontSize, "Editor text matches bb's menu typography");
         assert.equal(await form.evaluate((node) => node.scrollWidth > node.clientWidth), false, "The table fits without horizontal overflow");
