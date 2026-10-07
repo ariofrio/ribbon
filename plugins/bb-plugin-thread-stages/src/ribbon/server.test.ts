@@ -1869,7 +1869,7 @@ describe("Ribbon sidebar server", () => {
         origin,
       });
 
-    it("messages a root with stage mentions when its stage changes", async () => {
+    it("requests queued delivery for a root's stage notice, preserving stage mentions", async () => {
       const { bb, harness, send } = setup({ threads: stageThreads() });
       await plugin(bb);
 
@@ -1881,7 +1881,7 @@ describe("Ribbon sidebar server", () => {
       const request = send.mock.calls[0]![0];
       expect(request).toMatchObject({
         threadId: "first",
-        mode: "steer-if-active",
+        mode: "queue-if-active",
       });
       const text = "Thread stage updated: @Active → @Blocked on third party";
       const mention = (label: string, itemId: string) => ({
@@ -1932,7 +1932,7 @@ describe("Ribbon sidebar server", () => {
       await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
       expect(send.mock.calls[0]![0]).toMatchObject({
         threadId: child.id,
-        mode: "steer-if-active",
+        mode: "queue-if-active",
       });
       await expect(
         harness.behavior.callRpc("getPlacementV1", {
