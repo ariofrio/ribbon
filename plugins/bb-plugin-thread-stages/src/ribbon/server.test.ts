@@ -286,6 +286,35 @@ function setup({
 }
 
 describe("Ribbon sidebar server", () => {
+  it("saves and runs prompt-only actions with an empty label through RPC and CLI", async () => {
+    const { bb, harness, send } = setup();
+    await plugin(bb);
+    try {
+      const action = { id: "review", label: "", prompt: "Review this change." };
+      await harness.behavior.callRpc("saveThreadActionsV1", { threadId: "thread-a", actions: [action] });
+      expect(await harness.behavior.callRpc("listThreadActionsV1", null)).toEqual({
+        threads: [{ threadId: "thread-a", actions: [action] }],
+      });
+      const human = await harness.behavior.runCli(["actions", "list", "thread-a"]);
+      expect(human.stdout).toContain("review (Review this change.): Review this change.");
+      const saved = await harness.behavior.runCli([
+        "actions", "set", "thread-a", "--actions",
+        JSON.stringify([{ ...action, label: "   ", prompt: "Check the tests." }]),
+      ]);
+      expect(saved.exitCode).toBe(0);
+      expect(await harness.behavior.callRpc("listThreadActionsV1", null)).toEqual({
+        threads: [{ threadId: "thread-a", actions: [{ ...action, prompt: "Check the tests." }] }],
+      });
+      await harness.behavior.callRpc("runThreadActionV1", { threadId: "thread-a", actionId: action.id });
+      expect(send).toHaveBeenCalledWith(expect.objectContaining({
+        threadId: "thread-a",
+        input: [{ type: "text", text: "Check the tests.", mentions: [] }],
+      }));
+    } finally {
+      await harness.dispose();
+    }
+  });
+
   it("lists a thread's prompt actions through the CLI, including an empty thread", async () => {
     const { bb, harness } = setup();
     await plugin(bb);

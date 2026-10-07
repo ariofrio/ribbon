@@ -49,8 +49,8 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
       const next = snapshot.flatMap((action) => {
         const label = action.label.trim();
         const prompt = action.prompt.trim();
-        if (label && prompt) return [{ ...action, label, prompt }];
-        // Keep a saved action while either field is being edited to an empty value.
+        if (prompt) return [{ ...action, label, prompt }];
+        // Keep a saved action while its prompt is being edited to an empty value.
         const previous = !isEmpty(action) && saved.current.find(({ id }) => id === action.id);
         return previous ? [previous] : [];
       });

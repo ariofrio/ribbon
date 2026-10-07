@@ -114,13 +114,26 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         assert.ok(Math.abs(focusedMetrics.padding - menuMetrics.padding) <= 1, "Text starts at the menu item inset");
         assert.equal(focusedMetrics.borderWidth, "1px");
         assert.ok(focusedMetrics.shadowDimensions.every((size) => size === 0), "A single border marks focus without a second outer ring");
+        await page.keyboard.press("Enter");
+        await focused(page, prompt(1));
+        const fallbackPrompt = "Use this prompt as the button label.";
+        await page.keyboard.type(fallbackPrompt);
+        // The open menu hides the painted sidebar from assistive technology.
+        await target.getByRole("button", { name: `${fallbackPrompt} in ${thread.title}`, includeHidden: true }).waitFor();
+        await focused(page, prompt(1));
+        assert.equal(await label(1).inputValue(), "", "The fallback leaves the label field empty");
+        await page.keyboard.type(" Updated.");
+        await target.getByRole("button", { name: `${fallbackPrompt} Updated. in ${thread.title}`, includeHidden: true }).waitFor();
+        await focused(page, prompt(1));
+        await page.keyboard.press("Shift+Tab");
+        await focused(page, label(1));
         await page.keyboard.type("Review");
         await page.keyboard.press("Enter");
         await focused(page, prompt(1));
+        await page.keyboard.press("ControlOrMeta+a");
         await page.keyboard.type("Review this change.");
         await page.keyboard.press("Enter");
         await page.keyboard.type("Check the keyboard flow too.");
-        // The open menu hides the painted sidebar from assistive technology.
         await target.getByRole("button", { name: `Review in ${thread.title}`, includeHidden: true }).waitFor();
         await focused(page, prompt(1));
         const promptBox = await prompt(1).boundingBox();

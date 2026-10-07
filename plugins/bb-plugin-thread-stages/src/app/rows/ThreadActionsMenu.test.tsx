@@ -105,11 +105,15 @@ it("keeps fields editable and serializes autosaves and removal while a save is p
   const label = screen.getByRole("textbox", { name: "Action 1 button label" });
   fireEvent.change(label, { target: { value: "" } });
   await act(async () => { await Promise.resolve(); });
-  expect(calls).toBe(2);
+  expect(calls).toBe(3);
+  expect(slot.inspection.rpcCalls.filter(({ method }) => method === "saveThreadActionsV1").at(-1)?.input).toEqual({
+    threadId: makeSidebarThread().id,
+    actions: [{ id: expect.any(String), label: "", prompt: "Latest prompt" }],
+  });
   fireEvent.change(label, { target: { value: "Review again" } });
-  await waitFor(() => expect(calls).toBe(3));
-  fireEvent.click(screen.getByRole("button", { name: "Remove action 1" }));
   await waitFor(() => expect(calls).toBe(4));
+  fireEvent.click(screen.getByRole("button", { name: "Remove action 1" }));
+  await waitFor(() => expect(calls).toBe(5));
   expect(slot.inspection.rpcCalls.filter(({ method }) => method === "saveThreadActionsV1").at(-1)?.input).toEqual({
     threadId: makeSidebarThread().id,
     actions: [],
@@ -121,5 +125,5 @@ it("keeps fields editable and serializes autosaves and removal while a save is p
   expect(screen.getByRole("textbox", { name: "Action 1 button label" })).toBe(emptyLabel);
   expect(document.activeElement).toBe(emptyLabel);
   await act(async () => { await Promise.resolve(); });
-  expect(calls).toBe(4);
+  expect(calls).toBe(5);
 });

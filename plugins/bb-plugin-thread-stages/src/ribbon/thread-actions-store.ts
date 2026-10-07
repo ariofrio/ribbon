@@ -6,6 +6,8 @@ export interface ThreadAction {
   prompt: string;
 }
 
+export const threadActionLabel = ({ label, prompt }: ThreadAction) => label.trim() || prompt;
+
 export interface ThreadActionsRecord {
   threadId: string;
   actions: ThreadAction[];

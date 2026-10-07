@@ -83,8 +83,8 @@ Pass a thread ID or `--self`. `list` includes each action's ID, label, and promp
 
 `set` replaces the entire ordered list; read the current
 list first when preserving existing buttons. Each action has a unique `id`
-(1–64 characters), a `label` (1–24), and a `prompt` (1–10000). Labels and
-prompts are trimmed. For example:
+(1–64 characters), a `label` (0–24), and a `prompt` (1–10000). Labels and
+prompts are trimmed; an empty label uses the prompt as the button label. For example:
 
 ```sh
 bb thread-stages actions set --self --actions '[{"id":"review","label":"Review","prompt":"Review this change."}]'
