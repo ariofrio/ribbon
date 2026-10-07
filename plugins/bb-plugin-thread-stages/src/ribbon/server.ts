@@ -46,6 +46,7 @@ import {
 } from "./pull-request-details";
 import { sidebarThreadsFromSearchResult } from "./search-results";
 import { sidebarMigrations } from "./sidebar-migrations";
+import { registerStageInstructions } from "./agent-instructions";
 import { registerStageMentions } from "./stage-mentions";
 import { threadActionCliCommands } from "./thread-actions-cli";
 import { createThreadActionsStore, type ThreadActionsRecord } from "./thread-actions-store";
@@ -491,6 +492,7 @@ export default async function ribbonServer(
   const childOrder = createChildOrderStore(database);
   registerIcons(bb, database);
   registerStageMentions(bb);
+  registerStageInstructions(bb);
 
   let projectGroups: GroupingDescriptor["groups"] = [];
   let personalProjectId: string | null = null;

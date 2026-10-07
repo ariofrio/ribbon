@@ -1,10 +1,42 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import {
   createFakePluginHost,
+  makePluginAgentConfigurationContext,
   makeThreadResponse,
 } from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it, vi } from "vitest";
 import plugin from "./server";
+
+describe("automatic agent wait staging", () => {
+  it.each(["codex", "claude"])(
+    "supplies the wait rule to %s without a stage mention",
+    async (providerId) => {
+      const { bb, harness } = setup();
+      await plugin(bb);
+      const resolved = await harness.behavior.resolveAgentConfiguration(
+        makePluginAgentConfigurationContext({ provider: { id: providerId } }),
+      );
+      expect(resolved.instructions).toContain("BlockedOnOtherAgent");
+      expect(resolved.instructions).toContain("before yielding");
+      expect(resolved.instructions).toContain("Waiting on the user remains Active");
+      expect(resolved.tools).toEqual([]);
+      expect(resolved.skills).toEqual(["thread-stages"]);
+      await harness.lifecycle.dispose();
+    },
+  );
+
+  it("does not give side chats workflow staging instructions", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    const resolved = await harness.behavior.resolveAgentConfiguration(
+      makePluginAgentConfigurationContext({
+        origin: { kind: "fork", pluginId: "side-chat" },
+      }),
+    );
+    expect(resolved.instructions).toBeNull();
+    await harness.lifecycle.dispose();
+  });
+});
 
 
 type RealtimeSubscribeArgs = Parameters<BbPluginApi["sdk"]["subscribe"]>[0];
@@ -195,6 +227,7 @@ function setup({
     },
   );
   const host = createFakePluginHost({
+    agentSkillIds: ["thread-stages"],
     pluginId: "thread-stages",
     ...(settings ? { settings } : {}),
     sdk: {
