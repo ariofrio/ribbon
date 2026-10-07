@@ -36,6 +36,33 @@ describe("automatic stage guidance", () => {
     expect(resolved.instructions).toBeNull();
     await harness.lifecycle.dispose();
   });
+
+  it("uses explicit-request guidance when automatic stage updates are saved off", async () => {
+    const { bb, harness } = setup({ settings: { automaticStageUpdates: false } });
+    await plugin(bb);
+    const resolved = await harness.behavior.resolveAgentConfiguration(
+      makePluginAgentConfigurationContext(),
+    );
+    expect(resolved.instructions).toContain("only when the user explicitly requests");
+    expect(resolved.instructions).not.toContain("when work starts");
+    expect(resolved.skills).toEqual(["thread-stages"]);
+    await harness.lifecycle.dispose();
+  });
+
+  it("changes guidance on the next configuration resolution without reloading", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    const context = makePluginAgentConfigurationContext();
+    const initial = await harness.behavior.resolveAgentConfiguration(context);
+    await harness.behavior.setSettings({ automaticStageUpdates: false });
+    const disabled = await harness.behavior.resolveAgentConfiguration(context);
+    expect(disabled.instructions).toContain("only when the user explicitly requests");
+    expect(disabled.skills).toEqual(initial.skills);
+    await harness.behavior.setSettings({ automaticStageUpdates: true });
+    const enabled = await harness.behavior.resolveAgentConfiguration(context);
+    expect(enabled.instructions).toEqual(initial.instructions);
+    await harness.lifecycle.dispose();
+  });
 });
 
 
@@ -796,6 +823,7 @@ describe("Ribbon sidebar server", () => {
       Object.keys(harness.inspection.registrations.settingsDescriptors),
     ).toEqual([
       // Behavior, then appearance: bb draws them in this order.
+      "automaticStageUpdates",
       "autoArchiveCompletedAfter",
       "messageOnStageChange",
       "stagePreviewRows",
@@ -807,6 +835,7 @@ describe("Ribbon sidebar server", () => {
       "pullRequestMarks",
     ]);
     expect(harness.inspection.registrations.settingsDescriptors).toMatchObject({
+      automaticStageUpdates: { type: "boolean", default: true },
       autoArchiveCompletedAfter: { type: "select", default: "7 days" },
       messageOnStageChange: { type: "boolean", default: true },
       stagePreviewRows: { type: "select", options: ["1", "2", "3", "4", "5"], default: "2" },

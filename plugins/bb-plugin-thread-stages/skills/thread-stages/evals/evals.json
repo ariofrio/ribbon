@@ -55,6 +55,26 @@
         "Runs by action ID and clears with an empty JSON array.",
         "Explains that set replaces existing buttons and does not execute state-changing commands."
       ]
+    },
+    {
+      "id": 6,
+      "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched off. We need to wait for another bb thread to finish its QA tests before continuing. I have not requested a stage change. What should happen to this thread's stage before yielding? Explain without executing any commands.",
+      "expected_output": "The agent keeps Active because automatic stage updates is off and no stage change was requested, while recognizing that the dependency would otherwise fit Blocked on other agent.",
+      "files": [],
+      "expectations": [
+        "The agent leaves the stage unchanged because automatic updates is off.",
+        "The agent does not instruct that a placement command should now be executed."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched on. We need to wait for another bb thread to finish its QA tests before continuing. I have not mentioned a stage. What should happen to this thread's stage before yielding? Explain without executing any commands.",
+      "expected_output": "The agent selects Blocked on other agent without requiring a stage mention and gives the correct current-thread placement command.",
+      "files": [],
+      "expectations": [
+        "The agent selects Blocked on other agent without requiring a stage mention.",
+        "The proposed command is bb thread-stages place --self --to plugin:thread-stages:stages/BlockedOnOtherAgent."
+      ]
     }
   ]
 }

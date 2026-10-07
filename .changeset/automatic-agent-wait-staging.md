@@ -2,4 +2,4 @@
 "bb-plugin-thread-stages": patch
 ---
 
-Direct agents to the thread-stages skill when work starts, waits, resumes, or finishes, without requiring a stage mention unless the user or global instructions say otherwise. Keep stage definitions and placement commands in the skill and exclude side chats.
+Add Automatic stage updates, enabled by default, to direct agents to the thread-stages skill as work starts, waits, resumes, or finishes. Turning it off instructs agents to change stages only on explicit user requests. Keep the skill available in both modes and exclude side chats.

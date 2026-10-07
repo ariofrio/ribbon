@@ -100,7 +100,7 @@ name renames it.
 
 ## Rows
 
-Running work never changes a stage. A working thread's stage icon turns its
+Thread activity alone never changes a stage. A working thread's stage icon turns its
 ring in place of bb's spinner, a collapsed root's ring also turns for work in
 its hidden descendants, and a pending question or approval stops the ring. A
 working row shimmers across its icon, title, and indicator; turn off
@@ -144,6 +144,12 @@ or hides it along with its mark. **Equal-width PR digits** in the plugin's
 settings lines the numbers up.
 
 ## Stages and shortcuts
+
+**Automatic stage updates** is on by default. It asks agents to keep their
+thread's stage current as work progresses. Turn it off to have agents change
+stages only when you explicitly request a change. The instruction changes
+when bb next constructs the agent's provider session; the stage skill stays
+available in both modes.
 
 Type `@` and a stage name in the composer to mention a stage, such as
 `@Blocked on other agent`. A mentioned stage tells the agent to place the
