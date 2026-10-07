@@ -25,13 +25,13 @@ export async function verifyRowActions({ stack, fixture }) {
         ["Pin", "Copy thread link", "Rename", "Thread actions"].includes(button.getAttribute("aria-label")));
       const boxes = buttons.map((button) => button.getBoundingClientRect());
       return {
-        padding: parseFloat(getComputedStyle(title).paddingRight),
-        width: Math.max(...boxes.map((box) => box.right)) - Math.min(...boxes.map((box) => box.left)),
+        titleRight: title.querySelector(".bb-thread-title").getBoundingClientRect().right,
+        controlsLeft: Math.min(...boxes.map((box) => box.left)),
         count: buttons.length,
       };
     });
     assert.equal(geometry.count, 4);
-    assert.ok(geometry.padding >= geometry.width, "the title leaves room for every configured action and the menu");
+    assert.ok(geometry.titleRight <= geometry.controlsLeft + 4, "the title leaves room for every configured action and the menu");
     await pin.click();
     await target.getByRole("button", { name: "Unpin", exact: true }).waitFor();
     await target.hover();

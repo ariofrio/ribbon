@@ -117,14 +117,18 @@ workflow, background agent, or background command left running by an idle
 agent shimmers only its indicator, and the ring holds still.
 
 A title runs to the row's edge unless something stands in the trailing
-lane: a status indicator, a PR number, or a toggle for hidden children.
-Hovering the row opens the lane for its actions. A title that outgrows its
-row fades out at the edge and, while the row is
+lane: a status indicator, a PR number, or saved prompts. A toggle for hidden
+children also keeps its space beside the title.
+Hovering or focusing the row reveals configurable controls before saved prompts and the
+PR number, taking space from the title. The ellipsis replaces the status indicator
+in its trailing slot. **Customize row actions** chooses those
+controls for every thread; **Edit thread actions** changes only that thread's
+saved prompts. A title that outgrows its row fades out at the edge and, while the row is
 hovered or focused, pans to its end and back. **Long titles** in the plugin's
 settings keeps the fade but not the pan, or cuts titles with bb's ellipsis
 instead. The pan respects reduced motion.
 
-Use **Edit actions** in a thread's context menu or ⋯ menu to edit labeled prompts.
+Use **Edit thread actions** in a thread's context menu or ⋯ menu to edit labeled prompts.
 Fill the empty row at the bottom to add an action; edits save as you type once
 the prompt is filled. An empty label uses the prompt as the button label.
 Use X to clear or remove a row. Extra empty rows collapse

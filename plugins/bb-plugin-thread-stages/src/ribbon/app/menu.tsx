@@ -74,14 +74,14 @@ export function RibbonThreadStageMenu({
       {drawer ? (
         <>
           <ActionMenuSeparator surface={surface} />
-          <DropdownMenuLabel>Set stage</DropdownMenuLabel>
+          <DropdownMenuLabel>Move to stage</DropdownMenuLabel>
           {items}
         </>
       ) : (
         <Sub>
           <SubTrigger>
             <ProviderIcon icon={STAGE_ICONS.Completed} label="Stage icon" />
-            Set stage
+            Move to stage
           </SubTrigger>
           <SubContent>{items}</SubContent>
         </Sub>
@@ -113,7 +113,7 @@ export function RibbonThreadActionsMenu({
         onOpenEditor?.();
       }}>
         {icon}
-        <span className="min-w-0 flex-1 truncate">Edit actions</span>
+        <span className="min-w-0 flex-1 truncate">Edit thread actions</span>
         <Icon name="ChevronRight" className="ml-auto" aria-hidden />
       </DropdownMenuItem>
     );
@@ -127,9 +127,9 @@ export function RibbonThreadActionsMenu({
   };
   return (
     <Sub open={open} onOpenChange={setOpen}>
-      <SubTrigger ref={trigger}>{icon}Edit actions</SubTrigger>
+      <SubTrigger ref={trigger}>{icon}Edit thread actions</SubTrigger>
       <SubContent
-        aria-label="Edit actions"
+        aria-label="Edit thread actions"
         className="max-h-[min(32rem,calc(100dvh-2rem))] w-96 max-w-[calc(100vw-2rem)] overflow-y-auto"
         onEscapeKeyDown={(event) => {
           event.preventDefault();

@@ -209,7 +209,7 @@ export function RibbonActionButtons({
   return (
     <span
       data-ribbon-thread-actions=""
-      className={`pointer-events-none flex min-w-0 flex-[0_1_max-content] items-center ${gap}`}
+      className={`pointer-events-none ml-2 flex min-w-0 flex-[0_1_max-content] items-center ${gap}`}
       style={{ flexBasis: naturalWidth === null ? "max-content" : naturalWidth }}
     >
       {actions.map((action) => {

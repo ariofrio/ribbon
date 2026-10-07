@@ -59,17 +59,17 @@ export async function verifyThreadContextMenu({ stack, fixture }) {
       });
       assert.deepEqual(groups.slice(-5), [
         ["Copy thread link", "Mark unread"],
-        ["Pin", "Move to section", "Set stage"],
-        ["Rename", "Edit actions"],
+        ["Pin", "Move to section", "Move to stage"],
+        ["Rename", "Edit thread actions"],
         ["Customize row actions"],
         ["Archive", "Delete"],
       ]);
       // Keyboard navigation must not compete with the stationary opening pointer.
       await page.mouse.move(0, 0);
-      const edit = menu.getByRole("menuitem", { name: "Edit actions" });
+      const edit = menu.getByRole("menuitem", { name: "Edit thread actions" });
       await edit.focus();
       await page.keyboard.press("ArrowRight");
-      const editor = page.getByRole("menu", { name: "Edit actions", exact: true });
+      const editor = page.getByRole("menu", { name: "Edit thread actions", exact: true });
       await editor.waitFor();
       const label = editor.getByRole("textbox", { name: "Action 1 button label" });
       const prompt = editor.getByRole("textbox", { name: "Action 1 prompt" });
