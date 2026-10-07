@@ -544,9 +544,16 @@ function focusSideChatComposer(
 
 function MissingKeyboardShortcuts() {
   const rpc = useRpc<typeof rpcContract>();
+  const context = useBbContext();
   const contextRef = useRef<
     Pick<PluginCommandContext, "projectId" | "threadId">
-  >({ projectId: null, threadId: null });
+  >(context);
+  useLayoutEffect(() => {
+    contextRef.current = {
+      projectId: context.projectId,
+      threadId: context.threadId,
+    };
+  }, [context.projectId, context.threadId]);
   const sidebarActions = experimental_useSidebarThreadActions();
   // Thread-list updates replace these actions without cancelling in-flight shortcuts.
   const sidebarActionsRef = useRef(sidebarActions);
@@ -579,7 +586,7 @@ function MissingKeyboardShortcuts() {
       { once: true },
     );
     const isCurrentThread = (threadId: string) =>
-      contextRef.current.threadId === threadId;
+      !signal.aborted && contextRef.current.threadId === threadId;
     const focusExistingSideChat = (
       parentThreadId: string,
       childThreadId: string,
@@ -744,6 +751,7 @@ function MissingKeyboardShortcuts() {
               threadId,
               sideChat,
             );
+            if (!isCurrentThread(threadId)) return;
             if (reusable) {
               rememberRecentSideChatTabId(
                 window.localStorage,

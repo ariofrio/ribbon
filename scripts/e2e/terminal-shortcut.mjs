@@ -58,6 +58,12 @@ export async function verifyTerminalShortcut({ stack, fixture }) {
       await page.waitForFunction((node) => document.activeElement === node, await primary.elementHandle(), { timeout: 5_000 });
       await activateExisting(`Reopen terminal ${attempt + 1}`);
     }
+    // bb suppresses terminal input while replaying scrollback. Wait for xterm
+    // to render the fixture shell's prompt and position its input cursor.
+    await page.waitForFunction(() => {
+      const input = document.querySelector("[data-app-terminal] .xterm-helper-textarea");
+      return input !== null && Number.parseFloat(getComputedStyle(input).left) > 0;
+    }, null, { timeout: 5_000 });
     await page.keyboard.type("printf 'CTRL_BACKQUOTE_%s\\n' READY");
     await page.keyboard.press("Enter");
     fixture.run(["terminal", "wait", opened.result.terminalId,

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import type { PluginCommandRegistration } from "@get-bb/plugin-sdk/app";
+import { useBbContext } from "@get-bb/plugin-sdk/app";
 import { act, cleanup } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -143,4 +144,62 @@ describe("missing keyboard shortcuts app registration", () => {
     );
     slot.lifecycle.unmount();
   });
+
+  it.each(["create", "reuse"])(
+    "ignores a delayed side-chat %s response after the route changes",
+    async (operation) => {
+      const app = await loadPluginApp(() => import("./app"));
+      let complete!: (value: unknown) => void;
+      const pending = vi.fn(
+        () => new Promise((resolve) => { complete = resolve; }),
+      );
+      if (operation === "reuse") {
+        window.localStorage.setItem("bb.thread.fixedPanelTabsState-thread-a-1", JSON.stringify({
+          lastUsedAt: 1,
+          secondary: {
+            activeTabId: "side-tab",
+            isOpen: false,
+            tabs: [{
+              actionId: "side-chat",
+              id: "side-tab",
+              kind: "plugin-panel",
+              paramsJson: JSON.stringify({ sourceThreadId: "thread-a", threadId: "side-a" }),
+              pluginId: "missing-keyboard-shortcuts",
+              title: "Side chat",
+            }],
+          },
+          version: 1,
+        }));
+      }
+      let routeContext!: ReturnType<typeof useBbContext>;
+      function RoutedOverlay() {
+        routeContext = useBbContext();
+        return createElement(app.appOverlays[0]!.component, {});
+      }
+      const slot = renderSlot(
+        { ...app.appOverlays[0]!, component: RoutedOverlay },
+        {},
+        {
+          context: { projectId: "project-a", threadId: "thread-a" },
+          rpc: operation === "create"
+            ? { createSideChat: pending }
+            : { validateSideChat: pending },
+        },
+      );
+      const openPanel = vi.fn(() => true);
+      await commands(app).find(({ id }) => id === "toggle-side-chat")!.run({
+        openPanel,
+        projectId: "project-a",
+        threadId: "thread-a",
+      });
+      await vi.waitFor(() => expect(pending).toHaveBeenCalledOnce());
+      Object.assign(routeContext, { projectId: "project-b", threadId: "thread-b" });
+      slot.lifecycle.rerender(createElement(RoutedOverlay));
+      await act(async () => complete(
+        operation === "create" ? { threadId: "side-a" } : { reusable: true },
+      ));
+      expect(openPanel).not.toHaveBeenCalled();
+      slot.lifecycle.unmount();
+    },
+  );
 });
