@@ -13,10 +13,11 @@ export const threadActionsSchema = z.array(threadActionSchema).refine(
   "Action IDs must be unique.",
 );
 
-export const groupingKeySchema = z.union([
-  z.literal("builtin:projects"),
-  z.literal("builtin:sections"),
-  z.string().regex(/^plugin:[^:/]+:[^:/]+$/u),
+export const groupingKeySchema = z.enum([
+  "builtin:projects",
+  "builtin:sections",
+  "builtin:machines",
+  "plugin:thread-stages:stages",
 ]);
 
 const localIdSchema = z

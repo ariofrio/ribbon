@@ -27,6 +27,7 @@ import {
   renderSlot,
 } from "@get-bb/plugin-sdk/testing/app";
 import { getSidebarThreadRowDroppableId } from "../rows/sidebarThreadRowDroppable.js";
+import type { RibbonDndHandlers } from "../../ribbon/app/dnd";
 import type { SectionThreadDndState } from "./useSectionThreadDnd.js";
 
 installTestPluginRuntime();
@@ -116,6 +117,7 @@ interface HarnessProps {
 function renderSectionThreadDnd(
   initialRootItems = ROOT_ITEMS,
   pinnedThreads: readonly SidebarThread[] = [],
+  ribbon: RibbonDndHandlers | null = null,
 ) {
   const result: { current: SectionThreadDndState | null } = { current: null };
   const pinnedState = buildPinnedSidebarState({
@@ -126,6 +128,7 @@ function renderSectionThreadDnd(
     result.current = useSectionThreadDnd({
       containerId: CHRONOLOGICAL_CONTAINER_ID,
       enabled: true,
+      ribbon,
       rootItems,
       topLevelSectionOrder: ["pinned", "section:a", "section:b", "threads"],
       onTopLevelSectionOrderChange: vi.fn(),
@@ -150,6 +153,27 @@ function renderSectionThreadDnd(
 }
 
 describe("useSectionThreadDnd pin mutations", () => {
+  it("moves every root of an environment group through Ribbon placement", async () => {
+    const environment = makeSidebarEnvironment({ id: "worktree", isWorktree: true });
+    const rootItems = buildSectionThreadList([
+      createThread({ id: "first", sectionId: "a", environment, createdAt: 2 }),
+      createThread({ id: "second", sectionId: "a", environment, createdAt: 1 }),
+    ], undefined, SECTIONS, true);
+    const lookup = collectSectionThreadDndLookup(rootItems, CHRONOLOGICAL_CONTAINER_ID);
+    const activeId = [...lookup.itemKindById].find(([, kind]) => kind === "environment")![0];
+    const moved: string[] = [];
+    const ribbon: RibbonDndHandlers = {
+      canReorder: () => true, onReorderThread: async () => {},
+      onMoveThread: async (thread) => { moved.push(thread.id); return true; },
+    };
+    const { result, inspection } = renderSectionThreadDnd(rootItems, [], ribbon);
+    const props = () => result.current!.dndContextProps;
+    act(() => props().onDragStart?.(dragStart(activeId)));
+    act(() => props().onDragEnd?.(dragEnd(activeId, "section:b")));
+    await vi.waitFor(() => expect(new Set(moved)).toEqual(new Set(["first", "second"])));
+    expect(inspection.sdkCalls).toEqual([]);
+  });
+
   it("routes drag pinning through the optimistic sidebar action", async () => {
     const { inspection, result } = renderSectionThreadDnd();
     const props = () => result.current!.dndContextProps;

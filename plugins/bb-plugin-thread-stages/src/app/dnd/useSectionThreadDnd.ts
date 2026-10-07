@@ -1374,7 +1374,8 @@ export function useSectionThreadDnd({
         void request.catch(() => undefined).finally(clearProjectedDrag);
       };
       // A drop Ribbon places: beside a row, or at a section's edge.
-      const activeThreadForRibbon = lookup.threadByItemId.get(activeId);
+      const activeThreadsForRibbon = resolveDraggedRootThreads(lookup, activeId) ?? [];
+      const activeThreadForRibbon = activeThreadsForRibbon[0];
       const overRowForRibbon =
         reorderTarget && !isPinnedRoot(reorderTarget.threadId)
           ? lookup.threadByItemId.get(reorderTarget.threadId)
@@ -1382,7 +1383,7 @@ export function useSectionThreadDnd({
       if (
         ribbon &&
         activeThreadForRibbon &&
-        !isPinnedItem(activeId) &&
+        (!isPinnedItem(activeId) || decision.kind === "move") &&
         (decision.kind === "unchanged" || decision.kind === "move")
       ) {
         if (
@@ -1406,13 +1407,11 @@ export function useSectionThreadDnd({
                   ) ?? []);
           // The list reorders before the server answers, so nothing is
           // left projected while the save is in flight.
-          void ribbon
-            .onReorderThread(
-              activeThreadForRibbon,
-              { thread: overRowForRibbon, placement: reorderTarget.placement },
-              siblingIds,
-            )
-            .catch(() => undefined);
+          const threads = reorderTarget.placement === "after"
+            ? [...activeThreadsForRibbon].reverse() : activeThreadsForRibbon;
+          void threads.reduce<Promise<void>>((previous, thread) => previous.then(() =>
+            ribbon.onReorderThread(thread, { thread: overRowForRibbon, placement: reorderTarget.placement }, siblingIds),
+          ), Promise.resolve()).catch(() => undefined);
           clearProjectedDrag();
           return;
         }
@@ -1427,13 +1426,12 @@ export function useSectionThreadDnd({
           activeThreadForRibbon.parentThreadId === null &&
           resolveSectionThreadDropParentKey(lookup, overId) === ownParentKey
         ) {
-          void ribbon
-            .onMoveThread(
-              activeThreadForRibbon,
-              lookup.sectionIdByParentKey.get(ownParentKey) ?? null,
-              { edge: sectionEdgeRef.current },
-            )
-            .catch(() => undefined);
+          const edge = sectionEdgeRef.current;
+          const threads = edge === "start"
+            ? [...activeThreadsForRibbon].reverse() : activeThreadsForRibbon;
+          void threads.reduce<Promise<unknown>>((previous, thread) => previous.then(() =>
+            ribbon.onMoveThread(thread, lookup.sectionIdByParentKey.get(ownParentKey) ?? null, { edge }),
+          ), Promise.resolve()).catch(() => undefined);
           clearProjectedDrag();
           return;
         }
@@ -1445,14 +1443,17 @@ export function useSectionThreadDnd({
               : { edge: sectionEdgeRef.current };
           setPendingDropDecision(decision);
           settle(
-            ribbon.onMoveThread(activeThreadForRibbon, groupId, anchor).then((handled) =>
-              handled
-                ? undefined
-                : commitDropChanges(
-                    decision,
-                    `Failed to move ${describeThreadCount(decision.threadIds)}.`,
-                  ),
-            ),
+            (async () => {
+              const threads = ("edge" in anchor ? anchor.edge === "start" : anchor.placement === "after")
+                ? [...activeThreadsForRibbon].reverse() : activeThreadsForRibbon;
+              await Promise.all(decision.unpinThreadIds.map((threadId) => sidebarActions.setPinned(threadId, false)));
+              for (const thread of threads) {
+                if (!await ribbon.onMoveThread(thread, groupId, anchor)) {
+                  await commitDropChanges(decision, `Failed to move ${describeThreadCount(decision.threadIds)}.`);
+                  break;
+                }
+              }
+            })(),
           );
           return;
         }

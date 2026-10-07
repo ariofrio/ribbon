@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  MAIN_STAGE_ORDER_MIGRATION,
   RIBBON_SIDEBAR_MIGRATIONS,
   createPlacementStore,
   type GroupingDescriptor,
@@ -175,6 +176,43 @@ describe("placement persistence", () => {
     },
   );
 
+  it("imports the former global preview order into each containing group once", () => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    for (const migration of [...RIBBON_SIDEBAR_MIGRATIONS, MAIN_STAGE_ORDER_MIGRATION]) database.exec(migration);
+    const sections: GroupingDescriptor = {
+      groupingKey: "builtin:sections", singularLabel: "Section", pluralLabel: "Sections",
+      defaultGroupId: "work", groups: [{ id: "work", label: "Work", acceptsAssignments: true }],
+      membership: { kind: "external", writable: false, groupIdForThread: () => "work" },
+    };
+    const makeStore = () => createPlacementStore(database, {
+      grouping: (key) => key === "builtin:sections" ? sections : key === stages.groupingKey ? stages : null,
+      groupings: () => [sections, stages],
+    });
+    // Persisted data from the previous model: the preview was ordered b, a,
+    // regardless of the parent group's a, b, main order.
+    const assignment = database.prepare("INSERT INTO group_assignment VALUES (?, ?, ?, 1, NULL, 'ui')");
+    const order = database.prepare("INSERT INTO group_order VALUES (?, ?, ?, ?, 1)");
+    for (const [id, key] of [["a", "A"], ["b", "B"], ["main", "C"]]) {
+      assignment.run(stages.groupingKey, id, id === "main" ? "Idle" : "Completed");
+      order.run("builtin:sections", "work", id, key);
+    }
+    order.run(stages.groupingKey, "Completed", "b", "A");
+    order.run(stages.groupingKey, "Completed", "a", "B");
+    const store = makeStore();
+    store.reconcileRoots(["a", "b", "main"], []);
+    const ids = (current = store) => {
+      const listed = current.listPlacements({ groupingKey: "builtin:sections" });
+      if (!listed.ok) throw new Error(listed.error.message);
+      return listed.value.items.map(({ threadId }) => threadId);
+    };
+    expect(ids()).toEqual(["main", "b", "a"]);
+    store.updatePlacement({ groupingKey: "builtin:sections", groupId: "work", threadId: "a", anchor: { kind: "before", threadId: "b" }, origin: "ui" });
+    const restarted = makeStore();
+    restarted.reconcileRoots(["a", "b", "main"], []);
+    expect(ids(restarted)).toEqual(["main", "a", "b"]);
+  });
+
   it("reconciles visible roots to provider defaults in stable BB order", () => {
     const database = new Database(":memory:");
     databases.push(database);
@@ -328,111 +366,6 @@ describe("placement persistence", () => {
     store.reconcileRoots(["parent"], ["child"]);
     expect(store.getPlacement({ groupingKey: stages.groupingKey, threadId: "child" }))
       .toMatchObject({ ok: true, value: { placement: { groupId: "Active" } } });
-  });
-
-  it("atomically rekeys provider assignments, retained order, and revision", () => {
-    const database = new Database(":memory:");
-    databases.push(database);
-    for (const migration of RIBBON_SIDEBAR_MIGRATIONS) database.exec(migration);
-    const renamed: GroupingDescriptor = {
-      ...stages,
-      groupingKey: "plugin:thread-stages:workflow",
-    };
-    const store = createPlacementStore(database, {
-      grouping: (key) =>
-        key === stages.groupingKey
-          ? stages
-          : key === renamed.groupingKey
-            ? renamed
-            : null,
-      groupings: () => [stages, renamed],
-      now: () => 100,
-    });
-    store.reconcileRoots(["thread-a", "thread-b"], []);
-    store.updatePlacement({
-      groupingKey: stages.groupingKey,
-      groupId: "Active",
-      threadId: "thread-a",
-      anchor: { kind: "start" },
-      origin: "cli",
-    });
-
-    expect(
-      store.rekeyGrouping(
-        stages.groupingKey as `plugin:${string}:${string}`,
-        renamed.groupingKey as `plugin:${string}:${string}`,
-      ),
-    ).toEqual({ assignments: 2, orders: 3, revision: 2 });
-    expect(
-      store.listPlacements({ groupingKey: renamed.groupingKey }),
-    ).toMatchObject({
-      ok: true,
-      value: {
-        revision: 2,
-        items: [
-          { threadId: "thread-b", groupId: "Idle" },
-          { threadId: "thread-a", groupId: "Active", origin: "cli" },
-        ],
-      },
-    });
-    expect(
-      database
-        .prepare(
-          "SELECT COUNT(*) AS count FROM group_assignment WHERE grouping_key = ?",
-        )
-        .get(stages.groupingKey),
-    ).toEqual({ count: 0 });
-  });
-
-  it("refuses to overwrite customized target placement during rekey", () => {
-    const database = new Database(":memory:");
-    databases.push(database);
-    for (const migration of RIBBON_SIDEBAR_MIGRATIONS) database.exec(migration);
-    const renamed: GroupingDescriptor = {
-      ...stages,
-      groupingKey: "plugin:thread-stages:workflow",
-    };
-    const store = createPlacementStore(database, {
-      grouping: (key) =>
-        key === stages.groupingKey
-          ? stages
-          : key === renamed.groupingKey
-            ? renamed
-            : null,
-      groupings: () => [stages, renamed],
-      now: () => 100,
-    });
-    store.reconcileRoots(["thread-a"], []);
-    store.updatePlacement({
-      groupingKey: stages.groupingKey,
-      groupId: "Active",
-      threadId: "thread-a",
-      origin: "ui",
-    });
-    database
-      .prepare(
-        `UPDATE group_assignment SET origin = ?
-         WHERE grouping_key = ? AND thread_id = ?`,
-      )
-      .run("cli", renamed.groupingKey, "thread-a");
-
-    expect(() =>
-      store.rekeyGrouping(
-        stages.groupingKey as `plugin:${string}:${string}`,
-        renamed.groupingKey as `plugin:${string}:${string}`,
-      ),
-    ).toThrow(
-      `Target grouping already has placement state: ${renamed.groupingKey}`,
-    );
-    expect(
-      store.getPlacement({
-        groupingKey: stages.groupingKey,
-        threadId: "thread-a",
-      }),
-    ).toMatchObject({
-      ok: true,
-      value: { placement: { groupId: "Active", origin: "ui" } },
-    });
   });
 
   it("moves, reorders, and idempotently accepts a stale satisfied update", () => {

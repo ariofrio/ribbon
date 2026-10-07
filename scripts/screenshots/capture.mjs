@@ -343,7 +343,7 @@ export async function openApp({ browser, stack, fixture, theme, viewport, style 
   page.on("pageerror", (error) => {
     diagnostics.push(`pageerror: ${error.stack ?? error.message}`);
   });
-  await page.goto(stack.serverUrl, { waitUntil: "networkidle" });
+  await page.goto(stack.serverUrl, { waitUntil: "domcontentloaded" });
   return { context, page, diagnostics };
 }
 

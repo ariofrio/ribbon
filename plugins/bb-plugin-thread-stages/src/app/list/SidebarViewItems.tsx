@@ -143,7 +143,7 @@ function SidebarViewItems({ page }: { page: SidebarViewPage }) {
   const [showProviderIcons, setShowProviderIcons] = useAtom(
     sidebarShowProviderIconsAtom,
   );
-  const selectedSort = sort === "none" ? "updated" : sort;
+  const selectedSort = sort === "none" && !ribbon ? "updated" : sort;
   if (page === "filter") {
     return (
       <DropdownMenuGroup aria-label="Filter">
@@ -260,6 +260,22 @@ function SidebarViewItems({ page }: { page: SidebarViewPage }) {
   }
   return (
     <DropdownMenuGroup aria-label="Sort">
+      {ribbon ? (
+        <DropdownMenuItem
+          role="menuitemradio"
+          aria-checked={sort === "none"}
+          onSelect={(event) => {
+            event.preventDefault();
+            setSort("none");
+            setDirection("default");
+          }}
+        >
+          Custom
+          <span className="ml-auto inline-flex size-4 shrink-0 items-center justify-center">
+            {sort === "none" && <Icon name="Check" className="size-4" />}
+          </span>
+        </DropdownMenuItem>
+      ) : null}
       {SIDEBAR_SORT_OPTIONS.map((option) => {
         const selected = selectedSort === option.sort;
         const direction =

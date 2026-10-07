@@ -137,7 +137,7 @@ import {
   placementGroupingKey,
   placementRanks,
 } from "../../ribbon/app/order.js";
-import { useRibbonDnd } from "../../ribbon/app/dnd.js";
+import { useRibbonDnd, useRibbonSectionMove } from "../../ribbon/app/dnd.js";
 import {
   filterThreadsToSearch,
   RibbonListProvider,
@@ -418,8 +418,14 @@ function ProjectListSectionMoveScope({
 }: ProjectListShellProps & {
   sections: readonly SidebarSectionDefinition[];
 }) {
+  const moveToSection = useRibbonSectionMove();
+  const onMoveThread = useCallback(
+    (thread: SidebarThread, sectionId: string | null) =>
+      moveToSection?.(thread, sectionId, { edge: "start" }) ?? Promise.resolve(false),
+    [moveToSection],
+  );
   return (
-    <AppThreadSectionMoveProvider sections={sections}>
+    <AppThreadSectionMoveProvider sections={sections} onMoveThread={onMoveThread}>
       <ProjectListShell>{children}</ProjectListShell>
     </AppThreadSectionMoveProvider>
   );
@@ -1679,9 +1685,7 @@ function ProjectListComponent({
   const groupThreadsByEnvironment = useAtomValue(
     sidebarGroupThreadsByEnvironmentAtom,
   );
-  const [chronologicalSort, setChronologicalSort] = useAtom(
-    sidebarChronologicalSortAtom,
-  );
+  const chronologicalSort = useAtomValue(sidebarChronologicalSortAtom);
   const sortDirection = useAtomValue(sidebarSortDirectionAtom);
   const activeRename = useSidebarRenameState();
   const ribbonReady = ribbon?.ready ?? false;
@@ -1689,7 +1693,10 @@ function ProjectListComponent({
   const ribbonChildRanks = ribbon?.childRanks;
   const sidebarThreadComparator = useMemo<ThreadComparator>(() => {
     // Ribbon's retained order stands in for the sort wherever it has ranks.
-    if (ribbonReady && ribbonPlacements && ribbonChildRanks) {
+    if (
+      chronologicalSort === "none" &&
+      ribbonReady && ribbonPlacements && ribbonChildRanks
+    ) {
       const groupingKey = placementGroupingKey(organizationMode);
       return createRibbonComparator(
         placementRanks(groupingKey ? (ribbonPlacements.get(groupingKey) ?? []) : []),
@@ -1741,11 +1748,6 @@ function ProjectListComponent({
     normalizedCollapsedSidebarSectionIds,
     setCollapsedSidebarSectionIdList,
   ]);
-  useEffect(() => {
-    if (chronologicalSort === "none") {
-      setChronologicalSort("updated");
-    }
-  }, [chronologicalSort, setChronologicalSort]);
   const pinnedSidebarState = useMemo(
     () =>
       buildPinnedSidebarState({

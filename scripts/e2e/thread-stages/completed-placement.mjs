@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { FEATURED_THREAD } from "../../screenshots/fixture.mjs";
-import { carryTo, dropMarker, launch, link, openContext, pickUp, row, section, sidebar, STAGES } from "./sidebar.mjs";
+import { carryTo, dropMarker, launch, link, openContext, pickUp, row, section, sidebar } from "./sidebar.mjs";
 
 export async function verifyCompletedPlacement({ stack, fixture }) {
   const returning = fixture.threads.get("Add keyboard navigation to filters");
   const shortcut = fixture.threads.get(FEATURED_THREAD);
-  const place = (thread, stage) => fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/${stage}`]);
+  const place = (thread, stage) => fixture.run(["thread-stages", "stage", stage, thread.id]);
   const browser = await launch();
   let releaseSave = () => {};
   try {
@@ -98,7 +98,7 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     await group.getByRole("button", { name: "Show 5 more completed", exact: true }).click();
     await first(returning);
 
-    fixture.run(["thread-stages", "place", returning.id, "--to", `${STAGES}/Completed`, "--after", shortcut.id]);
+    fixture.run(["thread-stages", "order", returning.id, "--after", shortcut.id]);
     await first(shortcut);
 
     const gate = new Promise((resolve) => { releaseSave = resolve; });
@@ -139,13 +139,11 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     await first(shortcut);
 
     const placements = fixture.runJson(["thread-stages", "show", returning.id]);
-    const stage = placements.find(({ placement }) => placement.groupingKey === STAGES).placement;
-    const completedBefore = stage.enteredAtMs;
-    fixture.run(["thread-stages", "place", returning.id, "--to", `${STAGES}/Completed`, "--before", shortcut.id]);
+    const completedBefore = placements.stageEnteredAtMs;
+    fixture.run(["thread-stages", "order", returning.id, "--before", shortcut.id]);
     await first(returning);
-    const afterReorder = fixture.runJson(["thread-stages", "show", returning.id])
-      .find(({ placement }) => placement.groupingKey === STAGES).placement;
-    assert.equal(afterReorder.enteredAtMs, completedBefore, "Reordering must preserve the completion time used by auto-archive");
+    const afterReorder = fixture.runJson(["thread-stages", "show", returning.id]);
+    assert.equal(afterReorder.stageEnteredAtMs, completedBefore, "Reordering must preserve the completion time used by auto-archive");
     await reopen();
     await first(returning);
     await context.close();

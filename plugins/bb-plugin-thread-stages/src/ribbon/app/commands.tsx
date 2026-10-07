@@ -9,6 +9,7 @@ import {
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { preferencesMirrorStorageKey } from "../../app/preferences/preferences-sync.js";
+import type { threadListRpcContract } from "../../server.js";
 import type { rpcContract } from "../server";
 import {
   WORKFLOW_COMMANDS,
@@ -67,7 +68,7 @@ function goTo(destination: ChordDestination, navigate: BbNavigate): void {
 function shortcutGroupingKey(
   storage: Pick<Storage, "getItem">,
   pluginId: string,
-): "builtin:sections" | "builtin:projects" {
+): "builtin:sections" | "builtin:projects" | "builtin:machines" {
   try {
     const raw = storage.getItem(preferencesMirrorStorageKey(pluginId));
     const parsed: unknown = raw === null ? null : JSON.parse(raw);
@@ -75,7 +76,7 @@ function shortcutGroupingKey(
       typeof parsed === "object" && parsed !== null
         ? (parsed as { organizationMode?: unknown }).organizationMode
         : undefined;
-    return mode === "project" ? "builtin:projects" : "builtin:sections";
+    return mode === "project" ? "builtin:projects" : mode === "machine" ? "builtin:machines" : "builtin:sections";
   } catch {
     return "builtin:sections";
   }
@@ -83,6 +84,7 @@ function shortcutGroupingKey(
 
 function WorkflowShortcuts() {
   const rpc = useRpc<typeof rpcContract>();
+  const preferencesRpc = useRpc<typeof threadListRpcContract>();
   const navigate = useBbNavigate();
   const pluginId = experimental_usePluginId();
   useEffect(() => {
@@ -111,6 +113,13 @@ function WorkflowShortcuts() {
                 threadId,
                 scope: action.scope,
                 direction: action.direction,
+              }).then(async () => {
+                if (action.scope !== "stage") {
+                  await preferencesRpc.call("setPreference", {
+                    key: "chronologicalSort",
+                    value: "none",
+                  });
+                }
               });
         void request.catch((error: unknown) => {
           toast.error(rpcErrorMessage(error, "Failed to move the thread"));
@@ -119,7 +128,7 @@ function WorkflowShortcuts() {
       { signal },
     );
     return () => controller.abort();
-  }, [navigate, pluginId, rpc]);
+  }, [navigate, pluginId, preferencesRpc, rpc]);
   return null;
 }
 

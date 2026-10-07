@@ -143,7 +143,7 @@ describe("thread-list preferences rpc", () => {
     const listed = (await harness.behavior.callRpc("listPreferences", null)) as {
       preferences: { chronologicalSort: string };
     };
-    expect(listed.preferences.chronologicalSort).toBe("updated");
+    expect(listed.preferences.chronologicalSort).toBe("none");
   });
 });
 
@@ -153,7 +153,7 @@ describe("migration from bb's sidebar preferences", () => {
       uiPreferences: {
         "sidebar.organizationMode": { revision: 3, value: "machine" },
         "sidebar.collapsedProjects": { revision: 1, value: ["proj_a"] },
-        "sidebar.chronologicalSort": { revision: 0, value: "updated" },
+        "sidebar.chronologicalSort": { revision: 0, value: "none" },
         "sidebar.hiddenGroups": { revision: 2, value: ["not-a-group"] },
       },
     });

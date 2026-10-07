@@ -39,7 +39,7 @@ the plugin's own lives under `src/ribbon/` and `src/icons/`.
 ## Grouping and ordering
 
 Choose **⋯ menu → Organize → Custom** for sections or **By project** for
-projects. Each keeps its own order and collapsed headings. A stage says whose
+projects, or **By machine** for machines. Each keeps its own order and collapsed headings. A stage says whose
 move a thread is waiting on: **Active** is the user's or the thread's own,
 **Blocked on other agent** is another bb thread's, **Blocked on third party**
 is someone or something outside bb, **Deferred** is set aside, and
@@ -48,7 +48,14 @@ Inside each group, Active and both Blocked stages share one manually ordered
 list, followed by Deferred and then Completed. New roots enter at the top, and
 activity leaves positions unchanged.
 
-Deferred and Completed preview roots in their saved order; entering Completed
+**⋯ menu → Sort by → Custom** selects this saved manual order and is the
+default. Updated at, Created at, and Alphabetical sort rows within each stage
+list instead; switching back to Custom restores their saved positions. The
+choice applies across groups and organizations. In the CLI, `chronologicalSort`
+is `none` for Custom, or `updated`, `created`, or `alpha` for automatic sorting.
+Dragging or using a shortcut to reorder rows switches back to Custom.
+
+Deferred and Completed preview roots in their containing group’s saved order; entering Completed
 inserts a thread first. **Completed and Deferred preview rows** sets a limit of 1–5 rows
 per stage, defaulting to 2, including **Show N more deferred/completed**.
 With two or more threads, the default shows one thread and that button;
@@ -61,7 +68,8 @@ Drag a root to reorder it within its list, onto its section's heading to put
 it first, or onto another section to move it there. Drag a child to reorder
 it among its siblings; it stays under its parent and keeps its stage.
 Active and both Blocked stages share the main list; changing between those
-stages keeps a root's position. Deferred and Completed keep their own orders.
+stages keeps a root's position. Every band follows its section, project, or machine order;
+reordering in one organization leaves the other organization’s order unchanged.
 Moving a root into another list defaults to the top through the UI or CLI,
 and it can then be reordered by dragging, shortcuts, or CLI placement.
 Returning a deferred or completed root to Active restores its main-list
@@ -121,7 +129,7 @@ Fill the empty row at the bottom to add an action; edits save as you type once
 the prompt is filled. An empty label uses the prompt as the button label.
 Use X to clear or remove a row. Extra empty rows collapse
 when focus moves.
-Action buttons appear beside the thread title, colored like the section or project,
+Action buttons appear beside the thread title, colored like the section, project, or machine,
 and send the saved prompt to that thread when clicked.
 
 The same actions are available through `bb thread-stages actions list`, `set`, and
@@ -204,25 +212,46 @@ one is installed; they draw nothing bb's list does not.
 
 ## CLI
 
-The Ribbon sidebar's `bb sidebar` CLI is now `bb thread-stages`, with the same
-commands and the same stored stage key `plugin:thread-stages:stages`:
+Use `stage` to change workflow state and `order` to change manual position.
+Section membership is BB core state; change it with `bb thread update`.
 
 ```sh
-bb thread-stages groupings
-bb thread-stages groups builtin:sections
-bb thread-stages list --scope builtin:sections/<section-id>
+bb thread-stages list --section <section-id> --stage BlockedOnThirdParty
 bb thread-stages show --self
-bb thread-stages place --self --to plugin:thread-stages:stages/Completed
-bb thread-stages list --include-children --scope plugin:thread-stages:stages/BlockedOnThirdParty
-bb thread-stages place <thread> --to builtin:sections/<section-id> --before <thread>
-bb thread-stages place <child> --before <sibling>
+bb thread-stages stage Completed --self
+bb thread-stages list --include-children --stage BlockedOnThirdParty
+bb thread update <thread> --section <section-id>
+bb thread-stages order <thread> --by section --before <thread>
+bb thread-stages order <thread> --by project --first
+bb thread-stages order <thread> --by machine --last
+bb thread-stages order <child> --before <sibling>
 bb thread-stages children <thread>
 ```
 
 Use `bb thread-stages` to discover the full command surface. `list --json`
-joins thread metadata, project, section, and stage. Archived and hidden threads
+includes the complete BB thread metadata plus named `project`, `section`,
+and `machine` objects, `stage`, and `stageEnteredAtMs`. Filters compose:
+`--section`, `--project`, `--machine`, and `--stage`. Archived and hidden threads
 are excluded unless requested with `--include-archived` or `--include-hidden`.
 Add `--include-children` to list nested threads with their own stages.
+`show --json` returns the same thread view for roots, or a child's stage and
+sibling position.
+
+Section, project, and machine orders are independent. `--by` selects which
+saved order `list` reads or `order` changes; it defaults to `section`.
+Deferred and Completed are bands within that organization and use its order.
+Order anchors must be in the same group and band; Active and both Blocked
+stages share the main band. Children have one sibling order across all views.
+With Custom sorting, a move to another section starts at the top, including
+when returning to a section visited before. The thread menu, CLI, and core BB
+membership updates use the same placement policy as a drop on the group
+heading. Use `order` afterward to choose another position; automatic sorting
+keeps its selected order.
+
+The former `place` command remains available for existing scripts and installed
+agent instructions, but is hidden from help. Legacy stage anchors change
+section order. The old `list --scope` filter also remains supported; use the
+explicit filters in new scripts.
 
 The list's layout preferences — organization mode, sort, section order,
 hidden groups, and collapsed groups — are bb's, stored by the plugin and

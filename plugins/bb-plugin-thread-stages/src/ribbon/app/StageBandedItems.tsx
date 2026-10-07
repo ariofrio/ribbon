@@ -39,13 +39,9 @@ export function StageBandedItems({
   // partition again.
   const lookup = useAtomValue(ribbonStageLookupAtom);
   const stageOf = lookup?.stageOf;
-  const stageRank = lookup?.stageRank;
   const bands = useMemo(
-    () =>
-      stageOf && stageRank
-        ? stageBands(items, stageOf, stageRank)
-        : null,
-    [stageRank, items, stageOf],
+    () => stageOf ? stageBands(items, stageOf) : null,
+    [items, stageOf],
   );
   if (bands === null) return <>{renderMain(items)}</>;
   const rows = (band: readonly ProjectThreadItem[]) =>

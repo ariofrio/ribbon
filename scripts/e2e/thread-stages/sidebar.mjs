@@ -3,7 +3,6 @@ import { chromium } from "playwright";
 /** bb's key for the selected thread list, and this plugin's entry in it. */
 export const PROVIDER = "thread-stages/thread-stages";
 export const PREFERENCES_KEY = "bb.plugin.thread-stages.preferences.v1";
-export const STAGES = "plugin:thread-stages:stages";
 export const READY = "[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]";
 
 export function launch() {

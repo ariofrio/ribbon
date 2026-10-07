@@ -6,7 +6,10 @@ const THREAD_STAGES_GROUPING_KEY = "plugin:thread-stages:stages";
 export type GroupingKey =
   | "builtin:projects"
   | "builtin:sections"
-  | `plugin:${string}:${string}`;
+  | "builtin:machines"
+  | "plugin:thread-stages:stages";
+export type OrderGroupingKey = Exclude<GroupingKey, "plugin:thread-stages:stages">;
+export const ORDER_GROUPING_KEYS = ["builtin:sections", "builtin:projects", "builtin:machines"] as const;
 export type PlacementOriginV1 = "ui" | "cli" | "auto";
 export type PlacementAnchorV1 =
   | { kind: "before" | "after"; threadId: string }
@@ -227,10 +230,7 @@ export interface PlacementStore {
     groupingKey: GroupingKey,
     groupId: string,
   ): { deleted: number; revision: number };
-  rekeyGrouping(
-    from: `plugin:${string}:${string}`,
-    to: `plugin:${string}:${string}`,
-  ): { assignments: number; orders: number; revision: number };
+  getStage(threadId: string): PlacementRecordV1;
   getPlacement(input: {
     groupingKey: GroupingKey;
     threadId: string;
@@ -429,41 +429,8 @@ export function createPlacementStore(
       previous_group_id = excluded.previous_group_id,
       origin = excluded.origin
   `);
-  const deleteGroupingAssignments = database.prepare(`
-    DELETE FROM group_assignment WHERE grouping_key = ?
-  `);
-  const deleteGroupingOrders = database.prepare(`
-    DELETE FROM group_order WHERE grouping_key = ?
-  `);
   const deleteGroupOrders = database.prepare(`
     DELETE FROM group_order WHERE grouping_key = ? AND group_id = ?
-  `);
-  const countGroupingRows = database.prepare(`
-    SELECT
-      (SELECT COUNT(*) FROM group_assignment WHERE grouping_key = ?) AS assignments,
-      (SELECT COUNT(*) FROM group_order WHERE grouping_key = ?) AS orders
-  `);
-  const countNonDefaultAssignments = database.prepare(`
-    SELECT COUNT(*) AS count
-    FROM group_assignment
-    WHERE grouping_key = ?
-      AND (
-        group_id <> ?
-        OR previous_group_id IS NOT NULL
-        OR origin <> 'auto'
-      )
-  `);
-  const rekeyAssignments = database.prepare(`
-    UPDATE group_assignment SET grouping_key = ? WHERE grouping_key = ?
-  `);
-  const rekeyOrders = database.prepare(`
-    UPDATE group_order SET grouping_key = ? WHERE grouping_key = ?
-  `);
-  const deleteRevision = database.prepare(`
-    DELETE FROM grouping_revision WHERE grouping_key = ?
-  `);
-  const setRevision = database.prepare(`
-    INSERT INTO grouping_revision(grouping_key, revision) VALUES (?, ?)
   `);
 
   function currentGroupId(
@@ -563,6 +530,7 @@ export function createPlacementStore(
     for (const [groupingKey, migrationKey] of [
       ["builtin:sections", "section-ranks"],
       ["builtin:projects", "project-ranks"],
+      ["builtin:machines", "machine-ranks"],
     ] as const) {
       const grouping = options.grouping(groupingKey);
       if (!grouping || grouping.groupingKey !== groupingKey) continue;
@@ -594,7 +562,37 @@ export function createPlacementStore(
     }
   }
 
-  function placeInMainList(
+  function importStageSubgroupOrder(changed: Set<GroupingKey>) {
+    const key = "stage-subgroup-order";
+    if (database.prepare("SELECT 1 FROM ribbon_upgrade WHERE key = ?").get(key)) return;
+    const stages = options.grouping(THREAD_STAGES_GROUPING_KEY);
+    if (!stages) return;
+    for (const groupingKey of ORDER_GROUPING_KEYS) {
+      const parent = options.grouping(groupingKey);
+      if (!parent) continue;
+      for (const group of parent.groups) {
+        const members = orderedMemberIds(parent, group.id);
+        const memberIds = new Set(members);
+        const main = members.filter((id) => !["Deferred", "Completed"].includes(currentGroupId(stages, id) ?? "Active"));
+        const previews = ["Deferred", "Completed"].flatMap((stage) =>
+          orderedMemberIds(stages, stage).filter((id) => memberIds.has(id)),
+        );
+        if (!previews.length) continue;
+        if (hasMainStageOrder) {
+          for (const id of previews) {
+            const retained = getOrder.get(groupingKey, group.id, id) as OrderRow | undefined;
+            if (retained) database.prepare("INSERT OR IGNORE INTO main_stage_order VALUES (?, ?, ?, 'Active', ?)")
+              .run(groupingKey, group.id, id, retained.sort_key);
+          }
+        }
+        materializeOrder(groupingKey, group.id, [...main, ...previews], now());
+        changed.add(groupingKey);
+      }
+    }
+    database.prepare("INSERT INTO ribbon_upgrade(key) VALUES (?)").run(key);
+  }
+
+  function placeInParentGroups(
     threadId: string,
     fromStage: string | null,
     toStage: string,
@@ -605,7 +603,7 @@ export function createPlacementStore(
     const preserve = anchor?.kind === "preserve";
     const isMain = (stage: string | null) =>
       stage === "Active" || stage === "BlockedOnOtherAgent" || stage === "BlockedOnThirdParty";
-    for (const groupingKey of ["builtin:sections", "builtin:projects"] as const) {
+    for (const groupingKey of ORDER_GROUPING_KEYS) {
       const descriptor = options.grouping(groupingKey);
       if (!descriptor) continue;
       const groupId = currentGroupId(descriptor, threadId);
@@ -619,8 +617,7 @@ export function createPlacementStore(
           DO UPDATE SET sort_key = excluded.sort_key
         `).run(groupingKey, groupId, threadId, isMain(toStage) ? fromStage : "Active", current.sort_key);
       }
-      if (!isMain(toStage)) continue;
-      if (isMain(fromStage) && anchor === undefined) continue;
+      if (isMain(fromStage) && isMain(toStage) && anchor === undefined) continue;
       const retained = preserve
         ? database.prepare(`
             SELECT sort_key FROM main_stage_order
@@ -700,6 +697,7 @@ export function createPlacementStore(
       }
 
       retainBuiltinRanks(changed);
+      importStageSubgroupOrder(changed);
       for (const groupingKey of changed) {
         ensureRevision.run(groupingKey);
         incrementRevision.run(groupingKey);
@@ -761,23 +759,24 @@ export function createPlacementStore(
         }
       } else {
         forgetMainStageOrder(threadId);
-        const affectedAssignmentKeys = database
-          .prepare(
-            "SELECT grouping_key FROM group_assignment WHERE thread_id = ?",
-          )
-          .all(threadId) as Array<{ grouping_key: GroupingKey }>;
-        const affectedOrderKeys = database
-          .prepare("SELECT grouping_key FROM group_order WHERE thread_id = ?")
-          .all(threadId) as Array<{ grouping_key: GroupingKey }>;
+        const affectedAssignmentKeys = listNonStageAssignmentKeys.all(
+          threadId,
+          THREAD_STAGES_GROUPING_KEY,
+        ) as Array<{ grouping_key: GroupingKey }>;
+        const affectedOrderKeys = listNonStageOrderKeys.all(
+          threadId,
+          THREAD_STAGES_GROUPING_KEY,
+        ) as Array<{ grouping_key: GroupingKey }>;
         deleteEligibleRoot.run(threadId);
         deleteEligibleChild.run(threadId);
-        removeChildAssignment.run(threadId);
-        removeChildOrder.run(threadId);
+        removeNonStageAssignment.run(threadId, THREAD_STAGES_GROUPING_KEY);
+        removeNonStageOrder.run(threadId, THREAD_STAGES_GROUPING_KEY);
         for (const row of [...affectedAssignmentKeys, ...affectedOrderKeys]) {
           changed.add(row.grouping_key);
         }
       }
       retainBuiltinRanks(changed);
+      importStageSubgroupOrder(changed);
       for (const groupingKey of changed) {
         ensureRevision.run(groupingKey);
         incrementRevision.run(groupingKey);
@@ -847,51 +846,20 @@ export function createPlacementStore(
         })
         .immediate();
     },
-    rekeyGrouping(from, to) {
-      if (from === to) {
-        ensureRevision.run(from);
-        const revision = (getRevision.get(from) as { revision: number })
-          .revision;
-        const counts = countGroupingRows.get(from, from) as {
-          assignments: number;
-          orders: number;
-        };
-        return { ...counts, revision };
-      }
-      const target = options.grouping(to);
-      if (target === null || target.membership.kind !== "ribbon") {
-        throw new Error(
-          `Target grouping is unavailable or externally owned: ${to}`,
-        );
-      }
-      return database
-        .transaction(() => {
-          const targetCounts = countGroupingRows.get(to, to) as {
-            assignments: number;
-            orders: number;
+    getStage(threadId) {
+      const assignment = getAssignment.get(
+        THREAD_STAGES_GROUPING_KEY,
+        threadId,
+      ) as AssignmentRow | undefined;
+      return assignment
+        ? placementFromAssignment(assignment)
+        : {
+            groupingKey: THREAD_STAGES_GROUPING_KEY,
+            threadId,
+            groupId:
+              options.grouping(THREAD_STAGES_GROUPING_KEY)?.defaultGroupId ?? "Active",
+            enteredAtMs: null,
           };
-          const nonDefaultAssignments = countNonDefaultAssignments.get(
-            to,
-            target.defaultGroupId,
-          ) as { count: number };
-          if (targetCounts.orders > 0 || nonDefaultAssignments.count > 0) {
-            throw new Error(
-              `Target grouping already has placement state: ${to}`,
-            );
-          }
-          deleteGroupingAssignments.run(to);
-          deleteGroupingOrders.run(to);
-          deleteRevision.run(to);
-          ensureRevision.run(from);
-          const revision = (getRevision.get(from) as { revision: number })
-            .revision;
-          const assignments = rekeyAssignments.run(to, from).changes;
-          const orders = rekeyOrders.run(to, from).changes;
-          deleteRevision.run(from);
-          setRevision.run(to, revision);
-          return { assignments, orders, revision };
-        })
-        .immediate();
     },
     getPlacement(input) {
       const grouping = options.grouping(input.groupingKey);
@@ -1290,7 +1258,7 @@ export function createPlacementStore(
               input.groupingKey === THREAD_STAGES_GROUPING_KEY &&
               freshDestination.defaultPlacement === "start"
             ) {
-              placeInMainList(
+              placeInParentGroups(
                 input.threadId, freshCurrentGroup, input.groupId,
                 input.anchor, writeTime,
               );

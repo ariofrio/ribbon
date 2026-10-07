@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
 import { AGENT, FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
-import { launch, openContext, row, sidebar, spawnChild, STAGES } from "./sidebar.mjs";
+import { launch, openContext, row, sidebar, spawnChild } from "./sidebar.mjs";
 
 export function stageFor(fixture, threadId) {
   const shown = fixture.runJson(["thread-stages", "show", threadId]);
-  return Array.isArray(shown)
-    ? shown.find(({ placement }) => placement.groupingKey === STAGES)?.placement.groupId
-    : shown.stage;
+  return shown.stage;
 }
 
 export async function verifyChildStages({ stack, fixture }) {
@@ -14,11 +12,11 @@ export async function verifyChildStages({ stack, fixture }) {
   const project = fixture.projects.get(FEATURED_PROJECT);
   const child = spawnChild(fixture, { parent, project, title: "Independent child stage", AGENT });
   const parentStage = stageFor(fixture, parent.id);
-  fixture.run(["thread-stages", "place", child.id, "--to", `${STAGES}/BlockedOnThirdParty`]);
+  fixture.run(["thread-stages", "stage", "BlockedOnThirdParty", child.id]);
   assert.equal(stageFor(fixture, child.id), "BlockedOnThirdParty");
   assert.equal(stageFor(fixture, parent.id), parentStage);
   assert.ok(fixture.runJson([
-    "thread-stages", "list", "--include-children", "--scope", `${STAGES}/BlockedOnThirdParty`,
+    "thread-stages", "list", "--include-children", "--stage", "BlockedOnThirdParty",
   ]).some(({ id }) => id === child.id));
 
   const browser = await launch();

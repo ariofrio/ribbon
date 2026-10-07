@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { launch, STAGES } from "./sidebar.mjs";
+import { launch } from "./sidebar.mjs";
 
 const THREAD = "Retire the v1 pricing endpoint";
 
 export async function verifyStageChangeMessages({ stack, fixture }) {
   const thread = fixture.threads.get(THREAD);
-  const place = (stage) => fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/${stage}`]);
+  const place = (stage) => fixture.run(["thread-stages", "stage", stage, thread.id]);
   const setMessages = (enabled) =>
     fixture.run(["plugin", "config", "thread-stages", "set", "messageOnStageChange", String(enabled)]);
   const browser = await launch();

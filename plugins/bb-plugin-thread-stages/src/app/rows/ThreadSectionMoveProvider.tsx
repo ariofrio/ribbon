@@ -34,10 +34,12 @@ export function ThreadSectionMoveProvider({
   children,
   destinations,
   enabled = true,
+  onMoveThread,
 }: {
   children: ReactNode;
   destinations: readonly ThreadSectionMoveDestination[];
   enabled?: boolean;
+  onMoveThread?: (thread: SidebarThread, sectionId: string | null) => Promise<boolean>;
 }) {
   const sdk = useSdk();
   const value = useMemo<ThreadSectionMoveContextValue>(
@@ -45,6 +47,10 @@ export function ThreadSectionMoveProvider({
       destinations,
       moveThread: (thread, sectionId) => {
         const threadId = thread.id;
+        const move = async () => {
+          if (await onMoveThread?.(thread, sectionId)) return;
+          await sdk.threads.update({ threadId, sectionId });
+        };
         if (thread.pinnedAt !== null) {
           if (thread.sectionId === sectionId) {
             void sdk.threads.unpin({ threadId }).catch(() => {
@@ -54,19 +60,19 @@ export function ThreadSectionMoveProvider({
           }
           void sdk.threads
             .unpin({ threadId })
-            .then(() => sdk.threads.update({ threadId, sectionId }))
+            .then(move)
             .catch(() => {
               toast.error("Failed to unpin and move thread.");
             });
           return;
         }
         if (thread.sectionId === sectionId) return;
-        void sdk.threads.update({ threadId, sectionId }).catch(() => {
+        void move().catch(() => {
           toast.error("Failed to move thread.");
         });
       },
     }),
-    [destinations, sdk],
+    [destinations, onMoveThread, sdk],
   );
 
   return (
@@ -79,9 +85,11 @@ export function ThreadSectionMoveProvider({
 export function AppThreadSectionMoveProvider({
   children,
   sections,
+  onMoveThread,
 }: {
   children: ReactNode;
   sections: readonly SidebarSectionDefinition[];
+  onMoveThread?: (thread: SidebarThread, sectionId: string | null) => Promise<boolean>;
 }) {
   const mode = useAtomValue(sidebarOrganizationModeAtom);
   const storedOrder = useAtomValue(sidebarManualSectionOrderAtom);
@@ -120,6 +128,7 @@ export function AppThreadSectionMoveProvider({
     <ThreadSectionMoveProvider
       destinations={destinations}
       enabled={mode === "chronological"}
+      onMoveThread={onMoveThread}
     >
       {children}
     </ThreadSectionMoveProvider>
