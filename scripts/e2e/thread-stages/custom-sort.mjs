@@ -36,6 +36,12 @@ export async function verifyCustomSort({ stack, fixture, cases }) {
                 return root.contains(document.elementFromPoint(box.x + 40, box.y + box.height / 2));
               });
               if (!exposed) await page.getByRole("button", { name: /^Toggle sidebar/ }).click();
+              await page.waitForFunction(() => {
+                const root = document.querySelector("[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]");
+                if (!root) return false;
+                const box = root.getBoundingClientRect();
+                return root.contains(document.elementFromPoint(box.x + 40, box.y + box.height / 2));
+              });
             }
           }
           await openSidebar();
