@@ -77,6 +77,36 @@
         "The agent selects Blocked on other agent without requiring a stage mention.",
         "The proposed command is bb thread-stages stage BlockedOnOtherAgent --self."
       ]
+    },
+    {
+      "id": 8,
+      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is Active. Earlier in this thread I asked you to implement a database migration, validate it in a disposable environment, deploy it, and verify production. My latest request was 'finish validations and testing'. All disposable tests now pass and the test environment is stopped; production deployment and verification are still outstanding. You're ready to send me the validation results and end this turn. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
+      "expected_output": "Keep Active because only validation is finished; the earlier implementation/deployment objective remains unfinished.",
+      "files": [],
+      "expectations": [
+        "The selected stage is Active and command is null.",
+        "The reason identifies outstanding deployment or production verification in the earlier objective."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is Active. My entire request for this thread was to investigate whether a retry bug exists and report the finding with source references; I explicitly asked for no implementation or deployment. You finished the investigation, verified the source references, and delivered the requested answer. No requested work or user review is outstanding. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
+      "expected_output": "Completed with the current-thread stage command because the bounded investigation was the entire agreed objective and is fulfilled.",
+      "files": [],
+      "expectations": [
+        "The selected stage is Completed and command is bb thread-stages stage Completed --self.",
+        "The reason identifies the fulfilled investigation as the full agreed objective without inventing implementation or deployment requirements."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is Active. This is a resumed thread. The available handoff says the latest testing step passed and calls that step done, but it also says the original thread objective was omitted and unresolved earlier follow-ups may exist. You have not yet recovered that earlier context. What stage should this thread have now? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
+      "expected_output": "Keep Active while resolving the unknown completion boundary; do not close the thread solely because the latest tests passed.",
+      "files": [],
+      "expectations": [
+        "The selected stage is Active and command is null.",
+        "The reason identifies unavailable overall scope or earlier follow-ups as preventing a completion decision."
+      ]
     }
   ]
 }
