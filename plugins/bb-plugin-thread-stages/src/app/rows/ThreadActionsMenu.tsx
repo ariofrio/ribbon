@@ -89,7 +89,7 @@ interface ThreadRowActionHandlers {
   actions: SidebarThreadActions;
   unarchiveThread: (threadId: string) => Promise<boolean>;
 }
-type ThreadActionsCompactStep = "actions" | "move" | "edit";
+type ThreadActionsCompactStep = "actions" | "move" | "stage" | "edit";
 
 interface ThreadActionsMenuItemsProps extends ThreadActionsMenuBaseProps {
   compactStep?: ThreadActionsCompactStep;
@@ -260,6 +260,18 @@ function ThreadActionsMenuItems({
   const showSeparators = !isDrawer;
   const editorBack = useRef<HTMLElement | null>(null);
 
+  if (isDrawer && compactStep === "stage") {
+    return (
+      <RibbonThreadStageMenu
+        thread={thread}
+        surface={surface}
+        drawer
+        drawerStep
+        onBack={() => onCompactStepChange?.("actions")}
+      />
+    );
+  }
+
   if (isDrawer && compactStep === "edit") {
     return (
       <>
@@ -348,7 +360,12 @@ function ThreadActionsMenuItems({
           {id === "read" ? separator : null}
           {id === "move" ? (
             <>
-              <RibbonThreadStageMenu thread={thread} surface={surface} drawer={isDrawer} />
+              <RibbonThreadStageMenu
+                thread={thread}
+                surface={surface}
+                drawer={isDrawer}
+                onOpenDrawerStep={() => onCompactStepChange?.("stage")}
+              />
               {separator}
             </>
           ) : null}
