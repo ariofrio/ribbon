@@ -104,6 +104,33 @@ async function removeThreadTab(
   }
 }
 
+async function ensureTerminalTab(
+  bb: BbPluginApi,
+  threadId: string,
+  terminalId: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const current = await bb.sdk.threads.tabs.get({ threadId });
+    if (current.tabs.some((tab) =>
+      tab.kind === "terminal" && tab.terminalId === terminalId,
+    )) return;
+    try {
+      await bb.sdk.threads.tabs.update({
+        expectedRevision: current.revision,
+        tabs: [...current.tabs, {
+          id: `terminal:${encodeURIComponent(terminalId)}:none`,
+          kind: "terminal",
+          terminalId,
+        }],
+        threadId,
+      });
+      return;
+    } catch (error) {
+      if (attempt === 1) throw error;
+    }
+  }
+}
+
 const SIDE_CHAT_PLUGIN_ID = "side-chat";
 /** What the Side chat plugin answers `createSideChat` with. */
 const sideChatThreadSchema = z.object({ threadId: z.string().min(1) });
@@ -168,6 +195,7 @@ export default function plugin(bb: BbPluginApi) {
         created = true;
       }
 
+      await ensureTerminalTab(bb, threadId, terminalId);
       return { terminalId, created };
     },
     async validateSideChat({ childThreadId, parentThreadId, tabId }) {

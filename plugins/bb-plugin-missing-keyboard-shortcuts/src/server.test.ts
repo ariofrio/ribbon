@@ -89,6 +89,107 @@ describe("validateSideChat RPC", () => {
   });
 });
 
+describe("openTerminal RPC", () => {
+  it("persists a new terminal tab alongside the thread's existing tabs", async () => {
+    const updateTabs = vi.fn(async () => ({ revision: 5, tabs: [] }));
+    const host = createFakePluginHost({
+      pluginId: "missing-keyboard-shortcuts",
+      sdk: {
+        terminals: {
+          list: async () => ({ sessions: [] }),
+          create: async () => ({ id: "term_new" }),
+        },
+        threads: {
+          tabs: {
+            get: async () => ({ revision: 4, tabs: [{ id: "info", kind: "thread-info" }] }),
+            update: updateTabs,
+          },
+        },
+      },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await expect(host.harness.behavior.callRpc("openTerminal", {
+      preferredTerminalId: null,
+      threadId: "thr_parent",
+    })).resolves.toEqual({ created: true, terminalId: "term_new" });
+    expect(updateTabs).toHaveBeenCalledWith({
+      expectedRevision: 4,
+      tabs: [
+        { id: "info", kind: "thread-info" },
+        { id: "terminal:term_new:none", kind: "terminal", terminalId: "term_new" },
+      ],
+      threadId: "thr_parent",
+    });
+  });
+
+  it("preserves an existing terminal tab and its explicit target when reusing it", async () => {
+    const updateTabs = vi.fn();
+    const create = vi.fn();
+    const host = createFakePluginHost({
+      pluginId: "missing-keyboard-shortcuts",
+      sdk: {
+        terminals: {
+          list: async () => ({ sessions: [{ id: "term_existing", status: "running" }] }),
+          create,
+        },
+        threads: {
+          tabs: {
+            get: async () => ({ revision: 4, tabs: [{
+              id: "terminal:term_existing:none", kind: "terminal", terminalId: "term_existing",
+              target: { kind: "environment", environmentId: "env_one" },
+            }] }),
+            update: updateTabs,
+          },
+        },
+      },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await expect(host.harness.behavior.callRpc("openTerminal", {
+      preferredTerminalId: "term_existing", threadId: "thr_parent",
+    })).resolves.toEqual({ created: false, terminalId: "term_existing" });
+    expect(updateTabs).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("retains a concurrently added tab when retrying a revision conflict", async () => {
+    const getTabs = vi.fn()
+      .mockResolvedValueOnce({ revision: 4, tabs: [{ id: "info", kind: "thread-info" }] })
+      .mockResolvedValueOnce({ revision: 5, tabs: [{ id: "info", kind: "thread-info" }, { id: "diff", kind: "git-diff" }] });
+    const updateTabs = vi.fn()
+      .mockRejectedValueOnce(new Error("Thread tabs revision conflict"))
+      .mockResolvedValueOnce({ revision: 6, tabs: [] });
+    const host = createFakePluginHost({
+      pluginId: "missing-keyboard-shortcuts",
+      sdk: {
+        terminals: {
+          list: async () => ({ sessions: [] }),
+          create: async () => ({ id: "term_new" }),
+        },
+        threads: { tabs: { get: getTabs, update: updateTabs } },
+      },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await host.harness.behavior.callRpc("openTerminal", {
+      preferredTerminalId: null, threadId: "thr_parent",
+    });
+    expect(updateTabs).toHaveBeenLastCalledWith({
+      expectedRevision: 5,
+      tabs: [
+        { id: "info", kind: "thread-info" },
+        { id: "diff", kind: "git-diff" },
+        { id: "terminal:term_new:none", kind: "terminal", terminalId: "term_new" },
+      ],
+      threadId: "thr_parent",
+    });
+  });
+});
+
 describe("createSideChat RPC", () => {
   it("does not return a newly created side chat before provisioning finishes", async () => {
     let finishProvisioning!: () => void;

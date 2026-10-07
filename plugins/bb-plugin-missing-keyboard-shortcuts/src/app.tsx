@@ -39,13 +39,12 @@ import {
 } from "./last-thread-project";
 import { projectThreadTarget } from "./new-thread-target";
 import {
-  focusVisibleTerminal,
+  focusVisibleTerminalWhenReady,
   isSecondaryComposerDomFocused,
   isTerminalFocused,
   isWithinTerminal,
 } from "./terminal-dom";
 import {
-  activateTerminalPanel,
   closePanel,
   readRecentSideChatTabId,
   readRecentTerminalId,
@@ -201,6 +200,14 @@ function ComposerNavigationBridge() {
                 closePanel() {
                   const button = panelRoot.querySelector<HTMLButtonElement>(
                     'button[aria-label^="Hide right panel"]',
+                  );
+                  if (button === null) return false;
+                  button.click();
+                  return true;
+                },
+                openPanel() {
+                  const button = panelRoot.querySelector<HTMLButtonElement>(
+                    'button[aria-label^="Show right panel"]',
                   );
                   if (button === null) return false;
                   button.click();
@@ -460,11 +467,9 @@ function activateAndFocusTerminal(
 ): () => void {
   if (!isCurrentThread(threadId)) return () => {};
   const panel = readTerminalPanelSnapshot(window.localStorage, threadId);
+  let stopSelectingTab = () => {};
   if (!panel.isOpen || panel.activeTerminalId !== terminalId) {
-    notifyPanelStateChanged(
-      activateTerminalPanel(window.localStorage, threadId, terminalId),
-    );
-    return selectPrimaryPanelTabWhenReady(threadId, {
+    stopSelectingTab = selectPrimaryPanelTabWhenReady(threadId, {
       icon: "Terminal",
       index: () =>
         readTerminalPanelSnapshot(
@@ -476,8 +481,18 @@ function activateAndFocusTerminal(
     });
   }
 
-  focusVisibleTerminal(document);
-  return () => {};
+  const stopFocusingTerminal = focusVisibleTerminalWhenReady(document, {
+    isCurrent: () => isCurrentThread(threadId),
+    isReady: () => {
+      const currentPanel = readTerminalPanelSnapshot(window.localStorage, threadId);
+      return currentPanel.isOpen && currentPanel.activeTerminalId === terminalId;
+    },
+    signal,
+  });
+  return () => {
+    stopSelectingTab();
+    stopFocusingTerminal();
+  };
 }
 
 function focusSideChatComposer(
@@ -529,9 +544,16 @@ function focusSideChatComposer(
 
 function MissingKeyboardShortcuts() {
   const rpc = useRpc<typeof rpcContract>();
+  const context = useBbContext();
   const contextRef = useRef<
     Pick<PluginCommandContext, "projectId" | "threadId">
-  >({ projectId: null, threadId: null });
+  >(context);
+  useLayoutEffect(() => {
+    contextRef.current = {
+      projectId: context.projectId,
+      threadId: context.threadId,
+    };
+  }, [context.projectId, context.threadId]);
   const sidebarActions = experimental_useSidebarThreadActions();
   // Thread-list updates replace these actions without cancelling in-flight shortcuts.
   const sidebarActionsRef = useRef(sidebarActions);
@@ -564,7 +586,7 @@ function MissingKeyboardShortcuts() {
       { once: true },
     );
     const isCurrentThread = (threadId: string) =>
-      contextRef.current.threadId === threadId;
+      !signal.aborted && contextRef.current.threadId === threadId;
     const focusExistingSideChat = (
       parentThreadId: string,
       childThreadId: string,
@@ -729,6 +751,7 @@ function MissingKeyboardShortcuts() {
               threadId,
               sideChat,
             );
+            if (!isCurrentThread(threadId)) return;
             if (reusable) {
               rememberRecentSideChatTabId(
                 window.localStorage,
