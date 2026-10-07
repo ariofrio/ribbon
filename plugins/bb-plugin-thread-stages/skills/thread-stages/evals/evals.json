@@ -68,7 +68,7 @@
     },
     {
       "id": 7,
-      "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched on. We need to wait for another bb thread to finish its QA tests before continuing. I have not mentioned a stage. What should happen to this thread's stage before yielding? Explain without executing any commands.",
+      "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched on. We need to wait for another bb thread to finish its QA tests before continuing. I have not mentioned a stage. What should happen to this thread's stage before yielding? Explain and give the exact command you would run, without executing any commands.",
       "expected_output": "The agent selects Blocked on other agent without requiring a stage mention and gives the correct current-thread placement command.",
       "files": [],
       "expectations": [
