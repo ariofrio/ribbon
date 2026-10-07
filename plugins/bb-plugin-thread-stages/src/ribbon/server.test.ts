@@ -286,6 +286,33 @@ function setup({
 }
 
 describe("Ribbon sidebar server", () => {
+  it("puts a section move at the top, including a section visited before", async () => {
+    const fixture = setup({ threads: [
+      makeThreadResponse({ id: "moving", sectionId: "section-a" }),
+      makeThreadResponse({ id: "resident", sectionId: null }),
+    ] });
+    await plugin(fixture.bb);
+    try {
+      const place = (groupId: string, anchor?: { kind: "after"; threadId: string }) =>
+        fixture.harness.behavior.callRpc("updatePlacementV1", {
+          groupingKey: "builtin:sections", threadId: "moving", groupId,
+          origin: "ui", ...(anchor ? { anchor } : {}),
+        });
+      expect(await place("unsectioned", { kind: "after", threadId: "resident" }))
+        .toMatchObject({ ok: true });
+      expect(await place("section-a")).toMatchObject({ ok: true });
+      expect(await place("unsectioned")).toMatchObject({ ok: true });
+      const listed = await fixture.harness.behavior.callRpc("listPlacementsV1", {
+        groupingKey: "builtin:sections", groupIds: ["unsectioned"],
+      });
+      expect(listed).toMatchObject({ ok: true, value: { items: [
+        { threadId: "moving" }, { threadId: "resident" },
+      ] } });
+    } finally {
+      fixture.harness.dispose();
+    }
+  });
+
   it("lists a thread's prompt actions through the CLI, including an empty thread", async () => {
     const { bb, harness } = setup();
     await plugin(bb);

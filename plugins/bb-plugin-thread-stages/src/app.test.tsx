@@ -156,6 +156,50 @@ afterEach(() => {
 });
 
 describe("thread-list plugin", () => {
+  it.each([
+    { stage: "Active", pinned: false },
+    { stage: "Deferred", pinned: false },
+    { stage: "Completed", pinned: false },
+    { stage: "Active", pinned: true },
+  ])("moves a $stage thread (pinned: $pinned) through the placement service at the top of the section", async ({ stage, pinned }) => {
+    setPreferencesMirrorStorageForTest(null);
+    const updatePlacement = vi.fn(ribbonRpcStubs().updatePlacementV1);
+    const stubs = ribbonRpcStubs({
+      placements: { "builtin:sections": ["thr_later"] },
+      stages: [{ threadId: "thr_later", groupId: stage, enteredAtMs: 1 }],
+    });
+    const slot = renderList({ organizationMode: "chronological" }, {
+      sidebarThreads: {
+        projects: PROJECTS, sections: SECTIONS,
+        threads: THREADS.map((thread) => thread.id === "thr_later" && pinned
+          ? { ...thread, pinnedAt: 1, isPinned: true, pinSortKey: "a" } : thread),
+      },
+      sdk: { threads: {
+        update: vi.fn().mockResolvedValue({}), unpin: vi.fn().mockResolvedValue({}),
+      } },
+      rpc: {
+        ...stubs,
+        listPreferences: () => ({ preferences: defaultPreferences() }),
+        updatePlacementV1: updatePlacement,
+      },
+    });
+    const link = await screen.findByRole("link", { name: "Open Later thread" });
+    fireEvent.contextMenu(link);
+    fireEvent.keyDown(await screen.findByRole("menuitem", { name: "Move to section" }), { key: "ArrowRight" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Review", exact: true }));
+    await waitFor(() => expect(updatePlacement).toHaveBeenCalledWith(expect.objectContaining({
+      groupingKey: "builtin:sections", threadId: "thr_later", groupId: "sec_review", anchor: { kind: "start" },
+    })));
+    if (stage !== "Active") {
+      await waitFor(() => expect(updatePlacement).toHaveBeenCalledWith(expect.objectContaining({
+        groupingKey: "plugin:thread-stages:stages", threadId: "thr_later", groupId: stage, anchor: { kind: "start" },
+      })));
+    }
+    expect(slot.inspection.sdkCalls).toEqual(pinned
+      ? [{ method: "threads.unpin", args: [{ threadId: "thr_later" }] }]
+      : []);
+  }, 15_000);
+
   it("offers Custom instead of Updated at for the saved manual order", async () => {
     setPreferencesMirrorStorageForTest(null);
     renderList({ organizationMode: "chronological" });

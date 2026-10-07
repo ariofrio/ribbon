@@ -220,6 +220,12 @@ joins thread metadata, project, section, and stage. Archived and hidden threads
 are excluded unless requested with `--include-archived` or `--include-hidden`.
 Add `--include-children` to list nested threads with their own stages.
 
+With Custom sorting, a move to another section starts at the top, including
+when returning to a section visited before. The thread menu and CLI use the
+same placement policy as a drop on the group heading. Pass `--before` or
+`--after` to choose another position; automatic sorting keeps its selected
+order.
+
 The list's layout preferences — organization mode, sort, section order,
 hidden groups, and collapsed groups — are bb's, stored by the plugin and
 synced to every open window:

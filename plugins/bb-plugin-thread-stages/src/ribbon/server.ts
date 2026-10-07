@@ -585,6 +585,7 @@ export default async function ribbonServer(
       ...sections.map((section) => ({
         id: section.id,
         label: section.name,
+        defaultPlacement: "start",
         acceptsAssignments: true,
         visibleWhenEmpty: true,
         defaultCollapsed: false,
@@ -592,6 +593,7 @@ export default async function ribbonServer(
       {
         id: "unsectioned",
         label: "Threads",
+        defaultPlacement: "start",
         acceptsAssignments: true,
         visibleWhenEmpty: true,
         defaultCollapsed: false,

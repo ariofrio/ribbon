@@ -138,7 +138,7 @@ import {
   placementGroupingKey,
   placementRanks,
 } from "../../ribbon/app/order.js";
-import { useRibbonDnd } from "../../ribbon/app/dnd.js";
+import { useRibbonDnd, useRibbonSectionMove } from "../../ribbon/app/dnd.js";
 import {
   filterThreadsToSearch,
   RibbonListProvider,
@@ -419,8 +419,14 @@ function ProjectListSectionMoveScope({
 }: ProjectListShellProps & {
   sections: readonly SidebarSectionDefinition[];
 }) {
+  const moveToSection = useRibbonSectionMove();
+  const onMoveThread = useCallback(
+    (thread: SidebarThread, sectionId: string | null) =>
+      moveToSection?.(thread, sectionId, { edge: "start" }) ?? Promise.resolve(false),
+    [moveToSection],
+  );
   return (
-    <AppThreadSectionMoveProvider sections={sections}>
+    <AppThreadSectionMoveProvider sections={sections} onMoveThread={onMoveThread}>
       <ProjectListShell>{children}</ProjectListShell>
     </AppThreadSectionMoveProvider>
   );

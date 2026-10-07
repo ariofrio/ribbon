@@ -51,6 +51,31 @@ export function sameReorderableBand(
   return band === bandOf(overStage);
 }
 
+/** The placement policy shared by section menus and drops. */
+export function useRibbonSectionMove(): RibbonDndHandlers["onMoveThread"] | null {
+  const ribbon = useRibbonData();
+  const updatePlacement = ribbon?.updatePlacement;
+  const stageOf = ribbon?.stageOf;
+  const move = useCallback<RibbonDndHandlers["onMoveThread"]>(
+    async (active, groupId, anchor) => {
+      if (!updatePlacement || active.parentThreadId !== null) return false;
+      const placementAnchor: PlacementAnchor = "edge" in anchor
+        ? { kind: anchor.edge }
+        : { kind: anchor.placement, threadId: anchor.thread.id };
+      await updatePlacement(active.id, "builtin:sections", groupId ?? "unsectioned", placementAnchor);
+      if (
+        stageOf && bandOf(stageOf(active.id)) !== "main" &&
+        ("edge" in anchor || stageOf(anchor.thread.id) === stageOf(active.id))
+      ) {
+        await updatePlacement(active.id, THREAD_STAGES_GROUPING_KEY, stageOf(active.id), placementAnchor);
+      }
+      return true;
+    },
+    [stageOf, updatePlacement],
+  );
+  return ribbon === null ? null : move;
+}
+
 export function useRibbonDnd(mode: OrganizationMode): RibbonDndHandlers | null {
   const ribbon = useRibbonData();
   const setSort = useSetAtom(sidebarChronologicalSortAtom);
@@ -58,6 +83,7 @@ export function useRibbonDnd(mode: OrganizationMode): RibbonDndHandlers | null {
   const stageOf = ribbon?.stageOf;
   const updatePlacement = ribbon?.updatePlacement;
   const reorderChildren = ribbon?.reorderChildren;
+  const moveToSection = useRibbonSectionMove();
 
   const canReorder = useCallback<RibbonDndHandlers["canReorder"]>(
     (active, over) => {
@@ -107,30 +133,12 @@ export function useRibbonDnd(mode: OrganizationMode): RibbonDndHandlers | null {
   const onMoveThread = useCallback<RibbonDndHandlers["onMoveThread"]>(
     async (active, groupId, anchor) => {
       // Section membership is the one Ribbon writes; a project's is bb's.
-      if (!updatePlacement || groupingKey !== "builtin:sections") return false;
+      if (!moveToSection || groupingKey !== "builtin:sections") return false;
       if (active.parentThreadId !== null || active.pinnedAt !== null) return false;
-      const placementAnchor: PlacementAnchor =
-        "edge" in anchor
-          ? { kind: anchor.edge }
-          : { kind: anchor.placement, threadId: anchor.thread.id };
       setSort("none");
-      await updatePlacement(
-        active.id,
-        groupingKey,
-        groupId ?? "unsectioned",
-        placementAnchor,
-      );
-      if (
-        stageOf && bandOf(stageOf(active.id)) !== "main" &&
-        ("edge" in anchor || stageOf(anchor.thread.id) === stageOf(active.id))
-      ) {
-        await updatePlacement(
-          active.id, THREAD_STAGES_GROUPING_KEY, stageOf(active.id), placementAnchor,
-        );
-      }
-      return true;
+      return moveToSection(active, groupId, anchor);
     },
-    [groupingKey, setSort, stageOf, updatePlacement],
+    [groupingKey, moveToSection, setSort],
   );
 
   return useMemo(
