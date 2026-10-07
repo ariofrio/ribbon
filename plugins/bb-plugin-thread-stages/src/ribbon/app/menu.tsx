@@ -7,6 +7,7 @@ import {
 import {
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -16,10 +17,7 @@ import { TouchInteraction01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useRef, useState } from "react";
 import type { SidebarThread } from "../../app/model/sidebar-thread.js";
-import {
-  ActionMenuSeparator,
-  type ActionMenuSurface,
-} from "../../app/ui/action-menu-items.js";
+import type { ActionMenuSurface } from "../../app/ui/action-menu-items.js";
 import { STAGE_ICONS } from "../workflow/catalog";
 import { WORKFLOW_STAGES, WORKFLOW_STAGE_LABELS } from "../workflow/workflow-stage";
 import { useRibbonData } from "./data";
@@ -33,11 +31,16 @@ export function RibbonThreadStageMenu({
   thread,
   surface,
   drawer = false,
+  drawerStep = false,
+  onBack,
+  onOpenDrawerStep,
 }: {
   thread: SidebarThread;
   surface: ActionMenuSurface;
-  /** A compact-viewport drawer lists the stages flat rather than in a submenu. */
   drawer?: boolean;
+  drawerStep?: boolean;
+  onBack?: () => void;
+  onOpenDrawerStep?: () => void;
 }) {
   const ribbon = useRibbonData();
   if (ribbon === null || thread.archivedAt !== null) return null;
@@ -69,24 +72,42 @@ export function RibbonThreadStageMenu({
     surface === "context" ? ContextMenuSubTrigger : DropdownMenuSubTrigger;
   const SubContent =
     surface === "context" ? ContextMenuSubContent : DropdownMenuSubContent;
+  if (drawer) {
+    if (!drawerStep) {
+      return (
+        <DropdownMenuItem onSelect={(event) => {
+          event.preventDefault();
+          onOpenDrawerStep?.();
+        }}>
+          <ProviderIcon icon={STAGE_ICONS.Completed} label="Stage icon" />
+          <span className="min-w-0 flex-1 truncate">Move to stage</span>
+          <Icon name="ChevronRight" className="ml-auto" aria-hidden />
+        </DropdownMenuItem>
+      );
+    }
+    return (
+      <>
+        <DropdownMenuItem onSelect={(event) => {
+          event.preventDefault();
+          onBack?.();
+        }}>
+          <Icon name="ChevronLeft" aria-hidden />
+          Back
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Move to stage</DropdownMenuLabel>
+        {items}
+      </>
+    );
+  }
   return (
-    <>
-      {drawer ? (
-        <>
-          <ActionMenuSeparator surface={surface} />
-          <DropdownMenuLabel>Move to stage</DropdownMenuLabel>
-          {items}
-        </>
-      ) : (
-        <Sub>
-          <SubTrigger>
-            <ProviderIcon icon={STAGE_ICONS.Completed} label="Stage icon" />
-            Move to stage
-          </SubTrigger>
-          <SubContent>{items}</SubContent>
-        </Sub>
-      )}
-    </>
+    <Sub>
+      <SubTrigger>
+        <ProviderIcon icon={STAGE_ICONS.Completed} label="Stage icon" />
+        Move to stage
+      </SubTrigger>
+      <SubContent>{items}</SubContent>
+    </Sub>
   );
 }
 
