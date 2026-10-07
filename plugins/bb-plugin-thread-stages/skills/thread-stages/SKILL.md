@@ -43,6 +43,11 @@ A stage says whose move a thread is waiting on:
 | **Blocked on third party** | `BlockedOnThirdParty` | Someone or something outside bb: a reviewer, CI, a vendor, a date. |
 | **Completed** | `Completed` | Nobody's: finished, and treated like archived work. |
 
+Set Completed only when the user's full objective for this thread is
+fulfilled. Check the full conversation for outstanding work; finishing a
+step or turn is insufficient. If the completion boundary is unclear, keep
+Active.
+
 Waiting on the user is **Active**, never a Blocked stage. Ending a turn already
 hands the thread to the user, so do not move a thread because you asked the
 user a question, requested approval, or finished work for them to review. The
