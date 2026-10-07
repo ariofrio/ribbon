@@ -40,7 +40,7 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
       };
       try {
         await save([{ id: "review", label: "Review", prompt: "Review this thread." }]);
-        await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
+        await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href, { waitUntil: "domcontentloaded", timeout: 120_000 });
         if (compact) await page.getByTestId("app-sidebar-trigger-overlay").getByRole("button").tap();
         const list = sidebar(page);
         await list.waitFor({ timeout: 120_000 });
@@ -117,6 +117,8 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
             "The title yields space to visible row controls");
           assert.equal(hover.prompt.right, rest.prompt.right,
             "Saved prompt buttons keep their position when row controls appear");
+          assert.equal(hover.prompt.left - hover.buttons.at(-1).right, 12,
+            "Saved prompts have the same separation from row controls as PR numbers");
           const menu = hover.menu;
           assert.ok(Math.abs(hover.row.right - menu.right - 4) < 1,
             "The ellipsis stays in the trailing indicator slot");
@@ -159,7 +161,7 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
           await page.mouse.move(1000, 700);
         }
         showPr = true;
-        await page.reload();
+        await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
         if (compact) await page.getByTestId("app-sidebar-trigger-overlay").getByRole("button").tap();
         await list.waitFor({ timeout: 120_000 });
         await target.getByText("#12345", { exact: true }).waitFor();
@@ -182,9 +184,24 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
           compact ? action.tap() : action.click(),
         ]);
         assert.deepEqual(sent, [{ threadId: thread.id, actionId: "review" }]);
+        await save([]);
+        await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
+        if (compact) await page.getByTestId("app-sidebar-trigger-overlay").getByRole("button").tap();
+        await list.waitFor({ timeout: 120_000 });
+        await target.getByText("#12345", { exact: true }).waitFor();
+        await page.mouse.move(1000, 700);
+        const prOnly = await metrics();
+        if (!compact) {
+          await target.hover();
+          const hoveredPrOnly = await metrics();
+          assert.equal(hoveredPrOnly.pr.left - hoveredPrOnly.buttons.at(-1).right, 12,
+            "PR numbers retain their spacing from row controls without saved prompts");
+          assert.equal(hoveredPrOnly.pr.right, prOnly.pr.right,
+            "A PR number without saved prompts stays stationary on hover");
+        }
         showPr = false;
         await save([]);
-        await page.reload();
+        await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
         if (compact) await page.getByTestId("app-sidebar-trigger-overlay").getByRole("button").tap();
         await list.waitFor({ timeout: 120_000 });
         await page.mouse.move(1000, 700);
@@ -195,6 +212,8 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
         if (!compact) {
           await target.hover();
           const hoveredQuiet = await metrics();
+          assert.equal(hoveredQuiet.menu.left - hoveredQuiet.buttons.at(-1).right, 10,
+            "Without a PR or saved prompts, row controls have the same gap to the ellipsis as to each other");
           assert.ok(hoveredQuiet.title.right < quiet.title.right - 100,
             "Configured row controls take title space only when revealed");
           await target.getByRole("button", { name: "Thread actions", exact: true }).click();

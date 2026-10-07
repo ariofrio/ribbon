@@ -50,7 +50,7 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     await row(group, returning.id).getByLabel("Active stage", { exact: true }).waitFor();
     await row(group, returning.id).hover();
     await row(group, returning.id).getByRole("button", { name: "Thread actions", exact: true }).click();
-    await page.getByRole("menuitem", { name: /Set stage/ }).hover();
+    await page.getByRole("menuitem", { name: /Move to stage/ }).hover();
     await page.getByRole("menuitemradio", { name: "Completed", exact: true }).click();
     await first(returning);
     await page.locator('[data-app-composer-role="primary"] [contenteditable="true"]').click();

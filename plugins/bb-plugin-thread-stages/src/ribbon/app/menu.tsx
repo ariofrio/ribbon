@@ -74,14 +74,14 @@ export function RibbonThreadStageMenu({
       {drawer ? (
         <>
           <ActionMenuSeparator surface={surface} />
-          <DropdownMenuLabel>Set stage</DropdownMenuLabel>
+          <DropdownMenuLabel>Move to stage</DropdownMenuLabel>
           {items}
         </>
       ) : (
         <Sub>
           <SubTrigger>
             <ProviderIcon icon={STAGE_ICONS.Completed} label="Stage icon" />
-            Set stage
+            Move to stage
           </SubTrigger>
           <SubContent>{items}</SubContent>
         </Sub>

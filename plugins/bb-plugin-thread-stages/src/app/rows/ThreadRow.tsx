@@ -516,6 +516,13 @@ function ThreadRowComponent({
       ribbon.actions.length > 0 ||
       thread.archivedAt !== null ||
       Boolean(shortcut));
+  const ribbonControlsMeetIndicator =
+    ribbon !== null &&
+    ribbon.actions.length === 0 &&
+    ribbon.pullRequest?.position !== "right" &&
+    rowActionIds.length > 0 &&
+    thread.archivedAt === null &&
+    !shortcut;
   const shineRowRef = useRef<HTMLDivElement | null>(null);
   useRowShine(shineRowRef, ribbonShines, ribbonWorking);
   const lineage = useRowLineage();
@@ -693,9 +700,17 @@ function ThreadRowComponent({
               : SIDEBAR_HOVER_ACTIONS_INSET_CLASS),
           ribbon !== null &&
             !isEditing &&
+            (ribbonLaneAtRest ? "pr-9" : "pr-2"),
+          ribbon !== null &&
+            !isEditing &&
+            (ribbonControlsMeetIndicator
+              ? "group-hover/thread-row:pr-7.5 group-has-[:focus-visible]/thread-row:pr-7.5 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-7.5"
+              : "group-hover/thread-row:pr-9 group-has-[:focus-visible]/thread-row:pr-9 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-9"),
+          ribbon !== null &&
+            !isEditing &&
             (ribbonLaneAtRest
-              ? "pr-9"
-              : "pr-2 group-hover/thread-row:pr-9 group-has-[:focus-visible]/thread-row:pr-9 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-9 max-md:pointer-coarse:pr-2"),
+              ? "max-md:pointer-coarse:pr-9"
+              : "max-md:pointer-coarse:pr-2"),
         )}
         style={getHoverActionsInsetStyle(
           thread.archivedAt !== null ? (ribbon ? 0 : 1) : rowActionIds.length,

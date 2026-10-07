@@ -59,7 +59,7 @@ export async function verifyThreadContextMenu({ stack, fixture }) {
       });
       assert.deepEqual(groups.slice(-5), [
         ["Copy thread link", "Mark unread"],
-        ["Pin", "Move to section", "Set stage"],
+        ["Pin", "Move to section", "Move to stage"],
         ["Rename", "Edit thread actions"],
         ["Customize row actions"],
         ["Archive", "Delete"],
