@@ -4,7 +4,7 @@ import { launch, openContext, sidebar } from "./sidebar.mjs";
 
 const url = "https://github.com/example/project/pull/12345";
 
-function pullRequest(attention) {
+export function pullRequest(attention) {
   return {
     outcome: "available",
     pullRequest: {
@@ -16,7 +16,9 @@ function pullRequest(attention) {
       baseRefName: "main",
       headRefName: "feature",
       updatedAt: "2026-09-18T00:00:00Z",
-      checks: { failedCount: 0, passedCount: 30, pendingCount: 5, totalCount: 35, state: "pending" },
+      autoMerge: false,
+      inMergeQueue: attention === "queued",
+      checks: { failedCount: attention === "checks_failed" ? 1 : 0, passedCount: 30, pendingCount: 5, totalCount: 35, state: attention === "checks_failed" ? "failing" : "pending" },
       mergeability: { mergeStateStatus: "BLOCKED", mergeable: "MERGEABLE", state: "blocked" },
       review: { reviewRequestCount: 0, state: "approved" },
     },
@@ -89,6 +91,13 @@ export async function verifyPrStatus({ stack, fixture, cases }) {
       assert.equal(status.mark, status.tokens.attention, "waiting mark is amber");
       assert.equal(status.icon, status.tokens.attention, "auto-merge icon is amber");
       assert.equal(status.title, `Sidebar placement fixture — ${label}`);
+      await context.close();
+    }
+    if (cases.includes("public-queue")) {
+      const { context, page, threadId } = await open({ browser, stack, fixture, attention: "queued", details: null });
+      const status = await renderedStatus(page, threadId, "Queued to merge");
+      assert.equal(status.mark, status.tokens.attention);
+      assert.equal(status.icon, status.tokens.attention);
       await context.close();
     }
     if (cases.includes("attention-fallback")) {

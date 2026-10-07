@@ -957,7 +957,7 @@ export default async function ribbonServer(
       await refreshCatalogsAndRoots();
       return sidebarSnapshot();
     },
-    updatePlacementV1: updatePlacement,
+    updatePlacementV1: (input) => updatePlacement(input),
     async updateSettingsV1(values) {
       await bb.sdk.plugins.updateSettings({
         pluginId: bb.pluginId,

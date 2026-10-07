@@ -39,6 +39,8 @@ export async function verifyPrNumber({ stack, fixture }) {
           baseRefName: "main",
           headRefName: "feature",
           updatedAt: "2026-09-18T00:00:00Z",
+      autoMerge: false,
+      inMergeQueue: false,
           checks: { failedCount: 0, passedCount: 1, pendingCount: 0, totalCount: 1, state: "passing" },
           mergeability: { mergeStateStatus: "CLEAN", mergeable: "MERGEABLE", state: "mergeable" },
           review: { reviewRequestCount: 0, state: "approved" },

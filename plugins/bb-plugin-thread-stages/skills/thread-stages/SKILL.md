@@ -132,3 +132,18 @@ both work. A value the key's schema rejects fails with
 `invalid_preference_value` and leaves the stored value alone. Every open
 window applies a change immediately. Sections themselves and a thread's
 section are bb core state: use `bb thread section` and `bb thread update`.
+
+`rowActions` picks up to three quick-action buttons a thread row shows on
+hover, left to right before its actions menu. Choose from `split`, `copyLink`, `read`,
+`pin`, `move` (opens a section menu), `rename`, and `archive`; the default is `'[]'`,
+which leaves only the menu. For example,
+`bb thread-stages prefs set rowActions '["pin","archive"]'`. In the app, a thread
+row's actions menu has Customize row actions, which previews the row's three
+action slots; each slot picks an action or Hide, and filled slots drag to reorder.
+
+New threads inherit the sidebar group where creation was invoked. Pinned
+creates pinned threads; custom sections supply their section; project, machine,
+and general thread groups start unsectioned and unpinned. Environment rows
+reuse their environment and the containing group's placement. In Pinned,
+they retain the group's common underlying section for unpinning; mixed-section
+groups use no underlying section.

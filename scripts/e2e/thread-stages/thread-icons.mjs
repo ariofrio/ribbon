@@ -212,10 +212,11 @@ export async function verifyThreadIcons({ stack, fixture }) {
           number: 123, title: "Sidebar pull request", state: prState,
           url: "https://github.com/example/project/pull/123",
           baseRefName: "main", headRefName: "feature", updatedAt: "2026-09-18T00:00:00Z",
+          autoMerge: false, inMergeQueue: false,
           checks: { state: "no_checks", totalCount: 0, passedCount: 0, failedCount: 0, pendingCount: 0 },
           review: { state: "none", reviewRequestCount: 0 },
           mergeability: { state: "mergeable", mergeStateStatus: null, mergeable: null },
-          attention: "none",
+          attention: prState === "open" ? "none" : prState,
         },
       },
     }));
@@ -228,9 +229,10 @@ export async function verifyThreadIcons({ stack, fixture }) {
         const rowNode = document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${threadId}"]`);
         const badge = rowNode?.querySelector('[title="Sidebar pull request"]');
         const icon = badge?.querySelector("svg");
-        const statusTitle = `${state[0].toUpperCase()}${state.slice(1)} Pull Request`;
-        const reference = [...document.querySelectorAll(`[title="${statusTitle}"] svg`)]
-          .find((svg) => !svg.closest("[data-ribbon-sidebar-root]"));
+        const statusTitle = `${state[0].toUpperCase()}${state.slice(1)}`;
+        const reference = document.querySelector(
+          `[data-app-composer-role="primary"] a[href="https://github.com/example/project/pull/123"] [title="${statusTitle}"] svg`,
+        );
         if (!icon || !reference) return false;
         const range = document.createRange();
         range.setStartAfter(icon);
