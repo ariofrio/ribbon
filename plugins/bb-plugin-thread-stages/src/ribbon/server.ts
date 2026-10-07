@@ -585,7 +585,7 @@ export default async function ribbonServer(
       ...sections.map((section) => ({
         id: section.id,
         label: section.name,
-        defaultPlacement: "start",
+        defaultPlacement: "start" as const,
         acceptsAssignments: true,
         visibleWhenEmpty: true,
         defaultCollapsed: false,
