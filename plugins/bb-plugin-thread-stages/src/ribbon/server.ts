@@ -25,6 +25,7 @@ import { importIcons, importRibbonSidebar } from "./import-legacy-plugins";
 import { reclaimLegacyDatabase } from "./legacy-database";
 import { DEFAULT_LONG_TITLES, LONG_TITLE_OPTIONS } from "./long-titles";
 import { AUTO_ARCHIVE_OPTIONS } from "./workflow/auto-archive";
+import { DEFAULT_STAGE_PREVIEW_ROWS, STAGE_PREVIEW_ROW_OPTIONS } from "./stage-preview-rows";
 
 /** The Ribbon sidebar settings this plugin kept, by the names both use. */
 const RIBBON_SETTINGS = [
@@ -45,6 +46,7 @@ import {
 } from "./pull-request-details";
 import { sidebarThreadsFromSearchResult } from "./search-results";
 import { sidebarMigrations } from "./sidebar-migrations";
+import { registerStageInstructions } from "./agent-instructions";
 import { registerStageMentions } from "./stage-mentions";
 import { threadActionCliCommands } from "./thread-actions-cli";
 import { createThreadActionsStore, type ThreadActionsRecord } from "./thread-actions-store";
@@ -379,6 +381,13 @@ export default async function ribbonServer(
   // Behavior first, then appearance: bb draws settings in this order and
   // offers no groups of its own.
   const settings = bb.settings.define({
+    automaticStageUpdates: {
+      type: "boolean",
+      label: "Automatic stage updates",
+      description:
+        "Ask agents to update their thread's stage as work starts, waits, resumes, or finishes.",
+      default: true,
+    },
     autoArchiveCompletedAfter: {
       type: "select",
       label: "Auto-archive completed threads",
@@ -391,6 +400,14 @@ export default async function ribbonServer(
       description:
         "Send a thread a stage notice when you or another thread move it to a different stage.",
       default: true,
+    },
+    stagePreviewRows: {
+      type: "select",
+      label: "Completed and Deferred preview rows",
+      description:
+        "Maximum rows per stage preview, including Show more. One thread always shows on its own.",
+      options: [...STAGE_PREVIEW_ROW_OPTIONS],
+      default: String(DEFAULT_STAGE_PREVIEW_ROWS),
     },
     childThreadLines: {
       type: "select",
@@ -483,6 +500,11 @@ export default async function ribbonServer(
   const childOrder = createChildOrderStore(database);
   registerIcons(bb, database);
   registerStageMentions(bb);
+  let automaticStageUpdates = (await settings.get()).automaticStageUpdates;
+  settings.onChange((next) => {
+    automaticStageUpdates = next.automaticStageUpdates;
+  });
+  registerStageInstructions(bb, () => automaticStageUpdates);
 
   let projectGroups: GroupingDescriptor["groups"] = [];
   let personalProjectId: string | null = null;
@@ -683,10 +705,20 @@ export default async function ribbonServer(
       before.ok &&
       before.value.placement.groupId !== input.groupId;
     if (!movingSection) {
-      const result = store.updatePlacement({ ...input, groupingKey });
+      const restoringMainPosition =
+        groupingKey === THREAD_STAGES_GROUPING_KEY &&
+        input.groupId === "Active" && before.ok &&
+        ["Deferred", "Completed"].includes(before.value.placement.groupId) &&
+        input.anchor === undefined;
+      const result = store.updatePlacement({
+        ...input, groupingKey,
+        ...(restoringMainPosition ? { anchor: { kind: "preserve" as const } } : {}),
+      });
       if (result.ok) {
         bb.realtime.publish("placements-changed", {
-          groupingKeys: [input.groupingKey],
+          groupingKeys: groupingKey === THREAD_STAGES_GROUPING_KEY
+            ? [input.groupingKey, "builtin:sections", "builtin:projects"]
+            : [input.groupingKey],
         });
         if (
           announceStageChange &&
@@ -939,7 +971,7 @@ export default async function ribbonServer(
       await refreshCatalogsAndRoots();
       return sidebarSnapshot();
     },
-    updatePlacementV1: updatePlacement,
+    updatePlacementV1: (input) => updatePlacement(input),
     async updateSettingsV1(values) {
       await bb.sdk.plugins.updateSettings({
         pluginId: bb.pluginId,

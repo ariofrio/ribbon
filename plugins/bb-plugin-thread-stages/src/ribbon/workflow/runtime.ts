@@ -79,6 +79,9 @@ export function createWorkflowRuntime(
     const rank = new Map(
       groupOrder.items.map((item, index) => [item.threadId, index]),
     );
+    const stageRanks = new Map(
+      placementState.items.map((item, index) => [item.threadId, index]),
+    );
     placementState.items.sort(
       (a, b) => (rank.get(a.threadId) ?? 0) - (rank.get(b.threadId) ?? 0),
     );
@@ -99,6 +102,7 @@ export function createWorkflowRuntime(
       }),
       placements: placementState.items,
       revision: placementState.revision,
+      stageRanks,
       orderRevision: groupOrder.revision,
       orderPlacements: groupOrder.items,
     };
@@ -159,7 +163,8 @@ export function createWorkflowRuntime(
           return {
             threadId: placement.threadId,
             previousStage,
-            previousSortKey: previousStage === "Active" ? "preserve" : null,
+            previousSortKey: previousStage === "Active" || isBlockedStage(previousStage ?? undefined)
+              ? "preserve" : null,
             updatedAt: placement.enteredAtMs ?? 0,
           };
         })
@@ -181,7 +186,7 @@ export function createWorkflowRuntime(
           groupId: "Active",
           threadId: chord.threadId,
           anchor:
-            chord.sortKey !== null ? { kind: "preserve" } : { kind: "end" },
+            chord.sortKey !== null ? { kind: "preserve" } : { kind: "start" },
           expectedRevision: placementState.revision,
           origin: "ui",
         });
@@ -249,10 +254,15 @@ export function createWorkflowRuntime(
           );
       if (
         scope !== "stage" &&
-        assignments.find((item) => item.threadId === threadId)
-          ?.workflowStage === "Completed"
-      )
-        return { assignments };
+        ["Deferred", "Completed"].includes(
+          assignments.find((item) => item.threadId === threadId)?.workflowStage ?? "Active",
+        )
+      ) {
+        assignments.sort((left, right) =>
+          (placementState.stageRanks.get(left.threadId) ?? Infinity) -
+          (placementState.stageRanks.get(right.threadId) ?? Infinity),
+        );
+      }
       const move = resolveWorkflowReorder({
         threads,
         assignments,
@@ -272,11 +282,13 @@ export function createWorkflowRuntime(
         });
         return { assignments };
       }
+      const stagePlacement =
+        move.kind === "stage" || ["Deferred", "Completed"].includes(move.workflowStage);
       await updatePlacement({
         groupingKey:
-          move.kind === "stage" ? THREAD_STAGES_GROUPING_KEY : groupingKey,
+          stagePlacement ? THREAD_STAGES_GROUPING_KEY : groupingKey,
         groupId:
-          move.kind === "stage"
+          stagePlacement
             ? move.workflowStage
             : (groupId ?? "unsectioned"),
         threadId,
@@ -289,7 +301,7 @@ export function createWorkflowRuntime(
                 ? { kind: "after", threadId: move.previousThreadId }
                 : { kind: "preserve" },
         expectedRevision:
-          move.kind === "stage"
+          stagePlacement
             ? placementState.revision
             : placementState.orderRevision,
         origin: "ui",

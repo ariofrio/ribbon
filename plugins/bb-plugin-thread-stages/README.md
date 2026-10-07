@@ -9,7 +9,7 @@ project icons.
 </picture>
 
 Install it and select **Thread stages** under **Settings → Appearance →
-Sidebar** (bb 0.44.0 or newer):
+Sidebar** (bb 0.45.0 or newer):
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon
@@ -19,7 +19,7 @@ bb plugin install thread-stages@ribbon
 ## Where it comes from
 
 This plugin is a fork of bb's own sidebar thread list, the built-in
-[`plugins/thread-list`](https://github.com/get-bb/bb/tree/desktop-v0.44.0/plugins/thread-list),
+[`plugins/thread-list`](https://github.com/get-bb/bb/tree/desktop-v0.45.0/plugins/thread-list),
 so it keeps everything bb's list does — pinned threads, custom sections,
 projects, machines, nested threads, drag to reorder, inline rename, search,
 the Organize, Sort, and Filter menus, and bb's own status glyphs — and adds
@@ -48,17 +48,25 @@ Inside each group, Active and both Blocked stages share one manually ordered
 list, followed by Deferred and then Completed. New roots enter at the top, and
 activity leaves positions unchanged.
 
-Deferred shows two roots in group order and Completed the two most recent
-completions; **Show N more deferred/completed** expands the rest, and **Show
-fewer** restores the preview. The open thread stays visible even outside the
-preview, and search reveals every matching result.
+Deferred and Completed preview roots in their saved order; entering Completed
+inserts a thread first. **Completed and Deferred preview rows** sets a limit of 1–5 rows
+per stage, defaulting to 2, including **Show N more deferred/completed**.
+With two or more threads, the default shows one thread and that button;
+a single thread shows on its own. At limit 1, a single thread shows on its
+own; multiple threads show only the button. The open thread replaces a preview
+row when needed. **Show fewer** restores the preview, and search reveals every
+matching result.
 
 Drag a root to reorder it within its list, onto its section's heading to put
 it first, or onto another section to move it there. Drag a child to reorder
 it among its siblings; it stays under its parent and keeps its stage.
-Completed stays ordered by completion time. Group rank survives stage
-changes, so returning a deferred or completed root to the main list restores
-its place. bb owns section membership, pins, and lifecycle; project
+Active and both Blocked stages share the main list; changing between those
+stages keeps a root's position. Deferred and Completed keep their own orders.
+Moving a root into another list defaults to the top through the UI or CLI,
+and it can then be reordered by dragging, shortcuts, or CLI placement.
+Returning a deferred or completed root to Active restores its main-list
+position, and undo restores the position before a stage move.
+bb owns section membership, pins, and lifecycle; project
 membership is bb's under project grouping too.
 
 Each child has its own stage while remaining nested under its parent, and
@@ -81,9 +89,10 @@ favicon colors. Changes save as you click and appear in every window.
 
 A heading with a color is tinted by its hue; every other heading is gray. A
 heading whose group chose no icon carries a standard one: a book for a
-section, Threads included, and a folder for a project, open while the
-group is. The book's top page turns over on its spine and the folder's front
-falls forward as its group folds. **Group header icons** turns them all off.
+section, a folder for a project, and two messages for Threads, open while the
+group is. The book's top page turns over on its spine, the folder's front
+falls forward, and the second message slides back behind the first as its
+group folds. **Group header icons** turns them all off.
 
 A folded group still shows the open thread as its one row, and a click on a
 heading anywhere but its buttons folds or unfolds it; a double click on the
@@ -91,7 +100,7 @@ name renames it.
 
 ## Rows
 
-Running work never changes a stage. A working thread's stage icon turns its
+Thread activity alone never changes a stage. A working thread's stage icon turns its
 ring in place of bb's spinner, a collapsed root's ring also turns for work in
 its hidden descendants, and a pending question or approval stops the ring. A
 working row shimmers across its icon, title, and indicator; turn off
@@ -139,6 +148,12 @@ settings lines the numbers up.
 
 ## Stages and shortcuts
 
+**Automatic stage updates** is on by default. It asks agents to keep their
+thread's stage current as work progresses. Turn it off to have agents change
+stages only when you explicitly request a change. The instruction changes
+when bb next constructs the agent's provider session; the stage skill stays
+available in both modes.
+
 Type `@` and a stage name in the composer to mention a stage, such as
 `@Blocked on other agent`. A mentioned stage tells the agent to place the
 thread there, so a message can end with "then @Blocked on other agent", and a
@@ -168,7 +183,7 @@ thread as Completed is how it leaves the list.
 | ⌃⌥⌘. | Ctrl+Alt+Shift+. | Mark Blocked on other agent |
 | ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked on third party |
 | ⌃⌘. | Ctrl+Alt+, | Defer |
-| ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main or Deferred list, or a child among its siblings |
+| ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main, Deferred, or Completed list, or a child among its siblings |
 | ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to that list's edge |
 | ⌃⌘↑ / ⌃⌘↓ | Ctrl+↑ / Ctrl+↓ | Move to the adjacent stage |
 

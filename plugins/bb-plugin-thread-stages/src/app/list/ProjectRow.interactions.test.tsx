@@ -39,12 +39,16 @@ installTestPluginRuntime();
 const {
   ChronologicalSectionThreadSections,
   ProjectRow,
+  PinnedEnvironmentThreadGroupRow,
   SectionThreadDragOverlay,
   ThreadTreeNodeRow,
 } = await import("./ProjectRow.js");
+const { ThreadCreationPlacementScope } =
+  await import("./ThreadCreationPlacement.js");
 const { useSidebarModeSectionOrder } =
   await import("./useSidebarModeSectionOrder.js");
 const { SidebarHeaderControls } = await import("./SidebarHeaderControls.js");
+const { SidebarDraftPresenceSync } = await import("./sidebarDraftPresence.js");
 const { ThreadListVisibilityMenuItems } =
   await import("./ThreadListVisibility.js");
 
@@ -94,6 +98,7 @@ interface HarnessProps {
 function Harness({ children, store }: HarnessProps) {
   return (
     <TooltipProvider>
+      <SidebarDraftPresenceSync />
       <Provider store={store}>{children}</Provider>
     </TooltipProvider>
   );
@@ -153,7 +158,6 @@ function renderPinnedParentWithChild({
       isEnvGrouped={false}
       collapsedThreadIds={isCollapsed ? new Set(["thr_parent"]) : new Set()}
       collapsedEnvironmentIds={new Set()}
-      variant="section"
       onToggleThreadCollapsed={vi.fn()}
       onToggleEnvironmentCollapsed={vi.fn()}
       sectionDnd={sectionDnd}
@@ -547,6 +551,54 @@ describe("ProjectRow interactions", () => {
       "proj_test",
     );
     expect(projectGroup?.hasAttribute("data-sidebar-section-id")).toBe(false);
+  });
+
+  it("aligns a nested environment group with its parent guide", () => {
+    const environment = makeSidebarEnvironment({
+      id: "env_nested",
+      name: "Nested workspace",
+      providerId: "git-worktree",
+      isWorktree: true,
+    });
+    const { container } = renderProjectRow(vi.fn(), {
+      status: "ready",
+      threads: [
+        makeThread({ id: "thr_parent", title: "Parent" }),
+        makeThread({
+          id: "thr_child_a",
+          parentThreadId: "thr_parent",
+          environment,
+        }),
+        makeThread({
+          id: "thr_child_b",
+          parentThreadId: "thr_parent",
+          environment,
+        }),
+      ],
+    });
+
+    const group = screen
+      .getByRole("button", { name: "Collapse Nested workspace threads" })
+      .closest("[data-sidebar-sticky-group]");
+    const header = group?.querySelector<HTMLElement>(
+      ".bb-sidebar-hover-actions-row",
+    );
+    const child = group?.querySelector<HTMLElement>(
+      '[data-sidebar-thread-id="thr_child_a"]',
+    );
+    const guide = group?.querySelector<HTMLElement>(
+      ":scope > div.relative > span.bg-border-hairline",
+    );
+
+    expect(
+      container.querySelector('[data-sidebar-thread-id="thr_parent"]'),
+    ).not.toBeNull();
+    expect(header?.style.paddingLeft).toBe("8px");
+    expect(guide?.style.left).toBe("16px");
+    expect(
+      child?.closest<HTMLElement>(".bb-sidebar-hover-actions-row")?.style
+        .paddingLeft,
+    ).toBe("32px");
   });
 
   it("shows generic runtime activity before a named workflow rollup", () => {
@@ -1056,6 +1108,7 @@ describe("ProjectRow interactions", () => {
           options: {
             projectId: "proj_test",
             environmentId: "env_test",
+            experimental_placement: { sectionId: null, pinned: false },
             focusPrompt: true,
           },
         },
@@ -1187,4 +1240,62 @@ describe("ProjectRow interactions", () => {
       }),
     );
   });
+});
+
+describe("environment creation placement", () => {
+  afterEach(cleanup);
+  it.each([
+    ["pinned", "sec_managers", true],
+    ["pinned-mixed", null, true],
+    ["section:sec_visible", "sec_visible", false],
+    ["project:proj_test", null, false],
+    ["machine:host_test", null, false],
+    ["threads", null, false],
+  ] as const)(
+    "creates in the containing %s group",
+    (groupId, sectionId, pinned) => {
+      const threads = ENVIRONMENT_THREADS.map((thread) => ({
+        ...thread,
+        sectionId:
+          groupId === "pinned-mixed" && thread.id === ENVIRONMENT_THREADS[0].id
+            ? "sec_other"
+            : "sec_managers",
+        pinnedAt: 1,
+      }));
+      const group = buildPinnedSidebarState({
+        threads,
+        groupEnvironmentThreads: true,
+      }).rootItems[0];
+      if (group.kind !== "environment")
+        throw new Error("Expected environment group");
+      const { sidebarActionCalls } = renderTree(
+        <ThreadCreationPlacementScope
+          group={groupId === "pinned-mixed" ? "pinned" : groupId}
+        >
+          <PinnedEnvironmentThreadGroupRow
+            group={group.group}
+            collapsedThreadIds={new Set()}
+            collapsedEnvironmentIds={new Set()}
+            onToggleThreadCollapsed={vi.fn()}
+            onToggleEnvironmentCollapsed={vi.fn()}
+          />
+        </ThreadCreationPlacementScope>,
+        { threads },
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "New thread in environment" }),
+      );
+      expect(sidebarActionCalls).toEqual([
+        {
+          method: "openNewThread",
+          options: {
+            projectId: "proj_test",
+            environmentId: "env_test",
+            focusPrompt: true,
+            experimental_placement: { sectionId, pinned },
+          },
+        },
+      ]);
+    },
+  );
 });

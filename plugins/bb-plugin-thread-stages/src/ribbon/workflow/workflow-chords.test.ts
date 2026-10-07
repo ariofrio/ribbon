@@ -209,7 +209,7 @@ describe("resolveStageChord", () => {
     });
   });
 
-  it("appends a restored task that never sat in Active", () => {
+  it("restores the main-list position of a task filed while Blocked", () => {
     expect(
       resolveStageChord({
         threadId: "thr_open",
@@ -225,7 +225,7 @@ describe("resolveStageChord", () => {
           },
         ],
       }),
-    ).toMatchObject({ kind: "restore", threadId: "thr_next", sortKey: null });
+    ).toMatchObject({ kind: "restore", threadId: "thr_next", sortKey: "b" });
   });
 
   it("skips undo candidates whose thread the sidebar no longer shows", () => {

@@ -26,36 +26,29 @@ export async function verifyThreadContextMenu({ stack, fixture }) {
           window.__selectedActions.push(event.target?.textContent ?? "");
         }, true);
       });
-      let foundActionAtOpeningPoint = false;
-      // Popper collision placement varies with viewport height and font metrics.
-      for (const height of [550, 525, 575, 500, 600, 450, 400, 350]) {
-        await page.setViewportSize({ width: 1280, height });
-        await row.evaluate((node) => node.scrollIntoView({ block: "end" }));
-        const box = await row.boundingBox();
-        for (const offset of [12, 30, 60]) {
-          const openingPoint = { x: box.x + offset, y: box.y + box.height / 2 };
-          await page.evaluate(() => {
-            window.__pointerUpAction = null;
-            window.__selectedActions = [];
-          });
-          await page.mouse.move(openingPoint.x, openingPoint.y);
-          await page.mouse.down({ button: "right" });
-          await menu.waitFor();
-          await page.mouse.up({ button: "right" });
-          const pointerUpAction = await page.evaluate(() => window.__pointerUpAction);
-          assert.deepEqual(await page.evaluate(() => window.__selectedActions), [],
-            `releasing the opening right click should not select ${pointerUpAction ?? "an action"}`);
-          assert.equal(await menu.isVisible(), true, "releasing the opening right click should leave the menu open");
-          if (pointerUpAction) {
-            foundActionAtOpeningPoint = true;
-            break;
-          }
-          await page.keyboard.press("Escape");
-          await menu.waitFor({ state: "hidden" });
-        }
-        if (foundActionAtOpeningPoint) break;
-      }
-      assert.ok(foundActionAtOpeningPoint, "the fixture should place a selectable action under a stationary right click");
+      await row.evaluate((node) => node.scrollIntoView({ block: "center" }));
+      const box = await row.boundingBox();
+      const openingPoint = { x: box.x + 30, y: box.y + box.height / 2 };
+      await page.mouse.move(openingPoint.x, openingPoint.y);
+      await page.mouse.down({ button: "right" });
+      await menu.waitFor();
+      await page.mouse.up({ button: "right" });
+      assert.deepEqual(await page.evaluate(() => window.__selectedActions), [],
+        "releasing a stationary opening right click should not select an action");
+      assert.equal(await menu.isVisible(), true, "releasing the opening right click should leave the menu open");
+      await page.keyboard.press("Escape");
+      await menu.waitFor({ state: "hidden" });
+      await page.mouse.move(openingPoint.x, openingPoint.y);
+      await page.mouse.down({ button: "right" });
+      await menu.waitFor();
+      // Use an actual item so this covers the guard regardless of Popper placement.
+      await menu.getByRole("menuitem", { name: "Rename", exact: true }).hover();
+      await page.mouse.up({ button: "right" });
+      assert.equal(await page.evaluate(() => window.__pointerUpAction), "Rename",
+        "the opening right click is released over a selectable item");
+      assert.deepEqual(await page.evaluate(() => window.__selectedActions), [],
+        "releasing the opening right click over an item should not select it");
+      assert.equal(await menu.isVisible(), true, "a right-click release over an item leaves the menu open");
       const groups = await menu.evaluate((node) => {
         const result = [[]];
         for (const child of node.children) {
@@ -64,10 +57,11 @@ export async function verifyThreadContextMenu({ stack, fixture }) {
         }
         return result;
       });
-      assert.deepEqual(groups.slice(-4), [
+      assert.deepEqual(groups.slice(-5), [
         ["Copy thread link", "Mark unread"],
         ["Pin", "Move to section", "Set stage"],
         ["Rename", "Edit actions"],
+        ["Customize row actions"],
         ["Archive", "Delete"],
       ]);
       // Keyboard navigation must not compete with the stationary opening pointer.

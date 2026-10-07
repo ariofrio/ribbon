@@ -24,6 +24,11 @@ resolve it to a root for section, project, or root-order operations. Use
 
 ## Stages
 
+**Automatic stage updates** (`automaticStageUpdates`) is on by default.
+Turning it off tells agents to change stages only when the user explicitly
+requests a change. Setting changes apply when bb next constructs the agent's
+provider session.
+
 A stage says whose move a thread is waiting on:
 
 | Stage | ID | Whose move |
@@ -45,12 +50,22 @@ Place a thread by stage ID:
 Each child has its own stage and remains nested beneath its parent. A child
 can be reordered among its siblings, while its stage remains independent.
 
+New root threads enter at the top of their section or project. Active and both
+Blocked stages share the main list; changing between those stages keeps a
+root's position. Deferred and Completed each keep their own order. Moving a
+root into another list defaults to the top through either the UI or CLI.
+Returning from Deferred or Completed to Active restores the main-list
+position, and the undo shortcut restores the position before a stage move.
+Reorder Deferred or Completed roots with `place --to
+plugin:thread-stages:stages/<stage>` and `--before` or `--after` another root
+in that stage. Reorder the main list through its section or project placement.
+
 Treat **Completed** threads as out of scope by default. Exclude them from bulk
 operations, messages, and notifications unless the user explicitly includes
 them or intends to resume them. Do not archive a thread merely to mark it
 Completed; Completed threads archive on their own after seven days.
 
-Stages change only when someone sets them; running work never changes a
+Stages change only when someone sets them; thread activity alone never changes a
 stage. A working thread keeps its stage, and the list shows the work by
 turning the stage icon's ring on that row. A collapsed root's ring also turns
 for work in its hidden descendants. A pending question or approval stops the
@@ -121,3 +136,18 @@ both work. A value the key's schema rejects fails with
 `invalid_preference_value` and leaves the stored value alone. Every open
 window applies a change immediately. Sections themselves and a thread's
 section are bb core state: use `bb thread section` and `bb thread update`.
+
+`rowActions` picks up to three quick-action buttons a thread row shows on
+hover, left to right before its actions menu. Choose from `split`, `copyLink`, `read`,
+`pin`, `move` (opens a section menu), `rename`, and `archive`; the default is `'[]'`,
+which leaves only the menu. For example,
+`bb thread-stages prefs set rowActions '["pin","archive"]'`. In the app, a thread
+row's actions menu has Customize row actions, which previews the row's three
+action slots; each slot picks an action or Hide, and filled slots drag to reorder.
+
+New threads inherit the sidebar group where creation was invoked. Pinned
+creates pinned threads; custom sections supply their section; project, machine,
+and general thread groups start unsectioned and unpinned. Environment rows
+reuse their environment and the containing group's placement. In Pinned,
+they retain the group's common underlying section for unpinning; mixed-section
+groups use no underlying section.

@@ -1,10 +1,69 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import {
   createFakePluginHost,
+  makePluginAgentConfigurationContext,
   makeThreadResponse,
 } from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it, vi } from "vitest";
 import plugin from "./server";
+
+describe("automatic stage guidance", () => {
+  it.each(["codex", "claude"])(
+    "directs %s to the stage skill without requiring a stage mention",
+    async (providerId) => {
+      const { bb, harness } = setup();
+      await plugin(bb);
+      const resolved = await harness.behavior.resolveAgentConfiguration(
+        makePluginAgentConfigurationContext({ provider: { id: providerId } }),
+      );
+      expect(resolved.instructions).toContain("thread-stages skill");
+      expect(resolved.instructions).toContain("when work starts, waits, resumes, or finishes");
+      expect(resolved.instructions).not.toContain("BlockedOnOtherAgent");
+      expect(resolved.tools).toEqual([]);
+      expect(resolved.skills).toEqual(["thread-stages"]);
+      await harness.lifecycle.dispose();
+    },
+  );
+
+  it("does not give side chats workflow staging instructions", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    const resolved = await harness.behavior.resolveAgentConfiguration(
+      makePluginAgentConfigurationContext({
+        origin: { kind: "fork", pluginId: "side-chat" },
+      }),
+    );
+    expect(resolved.instructions).toBeNull();
+    await harness.lifecycle.dispose();
+  });
+
+  it("uses explicit-request guidance when automatic stage updates are saved off", async () => {
+    const { bb, harness } = setup({ settings: { automaticStageUpdates: false } });
+    await plugin(bb);
+    const resolved = await harness.behavior.resolveAgentConfiguration(
+      makePluginAgentConfigurationContext(),
+    );
+    expect(resolved.instructions).toContain("only when the user explicitly requests");
+    expect(resolved.instructions).not.toContain("when work starts");
+    expect(resolved.skills).toEqual(["thread-stages"]);
+    await harness.lifecycle.dispose();
+  });
+
+  it("changes guidance on the next configuration resolution without reloading", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    const context = makePluginAgentConfigurationContext();
+    const initial = await harness.behavior.resolveAgentConfiguration(context);
+    await harness.behavior.setSettings({ automaticStageUpdates: false });
+    const disabled = await harness.behavior.resolveAgentConfiguration(context);
+    expect(disabled.instructions).toContain("only when the user explicitly requests");
+    expect(disabled.skills).toEqual(initial.skills);
+    await harness.behavior.setSettings({ automaticStageUpdates: true });
+    const enabled = await harness.behavior.resolveAgentConfiguration(context);
+    expect(enabled.instructions).toEqual(initial.instructions);
+    await harness.lifecycle.dispose();
+  });
+});
 
 
 type RealtimeSubscribeArgs = Parameters<BbPluginApi["sdk"]["subscribe"]>[0];
@@ -195,6 +254,7 @@ function setup({
     },
   );
   const host = createFakePluginHost({
+    agentSkillIds: ["thread-stages"],
     pluginId: "thread-stages",
     ...(settings ? { settings } : {}),
     sdk: {
@@ -538,8 +598,8 @@ describe("Ribbon sidebar server", () => {
       await plugin(bb);
       try {
         for (const [threadId, groupId] of [
-          ["first", "BlockedOnThirdParty"],
           ["second", "BlockedOnThirdParty"],
+          ["first", "BlockedOnThirdParty"],
         ]) {
           await harness.behavior.callRpc("updatePlacementV1", {
             groupingKey: "plugin:thread-stages:stages",
@@ -586,6 +646,101 @@ describe("Ribbon sidebar server", () => {
       }
     },
   );
+
+  it.each(["cli", "menu", "shortcut"])(
+    "preserves main-list stage transitions through %s and places preview entries first",
+    async (method) => {
+      const { bb, harness } = setup({
+        threads: ["a", "b", "c"].map((id) => makeThreadResponse({
+          id, projectId: "project-a", sectionId: "section-a",
+        })),
+        settings: { messageOnStageChange: false },
+      });
+      await plugin(bb);
+      const stages = "plugin:thread-stages:stages";
+      const place = async (threadId: string, groupId: string) => {
+        if (method === "cli") {
+          await harness.behavior.runCli(["place", threadId, "--to", `${stages}/${groupId}`]);
+        } else if (method === "shortcut") {
+          await harness.behavior.callRpc("setWorkflowStage", { threadId, workflowStage: groupId });
+        } else {
+          await harness.behavior.callRpc("updatePlacementV1", {
+            groupingKey: stages, threadId, groupId, origin: "ui",
+          });
+        }
+      };
+      const ids = async (groupingKey: string, groupIds?: string[]) => {
+        const result = await harness.behavior.callRpc("listPlacementsV1", { groupingKey, groupIds }) as {
+          value: { items: { threadId: string }[] };
+        };
+        return result.value.items.map(({ threadId }) => threadId);
+      };
+      try {
+        for (const stage of [
+          "BlockedOnOtherAgent", "BlockedOnThirdParty", "Active",
+          "BlockedOnOtherAgent", "Active", "BlockedOnThirdParty",
+          "BlockedOnOtherAgent", "Active",
+        ]) {
+          await place("c", stage);
+          for (const key of ["builtin:sections", "builtin:projects"]) {
+            expect(await ids(key)).toEqual(["a", "b", "c"]);
+          }
+        }
+        for (const stage of ["Deferred", "Completed"]) {
+          await place("a", stage);
+          await place("b", stage);
+          expect(await ids(stages, [stage])).toEqual(["b", "a"]);
+          await place("b", "Active");
+          await place("a", "Active");
+          for (const key of ["builtin:sections", "builtin:projects"]) {
+            expect(await ids(key)).toEqual(["a", "b", "c"]);
+          }
+        }
+      } finally {
+        await harness.lifecycle.dispose();
+      }
+    },
+  );
+
+  it("honors explicit main-list stage anchors and restores their position with undo", async () => {
+    const { bb, harness } = setup({
+      threads: ["a", "b", "c", "other"].map((id) => makeThreadResponse({
+        id,
+        projectId: id === "other" ? "project-b" : "project-a",
+        sectionId: id === "other" ? "section-b" : "section-a",
+      })),
+      settings: { messageOnStageChange: false },
+    });
+    await plugin(bb);
+    const keys = ["builtin:sections", "builtin:projects"] as const;
+    const orders = async () => Promise.all(keys.map(async (groupingKey) => {
+      const result = await harness.behavior.callRpc("listPlacementsV1", { groupingKey }) as {
+        value: { items: { threadId: string }[] };
+      };
+      return result.value.items.map(({ threadId }) => threadId);
+    }));
+    try {
+      const original = await orders();
+      await harness.behavior.callRpc("updatePlacementV1", {
+        groupingKey: "plugin:thread-stages:stages", threadId: "c",
+        groupId: "BlockedOnThirdParty", anchor: { kind: "start" }, origin: "ui",
+      });
+      expect(await orders()).toEqual(keys.map(() => ["c", "a", "b", "other"]));
+      // Active on an already Active thread undoes the latest UI filing.
+      await harness.behavior.callRpc("setWorkflowStage", { threadId: "a", workflowStage: "Active" });
+      expect(await orders()).toEqual(original);
+      await harness.behavior.runCli(["place", "a", "--to", "plugin:thread-stages:stages/BlockedOnThirdParty"]);
+      await harness.behavior.runCli([
+        "place", "b", "--to", "plugin:thread-stages:stages/BlockedOnThirdParty", "--before", "a",
+      ]);
+      await harness.behavior.runCli([
+        "place", "c", "--to", "plugin:thread-stages:stages/BlockedOnThirdParty", "--after", "b",
+      ]);
+      expect(await orders()).toEqual(keys.map(() => ["b", "c", "a", "other"]));
+    } finally {
+      await harness.lifecycle.dispose();
+    }
+  });
 
   it("places a newly Completed thread first, as the stage catalog says", async () => {
     const { bb, harness } = setup({
@@ -656,6 +811,47 @@ describe("Ribbon sidebar server", () => {
 
 
 
+  it.each(["builtin:sections", "builtin:projects"] as const)(
+    "reorders Completed with shortcuts in saved stage order within the current %s group",
+    async (groupingKey) => {
+      const threads = ["a", "b", "c", "other"].map((id) =>
+        makeThreadResponse({
+          id,
+          projectId: id === "other" ? "project-b" : "project-a",
+          sectionId: id === "other" ? "section-b" : "section-a",
+        }),
+      );
+      const { bb, harness } = setup({ threads, settings: { messageOnStageChange: false } });
+      await plugin(bb);
+      const order = () => harness.behavior.callRpc("listPlacementsV1", {
+        groupingKey: "plugin:thread-stages:stages", groupIds: ["Completed"],
+      });
+      const groupOrder = await harness.behavior.callRpc("listPlacementsV1", { groupingKey });
+      for (const id of ["a", "b", "c", "other"]) {
+        await harness.behavior.runCli([
+          "place", id, "--to", "plugin:thread-stages:stages/Completed",
+        ]);
+      }
+      expect(await order()).toMatchObject({
+        value: { items: ["other", "c", "b", "a"].map((threadId) => ({ threadId })) },
+      });
+      await harness.behavior.callRpc("reorderThread", {
+        threadId: "c", scope: "step", direction: 1, groupingKey,
+      });
+      expect(await order()).toMatchObject({
+        value: { items: ["other", "b", "c", "a"].map((threadId) => ({ threadId })) },
+      });
+      await harness.behavior.callRpc("reorderThread", {
+        threadId: "b", scope: "edge", direction: 1, groupingKey,
+      });
+      expect(await order()).toMatchObject({
+        value: { items: ["other", "c", "a", "b"].map((threadId) => ({ threadId })) },
+      });
+      expect(await harness.behavior.callRpc("listPlacementsV1", { groupingKey })).toEqual(groupOrder);
+      await harness.lifecycle.dispose();
+    },
+  );
+
   it("defines only the settings still in flux; the rest are decided", async () => {
     const { bb, harness } = setup();
     await plugin(bb);
@@ -664,8 +860,10 @@ describe("Ribbon sidebar server", () => {
       Object.keys(harness.inspection.registrations.settingsDescriptors),
     ).toEqual([
       // Behavior, then appearance: bb draws them in this order.
+      "automaticStageUpdates",
       "autoArchiveCompletedAfter",
       "messageOnStageChange",
+      "stagePreviewRows",
       "childThreadLines",
       "groupHeaderIcons",
       "shimmerWorkingRows",
@@ -674,8 +872,10 @@ describe("Ribbon sidebar server", () => {
       "pullRequestMarks",
     ]);
     expect(harness.inspection.registrations.settingsDescriptors).toMatchObject({
+      automaticStageUpdates: { type: "boolean", default: true },
       autoArchiveCompletedAfter: { type: "select", default: "7 days" },
       messageOnStageChange: { type: "boolean", default: true },
+      stagePreviewRows: { type: "select", options: ["1", "2", "3", "4", "5"], default: "2" },
       childThreadLines: { type: "select", options: ["Bar", "Tree"], default: "Bar" },
       groupHeaderIcons: { type: "boolean", default: true },
       shimmerWorkingRows: { type: "boolean", default: true },

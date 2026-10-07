@@ -11,7 +11,7 @@
 // an input to every one of them, and an app bundle is whichever bb the machine
 // happens to have. Its manifest stays beside the harness; the root workspace
 // installs one shared copy for every plugin to build against.
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { createServer } from "node:net";
@@ -151,7 +151,6 @@ export async function startStack({ dataDir, logStream, prepare }) {
   launch(paths.daemonEntry, {
     BB_SERVER_URL: serverUrl,
     BB_HOST_DAEMON_PORT: String(hostDaemonPort),
-    BB_HOST_NAME: "screenshots",
     BB_HOST_TYPE: "persistent",
     BB_HOST_ID: enrollment.hostId,
     BB_HOST_ENROLL_KEY: enrollment.enrollKey,
@@ -160,6 +159,7 @@ export async function startStack({ dataDir, logStream, prepare }) {
 
   const env = {
     ...process.env,
+    BB_CLI: BB_CLI_PATH,
     BB_DATA_DIR: dataDir,
     BB_SERVER_URL: serverUrl,
     BB_HOST_DAEMON_PORT: String(hostDaemonPort),
@@ -180,6 +180,9 @@ export async function startStack({ dataDir, logStream, prepare }) {
     },
     { label: "the host daemon to connect" },
   );
+
+  // The daemon detects its machine name; the server owns its display name.
+  execFileSync(BB_CLI_PATH, ["machine", "rename", enrollment.hostId, "screenshots"], { env });
 
   return {
     serverUrl,

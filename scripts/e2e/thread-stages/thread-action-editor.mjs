@@ -263,6 +263,8 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
           await form.waitFor({ state: "hidden" });
           await focused(page, edit);
           await page.keyboard.press("ArrowDown");
+          await focused(page, page.getByRole("menuitem", { name: "Customize row actions", exact: true }));
+          await page.keyboard.press("ArrowDown");
           await focused(page, page.getByRole("menuitem", { name: "Archive", exact: true }));
           await page.keyboard.press("Escape");
           await trigger.click();

@@ -180,6 +180,8 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
     });
     if (!result.ok) throw new Error(result.error.message);
     if (request !== stageRequest.current) return;
+    if (result.value.revision < (latestRevisions.current.get(THREAD_STAGES_GROUPING_KEY) ?? -1)) return;
+    latestRevisions.current.set(THREAD_STAGES_GROUPING_KEY, result.value.revision);
     setStages(
       new Map(
         result.value.items.map((item) => [item.threadId, item as PlacementRecordV1]),
@@ -261,17 +263,15 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
     async (threadId, groupingKey, groupId, anchor) => {
       setError(null);
       // The row lands where it was dropped before the server answers.
-      setPlacements((current) => {
-        const items = current.get(groupingKey);
-        if (!items) return current;
+      const projectPlacement = (items: readonly PlacementRecordV1[]) => {
         const moving = items.find((item) => item.threadId === threadId);
-        if (!moving) return current;
+        if (!moving) return items;
         const rest = items.filter((item) => item.threadId !== threadId);
         const placed = { ...moving, groupId };
         let index = rest.length;
         if (anchor.kind === "before" || anchor.kind === "after") {
           const at = rest.findIndex((item) => item.threadId === anchor.threadId);
-          if (at === -1) return current;
+          if (at === -1) return items;
           index = anchor.kind === "before" ? at : at + 1;
         } else if (anchor.kind === "start") {
           index = rest.findIndex((item) => item.groupId === groupId);
@@ -280,14 +280,23 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
           const last = rest.map((item) => item.groupId).lastIndexOf(groupId);
           index = last === -1 ? rest.length : last + 1;
         } else {
-          return current;
+          return items;
         }
-        return new Map(current).set(groupingKey, [
+        return [
           ...rest.slice(0, index),
           placed,
           ...rest.slice(index),
-        ]);
+        ];
+      };
+      setPlacements((current) => {
+        const items = current.get(groupingKey);
+        return items ? new Map(current).set(groupingKey, projectPlacement(items)) : current;
       });
+      if (groupingKey === THREAD_STAGES_GROUPING_KEY) {
+        setStages((current) => new Map(
+          projectPlacement([...current.values()]).map((item) => [item.threadId, item]),
+        ));
+      }
       // Saves go one at a time, so a second drop made while the first is
       // still in flight lands after it, in gesture order.
       const save = saveQueue.current.then(async () => {
@@ -322,20 +331,16 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
   const setStage = useCallback<RibbonData["setStage"]>(
     async (threadId, stage) => {
       setError(null);
-      const group = snapshot?.groupings
-        .find((grouping) => grouping.groupingKey === THREAD_STAGES_GROUPING_KEY)
-        ?.groups.find(({ id }) => id === stage);
       const result = await rpcRef.current.call("updatePlacementV1", {
         groupingKey: THREAD_STAGES_GROUPING_KEY,
         groupId: stage,
         threadId,
-        anchor: { kind: group?.defaultPlacement ?? "preserve" },
         origin: "ui",
       });
       if (!result.ok) setError(result.error.message);
       await Promise.all([loadPlacements(), loadStages()]);
     },
-    [loadPlacements, loadStages, snapshot],
+    [loadPlacements, loadStages],
   );
 
   const reorderChildren = useCallback<RibbonData["reorderChildren"]>(

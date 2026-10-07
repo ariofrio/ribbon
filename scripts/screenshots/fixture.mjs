@@ -191,6 +191,8 @@ export async function routeGitHubState(context, { environments }) {
           url: pullRequestUrl(projectName, pr.number),
           state: "open",
           attention: pr.attention,
+          autoMerge: pr.details.autoMerge,
+          inMergeQueue: pr.details.inMergeQueue,
           baseRefName: "main",
           headRefName: "feature",
           updatedAt: "2026-09-18T00:00:00Z",
