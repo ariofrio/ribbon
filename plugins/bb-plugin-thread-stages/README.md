@@ -124,7 +124,7 @@ gives them the whole row.
 The same actions are available through `bb thread-stages actions list`, `set`, and
 `run`. Pass a thread ID or `--self`; `set --actions '<json-array>'` replaces
 the buttons, and `run <action-id>` sends a saved prompt. See the
-[Thread actions skill reference](skills/thread-stages/SKILL.md#thread-actions)
+[Thread actions skill reference](skills/thread-actions/SKILL.md)
 for the JSON format and title setting.
 
 A thread's pull request adds its status. Its icon beside the PR number is

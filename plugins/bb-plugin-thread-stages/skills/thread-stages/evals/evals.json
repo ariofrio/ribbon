@@ -45,18 +45,6 @@
       ]
     },
     {
-      "id": 5,
-      "prompt": "Use $thread-stages to give me the exact shell commands to inspect the current thread's saved buttons, replace them with a Review button whose ID is review and prompt is Review this change., hide the thread title, run that button, and later clear all buttons. Explain what happens to existing buttons when replacing them. Do not execute commands that change thread state or send messages.",
-      "expected_output": "Dedicated bb thread-stages actions commands using --self, a valid JSON array, --hide-title, the saved action ID, and an empty array to clear, with an explanation that set replaces the entire action list.",
-      "files": [],
-      "expectations": [
-        "Uses dedicated bb thread-stages actions list, set, and run commands with --self.",
-        "The replacement has ID review, label Review, prompt Review this change., and --hide-title.",
-        "Runs by action ID and clears with an empty JSON array.",
-        "Explains that set replaces existing buttons and does not execute state-changing commands."
-      ]
-    },
-    {
       "id": 6,
       "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched off. We need to wait for another bb thread to finish its QA tests before continuing. I have not requested a stage change. What should happen to this thread's stage before yielding? Explain without executing any commands.",
       "expected_output": "The agent keeps Active because automatic stage updates is off and no stage change was requested, while recognizing that the dependency would otherwise fit Blocked on other agent.",
