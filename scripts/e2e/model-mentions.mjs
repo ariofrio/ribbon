@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { chromium } from "playwright";
 import { AGENT, FEATURED_PROJECT } from "../screenshots/fixture.mjs";
 
@@ -84,10 +84,13 @@ export async function verifyModelMentions({ stack, fixture }) {
   ]);
   fixture.run(["thread", "wait", thread.id, "--status", "idle"]);
   const browser = await chromium.launch({ args: ["--mute-audio"] });
+  let context;
   try {
     const page = await browser.newPage({
       viewport: { width: 1280, height: 900 },
     });
+    context = page.context();
+    await context.tracing.start({ snapshots: true, sources: true });
     page.on("pageerror", (error) =>
       console.error("Model mention page error:", error),
     );
@@ -202,7 +205,11 @@ export async function verifyModelMentions({ stack, fixture }) {
     const newPicker = newComposer.getByRole("button", {
       name: /Provider, model and reasoning/,
     });
-    await newPicker.filter({ hasNotText: /Loading models/i }).waitFor();
+    // The picker can show "Select model" before bb applies its default.
+    // Capture a selected model before testing that a mention preserves it.
+    await newPicker.filter({
+      hasNotText: /Loading models|Select model|No models available|Failed to load models/i,
+    }).waitFor();
     const newSelection = await newPicker.innerText();
     const newEditor = newComposer.locator('[contenteditable="true"]');
     await newEditor.click();
@@ -250,6 +257,11 @@ export async function verifyModelMentions({ stack, fixture }) {
       newSelection,
       "New-thread mentions also leave the pickers unchanged",
     );
+  } catch (error) {
+    mkdirSync(resolve(".scratch/e2e"), { recursive: true });
+    await context?.tracing.stop({ path: resolve(".scratch/e2e/model-mentions.trace.zip") })
+      .catch((diagnosticError) => console.error("Could not save the model-mentions trace:", diagnosticError));
+    throw error;
   } finally {
     await browser.close();
   }
