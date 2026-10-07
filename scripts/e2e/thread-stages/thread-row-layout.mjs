@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
-import { launch, openContext, row, sidebar } from "./sidebar.mjs";
+import { AGENT, FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
+import { launch, openContext, parentAnswered, row, sidebar, spawnChild, withPreferenceSaved } from "./sidebar.mjs";
 import { pullRequest } from "./pr-status.mjs";
 
 export async function verifyThreadRowLayout({ stack, fixture, cases }) {
@@ -12,8 +12,15 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
   const browser = await launch();
   try {
     for (const testCase of cases) {
-      const compact = testCase === "compact";
-      const colorScheme = testCase === "desktop" ? "dark" : "light";
+      const child = testCase.endsWith("-parent")
+        ? spawnChild(fixture, { parent: thread, project, title: "Row layout child", AGENT })
+        : null;
+      if (child) {
+        await parentAnswered(fixture, thread, child);
+        fixture.run(["thread", "read", thread.id]);
+      }
+      const compact = testCase.startsWith("compact");
+      const colorScheme = testCase === "desktop" || testCase === "desktop-parent" ? "dark" : "light";
       const context = await openContext(browser, {
         viewport: compact ? { width: 390, height: 844 } : { width: 1280, height: 800 },
         colorScheme, hasTouch: compact,
@@ -48,11 +55,17 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
             return { left: rect.left, right: rect.right, top: rect.top, width: rect.width, height: rect.height };
           };
           const controls = node.querySelector("[data-sidebar-row-controls]");
+          const menu = node.querySelector('button[aria-label="Thread actions"]');
+          const chevron = node.querySelector('button[aria-label$=" threads"]');
+          const chevronStyle = chevron ? getComputedStyle(chevron) : null;
           return {
             row: box(node), title: box(node.querySelector(".bb-thread-title")),
             prompt: box(node.querySelector("[data-ribbon-thread-actions]")),
             controls: box(controls),
             controlsLane: box(controls.parentElement.parentElement),
+            chevron: box(chevron),
+            chevronSlotWidth: chevron ? chevron.getBoundingClientRect().width + parseFloat(chevronStyle.marginLeft) + parseFloat(chevronStyle.marginRight) : 0,
+            menu: { ...box(menu), radius: getComputedStyle(menu).borderRadius },
             buttons: [...controls.querySelectorAll("button")].map((button) => ({
               ...box(button), label: button.getAttribute("aria-label"),
               radius: getComputedStyle(button).borderRadius,
@@ -68,6 +81,33 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
         assert.ok(Math.abs(rest.row.right - rest.prompt.right - 36) < 1,
           "Saved prompts leave the indicator slot clear even on rows without an indicator");
         if (compact) assert.equal(rest.controls.width, 0, "Hidden desktop controls take no touch-layout space");
+        const verifyParentToggle = async (persistentItem) => {
+          const collapse = target.getByRole("button", { name: `Collapse ${thread.title} threads`, exact: true });
+          if (!(await collapse.count())) return;
+          const resting = await metrics();
+          if (!compact) await target.hover();
+          await withPreferenceSaved(page, "collapsedThreads", () => compact ? collapse.tap() : collapse.click());
+          const expand = target.getByRole("button", { name: `Expand ${thread.title} threads`, exact: true });
+          await expand.waitFor();
+          await page.mouse.move(1000, 700);
+          const collapsed = await metrics();
+          assert.equal(collapsed[persistentItem].right, resting[persistentItem].right,
+            "Collapsing children keeps persistent row items stationary");
+          assert.ok(collapsed.chevron.right <= collapsed.prompt.left,
+            "The child toggle precedes saved prompts and PR information");
+          if (!compact) {
+            await target.hover();
+            const hovered = await metrics();
+            assert.equal(hovered[persistentItem].right, resting[persistentItem].right,
+              "Collapsed parent items stay stationary when controls appear");
+            assert.ok(hovered.chevron.right <= hovered.controls.left,
+              "The child toggle's hit area stays separate from the row controls");
+          }
+          await withPreferenceSaved(page, "collapsedThreads", () => compact ? expand.tap() : expand.click());
+          await collapse.waitFor();
+          await page.mouse.move(1000, 700);
+        };
+        await verifyParentToggle("prompt");
         if (!compact) {
           await target.hover();
           const hover = await metrics();
@@ -77,7 +117,9 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
             "The title yields space to visible row controls");
           assert.equal(hover.prompt.right, rest.prompt.right,
             "Saved prompt buttons keep their position when row controls appear");
-          const menu = hover.buttons.at(-1);
+          const menu = hover.menu;
+          assert.ok(Math.abs(hover.row.right - menu.right - 4) < 1,
+            "The ellipsis stays in the trailing indicator slot");
           assert.ok(hover.buttons.every((button) => button.width === menu.width && button.height === menu.height && button.radius === menu.radius),
             "Every row control shares the ellipsis button's dimensions and rounding");
           assert.equal(menu.width, 20);
@@ -103,8 +145,12 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
           await pin.waitFor();
           await action.focus();
           await page.keyboard.press("Shift+Tab");
-          assert.equal(await more.evaluate((node) => document.activeElement === node), true,
+          assert.equal(await target.getByRole("button", { name: "Archive thread", exact: true }).evaluate((node) => document.activeElement === node), true,
             "Keyboard order follows the row controls then saved prompts");
+          await page.keyboard.press("Tab");
+          await page.keyboard.press("Tab");
+          assert.equal(await more.evaluate((node) => document.activeElement === node), true,
+            "The trailing ellipsis follows saved prompts in keyboard order");
           await page.keyboard.press("Enter");
           await page.getByRole("menuitem", { name: "Edit thread actions", exact: true }).waitFor();
           await page.getByRole("menuitem", { name: "Customize row actions", exact: true }).waitFor();
@@ -119,6 +165,7 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
         await target.getByText("#12345", { exact: true }).waitFor();
         const withPr = await metrics();
         assert.ok(withPr.prompt.right <= withPr.pr.left, "Prompt buttons precede the PR number");
+        await verifyParentToggle("pr");
         if (!compact) {
           await target.hover();
           const hoveredPr = await metrics();
@@ -143,8 +190,8 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
         await page.mouse.move(1000, 700);
         const quiet = await metrics();
         assert.equal(quiet.indicator, false);
-        assert.ok(Math.abs(quiet.row.right - quiet.title.right - 8) < 1,
-          "With no PR, prompt, or indicator, the title reaches the trailing edge");
+        assert.ok(Math.abs(quiet.row.right - quiet.title.right - 8 - quiet.chevronSlotWidth) < 1,
+          "With no PR, prompt, or indicator, the title uses all space up to any visible child toggle");
         if (!compact) {
           await target.hover();
           const hoveredQuiet = await metrics();
@@ -163,6 +210,7 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
       } finally {
         await save([]);
         await context.close();
+        if (child) fixture.run(["thread", "delete", child.id, "--yes"]);
       }
     }
   } finally {

@@ -240,14 +240,15 @@ export async function verifyThreadIndicators({ stack, fixture }) {
           opacity *= Number(style.opacity);
         }
         return opacity === expectedOpacity;
-      }, { node: await glyph.elementHandle(), expectedOpacity: provider === "__builtin__" ? 0 : 1 });
+      }, { node: await glyph.elementHandle(), expectedOpacity: 0 });
       if (provider !== "__builtin__") {
-        const geometry = await row.evaluate((node) => ({
-          controlsRight: node.querySelector("[data-sidebar-row-controls]").getBoundingClientRect().right,
-          indicatorLeft: node.querySelector("[data-sidebar-thread-trailing-indicator]").getBoundingClientRect().left,
-        }));
-        assert.ok(geometry.controlsRight <= geometry.indicatorLeft,
-          "Ribbon's revealed controls leave the visible indicator's slot clear");
+        const geometry = await row.evaluate((node) => {
+          const menu = node.querySelector('button[aria-label="Thread actions"]').getBoundingClientRect();
+          const indicator = node.querySelector("[data-sidebar-thread-trailing-indicator]").getBoundingClientRect();
+          return { menuCenter: (menu.left + menu.right) / 2, indicatorCenter: (indicator.left + indicator.right) / 2 };
+        });
+        assert.ok(Math.abs(geometry.menuCenter - geometry.indicatorCenter) < 1,
+          "The ellipsis replaces the indicator in the same slot on hover");
       }
       console.log(`Checked hover for ${provider}`);
       const other = fixture.threads.get("Replace the legacy filter drawer");

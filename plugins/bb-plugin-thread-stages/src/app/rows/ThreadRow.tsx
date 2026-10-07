@@ -114,11 +114,11 @@ const RIBBON_ROW_BUTTON_CLASS = `${SIDEBAR_MORE_ACTION_TRIGGER_CLASS} shrink-0 c
 // The same 28px reach for the child toggle, which sits against the actions
 // so the two reaches meet. Under a coarse pointer bb already widens it.
 const RIBBON_CHEVRON_HIT_AREA_CLASS =
-  "-mr-1 pointer-fine:after:absolute pointer-fine:after:left-1/2 pointer-fine:after:top-1/2 pointer-fine:after:h-7 pointer-fine:after:w-7 pointer-fine:after:-translate-x-1/2 pointer-fine:after:-translate-y-1/2 pointer-fine:after:content-['']";
+  "pointer-fine:mx-1 pointer-fine:after:absolute pointer-fine:after:left-1/2 pointer-fine:after:top-1/2 pointer-fine:after:h-7 pointer-fine:after:w-7 pointer-fine:after:-translate-x-1/2 pointer-fine:after:-translate-y-1/2 pointer-fine:after:content-['']";
 // A toggle shown only on hover takes no room at rest, so the title runs on
 // past where it will appear; hovering the row opens it up, reach and all.
 const RIBBON_CHEVRON_REVEAL_CLASS =
-  "overflow-hidden pointer-fine:h-5 pointer-fine:w-0 pointer-fine:-ml-1.5 pointer-fine:mr-0 pointer-fine:after:hidden pointer-fine:group-hover/thread-row:w-5 pointer-fine:group-hover/thread-row:ml-0 pointer-fine:group-hover/thread-row:-mr-1 pointer-fine:group-hover/thread-row:after:block pointer-fine:group-has-[:focus-visible]/thread-row:w-5 pointer-fine:group-has-[:focus-visible]/thread-row:ml-0 pointer-fine:group-has-[:focus-visible]/thread-row:-mr-1 pointer-fine:group-has-[:focus-visible]/thread-row:after:block";
+  "overflow-hidden pointer-fine:h-5 pointer-fine:w-0 pointer-fine:mx-0 pointer-fine:after:hidden pointer-fine:group-hover/thread-row:w-5 pointer-fine:group-hover/thread-row:mx-1 pointer-fine:group-hover/thread-row:after:block pointer-fine:group-has-[:focus-visible]/thread-row:w-5 pointer-fine:group-has-[:focus-visible]/thread-row:mx-1 pointer-fine:group-has-[:focus-visible]/thread-row:after:block";
 // Hover controls open their own lane before prompts and PR information, so
 // only the title yields space while those persistent items stay in place.
 const RIBBON_ROW_CONTROLS_LANE_CLASS =
@@ -226,7 +226,7 @@ function getHoverActionsInsetStyle(
     ? "--ribbon-row-controls-width"
     : "--bb-sidebar-hover-actions-inset";
   return {
-    [variable]: `calc(var(--spacing) * ${ribbon ? 7 + 7.5 * actionCount : 7.5 * actionCount})`,
+    [variable]: `calc(var(--spacing) * ${ribbon ? Math.max(0, 7.5 * actionCount - 0.5) : 7.5 * actionCount})`,
   } as CSSProperties;
 }
 
@@ -622,6 +622,18 @@ function ThreadRowComponent({
         />
       )
     ) : null;
+  const actionsMenu = (
+    <ThreadActionsMenu
+      thread={thread}
+      triggerClassName={
+        ribbon ? RIBBON_ROW_BUTTON_CLASS : SIDEBAR_CONTROL_BUTTON_CLASS
+      }
+      onOpenInSplit={splitAvailable ? openInSplit : undefined}
+      onOpenChange={setIsDropdownActionsOpen}
+      onRename={rename.startEditingFromMenu}
+      onCloseAutoFocus={rename.onCloseAutoFocus}
+    />
+  );
   const rowControls = (
     <SidebarRowControls
       // Completed is the default way a thread leaves Ribbon's list;
@@ -640,18 +652,24 @@ function ThreadRowComponent({
         />
       }
     >
-      <ThreadActionsMenu
-        thread={thread}
-        triggerClassName={
-          ribbon ? RIBBON_ROW_BUTTON_CLASS : SIDEBAR_CONTROL_BUTTON_CLASS
-        }
-        onOpenInSplit={splitAvailable ? openInSplit : undefined}
-        onOpenChange={setIsDropdownActionsOpen}
-        onRename={rename.startEditingFromMenu}
-        onCloseAutoFocus={rename.onCloseAutoFocus}
-      />
+      {ribbon ? null : actionsMenu}
     </SidebarRowControls>
   );
+  const childToggle = parentOptions && hasChildren ? (
+    <SidebarChildToggleChevron
+      disabled={isEditing}
+      className={cn(
+        isEditing && "hidden",
+        ribbon !== null && RIBBON_CHEVRON_HIT_AREA_CLASS,
+        ribbon !== null && !isParentCollapsed && RIBBON_CHEVRON_REVEAL_CLASS,
+      )}
+      isCollapsed={isParentCollapsed}
+      expandLabel={`Expand ${labelTitle} threads`}
+      collapseLabel={`Collapse ${labelTitle} threads`}
+      onToggle={() => parentOptions.onToggleCollapsed(thread.id)}
+      revealOnHover={!isParentCollapsed}
+    />
+  ) : null;
   const rowContent = (
     <>
       {ribbonRails}
@@ -675,7 +693,9 @@ function ThreadRowComponent({
               : SIDEBAR_HOVER_ACTIONS_INSET_CLASS),
           ribbon !== null &&
             !isEditing &&
-            (ribbonLaneAtRest ? "pr-9" : "pr-2"),
+            (ribbonLaneAtRest
+              ? "pr-9"
+              : "pr-2 group-hover/thread-row:pr-9 group-has-[:focus-visible]/thread-row:pr-9 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-9 max-md:pointer-coarse:pr-2"),
         )}
         style={getHoverActionsInsetStyle(
           thread.archivedAt !== null ? (ribbon ? 0 : 1) : rowActionIds.length,
@@ -822,7 +842,8 @@ function ThreadRowComponent({
                   <ThreadTitle threadId={thread.id} />
                 )}
               </span>
-              {ribbon && !shortcut ? (
+              {ribbon ? childToggle : null}
+              {ribbon && !shortcut && thread.archivedAt === null && rowActionIds.length > 0 ? (
                 <span className={RIBBON_ROW_CONTROLS_LANE_CLASS}>
                   <div
                     data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
@@ -867,21 +888,7 @@ function ThreadRowComponent({
             <TooltipContent side="top">{crossProjectLabel}</TooltipContent>
           </Tooltip>
         ) : null}
-        {parentOptions && hasChildren ? (
-          <SidebarChildToggleChevron
-            disabled={isEditing}
-            className={cn(
-              isEditing && "hidden",
-              ribbon !== null && RIBBON_CHEVRON_HIT_AREA_CLASS,
-              ribbon !== null && !isParentCollapsed && RIBBON_CHEVRON_REVEAL_CLASS,
-            )}
-            isCollapsed={isParentCollapsed}
-            expandLabel={`Expand ${labelTitle} threads`}
-            collapseLabel={`Collapse ${labelTitle} threads`}
-            onToggle={() => parentOptions.onToggleCollapsed(thread.id)}
-            revealOnHover={!isParentCollapsed}
-          />
-        ) : null}
+        {ribbon === null ? childToggle : null}
       </span>
       {rowDragBindings && !rowDragBindings.disabled && !isActionsOpen ? (
         <SidebarThreadDragChip
@@ -903,27 +910,21 @@ function ThreadRowComponent({
       >
         {thread.archivedAt !== null ? (
           <span className="relative flex items-center max-md:pointer-coarse:hidden">
-            {ribbon === null ? (
-              <div
-                data-sidebar-hover-actions-open={
-                  isActionsOpen ? "true" : undefined
-                }
-                className={cn(
-                  SIDEBAR_HOVER_ACTIONS_CLASS,
-                  "absolute right-full z-10 max-md:pointer-coarse:hidden",
-                )}
-              >
-                <ThreadActionsMenu
-                  thread={thread}
-                  triggerClassName={SIDEBAR_CONTROL_BUTTON_CLASS}
-                  onOpenInSplit={splitAvailable ? openInSplit : undefined}
-                  onOpenChange={setIsDropdownActionsOpen}
-                  onRename={rename.startEditingFromMenu}
-                  onCloseAutoFocus={rename.onCloseAutoFocus}
-                />
-              </div>
-            ) : null}
-            <ThreadRestoreStatusAction thread={thread} />
+            <div
+              data-sidebar-hover-actions-open={
+                isActionsOpen ? "true" : undefined
+              }
+              className={cn(
+                SIDEBAR_HOVER_ACTIONS_CLASS,
+                "absolute z-10 flex items-center max-md:pointer-coarse:hidden",
+                ribbon ? "inset-y-0 right-0" : "right-full",
+              )}
+            >
+              {actionsMenu}
+            </div>
+            <span className={ribbon ? SIDEBAR_HOVER_ACTIONS_FADE_CLASS : undefined}>
+              <ThreadRestoreStatusAction thread={thread} />
+            </span>
           </span>
         ) : shortcut ? (
           <AppCommandShortcutPill shortcut={shortcut} />
@@ -945,7 +946,7 @@ function ThreadRowComponent({
                   isActionsOpen ? "true" : undefined
                 }
                 className={cn(
-                  ribbon === null && SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
+                  SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
                   "absolute inset-0 flex items-center justify-center",
                 )}
               >
@@ -981,20 +982,18 @@ function ThreadRowComponent({
                   />
                 )}
               </span>
-              {ribbon === null ? (
-                <div
-                  data-sidebar-hover-actions-open={
-                    isActionsOpen ? "true" : undefined
-                  }
-                  className={cn(
-                    SIDEBAR_HOVER_ACTIONS_CLASS,
-                    "absolute inset-y-0 right-0 z-10 flex items-center justify-end max-md:pointer-coarse:hidden",
-                    isEditing && "invisible pointer-events-none",
-                  )}
-                >
-                  {rowControls}
-                </div>
-              ) : null}
+              <div
+                data-sidebar-hover-actions-open={
+                  isActionsOpen ? "true" : undefined
+                }
+                className={cn(
+                  SIDEBAR_HOVER_ACTIONS_CLASS,
+                  "absolute inset-y-0 right-0 z-10 flex items-center justify-end max-md:pointer-coarse:hidden",
+                  isEditing && "invisible pointer-events-none",
+                )}
+              >
+                {ribbon ? actionsMenu : rowControls}
+              </div>
             </span>
           </span>
         )}
