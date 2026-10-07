@@ -4,7 +4,6 @@ import { AGENT } from "../../screenshots/fixture.mjs";
 import { launch, link, openContext, section, sidebar, sidebarRoot } from "./sidebar.mjs";
 
 export async function verifyNewThreadRouting({ stack, fixture }) {
-  const groupingKey = "builtin:sections";
   const groupId = fixture.section.id;
   const project = fixture.projects.get("atlas-api");
   assert.ok(project, "The routing fixture is missing atlas-api");
@@ -56,8 +55,8 @@ export async function verifyNewThreadRouting({ stack, fixture }) {
     const deadline = Date.now() + 30_000;
     let placed = null;
     while (Date.now() <= deadline) {
-      const placements = fixture.runJson(["thread-stages", "show", threadId]);
-      placed = placements.find(({ placement }) => placement.groupingKey === groupingKey)?.placement.groupId;
+      const thread = fixture.runJson(["thread-stages", "show", threadId]);
+      placed = thread.section.id;
       if (placed === groupId) {
         await link(group, threadId).waitFor();
         assert.equal(
