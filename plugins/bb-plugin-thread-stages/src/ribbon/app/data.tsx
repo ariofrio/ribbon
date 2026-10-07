@@ -16,7 +16,7 @@ import {
   type ReactNode,
 } from "react";
 import type { ChildRank } from "../child-order";
-import type { GroupingKey, PlacementRecordV1 } from "../placement-store";
+import { ORDER_GROUPING_KEYS, type GroupingKey, type PlacementRecordV1 } from "../placement-store";
 import type { rpcContract } from "../server";
 import type { ThreadAction, ThreadActionsRecord } from "../thread-actions-store";
 import { THREAD_STAGES_GROUPING_KEY } from "../workflow/catalog";
@@ -111,7 +111,6 @@ export function useRibbonThread(threadId: string): RibbonThread | null {
   return enabled ? thread : null;
 }
 
-const ORDERED_GROUPINGS = ["builtin:sections", "builtin:projects"] as const;
 
 function message(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -162,7 +161,7 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
 
   const loadPlacements = useCallback(async () => {
     await Promise.all(
-      ORDERED_GROUPINGS.map(async (groupingKey) => {
+      ORDER_GROUPING_KEYS.map(async (groupingKey) => {
         const result = await rpcRef.current.call("listPlacementsV1", { groupingKey });
         if (!result.ok) throw new Error(result.error.message);
         // Each grouping keeps its own snapshot; a late answer never undoes a

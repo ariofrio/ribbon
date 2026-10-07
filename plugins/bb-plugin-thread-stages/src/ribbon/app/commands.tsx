@@ -68,7 +68,7 @@ function goTo(destination: ChordDestination, navigate: BbNavigate): void {
 function shortcutGroupingKey(
   storage: Pick<Storage, "getItem">,
   pluginId: string,
-): "builtin:sections" | "builtin:projects" {
+): "builtin:sections" | "builtin:projects" | "builtin:machines" {
   try {
     const raw = storage.getItem(preferencesMirrorStorageKey(pluginId));
     const parsed: unknown = raw === null ? null : JSON.parse(raw);
@@ -76,7 +76,7 @@ function shortcutGroupingKey(
       typeof parsed === "object" && parsed !== null
         ? (parsed as { organizationMode?: unknown }).organizationMode
         : undefined;
-    return mode === "project" ? "builtin:projects" : "builtin:sections";
+    return mode === "project" ? "builtin:projects" : mode === "machine" ? "builtin:machines" : "builtin:sections";
   } catch {
     return "builtin:sections";
   }

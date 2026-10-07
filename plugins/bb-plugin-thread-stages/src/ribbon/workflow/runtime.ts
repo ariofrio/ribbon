@@ -6,7 +6,7 @@ import {
   stepChild,
   type ChildRank,
 } from "../child-order";
-import type { PlacementStore } from "../placement-store";
+import type { PlacementStore, OrderGroupingKey } from "../placement-store";
 import { registerCompletedAutoArchive } from "./auto-archive";
 import { THREAD_STAGES_GROUPING_KEY } from "./catalog";
 import { workflowRpcMethods, type ChordDestination } from "./contract";
@@ -66,7 +66,7 @@ export function createWorkflowRuntime(
 
   async function ribbonAssignments(
     threadIds: readonly string[],
-    groupingKey: "builtin:sections" | "builtin:projects" = "builtin:sections",
+    groupingKey: OrderGroupingKey = "builtin:sections",
   ) {
     const placementState = await listPlacements({
       groupingKey: THREAD_STAGES_GROUPING_KEY,

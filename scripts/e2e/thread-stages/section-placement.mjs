@@ -72,6 +72,22 @@ export async function verifySectionPlacement({ stack, fixture }) {
       await row(group, moving.id).waitFor();
       await expandPreview();
       await assertFirst();
+      // Core BB changes membership without a plugin placement request.
+      place(fixture.section.id, ["--after", resident.id]);
+      await page.waitForFunction(({ moving, resident }) => {
+        const root = document.querySelector("[data-ribbon-sidebar-root]");
+        const first = root?.querySelector(`[data-thread-id="${moving}"]`);
+        const second = root?.querySelector(`[data-thread-id="${resident}"]`);
+        return first && second && first.getBoundingClientRect().top > second.getBoundingClientRect().top;
+      }, { moving: moving.id, resident: resident.id });
+      fixture.run(["thread", "update", moving.id, "--clear-section"]);
+      await page.waitForFunction(({ threadId, sectionId }) => !document.querySelector(
+        `[data-ribbon-sidebar-root] [data-sidebar-section-id="${sectionId}"] [data-thread-id="${threadId}"]`,
+      ), { threadId: moving.id, sectionId: fixture.section.id });
+      fixture.run(["thread", "update", moving.id, "--section", fixture.section.id]);
+      await row(group, moving.id).waitFor();
+      await expandPreview();
+      await assertFirst();
       assert.equal(fixture.runJson(["thread", "get", moving.id]).thread.sectionId, fixture.section.id);
     }
   } finally {

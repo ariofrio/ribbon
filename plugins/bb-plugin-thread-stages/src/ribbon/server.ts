@@ -10,6 +10,7 @@ import { createChildOrderStore } from "./child-order-store";
 import { defineRibbonSidebarCli } from "./cli";
 import {
   getPlacementInputSchema,
+  groupingKeySchema,
   getPlacementOutputSchema,
   iconDataSchema,
   listPlacementsInputSchema,
@@ -73,11 +74,7 @@ const sidebarGroupSchema = z
   .strict();
 const sidebarGroupingSchema = z
   .object({
-    groupingKey: z.union([
-      z.literal("builtin:projects"),
-      z.literal("builtin:sections"),
-      z.string().regex(/^plugin:[^:/]+:[^:/]+$/u),
-    ]),
+    groupingKey: groupingKeySchema,
     singularLabel: z.string(),
     pluralLabel: z.string(),
     icon: iconDataSchema.optional(),
@@ -493,6 +490,8 @@ export default async function ribbonServer(
 
   let projectGroups: GroupingDescriptor["groups"] = [];
   let personalProjectId: string | null = null;
+  let machineGroups: GroupingDescriptor["groups"] = [];
+  const machineByThread = new Map<string, string>();
   let sectionGroups: GroupingDescriptor["groups"] = [];
   const projectByThread = new Map<string, string>();
   const sectionByThread = new Map<string, string>();
@@ -523,6 +522,11 @@ export default async function ribbonServer(
       },
     },
   });
+  const machineGrouping = (): GroupingDescriptor => ({
+    groupingKey: "builtin:machines", singularLabel: "Machine", pluralLabel: "Machines",
+    defaultGroupId: "no-machine", groups: machineGroups,
+    membership: { kind: "external", writable: false, groupIdForThread: (id) => machineByThread.get(id) ?? null },
+  });
   const stageGrouping = (): GroupingDescriptor => ({
     ...createGroupingCatalog({}).groupings[0]!,
     groupingKey: THREAD_STAGES_GROUPING_KEY,
@@ -531,16 +535,55 @@ export default async function ribbonServer(
   const grouping = (groupingKey: GroupingKey): GroupingDescriptor | null => {
     if (groupingKey === "builtin:projects") return projectGrouping();
     if (groupingKey === "builtin:sections") return sectionGrouping();
+    if (groupingKey === "builtin:machines") return machineGrouping();
     return groupingKey === THREAD_STAGES_GROUPING_KEY ? stageGrouping() : null;
   };
   const groupings = (): GroupingDescriptor[] =>
-    [sectionGrouping(), projectGrouping(), stageGrouping()];
+    [sectionGrouping(), projectGrouping(), machineGrouping(), stageGrouping()];
   const store = createPlacementStore(database, { grouping, groupings });
   const stageChangeMessages = createStageChangeMessages(bb, {
     enabled: async () => (await settings.get()).messageOnStageChange !== false,
     threadStagesRunning: () => true,
   });
   let sidebarThreads: ThreadSummary[] = [];
+
+  let placementQueue: Promise<unknown> = Promise.resolve();
+  function serializePlacement<T>(operation: () => T | Promise<T>): Promise<T> {
+    const next = placementQueue.then(operation);
+    placementQueue = next.catch(() => undefined);
+    return next;
+  }
+
+  const observedMembership = database.prepare("SELECT group_id, is_root FROM observed_membership WHERE grouping_key = ? AND thread_id = ?");
+  const rememberMembership = database.prepare(`
+    INSERT INTO observed_membership VALUES (?, ?, ?, ?)
+    ON CONFLICT(grouping_key, thread_id) DO UPDATE SET group_id = excluded.group_id, is_root = excluded.is_root
+  `);
+  function reconcileMembership(threadIds: readonly string[], roots: ReadonlySet<string>, placeChanged = true) {
+    const changed = new Set<GroupingKey>();
+    database.transaction(() => {
+      for (const threadId of threadIds) {
+        const isRoot = roots.has(threadId);
+        for (const descriptor of [sectionGrouping(), projectGrouping(), machineGrouping()]) {
+          if (descriptor.membership.kind !== "external") continue;
+          const groupId = descriptor.membership.groupIdForThread(threadId);
+          if (groupId === null) continue;
+          const previous = observedMembership.get(descriptor.groupingKey, threadId) as
+            { group_id: string; is_root: number } | undefined;
+          if (placeChanged && isRoot && previous && (!previous.is_root || previous.group_id !== groupId)) {
+            const result = store.updatePlacement({
+              groupingKey: descriptor.groupingKey, groupId, threadId,
+              anchor: { kind: "start" }, origin: "auto",
+            });
+            if (!result.ok) throw new Error(result.error.message);
+            changed.add(descriptor.groupingKey);
+          }
+          rememberMembership.run(descriptor.groupingKey, threadId, groupId, Number(isRoot));
+        }
+      }
+    })();
+    return changed;
+  }
 
   function sidebarSnapshot() {
     return {
@@ -560,12 +603,17 @@ export default async function ribbonServer(
     };
   }
 
-  async function refreshCatalogsAndRoots() {
+  function refreshCatalogsAndRoots() {
+    return serializePlacement(refreshCatalogsAndRootsNow);
+  }
+
+  async function refreshCatalogsAndRootsNow() {
     const catalogBefore = JSON.stringify(sidebarSnapshot());
-    const [projects, sections, threads] = await Promise.all([
+    const [projects, sections, threads, hosts] = await Promise.all([
       bb.sdk.projects.list({ includePersonal: true }),
       bb.sdk.threadSections.list(),
       listAllThreads(bb),
+      bb.sdk.hosts.list(),
     ]);
     personalProjectId =
       projects.find(({ kind }) => kind === "personal")?.id ?? null;
@@ -598,9 +646,17 @@ export default async function ribbonServer(
         defaultCollapsed: false,
       },
     ];
+    const hostNames = new Map(hosts.map((host) => [host.id, host.name]));
+    for (const thread of threads) if (thread.environmentHostId && !hostNames.has(thread.environmentHostId)) hostNames.set(thread.environmentHostId, "Unknown machine");
+    machineGroups = [
+      ...[...hostNames].map(([id, label]) => ({ id, label, acceptsAssignments: true, defaultPlacement: "start" as const })),
+      { id: "no-machine", label: "No machine", acceptsAssignments: true, defaultPlacement: "start" },
+    ];
+    machineByThread.clear();
     projectByThread.clear();
     sectionByThread.clear();
     for (const thread of threads) {
+      machineByThread.set(thread.id, thread.environmentHostId ?? "no-machine");
       projectByThread.set(thread.id, thread.projectId);
       sectionByThread.set(thread.id, thread.sectionId ?? "unsectioned");
     }
@@ -633,26 +689,37 @@ export default async function ribbonServer(
       )
       .map(({ id }) => id);
     const result = store.reconcileRoots(eligibleRoots, childThreadIds);
-    if (result.changedGroupingKeys.length > 0) {
-      bb.realtime.publish("placements-changed", {
-        groupingKeys: result.changedGroupingKeys,
-      });
-    }
+    const changed = reconcileMembership(threads.map(({ id }) => id), new Set(eligibleRoots));
+    for (const key of result.changedGroupingKeys) changed.add(key);
+    if (changed.size) bb.realtime.publish("placements-changed", { groupingKeys: [...changed] });
     return catalogBefore !== JSON.stringify(sidebarSnapshot());
   }
 
-  function reconcileRoot(
+  function reconcileRootNow(
     thread: Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>,
     eligible: boolean | "child",
   ) {
+    machineByThread.set(thread.id, "host" in thread ? thread.host?.id ?? "no-machine" : machineByThread.get(thread.id) ?? "no-machine");
     projectByThread.set(thread.id, thread.projectId);
     sectionByThread.set(thread.id, thread.sectionId ?? "unsectioned");
     const result = store.reconcileRoot(thread.id, eligible);
+    const changed = reconcileMembership([thread.id], new Set(eligible === true ? [thread.id] : []));
+    for (const key of changed) if (!result.changedGroupingKeys.includes(key)) result.changedGroupingKeys.push(key);
     if (result.changedGroupingKeys.length > 0) {
       bb.realtime.publish("placements-changed", {
         groupingKeys: result.changedGroupingKeys,
       });
     }
+  }
+
+  function reconcileRoot(thread: Parameters<typeof reconcileRootNow>[0], eligible: boolean | "child") {
+    return serializePlacement(async () => {
+      if (thread.environmentId !== null && !("host" in thread)) {
+        const included = await bb.sdk.threads.get({ threadId: thread.id, include: "host" });
+        if ("host" in included) thread = { ...thread, host: included.host };
+      }
+      reconcileRootNow(thread, eligible);
+    });
   }
 
   async function threadEligibility(
@@ -674,7 +741,14 @@ export default async function ribbonServer(
     }
   }
 
-  async function updatePlacement(
+  function updatePlacement(
+    input: z.infer<typeof updatePlacementInputSchema>,
+    options: { announceStageChange?: boolean; actorThreadId?: string } = {},
+  ) {
+    return serializePlacement(() => applyPlacement(input, options));
+  }
+
+  async function applyPlacement(
     input: z.infer<typeof updatePlacementInputSchema>,
     {
       announceStageChange = true,
@@ -704,7 +778,7 @@ export default async function ribbonServer(
       if (result.ok) {
         bb.realtime.publish("placements-changed", {
           groupingKeys: groupingKey === THREAD_STAGES_GROUPING_KEY
-            ? [input.groupingKey, "builtin:sections", "builtin:projects"]
+            ? groupings().map(({ groupingKey }) => groupingKey)
             : [input.groupingKey],
         });
         if (
@@ -804,6 +878,7 @@ export default async function ribbonServer(
       }
       return result;
     }
+    reconcileMembership([input.threadId], new Set([input.threadId]), false);
     bb.realtime.publish("placements-changed", {
       groupingKeys: [input.groupingKey],
     });
@@ -917,7 +992,7 @@ export default async function ribbonServer(
     },
     async placeNewThreadV1({ groupingKey, groupId, threadId }) {
       const thread = await bb.sdk.threads.get({ threadId });
-      reconcileRoot(thread, await threadEligibility(thread));
+      await reconcileRoot(thread, await threadEligibility(thread));
       return updatePlacement(
         {
           groupingKey,
@@ -1028,8 +1103,10 @@ export default async function ribbonServer(
     if (childOrder.deleteThread(thread.id)) {
       bb.realtime.publish("child-order-changed", null);
     }
+    machineByThread.delete(thread.id);
     projectByThread.delete(thread.id);
     sectionByThread.delete(thread.id);
+    database.prepare("DELETE FROM observed_membership WHERE thread_id = ?").run(thread.id);
     const result = store.deleteThread(thread.id);
     if (result.changedGroupingKeys.length > 0) {
       bb.realtime.publish("placements-changed", {
@@ -1044,10 +1121,29 @@ export default async function ribbonServer(
     updatePlacement,
   });
   bb.events.on("thread.created", async ({ thread }) => {
-    reconcileRoot(thread, await threadEligibility(thread));
+    await reconcileRoot(thread, await threadEligibility(thread));
   });
-  bb.events.on("thread.archived", ({ thread }) => {
-    reconcileRoot(thread, false);
+  bb.events.on("thread.archived", async ({ thread }) => {
+    await reconcileRoot(thread, false);
+  });
+  bb.background.service("placement-reconciliation", {
+    async start(signal) {
+      const unsubscribe = bb.sdk.subscribe({ event: "thread:changed", callback(event) {
+        if (!event.id || !event.changes.some((change) =>
+          ["title-changed", "parent-changed", "environment-changed", "archived-changed"].includes(change),
+        )) return;
+        const threadId = event.id;
+        void serializePlacement(async () => {
+          const thread = await bb.sdk.threads.get({ threadId, include: "host" });
+          reconcileRootNow(thread, await threadEligibility(thread));
+        }).catch((error: unknown) => bb.log.warn(`Could not reconcile thread placement: ${String(error)}`));
+      } });
+      await new Promise<void>((resolve) => {
+        const stop = () => { unsubscribe(); resolve(); };
+        if (signal.aborted) stop();
+        else signal.addEventListener("abort", stop, { once: true });
+      });
+    },
   });
   bb.background.schedule("catalog-reconciliation", "* * * * *", async () => {
     await importRibbonSettings().catch(() => undefined);

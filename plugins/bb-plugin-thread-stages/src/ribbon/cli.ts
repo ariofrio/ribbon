@@ -301,6 +301,7 @@ function rowMatchesScope(
   if (scope.groupingKey === "builtin:sections") {
     return row.section?.id === scope.groupId;
   }
+  if (scope.groupingKey === "builtin:machines") return (row.environmentHostId ?? "no-machine") === scope.groupId;
   const [, pluginId, groupingId] = scope.groupingKey.split(":");
   return row.pluginGroups.some(
     (group) =>

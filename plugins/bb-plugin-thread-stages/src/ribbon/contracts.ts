@@ -16,6 +16,7 @@ export const threadActionsSchema = z.array(threadActionSchema).refine(
 export const groupingKeySchema = z.enum([
   "builtin:projects",
   "builtin:sections",
+  "builtin:machines",
   "plugin:thread-stages:stages",
 ]);
 

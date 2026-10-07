@@ -39,7 +39,7 @@ the plugin's own lives under `src/ribbon/` and `src/icons/`.
 ## Grouping and ordering
 
 Choose **⋯ menu → Organize → Custom** for sections or **By project** for
-projects. Each keeps its own order and collapsed headings. A stage says whose
+projects, or **By machine** for machines. Each keeps its own order and collapsed headings. A stage says whose
 move a thread is waiting on: **Active** is the user's or the thread's own,
 **Blocked on other agent** is another bb thread's, **Blocked on third party**
 is someone or something outside bb, **Deferred** is set aside, and
@@ -68,7 +68,7 @@ Drag a root to reorder it within its list, onto its section's heading to put
 it first, or onto another section to move it there. Drag a child to reorder
 it among its siblings; it stays under its parent and keeps its stage.
 Active and both Blocked stages share the main list; changing between those
-stages keeps a root's position. Every band follows its section or project order;
+stages keeps a root's position. Every band follows its section, project, or machine order;
 reordering in one organization leaves the other organization’s order unchanged.
 Moving a root into another list defaults to the top through the UI or CLI,
 and it can then be reordered by dragging, shortcuts, or CLI placement.
@@ -125,7 +125,7 @@ settings keeps the fade but not the pan, or cuts titles with bb's ellipsis
 instead. The pan respects reduced motion.
 
 Use a thread's **⋯ menu → Edit actions** to add labeled prompts. Their
-buttons appear beside the thread title, colored like the section or project,
+buttons appear beside the thread title, colored like the section, project, or machine,
 and send the saved prompt to that thread when clicked. **Hide thread title**
 gives them the whole row.
 
@@ -222,7 +222,7 @@ are excluded unless requested with `--include-archived` or `--include-hidden`.
 Add `--include-children` to list nested threads with their own stages.
 
 With Custom sorting, a move to another section starts at the top, including
-when returning to a section visited before. The thread menu and CLI use the
+when returning to a section visited before. The thread menu, CLI, and core BB membership updates use the
 same placement policy as a drop on the group heading. Pass `--before` or
 `--after` to choose another position; automatic sorting keeps its selected
 order.

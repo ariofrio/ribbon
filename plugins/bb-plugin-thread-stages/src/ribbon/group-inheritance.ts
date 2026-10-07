@@ -6,7 +6,7 @@ type Thread = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>;
 
 interface GroupInheritanceOptions {
   eligibleRoot(thread: Thread): boolean | "child" | Promise<boolean | "child">;
-  reconcileRoot(thread: Thread, eligible: boolean | "child"): void;
+  reconcileRoot(thread: Thread, eligible: boolean | "child"): void | Promise<void>;
   getPlacement: PlacementStore["getPlacement"];
   updatePlacement(
     input: Parameters<PlacementStore["updatePlacement"]>[0],
@@ -87,7 +87,7 @@ async function applyInheritedGroups(
     }
   }
 
-  options.reconcileRoot(
+  await options.reconcileRoot(
     reconciledTarget,
     await options.eligibleRoot(reconciledTarget),
   );
@@ -151,7 +151,7 @@ export function registerThreadGroupInheritance(
         const thread = await bb.sdk.threads.get({ threadId: event.id });
         parentByThreadId.set(thread.id, thread.parentThreadId);
         if (thread.parentThreadId !== null) {
-          options.reconcileRoot(thread, await options.eligibleRoot(thread));
+          await options.reconcileRoot(thread, await options.eligibleRoot(thread));
           return;
         }
         if (oldParentThreadId == null) return;

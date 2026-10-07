@@ -6,6 +6,16 @@ import {
   THREAD_ACTIONS_MIGRATION,
 } from "./thread-actions-store";
 
+const OBSERVED_MEMBERSHIP_MIGRATION = `
+  CREATE TABLE observed_membership (
+    grouping_key TEXT NOT NULL,
+    thread_id TEXT NOT NULL,
+    group_id TEXT NOT NULL,
+    is_root INTEGER NOT NULL,
+    PRIMARY KEY (grouping_key, thread_id)
+  );
+`;
+
 export function sidebarMigrations(database: BetterSqlite3.Database): string[] {
   const migrationTable = database
     .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_bb_migrations'")
@@ -27,6 +37,7 @@ export function sidebarMigrations(database: BetterSqlite3.Database): string[] {
       THREAD_ACTIONS_DISPLAY_MIGRATION,
       ...RIBBON_SIDEBAR_MIGRATIONS.slice(4),
       MAIN_STAGE_ORDER_MIGRATION,
+      OBSERVED_MEMBERSHIP_MIGRATION,
     ];
   }
   return [
@@ -34,5 +45,6 @@ export function sidebarMigrations(database: BetterSqlite3.Database): string[] {
     THREAD_ACTIONS_MIGRATION,
     THREAD_ACTIONS_DISPLAY_MIGRATION,
     MAIN_STAGE_ORDER_MIGRATION,
+    OBSERVED_MEMBERSHIP_MIGRATION,
   ];
 }

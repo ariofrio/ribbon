@@ -6,7 +6,10 @@ const THREAD_STAGES_GROUPING_KEY = "plugin:thread-stages:stages";
 export type GroupingKey =
   | "builtin:projects"
   | "builtin:sections"
+  | "builtin:machines"
   | "plugin:thread-stages:stages";
+export type OrderGroupingKey = Exclude<GroupingKey, "plugin:thread-stages:stages">;
+export const ORDER_GROUPING_KEYS = ["builtin:sections", "builtin:projects", "builtin:machines"] as const;
 export type PlacementOriginV1 = "ui" | "cli" | "auto";
 export type PlacementAnchorV1 =
   | { kind: "before" | "after"; threadId: string }
@@ -526,6 +529,7 @@ export function createPlacementStore(
     for (const [groupingKey, migrationKey] of [
       ["builtin:sections", "section-ranks"],
       ["builtin:projects", "project-ranks"],
+      ["builtin:machines", "machine-ranks"],
     ] as const) {
       const grouping = options.grouping(groupingKey);
       if (!grouping || grouping.groupingKey !== groupingKey) continue;
@@ -562,7 +566,7 @@ export function createPlacementStore(
     if (database.prepare("SELECT 1 FROM ribbon_upgrade WHERE key = ?").get(key)) return;
     const stages = options.grouping(THREAD_STAGES_GROUPING_KEY);
     if (!stages) return;
-    for (const groupingKey of ["builtin:sections", "builtin:projects"] as const) {
+    for (const groupingKey of ORDER_GROUPING_KEYS) {
       const parent = options.grouping(groupingKey);
       if (!parent) continue;
       for (const group of parent.groups) {
@@ -598,7 +602,7 @@ export function createPlacementStore(
     const preserve = anchor?.kind === "preserve";
     const isMain = (stage: string | null) =>
       stage === "Active" || stage === "BlockedOnOtherAgent" || stage === "BlockedOnThirdParty";
-    for (const groupingKey of ["builtin:sections", "builtin:projects"] as const) {
+    for (const groupingKey of ORDER_GROUPING_KEYS) {
       const descriptor = options.grouping(groupingKey);
       if (!descriptor) continue;
       const groupId = currentGroupId(descriptor, threadId);

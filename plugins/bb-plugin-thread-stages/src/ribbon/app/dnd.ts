@@ -105,7 +105,8 @@ export function useRibbonDnd(mode: OrganizationMode): RibbonDndHandlers | null {
       if (groupingKey === null) return;
       const groupId = groupingKey === "builtin:projects"
         ? anchor.thread.projectId
-        : (anchor.thread.sectionId ?? "unsectioned");
+        : groupingKey === "builtin:machines" ? anchor.thread.host?.id ?? "no-machine"
+          : (anchor.thread.sectionId ?? "unsectioned");
       setSort("none");
       await updatePlacement(active.id, groupingKey, groupId, {
         kind: anchor.placement,
@@ -117,13 +118,20 @@ export function useRibbonDnd(mode: OrganizationMode): RibbonDndHandlers | null {
 
   const onMoveThread = useCallback<RibbonDndHandlers["onMoveThread"]>(
     async (active, groupId, anchor) => {
-      // Section membership is the one Ribbon writes; a project's is bb's.
-      if (!moveToSection || groupingKey !== "builtin:sections") return false;
-      if (active.parentThreadId !== null || active.pinnedAt !== null) return false;
+      if (!updatePlacement || active.parentThreadId !== null) return false;
+      if (groupingKey === "builtin:sections") {
+        if (!moveToSection) return false;
+        setSort("none");
+        return moveToSection(active, groupId, anchor);
+      }
+      const currentGroup = groupingKey === "builtin:projects" ? active.projectId : active.host?.id ?? "no-machine";
+      if (currentGroup !== groupId) return false;
       setSort("none");
-      return moveToSection(active, groupId, anchor);
+      await updatePlacement(active.id, groupingKey, currentGroup, "edge" in anchor
+        ? { kind: anchor.edge } : { kind: anchor.placement, threadId: anchor.thread.id });
+      return true;
     },
-    [groupingKey, moveToSection, setSort],
+    [groupingKey, moveToSection, setSort, updatePlacement],
   );
 
   return useMemo(
