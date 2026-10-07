@@ -132,7 +132,7 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
               <TableCell className="w-[32%] rounded-l-sm p-0 align-top">
                 <Input
                   aria-label={`Action ${index + 1} button label`}
-                  className="h-[1.625rem] rounded-sm border-transparent px-[0.4375rem] py-1 text-xs leading-4 focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:h-[2.625rem] max-md:pointer-coarse:py-2 max-md:pointer-coarse:leading-6"
+                  className="h-[1.625rem] rounded-sm border-transparent px-[0.4375rem] py-1 text-xs leading-4 hover:bg-state-hover focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:h-[2.625rem] max-md:pointer-coarse:py-2 max-md:pointer-coarse:leading-6"
                   ref={(field) => {
                     if (field) labelFields.current.set(action.id, field);
                     else labelFields.current.delete(action.id);
@@ -154,7 +154,7 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
               <TableCell className="p-0 align-top">
                 <Textarea
                   aria-label={`Action ${index + 1} prompt`}
-                  className="h-[1.625rem] min-h-[1.625rem] resize-none rounded-sm border-transparent px-[0.4375rem] py-1 text-xs leading-4 focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:h-[2.625rem] max-md:pointer-coarse:min-h-[2.625rem] max-md:pointer-coarse:py-2 max-md:pointer-coarse:leading-6"
+                  className="h-[1.625rem] min-h-[1.625rem] resize-none rounded-sm border-transparent px-[0.4375rem] py-1 text-xs leading-4 hover:bg-state-hover focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:h-[2.625rem] max-md:pointer-coarse:min-h-[2.625rem] max-md:pointer-coarse:py-2 max-md:pointer-coarse:leading-6"
                   rows={1}
                   maxLength={10000}
                   placeholder="Prompt to send"

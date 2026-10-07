@@ -77,6 +77,7 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         const remove = (index) => form.getByRole("button", { name: `Remove action ${index}` });
         const paint = (field) => field.evaluate((node) => ({
           border: getComputedStyle(node).borderColor,
+          background: getComputedStyle(node).backgroundColor,
           backgrounds: [...node.closest("tr").cells].map((cell) => getComputedStyle(cell).backgroundColor),
         }));
         const transparent = "rgba(0, 0, 0, 0)";
@@ -95,6 +96,7 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
           assert.equal(await form.evaluate((node) => node.contains(document.activeElement)), false);
           const hovered = await paint(prompt(1));
           assert.equal(hovered.border, transparent, "Hovering a field does not outline it");
+          assert.notEqual(hovered.background, transparent, "Hovering a field highlights its background");
           assert.ok(hovered.backgrounds.every((color) => color !== transparent), "Rows highlight on hover when the editor has no focus");
         }
         const clearEmpty = form.getByRole("button", { name: "Clear action 1" });
@@ -118,6 +120,7 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
             radiusLeft: getComputedStyle(first).borderTopLeftRadius,
             radiusRight: getComputedStyle(last).borderTopRightRadius,
             background: getComputedStyle(first).backgroundColor,
+            fieldBackground: style.backgroundColor,
             height: row.getBoundingClientRect().height,
             padding: field.getBoundingClientRect().left - first.getBoundingClientRect().left + Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.borderLeftWidth),
             borderWidth: style.borderLeftWidth,
@@ -130,6 +133,7 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         assert.equal(focusedMetrics.radiusLeft, menuMetrics.radius);
         assert.equal(focusedMetrics.radiusRight, menuMetrics.radius);
         assert.notEqual(focusedMetrics.background, "rgba(0, 0, 0, 0)", "Focus highlights the rounded row");
+        if (!compact) assert.notEqual(focusedMetrics.fieldBackground, transparent, "Focused fields retain hover backgrounds");
         assert.equal(focusedMetrics.height, compact ? 42 : menuMetrics.height,
           compact ? "Touch rows keep their height as controls fill them" : "Desktop rows match the menu item height");
         assert.deepEqual(focusedMetrics.labelInsets, [0, 0, 0, 0], "Label fields fill the rounded row highlight");
@@ -155,14 +159,21 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
           const hovered = await paint(prompt(2));
           const editing = await paint(prompt(1));
           assert.equal(hovered.border, transparent, "Hovering another row does not outline its field");
+          assert.notEqual(hovered.background, transparent, "Fields retain hover backgrounds in unfocused rows");
           assert.ok(hovered.backgrounds.every((color) => color === transparent), "Focus suppresses other row highlights");
           assert.notEqual(editing.border, transparent, "The editing field retains its focus border");
           assert.ok(editing.backgrounds.every((color) => color !== transparent), "The editing row retains its highlight");
           await label(1).hover();
-          assert.equal((await paint(label(1))).border, transparent, "Hovering another field in the editing row does not add a border");
+          const hoveredLabel = await paint(label(1));
+          assert.equal(hoveredLabel.border, transparent, "Hovering another field in the editing row does not add a border");
+          assert.notEqual(hoveredLabel.background, transparent, "Fields retain hover backgrounds in the focused row");
           const idleColor = await remove(2).evaluate((button) => getComputedStyle(button).color);
           await remove(2).hover();
           assert.notEqual(await remove(2).evaluate((button) => getComputedStyle(button).color), idleColor, "X buttons retain hover feedback while editing");
+          const buttonBackground = await remove(2).evaluate((button) => getComputedStyle(button).backgroundColor);
+          assert.equal(hovered.background, buttonBackground, "Prompt hover backgrounds match the X button");
+          assert.equal(hoveredLabel.background, buttonBackground, "Label hover backgrounds match the X button");
+          await page.waitForFunction((field) => getComputedStyle(field).backgroundColor === "rgba(0, 0, 0, 0)", await label(1).elementHandle());
           await focused(page, prompt(1));
           await label(2).click();
           await focused(page, label(2));
