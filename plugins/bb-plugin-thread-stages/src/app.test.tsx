@@ -186,7 +186,7 @@ describe("thread-list plugin", () => {
     const link = await screen.findByRole("link", { name: "Open Later thread" });
     fireEvent.contextMenu(link);
     fireEvent.keyDown(await screen.findByRole("menuitem", { name: "Move to section" }), { key: "ArrowRight" });
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Review", exact: true }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Review" }));
     await waitFor(() => expect(updatePlacement).toHaveBeenCalledWith(expect.objectContaining({
       groupingKey: "builtin:sections", threadId: "thr_later", groupId: "sec_review", anchor: { kind: "start" },
     })));
