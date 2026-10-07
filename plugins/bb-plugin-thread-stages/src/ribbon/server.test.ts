@@ -114,12 +114,16 @@ function setup({
   );
   const update = vi.fn(
     threadUpdate ??
-      (async ({ threadId, sectionId }) =>
-        makeThreadResponse({
-          ...threads.find(({ id }) => id === threadId),
+      (async ({ threadId, sectionId }) => {
+        const index = threads.findIndex(({ id }) => id === threadId);
+        const updated = makeThreadResponse({
+          ...threads[index],
           id: threadId,
           sectionId: sectionId ?? null,
-        })),
+        });
+        if (index >= 0) threads[index] = updated;
+        return updated;
+      }),
   );
   const send = vi.fn(
     threadSend ?? (async () => ({ status: "sent" as const }) as never),
@@ -195,6 +199,9 @@ function setup({
       throw new Error(`unexpected method: ${method}`);
     },
   );
+  const sectionList = vi.fn(async () => [
+    { id: "section-a", name: "Release", createdAt: 1, updatedAt: 1 },
+  ]);
   const host = createFakePluginHost({
     pluginId: "thread-stages",
     ...(settings ? { settings } : {}),
@@ -254,9 +261,7 @@ function setup({
         ],
       },
       threadSections: {
-        list: async () => [
-          { id: "section-a", name: "Release", createdAt: 1, updatedAt: 1 },
-        ],
+        list: sectionList,
       },
       plugins: {
         getSettings,
@@ -268,6 +273,8 @@ function setup({
   });
   return {
     ...host,
+    threads,
+    sectionList,
     callRpc,
     get,
     list,
@@ -369,6 +376,35 @@ describe("Ribbon sidebar server", () => {
       harness = (await harness.lifecycle.reload(plugin)).harness;
       expect(await order()).toMatchObject({ value: { items: [{ threadId: "moving" }, { threadId: "resident" }] } });
     } finally { await harness.lifecycle.dispose(); }
+  });
+
+  it("reconciles a core move into a newly created section before the catalog poll", async () => {
+    const threads = [makeThreadResponse({ id: "moving", projectId: "project-a", sectionId: "section-a" })];
+    let changed: ThreadChangedCallback | undefined;
+    const { bb, harness, sectionList } = setup({ threads, subscribe: ((input: RealtimeSubscribeArgs) => {
+      if (input.event === "thread:changed") changed = input.callback;
+      return () => undefined;
+    }) as BbPluginApi["sdk"]["subscribe"] });
+    await plugin(bb);
+    sectionList.mockResolvedValue([
+      { id: "section-a", name: "Release", createdAt: 1, updatedAt: 1 },
+      { id: "new-section", name: "New section", createdAt: 2, updatedAt: 2 },
+    ]);
+    const warn = vi.spyOn(bb.log, "warn");
+    const service = harness.behavior.runService("placement-reconciliation");
+    try {
+      await vi.waitFor(() => expect(changed).toBeDefined());
+      threads[0]!.sectionId = "new-section";
+      changed!({ type: "changed", entity: "thread", id: "moving", changes: ["title-changed"] });
+      await vi.waitFor(async () => expect(await harness.behavior.callRpc("listPlacementsV1", {
+        groupingKey: "builtin:sections", groupIds: ["new-section"],
+      })).toMatchObject({ ok: true, value: { items: [{ threadId: "moving" }] } }));
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      service.controller.abort();
+      await service.done;
+      await harness.lifecycle.dispose();
+    }
   });
 
   it("keeps machine ordering independent for Completed roots and persists it", async () => {
@@ -897,6 +933,32 @@ describe("Ribbon sidebar server", () => {
     await harness.lifecycle.dispose();
   });
 
+  it("preserves saved order when a delayed creation event carries an old section", async () => {
+    const current = makeThreadResponse({
+      id: "working", projectId: "project-a", sectionId: "section-a", createdAt: 1,
+    });
+    const resident = makeThreadResponse({
+      id: "resident", projectId: "project-a", sectionId: "section-a", createdAt: 2,
+    });
+    const { bb, harness } = setup({ threads: [current, resident] });
+    await plugin(bb);
+    const order = async () => {
+      const result = await harness.behavior.runCli([
+        "list", "--section", "section-a", "--json",
+      ]);
+      return JSON.parse(result.stdout!).map(({ id }: { id: string }) => id);
+    };
+    try {
+      expect(await order()).toEqual(["resident", "working"]);
+      await harness.behavior.emitThreadEvent("thread.created", {
+        thread: { ...current, sectionId: null },
+      });
+      expect(await order()).toEqual(["resident", "working"]);
+    } finally {
+      await harness.lifecycle.dispose();
+    }
+  });
+
   it("places a new fork in the nearest section on its fork source ancestry", async () => {
     const threads = [
       makeThreadResponse({
@@ -913,14 +975,14 @@ describe("Ribbon sidebar server", () => {
     const fixture = setup({ threads });
     await plugin(fixture.bb);
 
-    await fixture.harness.behavior.emitThreadEvent("thread.created", {
-      thread: makeThreadResponse({
-        id: "thr_fork",
-        originKind: "fork",
-        sectionId: null,
-        sourceThreadId: "thr_fork_source",
-      }),
+    const fork = makeThreadResponse({
+      id: "thr_fork",
+      originKind: "fork",
+      sectionId: null,
+      sourceThreadId: "thr_fork_source",
     });
+    threads.push(fork);
+    await fixture.harness.behavior.emitThreadEvent("thread.created", { thread: fork });
 
     expect(fixture.get).toHaveBeenNthCalledWith(1, {
       threadId: "thr_fork_source",
@@ -988,22 +1050,23 @@ describe("Ribbon sidebar server", () => {
     const fixture = setup();
     await plugin(fixture.bb);
 
-    await fixture.harness.behavior.emitThreadEvent("thread.created", {
-      thread: makeThreadResponse({
+    for (const thread of [
+      makeThreadResponse({
         id: "thr_explicit_fork",
         originKind: "fork",
         sectionId: "section-a",
         sourceThreadId: "thread-a",
       }),
-    });
-    await fixture.harness.behavior.emitThreadEvent("thread.created", {
-      thread: makeThreadResponse({
+      makeThreadResponse({
         id: "thr_spawned",
         sectionId: null,
         sourceThreadId: "thread-a",
         originKind: null,
       }),
-    });
+    ]) {
+      fixture.threads.push(thread);
+      await fixture.harness.behavior.emitThreadEvent("thread.created", { thread });
+    }
 
     expect(fixture.update).not.toHaveBeenCalled();
   });

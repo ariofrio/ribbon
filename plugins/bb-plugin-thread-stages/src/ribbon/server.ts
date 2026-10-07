@@ -607,12 +607,10 @@ export default async function ribbonServer(
     return serializePlacement(refreshCatalogsAndRootsNow);
   }
 
-  async function refreshCatalogsAndRootsNow() {
-    const catalogBefore = JSON.stringify(sidebarSnapshot());
-    const [projects, sections, threads, hosts] = await Promise.all([
+  async function refreshGroupingCatalogs(extraHostIds: readonly string[] = []) {
+    const [projects, sections, hosts] = await Promise.all([
       bb.sdk.projects.list({ includePersonal: true }),
       bb.sdk.threadSections.list(),
-      listAllThreads(bb),
       bb.sdk.hosts.list(),
     ]);
     personalProjectId =
@@ -647,11 +645,19 @@ export default async function ribbonServer(
       },
     ];
     const hostNames = new Map(hosts.map((host) => [host.id, host.name]));
-    for (const thread of threads) if (thread.environmentHostId && !hostNames.has(thread.environmentHostId)) hostNames.set(thread.environmentHostId, "Unknown machine");
+    for (const hostId of [...machineByThread.values(), ...extraHostIds]) {
+      if (hostId !== "no-machine" && !hostNames.has(hostId)) hostNames.set(hostId, "Unknown machine");
+    }
     machineGroups = [
       ...[...hostNames].map(([id, label]) => ({ id, label, acceptsAssignments: true, defaultPlacement: "start" as const })),
       { id: "no-machine", label: "No machine", acceptsAssignments: true, defaultPlacement: "start" },
     ];
+  }
+
+  async function refreshCatalogsAndRootsNow() {
+    const catalogBefore = JSON.stringify(sidebarSnapshot());
+    const threads = await listAllThreads(bb);
+    await refreshGroupingCatalogs(threads.flatMap(({ environmentHostId }) => environmentHostId ? [environmentHostId] : []));
     machineByThread.clear();
     projectByThread.clear();
     sectionByThread.clear();
@@ -739,6 +745,22 @@ export default async function ribbonServer(
     } catch {
       return true;
     }
+  }
+
+  function reconcileCurrentThread(threadId: string) {
+    return serializePlacement(async () => {
+      let thread = await bb.sdk.threads.get({ threadId, include: "host" });
+      const hostId = "host" in thread ? thread.host?.id ?? "no-machine" : machineByThread.get(threadId) ?? "no-machine";
+      if (!projectGroups.some(({ id }) => id === thread.projectId) ||
+          !sectionGroups.some(({ id }) => id === (thread.sectionId ?? "unsectioned")) ||
+          !machineGroups.some(({ id }) => id === hostId)) {
+        const catalogBefore = JSON.stringify(sidebarSnapshot());
+        await refreshGroupingCatalogs([hostId]);
+        if (catalogBefore !== JSON.stringify(sidebarSnapshot())) bb.realtime.publish("catalog-changed", null);
+        thread = await bb.sdk.threads.get({ threadId, include: "host" });
+      }
+      reconcileRootNow(thread, await threadEligibility(thread));
+    });
   }
 
   function updatePlacement(
@@ -1112,7 +1134,7 @@ export default async function ribbonServer(
     updatePlacement,
   });
   bb.events.on("thread.created", async ({ thread }) => {
-    await reconcileRoot(thread, await threadEligibility(thread));
+    await reconcileCurrentThread(thread.id);
   });
   bb.events.on("thread.archived", async ({ thread }) => {
     await reconcileRoot(thread, false);
@@ -1124,10 +1146,7 @@ export default async function ribbonServer(
           ["title-changed", "parent-changed", "environment-changed", "archived-changed"].includes(change),
         )) return;
         const threadId = event.id;
-        void serializePlacement(async () => {
-          const thread = await bb.sdk.threads.get({ threadId, include: "host" });
-          reconcileRootNow(thread, await threadEligibility(thread));
-        }).catch((error: unknown) => bb.log.warn(`Could not reconcile thread placement: ${String(error)}`));
+        void reconcileCurrentThread(threadId).catch((error: unknown) => bb.log.warn(`Could not reconcile thread placement: ${String(error)}`));
       } });
       await new Promise<void>((resolve) => {
         const stop = () => { unsubscribe(); resolve(); };
