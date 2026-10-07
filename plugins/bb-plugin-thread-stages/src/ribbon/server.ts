@@ -5,7 +5,6 @@ import {
 } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { registerIcons } from "../icons/server";
-import { ICON_MIGRATIONS } from "../icons/store";
 import { createChildOrderStore } from "./child-order-store";
 import { defineRibbonSidebarCli } from "./cli";
 import {
@@ -45,8 +44,8 @@ import {
   createPullRequestDetailsService,
 } from "./pull-request-details";
 import { sidebarThreadsFromSearchResult } from "./search-results";
-import { sidebarMigrations } from "./sidebar-migrations";
 import { registerStageInstructions } from "./agent-instructions";
+import { pluginMigrations } from "./sidebar-migrations";
 import { registerStageMentions } from "./stage-mentions";
 import { threadActionCliCommands } from "./thread-actions-cli";
 import { createThreadActionsStore, type ThreadActionsRecord } from "./thread-actions-store";
@@ -453,10 +452,7 @@ export default async function ribbonServer(
   if (reclaimLegacyDatabase(database)) {
     bb.log.info("Reclaimed the retired Thread stages plugin's database.");
   }
-  bb.storage.migrate(database, [
-    ...sidebarMigrations(database),
-    ...ICON_MIGRATIONS,
-  ]);
+  bb.storage.migrate(database, pluginMigrations(database));
   for (const [name, imported] of [
     ["Ribbon sidebar", importRibbonSidebar(database)],
     ["Icons", importIcons(database)],
