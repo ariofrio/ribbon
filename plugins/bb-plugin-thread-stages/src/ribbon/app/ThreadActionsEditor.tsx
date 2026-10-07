@@ -82,7 +82,7 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
   return (
     <form
       aria-label="Edit thread actions"
-      className="space-y-2"
+      className="space-y-2 [&_tr:focus-within>td]:bg-state-hover [&:not(:focus-within)_tr:hover>td]:bg-state-hover"
       onKeyDown={(event) => {
         // Text editing stays in the form; Escape returns to its parent menu.
         if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
@@ -128,11 +128,11 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
       <Table aria-label="Thread actions" className="table-fixed border-separate border-spacing-0">
         <TableBody>
           {actions.map((action, index) => (
-            <TableRow key={action.id} data-action-id={action.id} className="group border-0 hover:bg-transparent">
-              <TableCell className="w-[32%] rounded-l-sm p-0 align-top group-hover:bg-state-hover group-focus-within:bg-state-hover">
+            <TableRow key={action.id} data-action-id={action.id} className="border-0 hover:bg-transparent">
+              <TableCell className="w-[32%] rounded-l-sm p-0 align-top">
                 <Input
                   aria-label={`Action ${index + 1} button label`}
-                  className="h-[1.625rem] rounded-sm border-transparent px-[0.4375rem] py-1 text-xs leading-4 hover:border-input focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:h-[2.625rem] max-md:pointer-coarse:py-2 max-md:pointer-coarse:leading-6"
+                  className="h-[1.625rem] rounded-sm border-transparent px-[0.4375rem] py-1 text-xs leading-4 focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:h-[2.625rem] max-md:pointer-coarse:py-2 max-md:pointer-coarse:leading-6"
                   ref={(field) => {
                     if (field) labelFields.current.set(action.id, field);
                     else labelFields.current.delete(action.id);
@@ -151,10 +151,10 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
                   ))}
                 />
               </TableCell>
-              <TableCell className="p-0 align-top group-hover:bg-state-hover group-focus-within:bg-state-hover">
+              <TableCell className="p-0 align-top">
                 <Textarea
                   aria-label={`Action ${index + 1} prompt`}
-                  className="h-[1.625rem] min-h-[1.625rem] resize-none rounded-sm border-transparent px-[0.4375rem] py-1 text-xs leading-4 hover:border-input focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:h-[2.625rem] max-md:pointer-coarse:min-h-[2.625rem] max-md:pointer-coarse:py-2 max-md:pointer-coarse:leading-6"
+                  className="h-[1.625rem] min-h-[1.625rem] resize-none rounded-sm border-transparent px-[0.4375rem] py-1 text-xs leading-4 focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:h-[2.625rem] max-md:pointer-coarse:min-h-[2.625rem] max-md:pointer-coarse:py-2 max-md:pointer-coarse:leading-6"
                   rows={1}
                   maxLength={10000}
                   placeholder="Prompt to send"
@@ -169,7 +169,7 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
                   }}
                 />
               </TableCell>
-              <TableCell className="w-[1.625rem] rounded-r-sm p-0 align-top group-hover:bg-state-hover group-focus-within:bg-state-hover max-md:pointer-coarse:w-[2.625rem]">
+              <TableCell className="w-[1.625rem] rounded-r-sm p-0 align-top max-md:pointer-coarse:w-[2.625rem]">
                 <Button
                   type="button"
                   variant="ghost"

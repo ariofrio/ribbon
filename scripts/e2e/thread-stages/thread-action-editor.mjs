@@ -75,6 +75,11 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         const label = (index) => form.getByRole("textbox", { name: `Action ${index} button label` });
         const prompt = (index) => form.getByRole("textbox", { name: `Action ${index} prompt` });
         const remove = (index) => form.getByRole("button", { name: `Remove action ${index}` });
+        const paint = (field) => field.evaluate((node) => ({
+          border: getComputedStyle(node).borderColor,
+          backgrounds: [...node.closest("tr").cells].map((cell) => getComputedStyle(cell).backgroundColor),
+        }));
+        const transparent = "rgba(0, 0, 0, 0)";
         assert.equal(await form.getByRole("columnheader").count(), 0, "Placeholders replace the table header");
         assert.equal(await form.getByPlaceholder("Button label").inputValue(), "");
         assert.equal(await form.getByPlaceholder("Prompt to send").inputValue(), "");
@@ -85,6 +90,13 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         assert.equal(appearance.fontSize, compact ? "16px" : menuMetrics.fontSize);
         assert.equal(appearance.height, compact ? "42px" : "26px");
         assert.equal(appearance.border, "rgba(0, 0, 0, 0)", "Idle fields use the menu's quiet border treatment");
+        if (!compact) {
+          await prompt(1).hover();
+          assert.equal(await form.evaluate((node) => node.contains(document.activeElement)), false);
+          const hovered = await paint(prompt(1));
+          assert.equal(hovered.border, transparent, "Hovering a field does not outline it");
+          assert.ok(hovered.backgrounds.every((color) => color !== transparent), "Rows highlight on hover when the editor has no focus");
+        }
         const clearEmpty = form.getByRole("button", { name: "Clear action 1" });
         await activate(clearEmpty);
         await focused(page, label(1));
@@ -137,6 +149,28 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         await page.keyboard.type(" Updated.");
         await target.getByRole("button", { name: `${fallbackPrompt} Updated. in ${thread.title}`, includeHidden: true }).waitFor();
         await focused(page, prompt(1));
+        if (!compact) {
+          await prompt(2).hover();
+          await focused(page, prompt(1));
+          const hovered = await paint(prompt(2));
+          const editing = await paint(prompt(1));
+          assert.equal(hovered.border, transparent, "Hovering another row does not outline its field");
+          assert.ok(hovered.backgrounds.every((color) => color === transparent), "Focus suppresses other row highlights");
+          assert.notEqual(editing.border, transparent, "The editing field retains its focus border");
+          assert.ok(editing.backgrounds.every((color) => color !== transparent), "The editing row retains its highlight");
+          await label(1).hover();
+          assert.equal((await paint(label(1))).border, transparent, "Hovering another field in the editing row does not add a border");
+          const idleColor = await remove(2).evaluate((button) => getComputedStyle(button).color);
+          await remove(2).hover();
+          assert.notEqual(await remove(2).evaluate((button) => getComputedStyle(button).color), idleColor, "X buttons retain hover feedback while editing");
+          await focused(page, prompt(1));
+          await label(2).click();
+          await focused(page, label(2));
+          assert.ok((await paint(prompt(1))).backgrounds.every((color) => color === transparent), "Clicking another row transfers its highlight");
+          assert.ok((await paint(label(2))).backgrounds.every((color) => color !== transparent));
+          await prompt(1).click();
+          await focused(page, prompt(1));
+        }
         await page.keyboard.press("Shift+Tab");
         await focused(page, label(1));
         await page.keyboard.type("Review");
