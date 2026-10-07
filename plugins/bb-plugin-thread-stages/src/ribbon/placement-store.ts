@@ -557,7 +557,37 @@ export function createPlacementStore(
     }
   }
 
-  function placeInMainList(
+  function importStageSubgroupOrder(changed: Set<GroupingKey>) {
+    const key = "stage-subgroup-order";
+    if (database.prepare("SELECT 1 FROM ribbon_upgrade WHERE key = ?").get(key)) return;
+    const stages = options.grouping(THREAD_STAGES_GROUPING_KEY);
+    if (!stages) return;
+    for (const groupingKey of ["builtin:sections", "builtin:projects"] as const) {
+      const parent = options.grouping(groupingKey);
+      if (!parent) continue;
+      for (const group of parent.groups) {
+        const members = orderedMemberIds(parent, group.id);
+        const memberIds = new Set(members);
+        const main = members.filter((id) => !["Deferred", "Completed"].includes(currentGroupId(stages, id) ?? "Active"));
+        const previews = ["Deferred", "Completed"].flatMap((stage) =>
+          orderedMemberIds(stages, stage).filter((id) => memberIds.has(id)),
+        );
+        if (!previews.length) continue;
+        if (hasMainStageOrder) {
+          for (const id of previews) {
+            const retained = getOrder.get(groupingKey, group.id, id) as OrderRow | undefined;
+            if (retained) database.prepare("INSERT OR IGNORE INTO main_stage_order VALUES (?, ?, ?, 'Active', ?)")
+              .run(groupingKey, group.id, id, retained.sort_key);
+          }
+        }
+        materializeOrder(groupingKey, group.id, [...main, ...previews], now());
+        changed.add(groupingKey);
+      }
+    }
+    database.prepare("INSERT INTO ribbon_upgrade(key) VALUES (?)").run(key);
+  }
+
+  function placeInParentGroups(
     threadId: string,
     fromStage: string | null,
     toStage: string,
@@ -582,8 +612,7 @@ export function createPlacementStore(
           DO UPDATE SET sort_key = excluded.sort_key
         `).run(groupingKey, groupId, threadId, isMain(toStage) ? fromStage : "Active", current.sort_key);
       }
-      if (!isMain(toStage)) continue;
-      if (isMain(fromStage) && anchor === undefined) continue;
+      if (isMain(fromStage) && isMain(toStage) && anchor === undefined) continue;
       const retained = preserve
         ? database.prepare(`
             SELECT sort_key FROM main_stage_order
@@ -663,6 +692,7 @@ export function createPlacementStore(
       }
 
       retainBuiltinRanks(changed);
+      importStageSubgroupOrder(changed);
       for (const groupingKey of changed) {
         ensureRevision.run(groupingKey);
         incrementRevision.run(groupingKey);
@@ -741,6 +771,7 @@ export function createPlacementStore(
         }
       }
       retainBuiltinRanks(changed);
+      importStageSubgroupOrder(changed);
       for (const groupingKey of changed) {
         ensureRevision.run(groupingKey);
         incrementRevision.run(groupingKey);
@@ -1207,7 +1238,7 @@ export function createPlacementStore(
               input.groupingKey === THREAD_STAGES_GROUPING_KEY &&
               freshDestination.defaultPlacement === "start"
             ) {
-              placeInMainList(
+              placeInParentGroups(
                 input.threadId, freshCurrentGroup, input.groupId,
                 input.anchor, writeTime,
               );

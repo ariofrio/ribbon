@@ -32,13 +32,11 @@ export function bandOf(stage: WorkflowStage | undefined): StageBand {
 
 /**
  * Partitions roots into the main list (Active and both Blocked stages),
- * Deferred, and Completed. Custom sorting supplies the previews' saved
- * stage ranks; automatic sorting keeps the input order in every band.
+ * Deferred, and Completed, preserving the containing group's order in every band.
  */
 export function stageBands(
   items: readonly ProjectThreadItem[],
   stageOf: (threadId: string) => WorkflowStage | undefined,
-  stageRank?: (threadId: string) => number,
 ): StageBands {
   const bands: StageBands = { main: [], deferred: [], completed: [] };
   for (const item of items) {
@@ -48,15 +46,6 @@ export function stageBands(
       continue;
     }
     bands[bandOf(stageOf(thread.id))].push(item);
-  }
-  if (stageRank) {
-    for (const band of [bands.deferred, bands.completed]) {
-      band.sort((left, right) => {
-        const leftRank = stageRank(itemThread(left)?.id ?? "");
-        const rightRank = stageRank(itemThread(right)?.id ?? "");
-        return leftRank - rightRank;
-      });
-    }
   }
   return bands;
 }

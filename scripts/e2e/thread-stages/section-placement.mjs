@@ -20,13 +20,13 @@ export async function verifySectionPlacement({ stack, fixture }) {
     const page = await context.newPage();
     await page.goto(stack.serverUrl);
     await sidebar(page).waitFor({ timeout: 120_000 });
-    async function moveFromMenu(destination, currentStage) {
+    async function moveFromMenu(destination) {
       const movingRow = row(sidebar(page), moving.id);
       await movingRow.hover();
       await movingRow.getByRole("button", { name: "Thread actions", exact: true }).click();
       await page.getByRole("menuitem", { name: "Move to section", exact: true }).hover();
       const saved = Promise.all([
-        "builtin:sections", ...(currentStage === "Active" ? [] : [STAGES]),
+        "builtin:sections",
       ].map((groupingKey) => page.waitForResponse((response) =>
         response.url().endsWith("/rpc/updatePlacementV1") &&
         response.request().postDataJSON().groupingKey === groupingKey)));
@@ -50,13 +50,13 @@ export async function verifySectionPlacement({ stack, fixture }) {
       }
       await expandPreview();
       await row(section(page, fixture.section.id), moving.id).waitFor();
-      await moveFromMenu("Threads", currentStage);
+      await moveFromMenu("Threads");
       await row(sidebar(page), moving.id).waitFor();
       await page.waitForFunction(({ threadId, sectionId }) => {
         const group = document.querySelector(`[data-ribbon-sidebar-root] [data-sidebar-section-id="${sectionId}"]`);
         return group && !group.querySelector(`[data-thread-id="${threadId}"]`);
       }, { threadId: moving.id, sectionId: fixture.section.id });
-      await moveFromMenu(fixture.section.name, currentStage);
+      await moveFromMenu(fixture.section.name);
       await row(group, moving.id).waitFor();
       await expandPreview();
       const selector = `[data-ribbon-sidebar-root] [data-sidebar-section-id="${fixture.section.id}"]`;

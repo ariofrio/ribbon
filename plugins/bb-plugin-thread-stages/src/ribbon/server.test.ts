@@ -742,43 +742,38 @@ describe("Ribbon sidebar server", () => {
 
 
   it.each(["builtin:sections", "builtin:projects"] as const)(
-    "reorders Completed with shortcuts in saved stage order within the current %s group",
+    "reorders Completed inside its %s group without changing the other organization",
     async (groupingKey) => {
       const threads = ["a", "b", "c", "other"].map((id) =>
-        makeThreadResponse({
-          id,
-          projectId: id === "other" ? "project-b" : "project-a",
-          sectionId: id === "other" ? "section-b" : "section-a",
-        }),
+        makeThreadResponse({ id, projectId: "project-a", sectionId: "section-a" }),
       );
       const { bb, harness } = setup({ threads, settings: { messageOnStageChange: false } });
       await plugin(bb);
-      const order = () => harness.behavior.callRpc("listPlacementsV1", {
-        groupingKey: "plugin:thread-stages:stages", groupIds: ["Completed"],
-      });
-      const groupOrder = await harness.behavior.callRpc("listPlacementsV1", { groupingKey });
-      for (const id of ["a", "b", "c", "other"]) {
-        await harness.behavior.runCli([
-          "place", id, "--to", "plugin:thread-stages:stages/Completed",
-        ]);
-      }
-      expect(await order()).toMatchObject({
-        value: { items: ["other", "c", "b", "a"].map((threadId) => ({ threadId })) },
-      });
-      await harness.behavior.callRpc("reorderThread", {
-        threadId: "c", scope: "step", direction: 1, groupingKey,
-      });
-      expect(await order()).toMatchObject({
-        value: { items: ["other", "b", "c", "a"].map((threadId) => ({ threadId })) },
-      });
-      await harness.behavior.callRpc("reorderThread", {
-        threadId: "b", scope: "edge", direction: 1, groupingKey,
-      });
-      expect(await order()).toMatchObject({
-        value: { items: ["other", "c", "a", "b"].map((threadId) => ({ threadId })) },
-      });
-      expect(await harness.behavior.callRpc("listPlacementsV1", { groupingKey })).toEqual(groupOrder);
-      await harness.lifecycle.dispose();
+      try {
+        for (const id of ["a", "b", "c", "other"]) {
+          await harness.behavior.callRpc("updatePlacementV1", {
+            groupingKey: "plugin:thread-stages:stages", threadId: id,
+            groupId: "Completed", origin: "ui",
+          });
+        }
+        const otherKey = groupingKey === "builtin:sections" ? "builtin:projects" : "builtin:sections";
+        const order = (key: string) => harness.behavior.callRpc("listPlacementsV1", { groupingKey: key });
+        const unchanged = await order(otherKey);
+        await harness.behavior.callRpc("reorderThread", {
+          threadId: "c", scope: "step", direction: 1, groupingKey,
+        });
+        expect(await order(groupingKey)).toMatchObject({
+          value: { items: ["other", "b", "c", "a"].map((threadId) => ({ threadId })) },
+        });
+        expect(await order(otherKey)).toEqual(unchanged);
+        await harness.behavior.callRpc("reorderThread", {
+          threadId: "b", scope: "edge", direction: 1, groupingKey,
+        });
+        expect(await order(groupingKey)).toMatchObject({
+          value: { items: ["other", "c", "a", "b"].map((threadId) => ({ threadId })) },
+        });
+        expect(await order(otherKey)).toEqual(unchanged);
+      } finally { await harness.lifecycle.dispose(); }
     },
   );
 

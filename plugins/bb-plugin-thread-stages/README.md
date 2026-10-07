@@ -55,7 +55,7 @@ choice applies across groups and organizations. In the CLI, `chronologicalSort`
 is `none` for Custom, or `updated`, `created`, or `alpha` for automatic sorting.
 Dragging or using a shortcut to reorder rows switches back to Custom.
 
-Deferred and Completed preview roots in their saved order; entering Completed
+Deferred and Completed preview roots in their containing group’s saved order; entering Completed
 inserts a thread first. **Completed and Deferred preview rows** sets a limit of 1–5 rows
 per stage, defaulting to 2, including **Show N more deferred/completed**.
 With two or more threads, the default shows one thread and that button;
@@ -68,7 +68,8 @@ Drag a root to reorder it within its list, onto its section's heading to put
 it first, or onto another section to move it there. Drag a child to reorder
 it among its siblings; it stays under its parent and keeps its stage.
 Active and both Blocked stages share the main list; changing between those
-stages keeps a root's position. Deferred and Completed keep their own orders.
+stages keeps a root's position. Every band follows its section or project order;
+reordering in one organization leaves the other organization’s order unchanged.
 Moving a root into another list defaults to the top through the UI or CLI,
 and it can then be reordered by dragging, shortcuts, or CLI placement.
 Returning a deferred or completed root to Active restores its main-list

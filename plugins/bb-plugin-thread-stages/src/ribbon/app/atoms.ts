@@ -86,15 +86,12 @@ export function stageIn(
   return parseWorkflowStage(stages.get(threadId)?.groupId ?? "Active") ?? "Active";
 }
 
-/** Stage lookups for a group's rows, one pair per set of stages; null outside the provider. */
+/** Stage lookup for a group's rows; null outside the provider. */
 export const ribbonStageLookupAtom = atom((get) => {
   if (!get(ribbonEnabledAtom)) return null;
   const stages = get(ribbonStagesAtom);
-  const ranks = new Map([...stages.keys()].map((id, index) => [id, index]));
   return {
     stageOf: (threadId: string) => stageIn(stages, threadId),
-    /** The saved position in the thread's stage, or the end if not yet loaded. */
-    stageRank: (threadId: string) => ranks.get(threadId) ?? Infinity,
   };
 });
 

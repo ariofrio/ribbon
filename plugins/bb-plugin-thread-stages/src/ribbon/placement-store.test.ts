@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  MAIN_STAGE_ORDER_MIGRATION,
   RIBBON_SIDEBAR_MIGRATIONS,
   createPlacementStore,
   type GroupingDescriptor,
@@ -174,6 +175,43 @@ describe("placement persistence", () => {
       expect(order()).toEqual(["d", "a", "c", "b"]);
     },
   );
+
+  it("imports the former global preview order into each containing group once", () => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    for (const migration of [...RIBBON_SIDEBAR_MIGRATIONS, MAIN_STAGE_ORDER_MIGRATION]) database.exec(migration);
+    const sections: GroupingDescriptor = {
+      groupingKey: "builtin:sections", singularLabel: "Section", pluralLabel: "Sections",
+      defaultGroupId: "work", groups: [{ id: "work", label: "Work", acceptsAssignments: true }],
+      membership: { kind: "external", writable: false, groupIdForThread: () => "work" },
+    };
+    const makeStore = () => createPlacementStore(database, {
+      grouping: (key) => key === "builtin:sections" ? sections : key === stages.groupingKey ? stages : null,
+      groupings: () => [sections, stages],
+    });
+    // Persisted data from the previous model: the preview was ordered b, a,
+    // regardless of the parent group's a, b, main order.
+    const assignment = database.prepare("INSERT INTO group_assignment VALUES (?, ?, ?, 1, NULL, 'ui')");
+    const order = database.prepare("INSERT INTO group_order VALUES (?, ?, ?, ?, 1)");
+    for (const [id, key] of [["a", "A"], ["b", "B"], ["main", "C"]]) {
+      assignment.run(stages.groupingKey, id, id === "main" ? "Idle" : "Completed");
+      order.run("builtin:sections", "work", id, key);
+    }
+    order.run(stages.groupingKey, "Completed", "b", "A");
+    order.run(stages.groupingKey, "Completed", "a", "B");
+    const store = makeStore();
+    store.reconcileRoots(["a", "b", "main"], []);
+    const ids = (current = store) => {
+      const listed = current.listPlacements({ groupingKey: "builtin:sections" });
+      if (!listed.ok) throw new Error(listed.error.message);
+      return listed.value.items.map(({ threadId }) => threadId);
+    };
+    expect(ids()).toEqual(["main", "b", "a"]);
+    store.updatePlacement({ groupingKey: "builtin:sections", groupId: "work", threadId: "a", anchor: { kind: "before", threadId: "b" }, origin: "ui" });
+    const restarted = makeStore();
+    restarted.reconcileRoots(["a", "b", "main"], []);
+    expect(ids(restarted)).toEqual(["main", "a", "b"]);
+  });
 
   it("reconciles visible roots to provider defaults in stable BB order", () => {
     const database = new Database(":memory:");

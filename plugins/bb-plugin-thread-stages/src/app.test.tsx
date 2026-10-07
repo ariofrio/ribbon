@@ -190,11 +190,7 @@ describe("thread-list plugin", () => {
     await waitFor(() => expect(updatePlacement).toHaveBeenCalledWith(expect.objectContaining({
       groupingKey: "builtin:sections", threadId: "thr_later", groupId: "sec_review", anchor: { kind: "start" },
     })));
-    if (stage !== "Active") {
-      await waitFor(() => expect(updatePlacement).toHaveBeenCalledWith(expect.objectContaining({
-        groupingKey: "plugin:thread-stages:stages", threadId: "thr_later", groupId: stage, anchor: { kind: "start" },
-      })));
-    }
+    expect(updatePlacement).toHaveBeenCalledTimes(1);
     expect(slot.inspection.sdkCalls).toEqual(pinned
       ? [{ method: "threads.unpin", args: [{ threadId: "thr_later" }] }]
       : []);
