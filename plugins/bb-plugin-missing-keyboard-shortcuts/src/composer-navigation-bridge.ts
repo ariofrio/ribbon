@@ -9,6 +9,7 @@ type FocusComposer = () => void;
 
 interface PrimaryPanelTabHost {
   closePanel?(): boolean;
+  openPanel?(): boolean;
   createObserver(callback: () => void): PanelTabObserver;
   root: PanelTabRoot;
 }
@@ -94,6 +95,7 @@ export function selectPrimaryPanelTabWhenReady(
     .get(threadId)
     ?.at(-1)?.panelTabHost;
   if (panelTabHost === undefined) return () => {};
+  panelTabHost.openPanel?.();
   return selectPanelTabWhenReady({ ...panelTabHost, ...options });
 }
 
