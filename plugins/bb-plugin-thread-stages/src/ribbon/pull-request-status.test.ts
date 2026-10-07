@@ -13,6 +13,11 @@ function pr(overrides: Partial<SidebarPullRequest> = {}): SidebarPullRequest {
     url: "https://github.com/acme/app/pull/12",
     state: "open",
     attention: "none",
+    experimental_autoMerge: false,
+    experimental_inMergeQueue: null,
+    experimental_checks: { state: "unknown" },
+    experimental_review: { state: "none" },
+    experimental_mergeability: { state: "unknown" },
     ...overrides,
   };
 }
@@ -48,6 +53,29 @@ describe("parsePullRequestUrl", () => {
 });
 
 describe("pullRequestSignal", () => {
+  it("uses bb's public merge-queue state when GitHub details are unavailable", () => {
+    expect(pullRequestSignal(pr({ experimental_inMergeQueue: true }), null))
+      .toEqual({ lifecycle: "auto", mark: "waiting", label: "Queued to merge" });
+  });
+
+  it("combines public auto-merge, approval, and checks without a second lookup", () => {
+    expect(pullRequestSignal(pr({
+      experimental_autoMerge: true,
+      experimental_review: { state: "approved" },
+      experimental_checks: { state: "pending" },
+    }), null)).toEqual({
+      lifecycle: "auto", mark: "waiting",
+      label: "Auto-merge on · approved · waiting on CI",
+    });
+  });
+
+  it("reports public merge conflicts before an attention fallback", () => {
+    expect(pullRequestSignal(pr({
+      attention: "none",
+      experimental_mergeability: { state: "conflicts" },
+    }), null)).toEqual({ lifecycle: "open", mark: "failing", label: "Merge conflicts" });
+  });
+
   it("keeps finished and draft pull requests free of a status mark", () => {
     expect(pullRequestSignal(pr({ state: "merged", attention: "merged" }), null))
       .toEqual({ lifecycle: "merged", mark: null, label: null });

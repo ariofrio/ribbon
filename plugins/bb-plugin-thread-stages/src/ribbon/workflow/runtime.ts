@@ -163,7 +163,8 @@ export function createWorkflowRuntime(
           return {
             threadId: placement.threadId,
             previousStage,
-            previousSortKey: previousStage === "Active" ? "preserve" : null,
+            previousSortKey: previousStage === "Active" || isBlockedStage(previousStage ?? undefined)
+              ? "preserve" : null,
             updatedAt: placement.enteredAtMs ?? 0,
           };
         })
@@ -185,7 +186,7 @@ export function createWorkflowRuntime(
           groupId: "Active",
           threadId: chord.threadId,
           anchor:
-            chord.sortKey !== null ? { kind: "preserve" } : { kind: "end" },
+            chord.sortKey !== null ? { kind: "preserve" } : { kind: "start" },
           expectedRevision: placementState.revision,
           origin: "ui",
         });
@@ -253,8 +254,9 @@ export function createWorkflowRuntime(
           );
       if (
         scope !== "stage" &&
-        assignments.find((item) => item.threadId === threadId)
-          ?.workflowStage === "Completed"
+        ["Deferred", "Completed"].includes(
+          assignments.find((item) => item.threadId === threadId)?.workflowStage ?? "Active",
+        )
       ) {
         assignments.sort((left, right) =>
           (placementState.stageRanks.get(left.threadId) ?? Infinity) -
@@ -281,7 +283,7 @@ export function createWorkflowRuntime(
         return { assignments };
       }
       const stagePlacement =
-        move.kind === "stage" || move.workflowStage === "Completed";
+        move.kind === "stage" || ["Deferred", "Completed"].includes(move.workflowStage);
       await updatePlacement({
         groupingKey:
           stagePlacement ? THREAD_STAGES_GROUPING_KEY : groupingKey,

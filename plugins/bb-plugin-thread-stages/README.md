@@ -9,7 +9,7 @@ project icons.
 </picture>
 
 Install it and select **Thread stages** under **Settings → Appearance →
-Sidebar** (bb 0.44.0 or newer):
+Sidebar** (bb 0.45.0 or newer):
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon
@@ -19,7 +19,7 @@ bb plugin install thread-stages@ribbon
 ## Where it comes from
 
 This plugin is a fork of bb's own sidebar thread list, the built-in
-[`plugins/thread-list`](https://github.com/get-bb/bb/tree/desktop-v0.44.0/plugins/thread-list),
+[`plugins/thread-list`](https://github.com/get-bb/bb/tree/desktop-v0.45.0/plugins/thread-list),
 so it keeps everything bb's list does — pinned threads, custom sections,
 projects, machines, nested threads, drag to reorder, inline rename, search,
 the Organize, Sort, and Filter menus, and bb's own status glyphs — and adds
@@ -67,10 +67,13 @@ matching result.
 Drag a root to reorder it within its list, onto its section's heading to put
 it first, or onto another section to move it there. Drag a child to reorder
 it among its siblings; it stays under its parent and keeps its stage.
-Newly Completed roots enter at the top through the UI or CLI, and can then be
-reordered by dragging, shortcuts, or CLI placement. Group rank survives stage
-changes, so returning a deferred or completed root to the main list restores
-its place. bb owns section membership, pins, and lifecycle; project
+Active and both Blocked stages share the main list; changing between those
+stages keeps a root's position. Deferred and Completed keep their own orders.
+Moving a root into another list defaults to the top through the UI or CLI,
+and it can then be reordered by dragging, shortcuts, or CLI placement.
+Returning a deferred or completed root to Active restores its main-list
+position, and undo restores the position before a stage move.
+bb owns section membership, pins, and lifecycle; project
 membership is bb's under project grouping too.
 
 Each child has its own stage while remaining nested under its parent, and

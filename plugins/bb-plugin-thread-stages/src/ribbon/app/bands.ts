@@ -31,14 +31,14 @@ export function bandOf(stage: WorkflowStage | undefined): StageBand {
 }
 
 /**
- * Partitions sorted roots into the main list (Active and both Blocked stages),
- * Deferred, and Completed. Custom sorting supplies Completed's saved stage
- * rank; automatic sorting keeps the input order in every band.
+ * Partitions roots into the main list (Active and both Blocked stages),
+ * Deferred, and Completed. Custom sorting supplies the previews' saved
+ * stage ranks; automatic sorting keeps the input order in every band.
  */
 export function stageBands(
   items: readonly ProjectThreadItem[],
   stageOf: (threadId: string) => WorkflowStage | undefined,
-  completedRank?: (threadId: string) => number,
+  stageRank?: (threadId: string) => number,
 ): StageBands {
   const bands: StageBands = { main: [], deferred: [], completed: [] };
   for (const item of items) {
@@ -49,10 +49,14 @@ export function stageBands(
     }
     bands[bandOf(stageOf(thread.id))].push(item);
   }
-  if (completedRank) bands.completed.sort((left, right) => {
-    const leftRank = completedRank(itemThread(left)?.id ?? "");
-    const rightRank = completedRank(itemThread(right)?.id ?? "");
-    return leftRank - rightRank;
-  });
+  if (stageRank) {
+    for (const band of [bands.deferred, bands.completed]) {
+      band.sort((left, right) => {
+        const leftRank = stageRank(itemThread(left)?.id ?? "");
+        const rightRank = stageRank(itemThread(right)?.id ?? "");
+        return leftRank - rightRank;
+      });
+    }
+  }
   return bands;
 }

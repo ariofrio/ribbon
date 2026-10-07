@@ -691,10 +691,20 @@ export default async function ribbonServer(
       before.ok &&
       before.value.placement.groupId !== input.groupId;
     if (!movingSection) {
-      const result = store.updatePlacement({ ...input, groupingKey });
+      const restoringMainPosition =
+        groupingKey === THREAD_STAGES_GROUPING_KEY &&
+        input.groupId === "Active" && before.ok &&
+        ["Deferred", "Completed"].includes(before.value.placement.groupId) &&
+        input.anchor === undefined;
+      const result = store.updatePlacement({
+        ...input, groupingKey,
+        ...(restoringMainPosition ? { anchor: { kind: "preserve" as const } } : {}),
+      });
       if (result.ok) {
         bb.realtime.publish("placements-changed", {
-          groupingKeys: [input.groupingKey],
+          groupingKeys: groupingKey === THREAD_STAGES_GROUPING_KEY
+            ? [input.groupingKey, "builtin:sections", "builtin:projects"]
+            : [input.groupingKey],
         });
         if (
           announceStageChange &&
@@ -947,7 +957,7 @@ export default async function ribbonServer(
       await refreshCatalogsAndRoots();
       return sidebarSnapshot();
     },
-    updatePlacementV1: updatePlacement,
+    updatePlacementV1: (input) => updatePlacement(input),
     async updateSettingsV1(values) {
       await bb.sdk.plugins.updateSettings({
         pluginId: bb.pluginId,

@@ -52,7 +52,7 @@ function TitleModelSettings() {
           <p className="mt-0.5 text-xs leading-snug text-subtle-foreground/75">
             {state.selection
               ? "Every thread uses this model on its own machine. A thread whose machine lacks it keeps its title."
-              : `Automatic: the newest Luna model on Codex, as bb's own titles use${state.automaticName ? `, currently ${state.automaticName}` : ""}.`}
+              : `Automatic: the newest Luna model on Codex${state.automaticName ? `, currently ${state.automaticName}` : ""}.`}
           </p>
           {error && (
             <p className="mt-1 text-xs leading-snug text-destructive">{error}</p>

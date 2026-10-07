@@ -14,23 +14,24 @@ const item = (id: string): ProjectThreadItem => ({
 });
 
 describe("stage bands", () => {
-  it("keeps the main list in retained order and Completed in its saved order", () => {
+  it("keeps the main list in retained order and Deferred and Completed in their saved orders", () => {
     const stages = new Map([
       ["a", "Active"],
       ["b", "Completed"],
       ["c", "BlockedOnThirdParty"],
       ["d", "Deferred"],
       ["e", "Completed"],
+      ["f", "Deferred"],
     ] as const);
-    const completedRank = new Map([["e", 0], ["b", 1]]);
+    const stageRank = new Map([["e", 0], ["b", 1], ["f", 2], ["d", 3]]);
     const bands = stageBands(
-      ["a", "b", "c", "d", "e"].map(item),
+      ["a", "b", "c", "d", "e", "f"].map(item),
       (id) => stages.get(id as never),
-      (id) => completedRank.get(id) ?? Infinity,
+      (id) => stageRank.get(id) ?? Infinity,
     );
     const ids = (items: ProjectThreadItem[]) => items.map((each) => itemThread(each)?.id);
     expect(ids(bands.main)).toEqual(["a", "c"]);
-    expect(ids(bands.deferred)).toEqual(["d"]);
+    expect(ids(bands.deferred)).toEqual(["f", "d"]);
     expect(ids(bands.completed)).toEqual(["e", "b"]);
   });
 
