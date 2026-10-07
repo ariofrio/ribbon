@@ -24,6 +24,11 @@ resolve it to a root for section, project, or root-order operations. Use
 
 ## Stages
 
+**Automatic stage updates** (`automaticStageUpdates`) is on by default.
+Turning it off tells agents to change stages only when the user explicitly
+requests a change. Setting changes apply when bb next constructs the agent's
+provider session.
+
 A stage says whose move a thread is waiting on:
 
 | Stage | ID | Whose move |
@@ -60,7 +65,7 @@ operations, messages, and notifications unless the user explicitly includes
 them or intends to resume them. Do not archive a thread merely to mark it
 Completed; Completed threads archive on their own after seven days.
 
-Stages change only when someone sets them; running work never changes a
+Stages change only when someone sets them; thread activity alone never changes a
 stage. A working thread keeps its stage, and the list shows the work by
 turning the stage icon's ring on that row. A collapsed root's ring also turns
 for work in its hidden descendants. A pending question or approval stops the
