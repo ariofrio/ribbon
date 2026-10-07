@@ -200,8 +200,8 @@ one is installed; they draw nothing bb's list does not.
 
 ## CLI
 
-The Ribbon sidebar's `bb sidebar` CLI is now `bb thread-stages`, with the same
-commands and the same stored stage key `plugin:thread-stages:stages`:
+The CLI inspects BB's sections and projects and the plugin's workflow stages.
+The stored stage key remains `plugin:thread-stages:stages`:
 
 ```sh
 bb thread-stages groupings

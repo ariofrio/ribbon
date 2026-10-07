@@ -6,7 +6,7 @@ const THREAD_STAGES_GROUPING_KEY = "plugin:thread-stages:stages";
 export type GroupingKey =
   | "builtin:projects"
   | "builtin:sections"
-  | `plugin:${string}:${string}`;
+  | "plugin:thread-stages:stages";
 export type PlacementOriginV1 = "ui" | "cli" | "auto";
 export type PlacementAnchorV1 =
   | { kind: "before" | "after"; threadId: string }
@@ -227,10 +227,6 @@ export interface PlacementStore {
     groupingKey: GroupingKey,
     groupId: string,
   ): { deleted: number; revision: number };
-  rekeyGrouping(
-    from: `plugin:${string}:${string}`,
-    to: `plugin:${string}:${string}`,
-  ): { assignments: number; orders: number; revision: number };
   getPlacement(input: {
     groupingKey: GroupingKey;
     threadId: string;
@@ -429,41 +425,8 @@ export function createPlacementStore(
       previous_group_id = excluded.previous_group_id,
       origin = excluded.origin
   `);
-  const deleteGroupingAssignments = database.prepare(`
-    DELETE FROM group_assignment WHERE grouping_key = ?
-  `);
-  const deleteGroupingOrders = database.prepare(`
-    DELETE FROM group_order WHERE grouping_key = ?
-  `);
   const deleteGroupOrders = database.prepare(`
     DELETE FROM group_order WHERE grouping_key = ? AND group_id = ?
-  `);
-  const countGroupingRows = database.prepare(`
-    SELECT
-      (SELECT COUNT(*) FROM group_assignment WHERE grouping_key = ?) AS assignments,
-      (SELECT COUNT(*) FROM group_order WHERE grouping_key = ?) AS orders
-  `);
-  const countNonDefaultAssignments = database.prepare(`
-    SELECT COUNT(*) AS count
-    FROM group_assignment
-    WHERE grouping_key = ?
-      AND (
-        group_id <> ?
-        OR previous_group_id IS NOT NULL
-        OR origin <> 'auto'
-      )
-  `);
-  const rekeyAssignments = database.prepare(`
-    UPDATE group_assignment SET grouping_key = ? WHERE grouping_key = ?
-  `);
-  const rekeyOrders = database.prepare(`
-    UPDATE group_order SET grouping_key = ? WHERE grouping_key = ?
-  `);
-  const deleteRevision = database.prepare(`
-    DELETE FROM grouping_revision WHERE grouping_key = ?
-  `);
-  const setRevision = database.prepare(`
-    INSERT INTO grouping_revision(grouping_key, revision) VALUES (?, ?)
   `);
 
   function currentGroupId(
@@ -844,52 +807,6 @@ export function createPlacementStore(
             getRevision.get(groupingKey) as { revision: number }
           ).revision;
           return { deleted, revision };
-        })
-        .immediate();
-    },
-    rekeyGrouping(from, to) {
-      if (from === to) {
-        ensureRevision.run(from);
-        const revision = (getRevision.get(from) as { revision: number })
-          .revision;
-        const counts = countGroupingRows.get(from, from) as {
-          assignments: number;
-          orders: number;
-        };
-        return { ...counts, revision };
-      }
-      const target = options.grouping(to);
-      if (target === null || target.membership.kind !== "ribbon") {
-        throw new Error(
-          `Target grouping is unavailable or externally owned: ${to}`,
-        );
-      }
-      return database
-        .transaction(() => {
-          const targetCounts = countGroupingRows.get(to, to) as {
-            assignments: number;
-            orders: number;
-          };
-          const nonDefaultAssignments = countNonDefaultAssignments.get(
-            to,
-            target.defaultGroupId,
-          ) as { count: number };
-          if (targetCounts.orders > 0 || nonDefaultAssignments.count > 0) {
-            throw new Error(
-              `Target grouping already has placement state: ${to}`,
-            );
-          }
-          deleteGroupingAssignments.run(to);
-          deleteGroupingOrders.run(to);
-          deleteRevision.run(to);
-          ensureRevision.run(from);
-          const revision = (getRevision.get(from) as { revision: number })
-            .revision;
-          const assignments = rekeyAssignments.run(to, from).changes;
-          const orders = rekeyOrders.run(to, from).changes;
-          deleteRevision.run(from);
-          setRevision.run(to, revision);
-          return { assignments, orders, revision };
         })
         .immediate();
     },

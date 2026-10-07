@@ -17,7 +17,7 @@ import {
   moveChild,
   type ChildRank,
 } from "./child-order";
-import { orderedGroupings } from "./grouping-order";
+import { groupingKeySchema } from "./contracts";
 import { THREAD_STAGES_GROUPING_KEY } from "./workflow/catalog";
 import { rootThreadIdByThreadId } from "./workflow/root-thread-ownership";
 
@@ -66,8 +66,6 @@ export interface RibbonSidebarCliInvocation {
   threadId?: string;
 }
 
-const GROUPING_KEY = /^(?:builtin:(?:projects|sections)|plugin:[^:/]+:[^:/]+)$/u;
-const PLUGIN_KEY = /^plugin:[^:/]+:[^:/]+$/u;
 const JSON_OPTION = {
   json: {
     type: "boolean",
@@ -80,19 +78,11 @@ function json(value: unknown) {
 }
 
 function groupingKey(value: string | undefined): GroupingKey {
-  if (value === undefined || !GROUPING_KEY.test(value)) {
+  const parsed = groupingKeySchema.safeParse(value);
+  if (!parsed.success) {
     throw new PluginCliError(`Invalid grouping key: ${value ?? "(missing)"}`);
   }
-  return value as GroupingKey;
-}
-
-function pluginKey(value: string | undefined): `plugin:${string}:${string}` {
-  if (value === undefined || !PLUGIN_KEY.test(value)) {
-    throw new PluginCliError(
-      `Invalid plugin grouping key: ${value ?? "(missing)"}`,
-    );
-  }
-  return value as `plugin:${string}:${string}`;
+  return parsed.data;
 }
 
 function groupRef(value: string | undefined) {
@@ -323,7 +313,7 @@ function rowMatchesScope(
 export function defineRibbonSidebarCli(
   context: RibbonSidebarCliContext,
 ): PluginCliRegistration {
-  const availableGroupings = () => orderedGroupings(context.groupings());
+  const availableGroupings = () => context.groupings();
   return defineCli({
     name: "thread-stages",
     summary: "Inspect and change thread stages, sidebar placement, and layout preferences",
@@ -688,35 +678,6 @@ export function defineRibbonSidebarCli(
               [result.value.placement],
               availableGroupings(),
             )}`,
-            options.json,
-          );
-        },
-      }),
-      rekey: cliCommand({
-        summary: "Rekey provider placement",
-        options: {
-          from: {
-            type: "string",
-            description: "Existing plugin grouping key",
-            placeholder: "plugin-key",
-            required: true,
-          },
-          to: {
-            type: "string",
-            description: "Replacement plugin grouping key",
-            placeholder: "plugin-key",
-            required: true,
-          },
-          ...JSON_OPTION,
-        },
-        run({ options }) {
-          const from = pluginKey(options.from);
-          const to = pluginKey(options.to);
-          const result = context.store.rekeyGrouping(from, to);
-          const value = { from, to, ...result };
-          return success(
-            value,
-            `Rekeyed ${result.assignments} assignments and ${result.orders} order rows.\n`,
             options.json,
           );
         },

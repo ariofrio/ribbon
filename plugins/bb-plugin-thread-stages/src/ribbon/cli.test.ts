@@ -20,10 +20,6 @@ const stages: GroupingDescriptor = {
   ],
   membership: { kind: "ribbon" },
 };
-const renamed: GroupingDescriptor = {
-  ...stages,
-  groupingKey: "plugin:thread-stages:workflow",
-};
 const projects: GroupingDescriptor = {
   groupingKey: "builtin:projects",
   singularLabel: "Project",
@@ -108,10 +104,10 @@ function setup() {
   for (const migration of RIBBON_SIDEBAR_MIGRATIONS) database.exec(migration);
   const store = createPlacementStore(database, {
     grouping: (key) =>
-      [sections, projects, stages, renamed].find(
+      [sections, projects, stages].find(
         ({ groupingKey }) => groupingKey === key,
       ) ?? null,
-    groupings: () => [sections, projects, stages, renamed],
+    groupings: () => [sections, projects, stages],
     now: () => 100,
   });
   store.reconcileRoots(["thread-a", "thread-b"], ["child-old", "child-new"]);
@@ -190,7 +186,7 @@ describe("Ribbon sidebar CLI", () => {
     expect(topLevel.stdout).toContain(
       "Inspect and change thread stages, sidebar placement, and layout preferences",
     );
-    expect(topLevel.stdout).toContain("bb thread-stages rekey");
+    expect(topLevel.stdout).not.toContain("bb thread-stages rekey");
 
     const placeHelp = await runRibbonSidebarCli(fixture.context, [
       "help",
@@ -255,35 +251,14 @@ describe("Ribbon sidebar CLI", () => {
     ]);
   });
 
-  it("orders Sections, Projects, then plugin labels alphabetically", async () => {
+  it("lists the fixed Sections, Projects, and Stages catalog", async () => {
     const fixture = setup();
     databases.push(fixture.database);
-    const descriptor = (
-      groupingKey: GroupingDescriptor["groupingKey"],
-      pluralLabel: string,
-    ): GroupingDescriptor => ({
-      ...stages,
-      groupingKey,
-      pluralLabel,
-    });
-    const result = await runRibbonSidebarCli(
-      {
-        ...fixture.context,
-        groupings: () => [
-          descriptor("plugin:zulu:queues", "Queues"),
-          descriptor("builtin:projects", "Projects"),
-          descriptor("plugin:alpha:alerts", "Alerts"),
-          descriptor("builtin:sections", "Sections"),
-        ],
-      },
-      ["groupings", "--json"],
-    );
-
-    expect(JSON.parse(result.stdout ?? "").map(({ groupingKey }: { groupingKey: string }) => groupingKey)).toEqual([
-      "builtin:sections",
-      "builtin:projects",
-      "plugin:alpha:alerts",
-      "plugin:zulu:queues",
+    const result = await runRibbonSidebarCli(fixture.context, ["groupings", "--json"]);
+    expect(JSON.parse(result.stdout ?? "")).toEqual([
+      { groupingKey: "builtin:sections", label: "Sections" },
+      { groupingKey: "builtin:projects", label: "Projects" },
+      { groupingKey: "plugin:thread-stages:stages", label: "Stages" },
     ]);
   });
 
@@ -708,7 +683,7 @@ describe("Ribbon sidebar CLI", () => {
   });
 
 
-  it("rekeys with strict syntax", async () => {
+  it("rejects provider rekeying now that the stage grouping is fixed", async () => {
     const fixture = setup();
     databases.push(fixture.database);
     const rekeyed = await runRibbonSidebarCli(fixture.context, [
@@ -716,16 +691,10 @@ describe("Ribbon sidebar CLI", () => {
       "--from",
       stages.groupingKey,
       "--to",
-      renamed.groupingKey,
+      "plugin:thread-stages:workflow",
       "--json",
     ]);
-    expect(JSON.parse(rekeyed.stdout ?? "")).toEqual({
-      from: stages.groupingKey,
-      to: renamed.groupingKey,
-      assignments: 4,
-      orders: 0,
-      revision: 1,
-    });
+    expect(rekeyed.exitCode).toBe(2);
   });
 
   it("returns failure for invalid values and usage errors for malformed invocations", async () => {

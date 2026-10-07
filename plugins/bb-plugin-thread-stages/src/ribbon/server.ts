@@ -20,7 +20,6 @@ import {
   updatePlacementOutputSchema,
 } from "./contracts";
 import { registerThreadGroupInheritance } from "./group-inheritance";
-import { orderedGroupings } from "./grouping-order";
 import { importIcons, importRibbonSidebar } from "./import-legacy-plugins";
 import { reclaimLegacyDatabase } from "./legacy-database";
 import { DEFAULT_LONG_TITLES, LONG_TITLE_OPTIONS } from "./long-titles";
@@ -535,7 +534,7 @@ export default async function ribbonServer(
     return groupingKey === THREAD_STAGES_GROUPING_KEY ? stageGrouping() : null;
   };
   const groupings = (): GroupingDescriptor[] =>
-    orderedGroupings([projectGrouping(), sectionGrouping(), stageGrouping()]);
+    [sectionGrouping(), projectGrouping(), stageGrouping()];
   const store = createPlacementStore(database, { grouping, groupings });
   const stageChangeMessages = createStageChangeMessages(bb, {
     enabled: async () => (await settings.get()).messageOnStageChange !== false,
@@ -1014,7 +1013,7 @@ export default async function ribbonServer(
       const result = await cli.run(argv, context);
       if (
         result.exitCode === 0 &&
-        ["place", "rekey"].includes(argv[0] ?? "")
+        argv[0] === "place"
       ) {
         bb.realtime.publish("placements-changed", {
           groupingKeys: groupings().map(({ groupingKey }) => groupingKey),
@@ -1041,7 +1040,6 @@ export default async function ribbonServer(
   registerThreadGroupInheritance(bb, {
     eligibleRoot: threadEligibility,
     reconcileRoot,
-    groupings,
     getPlacement: store.getPlacement,
     updatePlacement,
   });

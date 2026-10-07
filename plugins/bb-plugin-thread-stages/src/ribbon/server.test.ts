@@ -855,7 +855,7 @@ describe("Ribbon sidebar server", () => {
     });
   });
 
-  it("places a new fork in provider groups inherited from its fork source ancestry", async () => {
+  it("inherits a new fork's workflow stage from its fork source ancestry", async () => {
     const threads = [
       makeThreadResponse({
         id: "thr_parent",
@@ -1410,7 +1410,6 @@ describe("Ribbon sidebar server", () => {
       commands: expect.arrayContaining([
         expect.objectContaining({ name: "groupings" }),
         expect.objectContaining({ name: "place" }),
-        expect.objectContaining({ name: "rekey" }),
       ]),
     });
     await expect(
