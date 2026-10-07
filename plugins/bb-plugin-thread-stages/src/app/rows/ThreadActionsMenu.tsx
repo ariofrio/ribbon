@@ -271,7 +271,7 @@ function ThreadActionsMenuItems({
           Back
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel>Edit actions</DropdownMenuLabel>
+        <DropdownMenuLabel>Edit thread actions</DropdownMenuLabel>
         <ThreadActionsEditor threadId={thread.id} onTabBoundary={() => editorBack.current?.focus()} />
       </>
     );

@@ -33,8 +33,8 @@ export async function verifyThreadActions({ stack, fixture }) {
     const target = row(list, thread.id);
     await target.hover();
     await target.getByRole("button", { name: "Thread actions" }).click();
-    await page.getByRole("menuitem", { name: "Edit actions" }).hover();
-    const editor = page.getByRole("menu", { name: "Edit actions", exact: true });
+    await page.getByRole("menuitem", { name: "Edit thread actions" }).hover();
+    const editor = page.getByRole("menu", { name: "Edit thread actions", exact: true });
     await editor.waitFor();
     assert.equal(await page.getByRole("dialog", { name: "Edit thread actions" }).count(), 0);
     assert.equal(await editor.getByRole("checkbox").count(), 0);
@@ -301,7 +301,7 @@ export async function verifyThreadActions({ stack, fixture }) {
       };
     });
     assert.ok(singleLayout.clipWidth >= singleLayout.labelWidth - 0.5, `A single action keeps its full label by shrinking the title first: ${JSON.stringify(singleLayout)}`);
-    assert.ok(singleLayout.indicatorGap >= 28, `Actions leave the indicator lane clear even when no indicator is present: ${JSON.stringify(singleLayout)}`);
+    assert.equal(singleLayout.indicatorGap, 8, `Without an indicator, saved actions use the trailing edge: ${JSON.stringify(singleLayout)}`);
   } finally {
     try {
       await cleanup?.();

@@ -119,11 +119,10 @@ const RIBBON_CHEVRON_HIT_AREA_CLASS =
 // past where it will appear; hovering the row opens it up, reach and all.
 const RIBBON_CHEVRON_REVEAL_CLASS =
   "overflow-hidden pointer-fine:h-5 pointer-fine:w-0 pointer-fine:-ml-1.5 pointer-fine:mr-0 pointer-fine:after:hidden pointer-fine:group-hover/thread-row:w-5 pointer-fine:group-hover/thread-row:ml-0 pointer-fine:group-hover/thread-row:-mr-1 pointer-fine:group-hover/thread-row:after:block pointer-fine:group-has-[:focus-visible]/thread-row:w-5 pointer-fine:group-has-[:focus-visible]/thread-row:ml-0 pointer-fine:group-has-[:focus-visible]/thread-row:-mr-1 pointer-fine:group-has-[:focus-visible]/thread-row:after:block";
-// Ribbon's title runs to the row's edge; the trailing lane is reserved only
-// while something stands in it at rest, or while hover fills it with actions.
-const RIBBON_LANE_RESERVED_CLASS = "pr-(--bb-sidebar-hover-actions-inset)";
-const RIBBON_LANE_ON_HOVER_CLASS =
-  "pr-2 group-hover/thread-row:pr-(--bb-sidebar-hover-actions-inset) group-has-[:focus-visible]/thread-row:pr-(--bb-sidebar-hover-actions-inset) group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-(--bb-sidebar-hover-actions-inset)";
+// Hover controls open their own lane before prompts and PR information, so
+// only the title yields space while those persistent items stay in place.
+const RIBBON_ROW_CONTROLS_LANE_CLASS =
+  "relative w-0 shrink-0 self-stretch group-hover/thread-row:w-(--ribbon-row-controls-width) group-has-[:focus-visible]/thread-row:w-(--ribbon-row-controls-width) group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:w-(--ribbon-row-controls-width) max-md:pointer-coarse:hidden";
 import {
   ThreadActionsContextMenu,
   ThreadActionsMenu,
@@ -219,11 +218,15 @@ export const REORDER_PLACEMENT_CLASS: Record<SidebarReorderPlacement, string> =
       "after:pointer-events-none after:absolute after:inset-x-1 after:-bottom-px after:h-0.5 after:rounded-full after:bg-sidebar-ring after:content-['']",
   };
 
-function getHoverActionsInsetStyle(actionCount: number, ribbon: boolean): CSSProperties {
+function getHoverActionsInsetStyle(
+  actionCount: number,
+  ribbon: boolean,
+): CSSProperties {
+  const variable = ribbon
+    ? "--ribbon-row-controls-width"
+    : "--bb-sidebar-hover-actions-inset";
   return {
-    "--bb-sidebar-hover-actions-inset": ribbon
-      ? `calc(var(--spacing) * (9 + 7.5 * var(--ribbon-quick-action-count, ${actionCount})))`
-      : `calc(var(--spacing) * ${7.5 * actionCount})`,
+    [variable]: `calc(var(--spacing) * ${ribbon ? 7 + 7.5 * actionCount : 7.5 * actionCount})`,
   } as CSSProperties;
 }
 
@@ -485,10 +488,6 @@ function ThreadRowComponent({
     pluginThreadRowStatus,
   );
   const ribbon = useRibbonRow(thread, trailingIndicatorState, pluginThreadRowStatus);
-  // A pull request number on the right keeps its place under the pointer,
-  // so the lane the hover actions take is held open for it at rest.
-  const reserveRowActionSpace =
-    reserveActionSpace || ribbon?.pullRequest?.position === "right";
   const ribbonSettings = useRibbonRowSettings();
   const organizationMode = useAtomValue(sidebarOrganizationModeAtom);
   const ribbonActionColor = useOwnerColor(
@@ -505,18 +504,14 @@ function ThreadRowComponent({
   // Ribbon's long titles fade at the edge, and pan on hover, in place of
   // bb's ellipsis.
   const ribbonMarquee = ribbon !== null && ribbonSettings.longTitles !== "Ellipsis";
-  // What stands in the lane at rest: an indicator, a right-hand PR number
-  // that would otherwise jump left on hover, a toggle for hidden children,
-  // or the row's own controls.
+  // What stands in the indicator slot at rest. Prompt buttons and PR numbers
+  // participate in the title's flex row and need no separate reservation.
   const ribbonLaneAtRest =
     ribbon !== null &&
     (miniMap !== null ||
       ribbon.status.indicator !== "none" ||
       ribbon.status.pluginStatus !== null ||
       ribbon.status.pullRequestMark !== null ||
-      ribbon.pullRequest?.position === "right" ||
-      hasHiddenChildren ||
-      ribbon.actions.length > 0 ||
       thread.archivedAt !== null ||
       Boolean(shortcut));
   const shineRowRef = useRef<HTMLDivElement | null>(null);
@@ -625,6 +620,36 @@ function ThreadRowComponent({
         />
       )
     ) : null;
+  const rowControls = (
+    <SidebarRowControls
+      // Completed is the default way a thread leaves Ribbon's list;
+      // additional hover actions are chosen by the user.
+      primaryAction={
+        <ThreadRowQuickActions
+          actionIds={thread.archivedAt === null ? rowActionIds : []}
+          actions={actions}
+          thread={thread}
+          className={
+            ribbon ? RIBBON_ROW_BUTTON_CLASS : SIDEBAR_CONTROL_BUTTON_CLASS
+          }
+          onOpenInSplit={openInSplit}
+          onRename={startEditing}
+          onMenuOpenChange={setIsDropdownActionsOpen}
+        />
+      }
+    >
+      <ThreadActionsMenu
+        thread={thread}
+        triggerClassName={
+          ribbon ? RIBBON_ROW_BUTTON_CLASS : SIDEBAR_CONTROL_BUTTON_CLASS
+        }
+        onOpenInSplit={splitAvailable ? openInSplit : undefined}
+        onOpenChange={setIsDropdownActionsOpen}
+        onRename={rename.startEditingFromMenu}
+        onCloseAutoFocus={rename.onCloseAutoFocus}
+      />
+    </SidebarRowControls>
+  );
   const rowContent = (
     <>
       {ribbonRails}
@@ -648,11 +673,10 @@ function ThreadRowComponent({
               : SIDEBAR_HOVER_ACTIONS_INSET_CLASS),
           ribbon !== null &&
             !isEditing &&
-            (ribbonLaneAtRest ? RIBBON_LANE_RESERVED_CLASS : RIBBON_LANE_ON_HOVER_CLASS),
-          ribbon !== null && "max-md:pointer-coarse:[--ribbon-quick-action-count:0]",
+            (ribbonLaneAtRest ? "pr-9" : "pr-2"),
         )}
         style={getHoverActionsInsetStyle(
-          thread.archivedAt !== null ? 1 : rowActionIds.length,
+          thread.archivedAt !== null ? (ribbon ? 0 : 1) : rowActionIds.length,
           ribbon !== null,
         )}
       >
@@ -796,6 +820,19 @@ function ThreadRowComponent({
                   <ThreadTitle threadId={thread.id} />
                 )}
               </span>
+              {ribbon && !shortcut ? (
+                <span className={RIBBON_ROW_CONTROLS_LANE_CLASS}>
+                  <div
+                    data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
+                    className={cn(
+                      SIDEBAR_HOVER_ACTIONS_CLASS,
+                      "absolute inset-y-0 right-0 z-10 flex items-center",
+                    )}
+                  >
+                    {rowControls}
+                  </div>
+                </span>
+              ) : null}
               {ribbon && ribbon.actions.length > 0 ? (
                 <RibbonActionButtons
                   actions={ribbon.actions}
@@ -864,24 +901,26 @@ function ThreadRowComponent({
       >
         {thread.archivedAt !== null ? (
           <span className="relative flex items-center max-md:pointer-coarse:hidden">
-            <div
-              data-sidebar-hover-actions-open={
-                isActionsOpen ? "true" : undefined
-              }
-              className={cn(
-                SIDEBAR_HOVER_ACTIONS_CLASS,
-                "absolute right-full z-10 max-md:pointer-coarse:hidden",
-              )}
-            >
-              <ThreadActionsMenu
-                thread={thread}
-                triggerClassName={SIDEBAR_CONTROL_BUTTON_CLASS}
-                onOpenInSplit={splitAvailable ? openInSplit : undefined}
-                onOpenChange={setIsDropdownActionsOpen}
-                onRename={rename.startEditingFromMenu}
-                onCloseAutoFocus={rename.onCloseAutoFocus}
-              />
-            </div>
+            {ribbon === null ? (
+              <div
+                data-sidebar-hover-actions-open={
+                  isActionsOpen ? "true" : undefined
+                }
+                className={cn(
+                  SIDEBAR_HOVER_ACTIONS_CLASS,
+                  "absolute right-full z-10 max-md:pointer-coarse:hidden",
+                )}
+              >
+                <ThreadActionsMenu
+                  thread={thread}
+                  triggerClassName={SIDEBAR_CONTROL_BUTTON_CLASS}
+                  onOpenInSplit={splitAvailable ? openInSplit : undefined}
+                  onOpenChange={setIsDropdownActionsOpen}
+                  onRename={rename.startEditingFromMenu}
+                  onCloseAutoFocus={rename.onCloseAutoFocus}
+                />
+              </div>
+            ) : null}
             <ThreadRestoreStatusAction thread={thread} />
           </span>
         ) : shortcut ? (
@@ -904,7 +943,7 @@ function ThreadRowComponent({
                   isActionsOpen ? "true" : undefined
                 }
                 className={cn(
-                  SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
+                  ribbon === null && SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
                   "absolute inset-0 flex items-center justify-center",
                 )}
               >
@@ -940,43 +979,20 @@ function ThreadRowComponent({
                   />
                 )}
               </span>
-              <div
-                data-sidebar-hover-actions-open={
-                  isActionsOpen ? "true" : undefined
-                }
-                className={cn(
-                  SIDEBAR_HOVER_ACTIONS_CLASS,
-                  "absolute inset-y-0 right-0 z-10 flex items-center justify-end max-md:pointer-coarse:hidden",
-                  isEditing && "invisible pointer-events-none",
-                )}
-              >
-                <SidebarRowControls
-                  // Completed is the default way a thread leaves Ribbon's list;
-                  // additional hover actions are chosen by the user.
-                  primaryAction={
-                    <ThreadRowQuickActions
-                      actionIds={rowActionIds}
-                      actions={actions}
-                      thread={thread}
-                      className={SIDEBAR_CONTROL_BUTTON_CLASS}
-                      onOpenInSplit={openInSplit}
-                      onRename={startEditing}
-                      onMenuOpenChange={setIsDropdownActionsOpen}
-                    />
+              {ribbon === null ? (
+                <div
+                  data-sidebar-hover-actions-open={
+                    isActionsOpen ? "true" : undefined
                   }
+                  className={cn(
+                    SIDEBAR_HOVER_ACTIONS_CLASS,
+                    "absolute inset-y-0 right-0 z-10 flex items-center justify-end max-md:pointer-coarse:hidden",
+                    isEditing && "invisible pointer-events-none",
+                  )}
                 >
-                  <ThreadActionsMenu
-                    thread={thread}
-                    triggerClassName={
-                      ribbon ? RIBBON_ROW_BUTTON_CLASS : SIDEBAR_CONTROL_BUTTON_CLASS
-                    }
-                    onOpenInSplit={splitAvailable ? openInSplit : undefined}
-                    onOpenChange={setIsDropdownActionsOpen}
-                    onRename={rename.startEditingFromMenu}
-                    onCloseAutoFocus={rename.onCloseAutoFocus}
-                  />
-                </SidebarRowControls>
-              </div>
+                  {rowControls}
+                </div>
+              ) : null}
             </span>
           </span>
         )}

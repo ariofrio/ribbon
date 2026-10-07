@@ -1,0 +1,170 @@
+import assert from "node:assert/strict";
+import { FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
+import { launch, openContext, row, sidebar } from "./sidebar.mjs";
+import { pullRequest } from "./pr-status.mjs";
+
+export async function verifyThreadRowLayout({ stack, fixture, cases }) {
+  const thread = fixture.threads.get(FEATURED_THREAD);
+  const project = fixture.projects.get(FEATURED_PROJECT);
+  const previous = fixture.runJson(["thread-stages", "prefs", "get", "rowActions"]);
+  fixture.run(["thread-stages", "prefs", "set", "rowActions", '["pin","copyLink","archive"]']);
+  fixture.run(["thread", "read", thread.id]);
+  const browser = await launch();
+  try {
+    for (const testCase of cases) {
+      const compact = testCase === "compact";
+      const colorScheme = testCase === "desktop" ? "dark" : "light";
+      const context = await openContext(browser, {
+        viewport: compact ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+        colorScheme, hasTouch: compact,
+      });
+      await context.addInitScript((mode) => localStorage.setItem("bb.theme", mode), colorScheme);
+      const page = await context.newPage();
+      const rpc = (method) => new URL(`/api/v1/plugins/thread-stages/rpc/${method}`, stack.serverUrl).href;
+      let showPr = false;
+      const pr = pullRequest("merged");
+      pr.pullRequest.state = "merged";
+      await page.route("**/api/v1/environments/*/pull-request*", (route) => route.fulfill({
+        json: showPr ? pr : { outcome: "absent" },
+      }));
+      const save = async (actions) => {
+        const response = await page.request.post(rpc("saveThreadActionsV1"), { data: { threadId: thread.id, actions } });
+        assert.equal(response.status(), 200);
+      };
+      try {
+        await save([{ id: "review", label: "Review", prompt: "Review this thread." }]);
+        await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
+        if (compact) await page.getByTestId("app-sidebar-trigger-overlay").getByRole("button").tap();
+        const list = sidebar(page);
+        await list.waitFor({ timeout: 120_000 });
+        const target = row(list, thread.id);
+        const action = target.getByRole("button", { name: `Review in ${thread.title}` });
+        await action.waitFor();
+        await page.mouse.move(1000, 700);
+        const metrics = () => target.evaluate((node) => {
+          const box = (element) => {
+            if (!element) return null;
+            const rect = element.getBoundingClientRect();
+            return { left: rect.left, right: rect.right, top: rect.top, width: rect.width, height: rect.height };
+          };
+          const controls = node.querySelector("[data-sidebar-row-controls]");
+          return {
+            row: box(node), title: box(node.querySelector(".bb-thread-title")),
+            prompt: box(node.querySelector("[data-ribbon-thread-actions]")),
+            controls: box(controls),
+            buttons: [...controls.querySelectorAll("button")].map((button) => ({
+              ...box(button), label: button.getAttribute("aria-label"),
+              radius: getComputedStyle(button).borderRadius,
+              fill: getComputedStyle(button).backgroundColor,
+            })),
+            pr: node.querySelector("[data-ribbon-pull-request]") ? box(node.querySelector("[data-ribbon-pull-request]")) : null,
+            indicator: node.querySelector("[data-sidebar-thread-trailing-indicator]") !== null,
+          };
+        });
+        const rest = await metrics();
+        assert.equal(rest.indicator, false);
+        assert.ok(Math.abs(rest.row.right - rest.prompt.right - 8) < 1,
+          "Saved prompts use the trailing edge without reserving hidden row controls");
+        if (compact) assert.equal(rest.controls.width, 0, "Hidden desktop controls take no touch-layout space");
+        if (!compact) {
+          await target.hover();
+          const hover = await metrics();
+          assert.ok(hover.controls.right <= hover.prompt.left,
+            "Global row controls precede the per-thread prompt buttons");
+          assert.ok(hover.title.right <= hover.controls.left + 4,
+            "The title yields space to visible row controls");
+          assert.equal(hover.prompt.right, rest.prompt.right,
+            "Saved prompt buttons keep their position when row controls appear");
+          const menu = hover.buttons.at(-1);
+          assert.ok(hover.buttons.every((button) => button.width === menu.width && button.height === menu.height && button.radius === menu.radius),
+            "Every row control shares the ellipsis button's dimensions and rounding");
+          assert.equal(menu.width, 20);
+          const pin = target.getByRole("button", { name: "Pin", exact: true });
+          await pin.hover();
+          assert.equal(await pin.evaluate((node) => {
+            const box = node.getBoundingClientRect();
+            return document.elementFromPoint(box.left - 3, box.top + box.height / 2)?.closest("button") === node;
+          }), true, "Compact control backgrounds retain the full 28px click target");
+          await pin.evaluate(async (node) => { await Promise.all(node.getAnimations().map((animation) => animation.finished)); });
+          const pinStyle = await pin.evaluate((node) => ({ fill: getComputedStyle(node).backgroundColor, color: getComputedStyle(node).color }));
+          const more = target.getByRole("button", { name: "Thread actions", exact: true });
+          await more.hover();
+          await more.evaluate(async (node) => { await Promise.all(node.getAnimations().map((animation) => animation.finished)); });
+          assert.deepEqual(await more.evaluate((node) => ({ fill: getComputedStyle(node).backgroundColor, color: getComputedStyle(node).color })), pinStyle,
+            "Row controls share the ellipsis hover treatment");
+          const pinBox = await pin.boundingBox();
+          await page.mouse.click(pinBox.x - 3, pinBox.y + pinBox.height / 2);
+          const unpin = target.getByRole("button", { name: "Unpin", exact: true });
+          await unpin.waitFor();
+          await target.hover();
+          await unpin.click();
+          await pin.waitFor();
+          await action.focus();
+          await page.keyboard.press("Shift+Tab");
+          assert.equal(await more.evaluate((node) => document.activeElement === node), true,
+            "Keyboard order follows the row controls then saved prompts");
+          await page.keyboard.press("Enter");
+          await page.getByRole("menuitem", { name: "Edit thread actions", exact: true }).waitFor();
+          await page.getByRole("menuitem", { name: "Customize row actions", exact: true }).waitFor();
+          await page.keyboard.press("Escape");
+          await more.evaluate((node) => node.blur());
+          await page.mouse.move(1000, 700);
+        }
+        showPr = true;
+        await page.reload();
+        if (compact) await page.getByTestId("app-sidebar-trigger-overlay").getByRole("button").tap();
+        await list.waitFor({ timeout: 120_000 });
+        await target.getByText("#12345", { exact: true }).waitFor();
+        const withPr = await metrics();
+        assert.ok(withPr.prompt.right <= withPr.pr.left, "Prompt buttons precede the PR number");
+        if (!compact) {
+          await target.hover();
+          const hoveredPr = await metrics();
+          assert.ok(hoveredPr.controls.right <= hoveredPr.prompt.left, "Row controls stay before both prompts and PR information");
+          assert.equal(hoveredPr.pr.right, withPr.pr.right, "The PR number remains stationary on hover");
+        }
+        const sent = [];
+        await page.route(`**/rpc/runThreadActionV1`, (route) => {
+          sent.push(route.request().postDataJSON());
+          return route.fulfill({ json: { ok: true, result: { ok: true } } });
+        });
+        await Promise.all([
+          page.waitForResponse((candidate) => candidate.url() === rpc("runThreadActionV1")),
+          compact ? action.tap() : action.click(),
+        ]);
+        assert.deepEqual(sent, [{ threadId: thread.id, actionId: "review" }]);
+        showPr = false;
+        await save([]);
+        await page.reload();
+        if (compact) await page.getByTestId("app-sidebar-trigger-overlay").getByRole("button").tap();
+        await list.waitFor({ timeout: 120_000 });
+        await page.mouse.move(1000, 700);
+        const quiet = await metrics();
+        assert.equal(quiet.indicator, false);
+        assert.ok(Math.abs(quiet.row.right - quiet.title.right - 8) < 1,
+          "With no PR, prompt, or indicator, the title reaches the trailing edge");
+        if (!compact) {
+          await target.hover();
+          const hoveredQuiet = await metrics();
+          assert.ok(hoveredQuiet.title.right < quiet.title.right - 100,
+            "Configured row controls take title space only when revealed");
+          await target.getByRole("button", { name: "Thread actions", exact: true }).click();
+          await page.getByRole("menuitem", { name: "Mark unread", exact: true }).click();
+          await target.locator("[data-sidebar-thread-trailing-indicator]").waitFor();
+          await page.mouse.move(1000, 700);
+          const unread = await metrics();
+          assert.ok(Math.abs(unread.row.right - unread.title.right - 36) < 1,
+            "An indicator reserves only its own slot, without reserving row controls");
+          fixture.run(["thread", "read", thread.id]);
+        }
+        console.log(`${testCase}: shared row controls and per-thread prompts compose correctly`);
+      } finally {
+        await save([]);
+        await context.close();
+      }
+    }
+  } finally {
+    await browser.close();
+    fixture.run(["thread-stages", "prefs", "set", "rowActions", JSON.stringify(previous.value)]);
+  }
+}

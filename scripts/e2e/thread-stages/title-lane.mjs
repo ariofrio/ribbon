@@ -51,6 +51,7 @@ export async function verifyTitleLane({ stack, fixture }) {
       const box = chevron?.getBoundingClientRect();
       return {
         padding: parseFloat(getComputedStyle(titleBox).paddingRight),
+        titleInset: row.getBoundingClientRect().right - row.querySelector(".bb-thread-title").getBoundingClientRect().right,
         chevronWidth: box ? box.width : null,
         // What a click where the toggle will appear reaches at this moment.
         chevronReach: box ? document.elementFromPoint(box.right - 2, box.top + box.height / 2)?.closest("button") === chevron : null,
@@ -79,7 +80,7 @@ export async function verifyTitleLane({ stack, fixture }) {
     await settled(plain.id, "The plain row shows no indicator");
     const plainRest = await rest(plain.id);
     assert.equal(plainRest.padding, REST_PX, "A quiet row's title runs to the row's edge");
-    assert.equal((await hovered(plain.id)).padding, LANE_PX, "Hovering opens the lane for the row's actions");
+    assert.equal((await hovered(plain.id)).titleInset, LANE_PX, "Hovering opens the lane for the row's actions");
 
     await settled(parent.id, "The read parent shows no indicator");
     const parentRest = await rest(parent.id);
@@ -87,7 +88,8 @@ export async function verifyTitleLane({ stack, fixture }) {
     assert.equal(parentRest.chevronWidth, 0, "Its toggle takes no room at rest");
     assert.equal(parentRest.chevronReach, false, "Nor does it catch clicks at rest");
     const parentHovered = await hovered(parent.id);
-    assert.equal(parentHovered.padding, LANE_PX);
+    assert.ok(parentHovered.titleInset >= LANE_PX + parentHovered.chevronWidth,
+      "The title leaves room for both its toggle and row controls");
     assert.equal(parentHovered.chevronWidth, 20, "Hovering shows the toggle");
     assert.equal(parentHovered.chevronReach, true, "and it takes clicks");
 

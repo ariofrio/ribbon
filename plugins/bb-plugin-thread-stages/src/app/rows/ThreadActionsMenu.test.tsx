@@ -29,7 +29,7 @@ it("autosaves actions in the compact menu and maintains one trailing empty row o
     },
   });
   fireEvent.click(screen.getByRole("button", { name: "Thread actions" }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Edit actions" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Edit thread actions" }));
   const form = await screen.findByRole("form", { name: "Edit thread actions" });
   expect(screen.getAllByRole("dialog")).toHaveLength(1);
   expect(screen.queryByRole("checkbox")).toBeNull();
@@ -85,7 +85,7 @@ it("keeps fields editable and serializes autosaves and removal while a save is p
     },
   });
   fireEvent.click(screen.getByRole("button", { name: "Thread actions" }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Edit actions" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Edit thread actions" }));
   fireEvent.change(screen.getByRole("textbox", { name: "Action 1 button label" }), { target: { value: "Review" } });
   const prompt = screen.getByRole("textbox", { name: "Action 1 prompt" });
   fireEvent.change(prompt, { target: { value: "First prompt" } });

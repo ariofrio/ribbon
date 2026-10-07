@@ -66,7 +66,7 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
           await target.hover();
           await trigger.click();
         }
-        const edit = page.getByRole("menuitem", { name: "Edit actions", exact: true });
+        const edit = page.getByRole("menuitem", { name: "Edit thread actions", exact: true });
         const menuMetrics = await edit.evaluate((node) => {
           const style = getComputedStyle(node);
           return { fontSize: style.fontSize, radius: style.borderRadius, padding: Number.parseFloat(style.paddingLeft), height: Number.parseFloat(style.height) };
@@ -246,7 +246,7 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
           await page.keyboard.press("Tab");
           await focused(page, page.getByRole("menuitem", { name: "Back" }));
           await page.keyboard.press("Enter");
-          await activate(page.getByRole("menuitem", { name: "Edit actions", exact: true }));
+          await activate(page.getByRole("menuitem", { name: "Edit thread actions", exact: true }));
         } else {
           await page.keyboard.press("Tab");
           await form.waitFor({ state: "hidden" });
@@ -308,7 +308,7 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         assert.equal(saved.threads.find((record) => record.threadId === thread.id).actions.length, 1);
         if (!compact) {
           await target.click({ button: "right" });
-          await page.getByRole("menu", { name: "Thread actions", exact: true }).getByRole("menuitem", { name: "Edit actions" }).hover();
+          await page.getByRole("menu", { name: "Thread actions", exact: true }).getByRole("menuitem", { name: "Edit thread actions" }).hover();
           await label(1).click();
           await page.keyboard.press("ControlOrMeta+a");
           await page.keyboard.type("Check");
