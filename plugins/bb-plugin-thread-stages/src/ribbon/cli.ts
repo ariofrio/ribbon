@@ -10,6 +10,7 @@ import type {
   GroupingDescriptor,
   GroupingKey,
   PlacementStore,
+  OrderGroupingKey,
 } from "./placement-store";
 import {
   liveChildren,
@@ -19,6 +20,11 @@ import {
 } from "./child-order";
 import { groupingKeySchema } from "./contracts";
 import { THREAD_STAGES_GROUPING_KEY } from "./workflow/catalog";
+import {
+  parseWorkflowStage,
+  WORKFLOW_STAGES,
+  WORKFLOW_STAGE_LABELS,
+} from "./workflow/workflow-stage";
 import { rootThreadIdByThreadId } from "./workflow/root-thread-ownership";
 
 interface CliResult {
@@ -34,9 +40,7 @@ export interface RibbonSidebarCliContext {
     includeArchived: boolean;
     includeHidden: boolean;
     includeChildren: boolean;
-  }):
-    | readonly RibbonSidebarThread[]
-    | Promise<readonly RibbonSidebarThread[]>;
+  }): readonly RibbonSidebarThread[] | Promise<readonly RibbonSidebarThread[]>;
   updatePlacement(
     input: Parameters<PlacementStore["updatePlacement"]>[0],
     options?: { actorThreadId?: string },
@@ -88,7 +92,11 @@ function groupingKey(value: string | undefined): GroupingKey {
 function groupRef(value: string | undefined) {
   if (value === undefined) throw new PluginCliError("Missing group reference.");
   const slash = value.indexOf("/");
-  if (slash <= 0 || slash !== value.lastIndexOf("/") || slash === value.length - 1) {
+  if (
+    slash <= 0 ||
+    slash !== value.lastIndexOf("/") ||
+    slash === value.length - 1
+  ) {
     throw new PluginCliError(
       `Invalid group reference: ${value}. Expected <grouping-key>/<group-id>.`,
     );
@@ -130,9 +138,7 @@ function humanTable(rows: readonly (readonly string[])[]): string {
   return `\n${rows
     .map((row) =>
       row
-        .map((value, column) =>
-          value.padEnd(widths?.[column] ?? value.length),
-        )
+        .map((value, column) => value.padEnd(widths?.[column] ?? value.length))
         .join("  ")
         .trimEnd(),
     )
@@ -145,19 +151,14 @@ function humanPlacements(
   groupings: readonly GroupingDescriptor[],
 ): string {
   const descriptors = new Map(
-    groupings.map((grouping) => [
-      grouping.groupingKey,
-      grouping,
-    ]),
+    groupings.map((grouping) => [grouping.groupingKey, grouping]),
   );
-  const details = placements.map(
-    (placement) => {
-      const descriptor = descriptors.get(placement.groupingKey);
-      return `  ${descriptor?.singularLabel ?? "Group"}: ${
-        descriptor ? groupName(descriptor, placement.groupId) : placement.groupId
-      }`;
-    },
-  );
+  const details = placements.map((placement) => {
+    const descriptor = descriptors.get(placement.groupingKey);
+    return `  ${descriptor?.singularLabel ?? (placement.groupingKey === "builtin:machines" ? "Machine" : "Group")}: ${
+      descriptor ? groupName(descriptor, placement.groupId) : placement.groupId
+    }`;
+  });
   return `Thread: ${threadId}${details.length > 0 ? `\n${details.join("\n")}` : ""}\n`;
 }
 
@@ -189,29 +190,37 @@ function humanChildPosition(child: {
   return `Thread: ${child.threadId}\n  Parent: ${child.parentThreadId}\n  Position: ${child.position} of ${child.siblingThreadIds.length}\n`;
 }
 
-function domainFailure(result: { ok: false; error: { message: string } }): never {
+function domainFailure(result: {
+  ok: false;
+  error: { message: string };
+}): never {
   throw new PluginCliError(result.error.message);
 }
 
-function groupJson(group: GroupingDescriptor["groups"][number]) {
-  return {
-    id: group.id,
-    label: group.label,
-    acceptsAssignments: group.acceptsAssignments,
-    ...(group.visibleWhenEmpty === undefined
-      ? {}
-      : { visibleWhenEmpty: group.visibleWhenEmpty }),
-    ...(group.defaultCollapsed === undefined
-      ? {}
-      : { defaultCollapsed: group.defaultCollapsed }),
-  };
+function groupName(grouping: GroupingDescriptor, groupId: string): string {
+  return grouping.groups.find(({ id }) => id === groupId)?.label ?? groupId;
 }
 
-function groupName(
-  grouping: GroupingDescriptor,
-  groupId: string,
-): string {
-  return grouping.groups.find(({ id }) => id === groupId)?.label ?? groupId;
+function stageBand(stage: string) {
+  return stage === "Deferred" || stage === "Completed" ? stage : "main";
+}
+
+function orderGrouping(by: string | undefined): OrderGroupingKey {
+  if (by === undefined || by === "section") return "builtin:sections";
+  if (by === "project") return "builtin:projects";
+  if (by === "machine") return "builtin:machines";
+  throw new PluginCliError(
+    `Invalid --by: ${by}. Choose section, project, or machine.`,
+  );
+}
+
+function stageId(value: string) {
+  const stage = parseWorkflowStage(value);
+  if (!stage)
+    throw new PluginCliError(
+      `Unknown stage: ${value}. Choose ${WORKFLOW_STAGES.join(", ")}.`,
+    );
+  return stage;
 }
 
 function richThreadRows(
@@ -222,93 +231,126 @@ function richThreadRows(
 ) {
   const threads = new Map(candidates.map((thread) => [thread.id, thread]));
   const rootIds = rootThreadIdByThreadId(candidates);
-  const groupIds = new Map<GroupingKey, Map<string, string>>();
-  for (const grouping of groupings) {
-    const listed = context.store.listPlacements({
-      groupingKey: grouping.groupingKey,
-      threadIds,
-    });
-    if (!listed.ok) throw new Error(listed.error.message);
-    const ids = new Map(
-      listed.value.items.map(({ threadId, groupId }) => [threadId, groupId]),
-    );
-    for (const threadId of threadIds) {
-      if (ids.has(threadId)) continue;
-      const rootId = rootIds.get(threadId);
-      if (grouping.groupingKey.startsWith("builtin:") && rootId && ids.has(rootId)) {
-        ids.set(threadId, ids.get(rootId)!);
-        continue;
-      }
-      const groupId = grouping.membership.kind === "ribbon"
-        ? grouping.defaultGroupId
-        : grouping.membership.groupIdForThread(threadId);
-      if (groupId !== null) ids.set(threadId, groupId);
-    }
-    groupIds.set(grouping.groupingKey, ids);
-  }
-  const projects = groupings.find(
-    ({ groupingKey: key }) => key === "builtin:projects",
-  );
-  const sections = groupings.find(
-    ({ groupingKey: key }) => key === "builtin:sections",
-  );
-  const pluginGroupings = groupings.filter(({ groupingKey: key }) =>
-    key.startsWith("plugin:"),
-  );
-
+  const named = (key: GroupingKey, id: string) => {
+    const descriptor = groupings.find(({ groupingKey }) => groupingKey === key);
+    return {
+      id,
+      name: descriptor
+        ? groupName(descriptor, id)
+        : id === "no-machine"
+          ? "No machine"
+          : id,
+    };
+  };
   return threadIds.flatMap((threadId) => {
     const thread = threads.get(threadId);
     if (!thread) return [];
-    const projectId = projects
-      ? groupIds.get(projects.groupingKey)?.get(threadId)
-      : undefined;
-    const sectionId = sections
-      ? groupIds.get(sections.groupingKey)?.get(threadId)
-      : undefined;
-    return [{
-      ...thread,
-      project:
-        projects && projectId
-          ? { id: projectId, name: groupName(projects, projectId) }
-          : null,
-      section:
-        sections && sectionId
-          ? { id: sectionId, name: groupName(sections, sectionId) }
-          : null,
-      pluginGroups: pluginGroupings.flatMap((grouping) => {
-        const groupId = groupIds.get(grouping.groupingKey)?.get(threadId);
-        if (!groupId) return [];
-        const [, pluginId, groupingId] = grouping.groupingKey.split(":");
-        return [{
-          pluginId: pluginId ?? "",
-          groupingId: groupingId ?? "",
-          groupingName: grouping.pluralLabel,
-          groupId,
-          groupName: groupName(grouping, groupId),
-        }];
-      }),
-    }];
+    const root = threads.get(rootIds.get(threadId) ?? threadId) ?? thread;
+    const stage = context.store.getStage(threadId);
+    return [
+      {
+        ...thread,
+        project: named("builtin:projects", root.projectId),
+        section: named("builtin:sections", root.sectionId ?? "unsectioned"),
+        machine: named(
+          "builtin:machines",
+          root.environmentHostId ?? "no-machine",
+        ),
+        stage: stageId(stage.groupId),
+        stageEnteredAtMs: stage.enteredAtMs,
+      },
+    ];
   });
 }
 
-function rowMatchesScope(
-  row: ReturnType<typeof richThreadRows>[number],
-  scope: { groupingKey: GroupingKey; groupId: string },
+type OrderAnchor =
+  | { kind: "before" | "after"; threadId: string }
+  | { kind: "start" | "end" };
+
+async function validateRootOrder(
+  context: RibbonSidebarCliContext,
+  threadId: string,
+  groupingKey: OrderGroupingKey,
+  anchor: OrderAnchor,
+  stage = context.store.getStage(threadId).groupId,
 ) {
-  if (scope.groupingKey === "builtin:projects") {
-    return row.project?.id === scope.groupId;
+  const { threads } = await context.hierarchy();
+  if (threads.find(({ id }) => id === threadId)?.pinnedAt != null) {
+    throw new PluginCliError(
+      "Pinned threads use BB's pin order. Unpin the thread before ordering it in a group.",
+    );
   }
-  if (scope.groupingKey === "builtin:sections") {
-    return row.section?.id === scope.groupId;
+  const current = context.store.getPlacement({ groupingKey, threadId });
+  if (!current.ok) return domainFailure(current);
+  if (anchor.kind === "before" || anchor.kind === "after") {
+    const next = context.store.getPlacement({
+      groupingKey,
+      threadId: anchor.threadId,
+    });
+    if (
+      anchor.threadId === threadId ||
+      !next.ok ||
+      next.value.placement.groupId !== current.value.placement.groupId ||
+      threads.find(({ id }) => id === anchor.threadId)?.pinnedAt != null
+    ) {
+      throw new PluginCliError(
+        `Anchor is not an eligible destination member: ${anchor.threadId}`,
+      );
+    }
+    if (
+      stageBand(stage) !==
+      stageBand(context.store.getStage(anchor.threadId).groupId)
+    ) {
+      throw new PluginCliError("Order threads within the same stage band.");
+    }
   }
-  if (scope.groupingKey === "builtin:machines") return (row.environmentHostId ?? "no-machine") === scope.groupId;
-  const [, pluginId, groupingId] = scope.groupingKey.split(":");
-  return row.pluginGroups.some(
-    (group) =>
-      group.pluginId === pluginId &&
-      group.groupingId === groupingId &&
-      group.groupId === scope.groupId,
+  return current.value.placement.groupId;
+}
+
+async function orderThread(
+  context: RibbonSidebarCliContext,
+  threadId: string,
+  groupingKey: OrderGroupingKey,
+  anchor: OrderAnchor,
+  actorThreadId?: string,
+) {
+  const child = await childPosition(context, threadId);
+  if (child) {
+    const siblings = child.siblingThreadIds.filter((id) => id !== threadId);
+    let beforeId: string | null =
+      anchor.kind === "end" ? null : (siblings[0] ?? null);
+    if (anchor.kind === "before" || anchor.kind === "after") {
+      if (!siblings.includes(anchor.threadId))
+        throw new PluginCliError(
+          `Thread ${anchor.threadId} is not a sibling of child thread ${threadId}.`,
+        );
+      beforeId =
+        anchor.kind === "before"
+          ? anchor.threadId
+          : (siblings[siblings.indexOf(anchor.threadId) + 1] ?? null);
+    }
+    const threadIds = moveChild(child.siblingThreadIds, threadId, beforeId) ?? [
+      ...child.siblingThreadIds,
+    ];
+    await context.reorderChildren(child.parentThreadId, threadIds);
+    return {
+      ...child,
+      position: threadIds.indexOf(threadId) + 1,
+      siblingThreadIds: threadIds,
+    };
+  }
+  const groupId = await validateRootOrder(
+    context,
+    threadId,
+    groupingKey,
+    anchor,
   );
+  const result = await context.updatePlacement(
+    { groupingKey, groupId, threadId, anchor, origin: "cli" },
+    { actorThreadId },
+  );
+  if (!result.ok) return domainFailure(result);
+  return result.value;
 }
 
 export function defineRibbonSidebarCli(
@@ -317,63 +359,141 @@ export function defineRibbonSidebarCli(
   const availableGroupings = () => context.groupings();
   return defineCli({
     name: "thread-stages",
-    summary: "Inspect and change thread stages, sidebar placement, and layout preferences",
+    summary:
+      "Inspect and change thread stages, sidebar placement, and layout preferences",
     usageErrorExitCode: 2,
     commands: {
       ...context.extraCommands,
-      groupings: cliCommand({
-        summary: "List groupings",
-        options: JSON_OPTION,
-        run({ options }) {
-          const values = availableGroupings().map((grouping) => ({
-            groupingKey: grouping.groupingKey,
-            label: grouping.pluralLabel,
-          }));
+      stage: cliCommand({
+        summary: "Set a thread's workflow stage",
+        options: {
+          self: { type: "boolean", description: "Target the current thread" },
+          ...JSON_OPTION,
+        },
+        positionals: [
+          {
+            name: "stage",
+            description: WORKFLOW_STAGES.join(", "),
+            required: true,
+          },
+          { name: "thread", description: "Thread ID" },
+        ],
+        async run({ options, positionals }, invocation) {
+          const threadId = resolveThreadId(
+            positionals.thread,
+            options.self,
+            invocation,
+          );
+          const groupId = stageId(positionals.stage);
+          const result = await context.updatePlacement(
+            {
+              threadId,
+              groupingKey: THREAD_STAGES_GROUPING_KEY,
+              groupId,
+              origin: "cli",
+            },
+            { actorThreadId: invocation.threadId },
+          );
+          if (!result.ok) return domainFailure(result);
           return success(
-            values,
-            `KEY${" ".repeat(34)}LABEL\n${values
-              .map(({ groupingKey: key, label }) => `${key.padEnd(37)}${label}`)
-              .join("\n")}\n`,
+            { threadId, stage: groupId },
+            `Thread ${threadId}: ${WORKFLOW_STAGE_LABELS[groupId]}\n`,
             options.json,
           );
         },
       }),
-      groups: cliCommand({
-        summary: "List groups",
-        options: JSON_OPTION,
-        positionals: [
+      order: cliCommand({
+        summary: "Order a thread within its stage band or among siblings",
+        options: {
+          self: { type: "boolean", description: "Target the current thread" },
+          by: {
+            type: "string",
+            description:
+              "Organization whose order to change (default: section)",
+            placeholder: "section|project|machine",
+          },
+          before: {
+            type: "string",
+            description: "Next thread",
+            placeholder: "thread",
+          },
+          after: {
+            type: "string",
+            description: "Previous thread",
+            placeholder: "thread",
+          },
+          first: { type: "boolean", description: "Place first in the band" },
+          last: { type: "boolean", description: "Place last in the band" },
+          ...JSON_OPTION,
+        },
+        positionals: [{ name: "thread", description: "Thread ID" }],
+        constraints: [
           {
-            name: "grouping",
-            description: "Grouping key",
-            required: true,
+            kind: "exactly-one",
+            options: ["before", "after", "first", "last"],
           },
         ],
-        run({ options, positionals }) {
-          const key = groupingKey(positionals.grouping);
-          const descriptor = availableGroupings().find(
-            (candidate) => candidate.groupingKey === key,
+        async run({ options, positionals }, invocation) {
+          const threadId = resolveThreadId(
+            positionals.thread,
+            options.self,
+            invocation,
           );
-          if (!descriptor) {
-            throw new PluginCliError(`Grouping not found: ${key}`);
-          }
-          const values = descriptor.groups.map(groupJson);
+          const anchor = options.before
+            ? { kind: "before" as const, threadId: options.before }
+            : options.after
+              ? { kind: "after" as const, threadId: options.after }
+              : { kind: options.last ? ("end" as const) : ("start" as const) };
+          const result = await orderThread(
+            context,
+            threadId,
+            orderGrouping(options.by),
+            anchor,
+            invocation.threadId,
+          );
           return success(
-            values,
-            `ID${" ".repeat(23)}LABEL\n${values
-              .map(({ id, label }) => `${id.padEnd(25)}${label}`)
-              .join("\n")}\n`,
+            result,
+            `Thread ${threadId} order updated\n`,
             options.json,
           );
         },
       }),
       list: cliCommand({
         summary: "List threads",
-        description: "List threads with their Ribbon groups.",
+        description:
+          "List threads in saved group order with their workflow stages.",
         options: {
           scope: {
             type: "string",
-            description: "Filter by group",
+            description:
+              "Deprecated group filter; use --section, --project, --machine, or --stage",
             placeholder: "group-ref",
+          },
+          by: {
+            type: "string",
+            description: "Organization whose order to list (default: section)",
+            placeholder: "section|project|machine",
+          },
+          section: {
+            type: "string",
+            description: "Filter by section ID (unsectioned for Threads)",
+            placeholder: "id",
+          },
+          project: {
+            type: "string",
+            description: "Filter by project ID",
+            placeholder: "id",
+          },
+          machine: {
+            type: "string",
+            description:
+              "Filter by machine ID (no-machine for unattached threads)",
+            placeholder: "id",
+          },
+          stage: {
+            type: "string",
+            description: "Filter by workflow stage",
+            placeholder: "stage",
           },
           "include-archived": {
             type: "boolean",
@@ -391,9 +511,8 @@ export function defineRibbonSidebarCli(
         },
         async run({ options }) {
           const available = availableGroupings();
-          const scope = options.scope === undefined
-            ? undefined
-            : groupRef(options.scope);
+          const scope =
+            options.scope === undefined ? undefined : groupRef(options.scope);
           if (scope !== undefined) {
             const scopedGrouping = available.find(
               ({ groupingKey: key }) => key === scope.groupingKey,
@@ -409,13 +528,17 @@ export function defineRibbonSidebarCli(
               );
             }
           }
-          const orderKey = scope?.groupingKey ??
-            available.find(({ groupingKey: key }) => key === "builtin:sections")
-              ?.groupingKey ?? available[0]?.groupingKey;
-          if (!orderKey) {
-            throw new PluginCliError("No sidebar groupings are available.");
-          }
-          const listed = context.store.listPlacements({ groupingKey: orderKey });
+          const orderKey =
+            options.by === undefined &&
+            scope &&
+            scope.groupingKey !== THREAD_STAGES_GROUPING_KEY
+              ? scope.groupingKey
+              : orderGrouping(options.by);
+          const stage =
+            options.stage === undefined ? undefined : stageId(options.stage);
+          const listed = context.store.listPlacements({
+            groupingKey: orderKey,
+          });
           if (!listed.ok) return domainFailure(listed);
           const candidates = await context.threads({
             includeArchived: options["include-archived"],
@@ -438,42 +561,48 @@ export function defineRibbonSidebarCli(
             candidates,
             orderedIds,
           );
-          const rows = scope === undefined
-            ? allRows
-            : allRows.filter((row) => rowMatchesScope(row, scope));
-          const pluginGroupings = available.filter(({ groupingKey: key }) =>
-            key.startsWith("plugin:"),
+          const rows = allRows.filter(
+            (row) =>
+              (options.section === undefined ||
+                row.section.id === options.section) &&
+              (options.project === undefined ||
+                row.project.id === options.project) &&
+              (options.machine === undefined ||
+                row.machine.id === options.machine) &&
+              (stage === undefined || row.stage === stage) &&
+              (scope === undefined ||
+                (scope.groupingKey === THREAD_STAGES_GROUPING_KEY
+                  ? row.stage === stageId(scope.groupId)
+                  : (scope.groupingKey === "builtin:sections"
+                      ? row.section
+                      : scope.groupingKey === "builtin:projects"
+                        ? row.project
+                        : row.machine
+                    ).id === scope.groupId)),
           );
-          const human = rows.length === 0
-            ? "No threads found\n"
-            : humanTable([
-                [
-                  "ID",
-                  "TITLE",
-                  "STATUS",
-                  "SECTION",
-                  "PROJECT",
-                  ...pluginGroupings.map(({ singularLabel }) =>
-                    singularLabel.toUpperCase(),
-                  ),
-                ],
-                ...rows.map((thread) => [
-                  thread.id,
-                  thread.title ?? thread.titleFallback ?? "",
-                  thread.status,
-                  thread.section?.name ?? "",
-                  thread.project?.name ?? "",
-                  ...pluginGroupings.map((grouping) => {
-                    const [, pluginId, groupingId] =
-                      grouping.groupingKey.split(":");
-                    return thread.pluginGroups.find(
-                      (group) =>
-                        group.pluginId === pluginId &&
-                        group.groupingId === groupingId,
-                    )?.groupName ?? "";
-                  }),
-                ]),
-              ]);
+          const human =
+            rows.length === 0
+              ? "No threads found\n"
+              : humanTable([
+                  [
+                    "ID",
+                    "TITLE",
+                    "STATUS",
+                    "SECTION",
+                    "PROJECT",
+                    "MACHINE",
+                    "STAGE",
+                  ],
+                  ...rows.map((row) => [
+                    row.id,
+                    row.title ?? row.titleFallback ?? "",
+                    row.status,
+                    row.section.name,
+                    row.project.name,
+                    row.machine.name,
+                    WORKFLOW_STAGE_LABELS[row.stage],
+                  ]),
+                ]);
           return success(rows, human, options.json);
         },
       }),
@@ -486,9 +615,7 @@ export function defineRibbonSidebarCli(
           },
           ...JSON_OPTION,
         },
-        positionals: [
-          { name: "thread", description: "Thread ID" },
-        ],
+        positionals: [{ name: "thread", description: "Thread ID" }],
         async run({ options, positionals }, invocation) {
           const threadId = resolveThreadId(
             positionals.thread,
@@ -502,35 +629,35 @@ export function defineRibbonSidebarCli(
               threadId,
             });
             if (!stage.ok) return domainFailure(stage);
-            const stageName = stage.value.placement.groupId;
+            const stageName = stageId(stage.value.placement.groupId);
             return success(
               { ...child, stage: stageName },
-              `${humanChildPosition(child)}  Stage: ${stageName}\n`,
+              `${humanChildPosition(child)}  Stage: ${WORKFLOW_STAGE_LABELS[stageName]}\n`,
               options.json,
             );
           }
-          const values = availableGroupings().map((descriptor) =>
-            context.store.getPlacement({
-              groupingKey: descriptor.groupingKey,
-              threadId,
-            }),
-          );
-          const failure = values.find(
-            (result) => !result.ok && result.error.code !== "THREAD_INELIGIBLE",
-          );
-          if (failure && !failure.ok) return domainFailure(failure);
-          const successful = values
-            .filter((result) => result.ok)
-            .map(({ value }) => value);
-          if (successful.length === 0) {
-            const ineligible = values.find((result) => !result.ok);
-            if (ineligible && !ineligible.ok) return domainFailure(ineligible);
-          }
+          const candidates = await context.threads({
+            includeArchived: true,
+            includeHidden: true,
+            includeChildren: true,
+          });
+          const row = richThreadRows(
+            context,
+            availableGroupings(),
+            candidates,
+            [threadId],
+          )[0];
+          if (!row) throw new PluginCliError(`Thread not found: ${threadId}`);
           return success(
-            successful,
+            row,
             humanPlacements(
               threadId,
-              successful.map(({ placement }) => placement),
+              [
+                { groupingKey: "builtin:sections", groupId: row.section.id },
+                { groupingKey: "builtin:projects", groupId: row.project.id },
+                { groupingKey: "builtin:machines", groupId: row.machine.id },
+                { groupingKey: THREAD_STAGES_GROUPING_KEY, groupId: row.stage },
+              ],
               availableGroupings(),
             ),
             options.json,
@@ -572,7 +699,8 @@ export function defineRibbonSidebarCli(
         },
       }),
       place: cliCommand({
-        summary: "Place a thread",
+        summary: "Deprecated: use stage or order",
+        hidden: true,
         options: {
           self: {
             type: "boolean",
@@ -595,12 +723,8 @@ export function defineRibbonSidebarCli(
           },
           ...JSON_OPTION,
         },
-        positionals: [
-          { name: "thread", description: "Thread ID" },
-        ],
-        constraints: [
-          { kind: "at-most-one", options: ["before", "after"] },
-        ],
+        positionals: [{ name: "thread", description: "Thread ID" }],
+        constraints: [{ kind: "at-most-one", options: ["before", "after"] }],
         async run({ options, positionals }, invocation) {
           const threadId = resolveThreadId(
             positionals.thread,
@@ -615,29 +739,20 @@ export function defineRibbonSidebarCli(
                 `Pass --before or --after a sibling of child thread ${threadId}.`,
               );
             }
-            if (
-              anchor === threadId ||
-              !child.siblingThreadIds.includes(anchor)
-            ) {
-              throw new PluginCliError(
-                `Thread ${anchor} is not a sibling of child thread ${threadId}.`,
-              );
-            }
-            const others = child.siblingThreadIds.filter((id) => id !== threadId);
-            const beforeThreadId = options.before
-              ? anchor
-              : (others[others.indexOf(anchor) + 1] ?? null);
-            const threadIds = moveChild(
-              child.siblingThreadIds,
+            const moved = await orderThread(
+              context,
               threadId,
-              beforeThreadId,
-            )!;
-            await context.reorderChildren(child.parentThreadId, threadIds);
-            const moved = {
-              ...child,
-              position: threadIds.indexOf(threadId) + 1,
-              siblingThreadIds: threadIds,
-            };
+              "builtin:sections",
+              {
+                kind: options.before ? "before" : "after",
+                threadId: anchor,
+              },
+              invocation.threadId,
+            );
+            if (!("parentThreadId" in moved))
+              throw new PluginCliError(
+                `Thread ${threadId} is no longer a child.`,
+              );
             return success(
               moved,
               `Thread ${threadId} updated\n${humanChildPosition(moved)}`,
@@ -645,7 +760,9 @@ export function defineRibbonSidebarCli(
             );
           }
           if (options.to === undefined) {
-            throw new PluginCliError(`Missing --to for root thread ${threadId}.`);
+            throw new PluginCliError(
+              `Missing --to for root thread ${threadId}.`,
+            );
           }
           const destination = groupRef(options.to);
           if (child && destination.groupingKey !== THREAD_STAGES_GROUPING_KEY) {
@@ -658,20 +775,41 @@ export function defineRibbonSidebarCli(
               `Omit --to when reordering child thread ${threadId} among siblings.`,
             );
           }
+          const anchor: OrderAnchor | undefined = options.before
+            ? { kind: "before", threadId: options.before }
+            : options.after
+              ? { kind: "after", threadId: options.after }
+              : undefined;
+          const isStage =
+            destination.groupingKey === THREAD_STAGES_GROUPING_KEY;
+          if (isStage && anchor) {
+            await validateRootOrder(
+              context,
+              threadId,
+              "builtin:sections",
+              anchor,
+              destination.groupId,
+            );
+          }
           const result = await context.updatePlacement(
             {
               ...destination,
               threadId,
               origin: "cli",
-              ...(options.before
-                ? { anchor: { kind: "before" as const, threadId: options.before } }
-                : options.after
-                  ? { anchor: { kind: "after" as const, threadId: options.after } }
-                  : {}),
+              ...(!isStage && anchor ? { anchor } : {}),
             },
             { actorThreadId: invocation.threadId },
           );
           if (!result.ok) return domainFailure(result);
+          if (isStage && anchor) {
+            await orderThread(
+              context,
+              threadId,
+              "builtin:sections",
+              anchor,
+              invocation.threadId,
+            );
+          }
           return success(
             result.value,
             `Thread ${threadId} updated\n${humanPlacements(

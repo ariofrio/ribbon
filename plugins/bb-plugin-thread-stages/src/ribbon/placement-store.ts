@@ -230,6 +230,7 @@ export interface PlacementStore {
     groupingKey: GroupingKey,
     groupId: string,
   ): { deleted: number; revision: number };
+  getStage(threadId: string): PlacementRecordV1;
   getPlacement(input: {
     groupingKey: GroupingKey;
     threadId: string;
@@ -758,18 +759,18 @@ export function createPlacementStore(
         }
       } else {
         forgetMainStageOrder(threadId);
-        const affectedAssignmentKeys = database
-          .prepare(
-            "SELECT grouping_key FROM group_assignment WHERE thread_id = ?",
-          )
-          .all(threadId) as Array<{ grouping_key: GroupingKey }>;
-        const affectedOrderKeys = database
-          .prepare("SELECT grouping_key FROM group_order WHERE thread_id = ?")
-          .all(threadId) as Array<{ grouping_key: GroupingKey }>;
+        const affectedAssignmentKeys = listNonStageAssignmentKeys.all(
+          threadId,
+          THREAD_STAGES_GROUPING_KEY,
+        ) as Array<{ grouping_key: GroupingKey }>;
+        const affectedOrderKeys = listNonStageOrderKeys.all(
+          threadId,
+          THREAD_STAGES_GROUPING_KEY,
+        ) as Array<{ grouping_key: GroupingKey }>;
         deleteEligibleRoot.run(threadId);
         deleteEligibleChild.run(threadId);
-        removeChildAssignment.run(threadId);
-        removeChildOrder.run(threadId);
+        removeNonStageAssignment.run(threadId, THREAD_STAGES_GROUPING_KEY);
+        removeNonStageOrder.run(threadId, THREAD_STAGES_GROUPING_KEY);
         for (const row of [...affectedAssignmentKeys, ...affectedOrderKeys]) {
           changed.add(row.grouping_key);
         }
@@ -844,6 +845,21 @@ export function createPlacementStore(
           return { deleted, revision };
         })
         .immediate();
+    },
+    getStage(threadId) {
+      const assignment = getAssignment.get(
+        THREAD_STAGES_GROUPING_KEY,
+        threadId,
+      ) as AssignmentRow | undefined;
+      return assignment
+        ? placementFromAssignment(assignment)
+        : {
+            groupingKey: THREAD_STAGES_GROUPING_KEY,
+            threadId,
+            groupId:
+              options.grouping(THREAD_STAGES_GROUPING_KEY)?.defaultGroupId ?? "Active",
+            enteredAtMs: null,
+          };
     },
     getPlacement(input) {
       const grouping = options.grouping(input.groupingKey);

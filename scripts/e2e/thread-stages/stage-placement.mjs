@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
-import { carryTo, dropMarker, launch, link, openContext, pickUp, project, row, section, sidebar, STAGES, withPreferenceSaved } from "./sidebar.mjs";
+import { carryTo, dropMarker, launch, link, openContext, pickUp, project, row, section, sidebar, withPreferenceSaved } from "./sidebar.mjs";
 
 export async function verifyStagePlacement({ stack, fixture }) {
   const returning = fixture.threads.get("Add keyboard navigation to filters");
   const other = fixture.threads.get(FEATURED_THREAD);
   const projectId = fixture.projects.get(FEATURED_PROJECT).id;
-  const place = (thread, stage) => fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/${stage}`]);
+  const place = (thread, stage) => fixture.run(["thread-stages", "stage", stage, thread.id]);
   const labels = { Active: "Active", Deferred: "Deferred", BlockedOnOtherAgent: "Blocked on other agent", BlockedOnThirdParty: "Blocked on third party" };
   const mac = process.platform === "darwin";
   const shortcuts = {
@@ -37,7 +37,6 @@ export async function verifyStagePlacement({ stack, fixture }) {
         await chooseOrganization(`${fixture.section.name} section`, "By project");
       }
       let group = organization === "project" ? project(page, projectId) : section(page, fixture.section.id);
-      const grouping = organization === "project" ? "builtin:projects" : "builtin:sections";
       const groupId = organization === "project" ? projectId : fixture.section.id;
 
       async function freshClient(url = page.url()) {
@@ -113,7 +112,7 @@ export async function verifyStagePlacement({ stack, fixture }) {
         for (const stage of ["BlockedOnOtherAgent", "BlockedOnThirdParty", "Deferred"]) {
           console.log(`Checking ${organization} ${method} stage entry: ${stage}`);
           place(returning, "Active");
-          fixture.run(["thread-stages", "place", returning.id, "--to", `${grouping}/${groupId}`, "--after", other.id]);
+          fixture.run(["thread-stages", "order", returning.id, "--by", organization === "project" ? "project" : "section", "--after", other.id]);
           await row(group, returning.id).getByLabel("Active stage", { exact: true }).waitFor();
           await afterOther();
           const before = await mainOrder();

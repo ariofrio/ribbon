@@ -4,13 +4,13 @@ import { resolve } from "node:path";
 import { FEATURED_PROJECT, FEATURED_THREAD, THREADS } from "../../screenshots/fixture.mjs";
 import {
   carryTo, dragChip, dropMarker, heading, launch, link, openContext, pickUp,
-  rowOrder, section, sidebar, STAGES,
+  rowOrder, section, sidebar,
 } from "./sidebar.mjs";
 
 export async function verifyThreadReordering({ stack, fixture, initialSort = "none" }) {
   const savedSort = fixture.runJson(["thread-stages", "prefs", "get", "chronologicalSort"]).value;
   fixture.run(["thread-stages", "prefs", "set", "chronologicalSort", initialSort]);
-  for (const thread of fixture.threads.values()) fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/Active`]);
+  for (const thread of fixture.threads.values()) fixture.run(["thread-stages", "stage", "Active", thread.id]);
   const browser = await launch();
   let releaseSave = () => {};
   let context;
@@ -111,7 +111,7 @@ export async function verifyThreadReordering({ stack, fixture, initialSort = "no
     await context.close();
   } catch (error) {
     // Whether the plugin server still answers, and what it logged.
-    for (const args of [["plugin", "logs", "thread-stages"], ["thread-stages", "groupings", "--json"]]) {
+    for (const args of [["plugin", "logs", "thread-stages"], ["thread-stages", "list", "--json"]]) {
       try {
         console.error(`bb ${args.join(" ")}:`, fixture.run(args).split("\n").slice(-30).join("\n"));
       } catch (diagnosticError) {
@@ -125,7 +125,7 @@ export async function verifyThreadReordering({ stack, fixture, initialSort = "no
     throw error;
   } finally {
     fixture.run(["thread-stages", "prefs", "set", "chronologicalSort", savedSort]);
-    for (const spec of THREADS) if (spec.stage) fixture.run(["thread-stages", "place", fixture.threads.get(spec.title).id, "--to", `${STAGES}/${spec.stage}`]);
+    for (const spec of THREADS) if (spec.stage) fixture.run(["thread-stages", "stage", `${spec.stage}`, fixture.threads.get(spec.title).id]);
     releaseSave();
     await browser.close();
   }

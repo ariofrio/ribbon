@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { FEATURED_PROJECT, FEATURED_THREAD, THREADS } from "../../screenshots/fixture.mjs";
 import {
-  heading, launch, link, openContext, project, rowOrder, section, sidebar, STAGES,
+  heading, launch, link, openContext, project, rowOrder, section, sidebar,
   withPreferenceSaved,
 } from "./sidebar.mjs";
 
@@ -9,7 +9,7 @@ export async function verifyCustomSort({ stack, fixture, cases }) {
   const preferences = fixture.runJson(["thread-stages", "prefs", "list"]);
   const stages = fixture.runJson(["thread-stages", "list"]);
   for (const thread of fixture.threads.values()) {
-    fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/Active`]);
+    fixture.run(["thread-stages", "stage", "Active", thread.id]);
   }
   const browser = await launch();
   try {
@@ -111,9 +111,8 @@ export async function verifyCustomSort({ stack, fixture, cases }) {
     }
     for (const spec of THREADS) {
       const thread = fixture.threads.get(spec.title);
-      const stage = stages.find((row) => row.id === thread.id)?.pluginGroups
-        .find((group) => group.pluginId === "thread-stages" && group.groupingId === "stages")?.groupId;
-      if (stage) fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/${stage}`]);
+      const stage = stages.find((row) => row.id === thread.id)?.stage;
+      if (stage) fixture.run(["thread-stages", "stage", stage, thread.id]);
     }
   }
 }

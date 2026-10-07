@@ -750,7 +750,7 @@ describe("Ribbon sidebar server", () => {
       await harness.behavior.runCli([
         "place", "c", "--to", "plugin:thread-stages:stages/BlockedOnThirdParty", "--after", "b",
       ]);
-      expect(await orders()).toEqual(keys.map(() => ["b", "c", "a", "other"]));
+      expect(await orders()).toEqual([["b", "c", "a", "other"], ["a", "b", "c", "other"]]);
     } finally {
       await harness.lifecycle.dispose();
     }
@@ -1454,7 +1454,7 @@ describe("Ribbon sidebar server", () => {
     ).toBe("project-personal");
   });
 
-  it("registers the exact public placement RPC and generic CLI", async () => {
+  it("registers the public placement RPC and stage/order CLI", async () => {
     const { bb, harness } = setup();
     await plugin(bb);
 
@@ -1488,12 +1488,13 @@ describe("Ribbon sidebar server", () => {
       name: "thread-stages",
       rendersHelp: true,
       commands: expect.arrayContaining([
-        expect.objectContaining({ name: "groupings" }),
-        expect.objectContaining({ name: "place" }),
+        expect.objectContaining({ name: "stage" }),
+        expect.objectContaining({ name: "order" }),
+        expect.objectContaining({ name: "list" }),
       ]),
     });
     await expect(
-      harness.behavior.runCli(["groupings", "--json"]),
+      harness.behavior.runCli(["list", "--json"]),
     ).resolves.toMatchObject({ exitCode: 0 });
     const listed = await harness.behavior.runCli(["list", "--json"]);
     expect(listed.exitCode).toBe(0);
@@ -1503,16 +1504,29 @@ describe("Ribbon sidebar server", () => {
         status: expect.any(String),
         project: { id: "project-a", name: "Storefront" },
         section: { id: "section-a", name: "Release" },
-        pluginGroups: [
-          expect.objectContaining({
-            pluginId: "thread-stages",
-            groupingId: "stages",
-            groupId: expect.any(String),
-            groupName: expect.any(String),
-          }),
-        ],
+        stage: "Active",
+        machine: expect.objectContaining({ id: expect.any(String), name: expect.any(String) }),
       }),
     ]);
+  });
+
+  it("publishes placement changes through the shared service for every CLI entry point", async () => {
+    const { bb, harness } = setup({ settings: { messageOnStageChange: false } });
+    await plugin(bb);
+    const publish = vi.spyOn(bb.realtime, "publish");
+    try {
+      for (const argv of [
+        ["place", "thread-a", "--to", "plugin:thread-stages:stages/Completed"],
+        ["stage", "Active", "thread-a"],
+        ["order", "thread-a", "--first"],
+      ]) {
+        publish.mockClear();
+        expect(await harness.behavior.runCli(argv)).toMatchObject({ exitCode: 0 });
+        expect(publish.mock.calls.filter(([topic]) => topic === "placements-changed")).toHaveLength(1);
+      }
+    } finally {
+      await harness.lifecycle.dispose();
+    }
   });
 
   it("leaves working state to the row instead of automating an Active stage", async () => {
@@ -1525,8 +1539,8 @@ describe("Ribbon sidebar server", () => {
     expect(
       harness.inspection.registrations.schedules.map(({ name }) => name),
     ).not.toContain("stage-automation-reconciliation");
-    const listed = await harness.behavior.runCli(["groupings", "--json"]);
-    expect(listed.stdout).not.toContain('"Active"');
+    const listed = await harness.behavior.runCli(["list", "--json"]);
+    expect(JSON.parse(listed.stdout!)).toEqual([expect.objectContaining({ id: "thread-a", stage: "Active" })]);
   });
 
   it("keeps archived and hidden roots out of CLI lists unless included", async () => {

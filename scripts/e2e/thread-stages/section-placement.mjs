@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { FEATURED_THREAD } from "../../screenshots/fixture.mjs";
-import { launch, openContext, row, section, sidebar, STAGES } from "./sidebar.mjs";
+import { launch, openContext, row, section, sidebar } from "./sidebar.mjs";
 
 export async function verifySectionPlacement({ stack, fixture }) {
   const moving = fixture.threads.get(FEATURED_THREAD);
   const resident = fixture.threads.get("Add keyboard navigation to filters");
   const savedPreferences = fixture.runJson(["thread-stages", "prefs", "list"]);
-  const stage = (thread, value) => fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/${value}`]);
+  const stage = (thread, value) => fixture.run(["thread-stages", "stage", `${value}`, thread.id]);
   const place = (destination, anchor = []) => fixture.run([
     "thread-stages", "place", moving.id, "--to", `builtin:sections/${destination}`, ...anchor,
   ]);

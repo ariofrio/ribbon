@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { applyPluginState, FEATURED_PROJECT, FEATURED_THREAD, SECTION } from "../../screenshots/fixture.mjs";
-import { heading, launch, link, openContext, row, section, sidebar, sidebarRoot, STAGES } from "./sidebar.mjs";
+import { heading, launch, link, openContext, row, section, sidebar, sidebarRoot } from "./sidebar.mjs";
 
 // A working thread shows its turn on the stage ring, not in the trailing lane.
 // Reporting a background command gives it a trailing indicator to lay out.
@@ -27,7 +27,7 @@ export async function reportBackgroundCommand(page, threadId) {
 export async function verifyThreadIcons({ stack, fixture }) {
   const thread = fixture.threads.get(FEATURED_THREAD);
   // Earlier filing and placement cases can move this shared thread out of Active.
-  fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/Active`]);
+  fixture.run(["thread-stages", "stage", "Active", thread.id]);
   await applyPluginState({ stack, ...fixture });
   const browser = await launch();
   try {

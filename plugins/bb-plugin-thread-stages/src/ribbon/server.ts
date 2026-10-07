@@ -1085,16 +1085,7 @@ export default async function ribbonServer(
     ...cli,
     async run(argv, context) {
       await refreshCatalogsAndRoots();
-      const result = await cli.run(argv, context);
-      if (
-        result.exitCode === 0 &&
-        argv[0] === "place"
-      ) {
-        bb.realtime.publish("placements-changed", {
-          groupingKeys: groupings().map(({ groupingKey }) => groupingKey),
-        });
-      }
-      return result;
+      return cli.run(argv, context);
     },
   });
 

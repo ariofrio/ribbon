@@ -201,31 +201,46 @@ one is installed; they draw nothing bb's list does not.
 
 ## CLI
 
-The CLI inspects BB's sections and projects and the plugin's workflow stages.
-The stored stage key remains `plugin:thread-stages:stages`:
+Use `stage` to change workflow state and `order` to change manual position.
+Section membership is BB core state; change it with `bb thread update`.
 
 ```sh
-bb thread-stages groupings
-bb thread-stages groups builtin:sections
-bb thread-stages list --scope builtin:sections/<section-id>
+bb thread-stages list --section <section-id> --stage BlockedOnThirdParty
 bb thread-stages show --self
-bb thread-stages place --self --to plugin:thread-stages:stages/Completed
-bb thread-stages list --include-children --scope plugin:thread-stages:stages/BlockedOnThirdParty
-bb thread-stages place <thread> --to builtin:sections/<section-id> --before <thread>
-bb thread-stages place <child> --before <sibling>
+bb thread-stages stage Completed --self
+bb thread-stages list --include-children --stage BlockedOnThirdParty
+bb thread update <thread> --section <section-id>
+bb thread-stages order <thread> --by section --before <thread>
+bb thread-stages order <thread> --by project --first
+bb thread-stages order <thread> --by machine --last
+bb thread-stages order <child> --before <sibling>
 bb thread-stages children <thread>
 ```
 
 Use `bb thread-stages` to discover the full command surface. `list --json`
-joins thread metadata, project, section, and stage. Archived and hidden threads
+includes the complete BB thread metadata plus named `project`, `section`,
+and `machine` objects, `stage`, and `stageEnteredAtMs`. Filters compose:
+`--section`, `--project`, `--machine`, and `--stage`. Archived and hidden threads
 are excluded unless requested with `--include-archived` or `--include-hidden`.
 Add `--include-children` to list nested threads with their own stages.
+`show --json` returns the same thread view for roots, or a child's stage and
+sibling position.
 
+Section, project, and machine orders are independent. `--by` selects which
+saved order `list` reads or `order` changes; it defaults to `section`.
+Deferred and Completed are bands within that organization and use its order.
+Order anchors must be in the same group and band; Active and both Blocked
+stages share the main band. Children have one sibling order across all views.
 With Custom sorting, a move to another section starts at the top, including
-when returning to a section visited before. The thread menu, CLI, and core BB membership updates use the
-same placement policy as a drop on the group heading. Pass `--before` or
-`--after` to choose another position; automatic sorting keeps its selected
-order.
+when returning to a section visited before. The thread menu, CLI, and core BB
+membership updates use the same placement policy as a drop on the group
+heading. Use `order` afterward to choose another position; automatic sorting
+keeps its selected order.
+
+The former `place` command remains available for existing scripts and installed
+agent instructions, but is hidden from help. Legacy stage anchors change
+section order. The old `list --scope` filter also remains supported; use the
+explicit filters in new scripts.
 
 The list's layout preferences — organization mode, sort, section order,
 hidden groups, and collapsed groups — are bb's, stored by the plugin and

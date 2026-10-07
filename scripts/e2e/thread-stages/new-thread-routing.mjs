@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { AGENT } from "../../screenshots/fixture.mjs";
-import { launch, link, openContext, section, sidebar, sidebarRoot, STAGES } from "./sidebar.mjs";
+import { launch, link, openContext, section, sidebar, sidebarRoot } from "./sidebar.mjs";
 
 export async function verifyNewThreadRouting({ stack, fixture }) {
   const groupingKey = "builtin:sections";
@@ -76,16 +76,16 @@ export async function verifyNewThreadRouting({ stack, fixture }) {
   }
 }
 
-export async function waitForStageCatalog({ bb, cliEnv }) {
+export async function waitForThreadStages({ bb, cliEnv }) {
   const deadline = Date.now() + 120_000;
   for (;;) {
     try {
-      const output = execFileSync(bb, ["thread-stages", "groupings", "--json"], { env: cliEnv, encoding: "utf8" });
-      if (JSON.parse(output).some(({ groupingKey }) => groupingKey === STAGES)) return;
+      const output = execFileSync(bb, ["thread-stages", "list", "--json"], { env: cliEnv, encoding: "utf8" });
+      if (Array.isArray(JSON.parse(output))) return;
     } catch {
-      // The plugin is loaded; the catalog may still be in flight.
+      // The plugin may still be initializing.
     }
-    if (Date.now() > deadline) throw new Error("Timed out waiting for the Thread stages catalog");
+    if (Date.now() > deadline) throw new Error("Timed out waiting for the Thread stages CLI");
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
 }

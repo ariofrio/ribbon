@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { FEATURED_THREAD } from "../../screenshots/fixture.mjs";
-import { carryTo, heading, launch, link, openContext, pickUp, sidebar, STAGES } from "./sidebar.mjs";
+import { carryTo, heading, launch, link, openContext, pickUp, sidebar } from "./sidebar.mjs";
 
 export async function verifyMachineOrder({ stack, fixture }) {
   const moving = fixture.threads.get(FEATURED_THREAD);
@@ -13,9 +13,9 @@ export async function verifyMachineOrder({ stack, fixture }) {
       fixture.run(["thread-stages", "prefs", "set", key, value]);
     }
     for (const stage of ["Active", "Completed"]) {
-      for (const thread of [moving, resident]) fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/${stage}`]);
+      for (const thread of [moving, resident]) fixture.run(["thread-stages", "stage", stage, thread.id]);
     }
-    const savedOrder = (by) => fixture.runJson(["thread-stages", "list", "--scope", `${by}/${by === "builtin:sections" ? fixture.section.id : moving.projectId}`]).map(({ id }) => id);
+    const savedOrder = (by) => fixture.runJson(["thread-stages", "list", "--by", by === "builtin:sections" ? "section" : "project", by === "builtin:sections" ? "--section" : "--project", by === "builtin:sections" ? fixture.section.id : moving.projectId]).map(({ id }) => id);
     const sectionOrder = savedOrder("builtin:sections");
     const projectOrder = savedOrder("builtin:projects");
     context = await openContext(browser, { organization: "machine", viewport: { width: 1280, height: 1200 } });
@@ -67,7 +67,7 @@ export async function verifyMachineOrder({ stack, fixture }) {
   } finally {
     await context?.close();
     await browser.close();
-    for (const thread of [moving, resident]) fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/Active`]);
+    for (const thread of [moving, resident]) fixture.run(["thread-stages", "stage", "Active", thread.id]);
     for (const key of ["organizationMode", "chronologicalSort", "environmentGrouping"]) {
       fixture.run(["thread-stages", "prefs", "set", key, JSON.stringify(prefs[key])]);
     }

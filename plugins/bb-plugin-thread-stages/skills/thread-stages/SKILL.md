@@ -13,13 +13,13 @@ surface.
 
 Use the joined thread view, `bb thread-stages list --json`, before selecting
 roots for bulk work or messaging. It combines bb thread metadata with section,
-project, and workflow stage, so selection rules based on organization should
-be applied to that complete view rather than reconstructed from separate
+project, machine, and workflow stage, so selection rules based on organization
+should be applied to that complete view rather than reconstructed from separate
 partial lists.
 
 Root threads are organized into groups with children nested beneath them. Use
 the child's own thread ID to inspect or change its stage or sibling order;
-resolve it to a root for section, project, or root-order operations. Use
+resolve it to a root for section, project, machine, or root-order operations. Use
 `--include-children` when listing child stages.
 
 ## Stages
@@ -40,20 +40,28 @@ user a question, requested approval, or finished work for them to review. The
 user is not a third party.
 
 Place a thread by stage ID:
-`bb thread-stages place --self --to plugin:thread-stages:stages/BlockedOnOtherAgent`.
+`bb thread-stages stage BlockedOnOtherAgent --self`.
 
 Each child has its own stage and remains nested beneath its parent. A child
 can be reordered among its siblings, while its stage remains independent.
 
-New root threads enter at the top of their section or project. Active and both
-Blocked stages share the main list; changing between those stages keeps a
-root's position. Deferred and Completed each keep their own order. Moving a
-root into another list defaults to the top through either the UI or CLI.
-Returning from Deferred or Completed to Active restores the main-list
-position, and the undo shortcut restores the position before a stage move.
-Reorder Deferred or Completed roots with `place --to
-plugin:thread-stages:stages/<stage>` and `--before` or `--after` another root
-in that stage. Reorder the main list through its section or project placement.
+New root threads enter at the top of their section, project, and machine.
+Active and both Blocked stages share the main band; changing between those
+stages keeps a root's position. Deferred and Completed are subgroups of the
+current organization and use its saved order. Section, project, and machine
+orders are independent. Moving a root into another band defaults to the top
+through either the UI or CLI. Returning from Deferred or Completed to Active
+restores the main-band position, and the undo shortcut restores the position
+before a stage move.
+
+Use `bb thread-stages order <thread> --by section|project|machine` with
+`--before <thread>`, `--after <thread>`, `--first`, or `--last`; `--by` defaults
+to section. Anchors must be in the same group and stage band. Children use
+one sibling order across all organizations. `list --by` reads that
+organization's order; filter with `--section`, `--project`, `--machine`, and
+`--stage`. Change section membership with `bb thread update`, then use
+`order` if another position is needed. Saved group order appears with Custom
+sorting; automatic sorting keeps its selected order.
 
 Treat **Completed** threads as out of scope by default. Exclude them from bulk
 operations, messages, and notifications unless the user explicitly includes

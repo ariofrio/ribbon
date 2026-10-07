@@ -20,7 +20,7 @@
       "expectations": [
         "The agent keeps the thread in Active.",
         "The agent does not propose moving the thread to Blocked on other agent or Blocked on third party.",
-        "The agent does not give a bb thread-stages place command that changes the stage."
+        "The agent does not give a bb thread-stages stage command that changes the stage."
       ]
     },
     {
@@ -29,8 +29,8 @@
       "expected_output": "Thread A goes to Blocked on other agent and thread B to Blocked on third party, each placed by stage ID.",
       "files": [],
       "expectations": [
-        "Thread A is placed in Blocked on other agent with `bb thread-stages place <thread-a> --to plugin:thread-stages:stages/BlockedOnOtherAgent`.",
-        "Thread B is placed in Blocked on third party with `bb thread-stages place <thread-b> --to plugin:thread-stages:stages/BlockedOnThirdParty`."
+        "Thread A is placed in Blocked on other agent with `bb thread-stages stage BlockedOnOtherAgent <thread-a>`.",
+        "Thread B is placed in Blocked on third party with `bb thread-stages stage BlockedOnThirdParty <thread-b>`."
       ]
     },
     {

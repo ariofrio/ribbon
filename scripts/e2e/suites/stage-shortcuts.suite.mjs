@@ -1,5 +1,5 @@
 import { verifyStageShortcuts } from "../stage-shortcuts.mjs";
-import { waitForStageCatalog } from "../thread-stages/new-thread-routing.mjs";
+import { waitForThreadStages } from "../thread-stages/new-thread-routing.mjs";
 
 export default {
   order: 130,
@@ -7,7 +7,7 @@ export default {
   cases: ["platforms"],
   plugins: ["bb-plugin-thread-stages"],
   async prepare({ bb, cliEnv }) {
-    await waitForStageCatalog({ bb, cliEnv });
+    await waitForThreadStages({ bb, cliEnv });
   },
   run: verifyStageShortcuts,
 };
