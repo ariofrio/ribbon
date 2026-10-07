@@ -92,7 +92,7 @@ export async function verifyThreadContextMenu({ stack, fixture }) {
         status: 500,
         json: { error: { message: "Could not save thread actions" } },
       }), { times: 1 });
-      await page.keyboard.type("Review this thread.");
+      await page.keyboard.insertText("Review this thread.");
       await failedSave;
       await editor.getByRole("alert").waitFor();
       assert.equal(await label.inputValue(), "Revie!w", "failed saves keep the draft editable");

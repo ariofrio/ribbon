@@ -84,7 +84,7 @@ export async function verifyStagePlacement({ stack, fixture }) {
         } else if (method === "menu") {
           await row(group, returning.id).hover();
           await row(group, returning.id).getByRole("button", { name: "Thread actions", exact: true }).click();
-          await page.getByRole("menuitem", { name: /Move to stage/ }).hover();
+          await page.getByRole("menuitem", { name: /Set stage/ }).hover();
           await page.getByRole("menuitemradio", { name: labels[stage], exact: true }).click();
         } else {
           await page.goto(new URL(`/projects/${projectId}/threads/${returning.id}`, stack.serverUrl).href,
