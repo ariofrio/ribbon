@@ -9,6 +9,10 @@ Start by running `bb thread-stages`, and discover the available operations
 and arguments from its help as needed. Do not rely on a memorized command
 surface.
 
+For requests to inspect, edit, or run saved prompt buttons beside thread titles,
+read [Thread actions](../thread-actions/SKILL.md) and follow its instructions.
+Load it when needed without asking the user to invoke it separately.
+
 ## Selecting threads
 
 Use the joined thread view, `bb thread-stages list --json`, before selecting
@@ -23,6 +27,11 @@ resolve it to a root for section, project, machine, or root-order operations. Us
 `--include-children` when listing child stages.
 
 ## Stages
+
+**Automatic stage updates** (`automaticStageUpdates`) is on by default.
+Turning it off tells agents to change stages only when the user explicitly
+requests a change. Setting changes apply when bb next constructs the agent's
+provider session.
 
 A stage says whose move a thread is waiting on:
 
@@ -68,7 +77,7 @@ operations, messages, and notifications unless the user explicitly includes
 them or intends to resume them. Do not archive a thread merely to mark it
 Completed; Completed threads archive on their own after seven days.
 
-Stages change only when someone sets them; running work never changes a
+Stages change only when someone sets them; thread activity alone never changes a
 stage. A working thread keeps its stage, and the list shows the work by
 turning the stage icon's ring on that row. A collapsed root's ring also turns
 for work in its hidden descendants. A pending question or approval stops the
@@ -84,36 +93,6 @@ thread when someone else changes its stage, as "Thread stage updated: @Active
 → @Blocked on third party"; that move has already happened. Older messages may
 mention `@Idle`, now Active, or `@Blocked`, now split into the two Blocked
 stages.
-
-## Thread actions
-
-Thread actions are labeled buttons beside a thread's title. Running one sends
-its saved prompt to that thread, just like clicking the button.
-
-```sh
-bb thread-stages actions list [<thread>] [--self] [--json]
-bb thread-stages actions set [<thread>] [--self] --actions '<json-array>' [--hide-title] [--json]
-bb thread-stages actions run <action-id> [<thread>] [--self] [--json]
-```
-
-Pass a thread ID or `--self`. `list` includes each action's ID, label, prompt,
-and the thread's `hideTitle` setting. `run` selects by action ID, not label.
-
-`set` replaces the entire ordered list and title setting; read the current
-list first when preserving existing buttons. Each action has a unique `id`
-(1–64 characters), a `label` (1–24), and a `prompt` (1–10000). Labels and
-prompts are trimmed. For example:
-
-```sh
-bb thread-stages actions set --self --actions '[{"id":"review","label":"Review","prompt":"Review this change."}]'
-bb thread-stages actions run review --self
-```
-
-`--hide-title` gives the buttons the whole row; omitting it shows the title.
-Use `--actions '[]'` to clear the buttons. `--actions-stdin` reads the JSON
-array from stdin instead of an argument. Invalid input leaves the saved
-actions unchanged, and archived threads reject changes. Changes appear in
-every open window.
 
 ## Layout preferences
 

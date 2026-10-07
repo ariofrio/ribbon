@@ -46,6 +46,7 @@ import {
 } from "./pull-request-details";
 import { sidebarThreadsFromSearchResult } from "./search-results";
 import { sidebarMigrations } from "./sidebar-migrations";
+import { registerStageInstructions } from "./agent-instructions";
 import { registerStageMentions } from "./stage-mentions";
 import { threadActionCliCommands } from "./thread-actions-cli";
 import { createThreadActionsStore, type ThreadActionsRecord } from "./thread-actions-store";
@@ -375,6 +376,13 @@ export default async function ribbonServer(
   // Behavior first, then appearance: bb draws settings in this order and
   // offers no groups of its own.
   const settings = bb.settings.define({
+    automaticStageUpdates: {
+      type: "boolean",
+      label: "Automatic stage updates",
+      description:
+        "Ask agents to update their thread's stage as work starts, waits, resumes, or finishes.",
+      default: true,
+    },
     autoArchiveCompletedAfter: {
       type: "select",
       label: "Auto-archive completed threads",
@@ -487,6 +495,11 @@ export default async function ribbonServer(
   const childOrder = createChildOrderStore(database);
   registerIcons(bb, database);
   registerStageMentions(bb);
+  let automaticStageUpdates = (await settings.get()).automaticStageUpdates;
+  settings.onChange((next) => {
+    automaticStageUpdates = next.automaticStageUpdates;
+  });
+  registerStageInstructions(bb, () => automaticStageUpdates);
 
   let projectGroups: GroupingDescriptor["groups"] = [];
   let personalProjectId: string | null = null;

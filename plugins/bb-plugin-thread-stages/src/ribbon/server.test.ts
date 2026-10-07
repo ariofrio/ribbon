@@ -1,11 +1,70 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import {
   createFakePluginHost,
+  makePluginAgentConfigurationContext,
   makeThreadResponse,
   makeHostResponse,
 } from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it, vi } from "vitest";
 import plugin from "./server";
+
+describe("automatic stage guidance", () => {
+  it.each(["codex", "claude"])(
+    "directs %s to the stage skill without requiring a stage mention",
+    async (providerId) => {
+      const { bb, harness } = setup();
+      await plugin(bb);
+      const resolved = await harness.behavior.resolveAgentConfiguration(
+        makePluginAgentConfigurationContext({ provider: { id: providerId } }),
+      );
+      expect(resolved.instructions).toContain("thread-stages skill");
+      expect(resolved.instructions).toContain("when work starts, waits, resumes, or finishes");
+      expect(resolved.instructions).not.toContain("BlockedOnOtherAgent");
+      expect(resolved.tools).toEqual([]);
+      expect(resolved.skills).toEqual(["thread-stages"]);
+      await harness.lifecycle.dispose();
+    },
+  );
+
+  it("does not give side chats workflow staging instructions", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    const resolved = await harness.behavior.resolveAgentConfiguration(
+      makePluginAgentConfigurationContext({
+        origin: { kind: "fork", pluginId: "side-chat" },
+      }),
+    );
+    expect(resolved.instructions).toBeNull();
+    await harness.lifecycle.dispose();
+  });
+
+  it("uses explicit-request guidance when automatic stage updates are saved off", async () => {
+    const { bb, harness } = setup({ settings: { automaticStageUpdates: false } });
+    await plugin(bb);
+    const resolved = await harness.behavior.resolveAgentConfiguration(
+      makePluginAgentConfigurationContext(),
+    );
+    expect(resolved.instructions).toContain("only when the user explicitly requests");
+    expect(resolved.instructions).not.toContain("when work starts");
+    expect(resolved.skills).toEqual(["thread-stages"]);
+    await harness.lifecycle.dispose();
+  });
+
+  it("changes guidance on the next configuration resolution without reloading", async () => {
+    const { bb, harness } = setup();
+    await plugin(bb);
+    const context = makePluginAgentConfigurationContext();
+    const initial = await harness.behavior.resolveAgentConfiguration(context);
+    await harness.behavior.setSettings({ automaticStageUpdates: false });
+    const disabled = await harness.behavior.resolveAgentConfiguration(context);
+    expect(disabled.instructions).toContain("only when the user explicitly requests");
+    expect(disabled.skills).toEqual(initial.skills);
+    await harness.behavior.setSettings({ automaticStageUpdates: true });
+    const enabled = await harness.behavior.resolveAgentConfiguration(context);
+    expect(enabled.instructions).toEqual(initial.instructions);
+    await harness.lifecycle.dispose();
+  });
+});
 
 
 type RealtimeSubscribeArgs = Parameters<BbPluginApi["sdk"]["subscribe"]>[0];
@@ -203,6 +262,7 @@ function setup({
     { id: "section-a", name: "Release", createdAt: 1, updatedAt: 1 },
   ]);
   const host = createFakePluginHost({
+    agentSkillIds: ["thread-stages"],
     pluginId: "thread-stages",
     ...(settings ? { settings } : {}),
     sdk: {
@@ -905,6 +965,7 @@ describe("Ribbon sidebar server", () => {
       Object.keys(harness.inspection.registrations.settingsDescriptors),
     ).toEqual([
       // Behavior, then appearance: bb draws them in this order.
+      "automaticStageUpdates",
       "autoArchiveCompletedAfter",
       "messageOnStageChange",
       "stagePreviewRows",
@@ -916,6 +977,7 @@ describe("Ribbon sidebar server", () => {
       "pullRequestMarks",
     ]);
     expect(harness.inspection.registrations.settingsDescriptors).toMatchObject({
+      automaticStageUpdates: { type: "boolean", default: true },
       autoArchiveCompletedAfter: { type: "select", default: "7 days" },
       messageOnStageChange: { type: "boolean", default: true },
       stagePreviewRows: { type: "select", options: ["1", "2", "3", "4", "5"], default: "2" },
