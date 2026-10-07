@@ -39,8 +39,15 @@ export async function verifyThreadReordering({ stack, fixture, initialSort = "no
     }, { times: 1 });
     // Answered only once the gate opens, however long the checks before take.
     const saved = page.waitForResponse((response) => response.url().endsWith("/rpc/updatePlacementV1"), { timeout: 0 });
+    // Switching from an automatic sort writes a separate, debounced preference.
+    const sortSaved = initialSort === "none" ? Promise.resolve() : page.waitForResponse(
+      (response) => response.url().endsWith("/rpc/setPreference") &&
+        response.request().postDataJSON()?.key === "chronologicalSort" &&
+        response.request().postDataJSON()?.value === "none",
+    );
     // A failure before the gate opens closes the page; report that failure, not this one.
     void saved.catch(() => undefined);
+    void sortSaved.catch(() => undefined);
     await pickUp(page, source);
     const chip = dragChip(page);
     assert.ok(
@@ -68,6 +75,7 @@ export async function verifyThreadReordering({ stack, fixture, initialSort = "no
     await marker.waitFor({ state: "hidden" });
     releaseSave();
     assert.ok((await saved).ok());
+    await sortSaved;
     assert.equal(page.url(), url, "dropping a thread must not open it");
     // A reload straight after the gated save has hung this page's main
     // thread in full runs, in bb's own unload rather than anything the list
