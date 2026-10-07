@@ -1,6 +1,6 @@
 ---
 name: thread-stages
-description: Inspect and organize bb threads across sections, projects, and the Deferred, Active, Blocked on other agent, Blocked on third party, and Completed workflow stages. Use when deciding which stage a bb thread belongs in, including after asking the user something, selecting threads by sidebar organization or stage before bulk work or messaging, changing a thread's or child's stage, moving and ordering root threads, ordering children among siblings, or reading and changing the thread list's layout preferences. Discover the installed CLI rather than assuming its commands.
+description: Inspect and organize bb threads across sections, projects, and the Deferred, Active, Blocked on other agent, Blocked on third party, and Completed workflow stages. Use when deciding which stage a bb thread belongs in, including after asking the user something, selecting threads by sidebar organization or stage before bulk work or messaging, changing a thread's or child's stage, moving and ordering root threads, ordering children among siblings, managing saved prompt actions beside thread titles, or reading and changing the thread list's layout preferences. Discover the installed CLI rather than assuming its commands.
 ---
 
 # Thread stages
@@ -9,8 +9,9 @@ Start by running `bb thread-stages`, and discover the available operations
 and arguments from its help as needed. Do not rely on a memorized command
 surface.
 
-For saved prompt buttons beside thread titles, use
-[Thread actions](../thread-actions/SKILL.md).
+For requests to inspect, edit, or run saved prompt buttons beside thread titles,
+read [Thread actions](../thread-actions/SKILL.md) and follow its instructions.
+Load it when needed without asking the user to invoke it separately.
 
 ## Selecting threads
 
