@@ -46,7 +46,7 @@ export async function verifyCustomSort({ stack, fixture, cases }) {
           await group.locator("[data-thread-id]").nth(1).waitFor({ timeout: 120_000 });
           const original = await rowOrder(group);
           assert.ok(original.length >= 2);
-          const titles = new Map([...fixture.threads].map(([title, thread]) => [thread.id, title]));
+          const titles = new Map(stages.map((thread) => [thread.id, thread.title ?? thread.titleFallback ?? ""]));
           const alphabetical = [...original].sort((left, right) => titles.get(left).localeCompare(titles.get(right)));
 
           async function openSort() {
