@@ -9,7 +9,7 @@ export function registerStageInstructions(bb: BbPluginApi): void {
       tools: [],
       skills: ["thread-stages"],
       instructions:
-        "Use the thread-stages skill to update this thread's stage when work starts, waits, resumes, or finishes; do not wait for a stage mention.",
+        "Use the thread-stages skill to update this thread's stage when work starts, waits, resumes, or finishes; do not wait for a stage mention unless the user or global instructions say otherwise.",
     };
   });
 }
