@@ -8,6 +8,7 @@ const MODIFIER = process.platform === "darwin" ? "Meta" : "Control";
 const READY = "[data-missing-keyboard-shortcuts-ready]";
 const PRIMARY = '[data-app-composer-role="primary"] [role="textbox"]';
 const SIDE_CHAT = '[data-testid="plugin-panel-tab-content"] > [data-bb-plugin="missing-keyboard-shortcuts"]';
+const REPLY = `${SIDE_CHAT} [role="textbox"][aria-label="Reply…"]`;
 const COMMAND_EVENT = "bb-plugin-missing-keyboard-shortcuts:run-command";
 
 async function pressCommand(page, keys, id) {
@@ -72,7 +73,7 @@ async function threadCreation(page, stack, project, thread) {
   // No selected thread in this browser yet: project creation falls back to personal.
   await pressCommand(page, `${MODIFIER}+Shift+KeyN`, "new-project-thread");
   const primary = page.locator(PRIMARY);
-  await focused(page, primary);
+  await focused(page, PRIMARY);
   await page.getByRole("button", { name: "Project: No project", exact: true }).waitFor();
   await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href, {
     waitUntil: "domcontentloaded", timeout: 120_000,
@@ -81,14 +82,14 @@ async function threadCreation(page, stack, project, thread) {
   await primary.waitFor({ timeout: 120_000 });
   await primary.click();
   await pressCommand(page, `${MODIFIER}+Shift+KeyN`, "new-project-thread");
-  await focused(page, primary);
+  await focused(page, PRIMARY);
   await page.getByRole("button", { name: `Project: ${project.name}`, exact: true }).waitFor();
   await pressCommand(page, `${MODIFIER}+KeyN`, "new-personal-thread");
-  await focused(page, primary);
+  await focused(page, PRIMARY);
   await page.getByRole("button", { name: "Project: No project", exact: true }).waitFor();
   await settings(page, stack);
   await pressCommand(page, `${MODIFIER}+Shift+KeyN`, "new-project-thread");
-  await focused(page, primary);
+  await focused(page, PRIMARY);
   await page.getByRole("button", { name: `Project: ${project.name}`, exact: true }).waitFor();
 }
 
@@ -108,10 +109,10 @@ async function composerFocus(page, stack, project, thread) {
   await pressCommand(page, `${MODIFIER}+Shift+KeyL`, "toggle-side-chat");
   const reply = page.locator(SIDE_CHAT).getByRole("textbox", { name: "Reply…" });
   await reply.waitFor({ timeout: 120_000 });
-  await focused(page, reply);
+  await focused(page, REPLY);
   await page.keyboard.type("Keep the secondary draft");
   await pressCommand(page, `${MODIFIER}+KeyL`, "focus-primary-composer");
-  await focused(page, primary);
+  await focused(page, PRIMARY);
   await page.keyboard.type("Primary receives this text");
   assert.equal(await primary.innerText(), "Primary receives this text");
   assert.equal(await reply.innerText(), "Keep the secondary draft");
@@ -121,21 +122,25 @@ async function composerFocus(page, stack, project, thread) {
   await assign(settingsPage, title, `${MODIFIER}+Alt+KeyL`);
   await reply.click();
   await pressCommand(page, `${MODIFIER}+Alt+KeyL`, "focus-primary-composer");
-  await focused(page, primary);
+  await focused(page, PRIMARY);
   await settingsPage.getByRole("button", { name: `Clear shortcut for ${title}`, exact: true }).click();
   await settingsPage.getByRole("button", { name: `Record shortcut for ${title}, current shortcut unassigned`, exact: true }).waitFor();
   await reply.click();
   await page.keyboard.press(`${MODIFIER}+Alt+KeyL`);
   await page.keyboard.type(" remains secondary");
   assert.equal(await reply.innerText(), "Keep the secondary draft remains secondary");
-  await focused(page, reply);
+  await focused(page, REPLY);
 }
 
-async function focused(page, locator) {
-  await page.waitForFunction((node) => {
+async function focused(page, selector) {
+  await page.locator(selector).waitFor({ state: "attached" });
+  // Navigation can replace the editor while focus is settling.
+  await page.waitForFunction((selector) => {
+    const node = document.querySelector(selector);
+    if (!node) return false;
     const bounds = node.getBoundingClientRect();
     return document.activeElement === node && bounds.width > 0 && bounds.height > 0;
-  }, await locator.elementHandle(), { timeout: 5_000 });
+  }, selector, { timeout: 5_000 });
 }
 
 async function sideChat(page, fixture, thread) {
@@ -150,19 +155,19 @@ async function sideChat(page, fixture, thread) {
   const childId = created.result.threadId;
   const reply = page.locator(SIDE_CHAT).getByRole("textbox", { name: "Reply…" });
   await reply.waitFor({ timeout: 120_000 });
-  await focused(page, reply);
+  await focused(page, REPLY);
   await page.keyboard.type("Retain this side-chat draft");
   for (let attempt = 0; attempt < 3; attempt += 1) {
     await page.keyboard.press(`${MODIFIER}+Shift+KeyL`);
     await reply.waitFor({ state: "hidden", timeout: 5_000 });
-    await focused(page, primary);
+    await focused(page, PRIMARY);
     const response = page.waitForResponse((response) =>
       response.url().endsWith("/plugins/missing-keyboard-shortcuts/rpc/validateSideChat"));
     const start = performance.now();
     await page.keyboard.press(`${MODIFIER}+Shift+KeyL`);
     assert.deepEqual(await (await response).json(), { ok: true, result: { reusable: true } });
     await reply.waitFor();
-    await focused(page, reply);
+    await focused(page, REPLY);
     const elapsed = performance.now() - start;
     assert.ok(elapsed < 1_000, `Side-chat reopen took ${Math.round(elapsed)} ms`);
     assert.equal(await reply.innerText(), "Retain this side-chat draft");
