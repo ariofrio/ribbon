@@ -504,14 +504,16 @@ function ThreadRowComponent({
   // Ribbon's long titles fade at the edge, and pan on hover, in place of
   // bb's ellipsis.
   const ribbonMarquee = ribbon !== null && ribbonSettings.longTitles !== "Ellipsis";
-  // What stands in the indicator slot at rest. Prompt buttons and PR numbers
-  // participate in the title's flex row and need no separate reservation.
+  // Persistent items keep the indicator slot clear, so PR numbers and prompts
+  // share a trailing edge across rows. A quiet title can use that slot too.
   const ribbonLaneAtRest =
     ribbon !== null &&
     (miniMap !== null ||
       ribbon.status.indicator !== "none" ||
       ribbon.status.pluginStatus !== null ||
       ribbon.status.pullRequestMark !== null ||
+      ribbon.pullRequest?.position === "right" ||
+      ribbon.actions.length > 0 ||
       thread.archivedAt !== null ||
       Boolean(shortcut));
   const shineRowRef = useRef<HTMLDivElement | null>(null);

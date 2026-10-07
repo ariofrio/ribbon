@@ -301,7 +301,7 @@ export async function verifyThreadActions({ stack, fixture }) {
       };
     });
     assert.ok(singleLayout.clipWidth >= singleLayout.labelWidth - 0.5, `A single action keeps its full label by shrinking the title first: ${JSON.stringify(singleLayout)}`);
-    assert.equal(singleLayout.indicatorGap, 8, `Without an indicator, saved actions use the trailing edge: ${JSON.stringify(singleLayout)}`);
+    assert.equal(singleLayout.indicatorGap, 36, `Saved actions retain only the indicator slot at the trailing edge: ${JSON.stringify(singleLayout)}`);
   } finally {
     try {
       await cleanup?.();

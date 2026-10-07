@@ -52,6 +52,7 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
             row: box(node), title: box(node.querySelector(".bb-thread-title")),
             prompt: box(node.querySelector("[data-ribbon-thread-actions]")),
             controls: box(controls),
+            controlsLane: box(controls.parentElement.parentElement),
             buttons: [...controls.querySelectorAll("button")].map((button) => ({
               ...box(button), label: button.getAttribute("aria-label"),
               radius: getComputedStyle(button).borderRadius,
@@ -63,8 +64,9 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
         });
         const rest = await metrics();
         assert.equal(rest.indicator, false);
-        assert.ok(Math.abs(rest.row.right - rest.prompt.right - 8) < 1,
-          "Saved prompts use the trailing edge without reserving hidden row controls");
+        assert.equal(rest.controlsLane.width, 0, "Hidden row controls reserve no title space");
+        assert.ok(Math.abs(rest.row.right - rest.prompt.right - 36) < 1,
+          "Saved prompts leave the indicator slot clear even on rows without an indicator");
         if (compact) assert.equal(rest.controls.width, 0, "Hidden desktop controls take no touch-layout space");
         if (!compact) {
           await target.hover();
