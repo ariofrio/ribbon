@@ -91,11 +91,17 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         assert.equal(await form.getByRole("textbox").count(), 2, "Clearing the last row keeps one blank row");
         await page.keyboard.press("Tab");
         await page.keyboard.press("Shift+Tab");
+        if (!compact) await label(1).hover();
         const focusedMetrics = await label(1).evaluate((field) => {
           const row = field.closest("tr");
           const first = row.cells[0];
           const last = row.cells[2];
           const style = getComputedStyle(field);
+          const insets = (control, cell) => {
+            const inner = control.getBoundingClientRect();
+            const outer = cell.getBoundingClientRect();
+            return [inner.top - outer.top, outer.right - inner.right, outer.bottom - inner.bottom, inner.left - outer.left];
+          };
           return {
             radiusLeft: getComputedStyle(first).borderTopLeftRadius,
             radiusRight: getComputedStyle(last).borderTopRightRadius,
@@ -104,13 +110,17 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
             padding: field.getBoundingClientRect().left - first.getBoundingClientRect().left + Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.borderLeftWidth),
             borderWidth: style.borderLeftWidth,
             shadowDimensions: (style.boxShadow.match(/-?\d+(?:\.\d+)?px/g) ?? []).map(Number.parseFloat),
+            labelInsets: insets(field, first),
+            clearInsets: insets(last.querySelector("button"), last),
           };
         });
         assert.equal(focusedMetrics.radiusLeft, menuMetrics.radius);
         assert.equal(focusedMetrics.radiusRight, menuMetrics.radius);
         assert.notEqual(focusedMetrics.background, "rgba(0, 0, 0, 0)", "Focus highlights the rounded row");
-        assert.equal(focusedMetrics.height, compact ? 40 : menuMetrics.height,
-          compact ? "Touch rows keep bb's native input height" : "Desktop rows match the menu item height");
+        assert.equal(focusedMetrics.height, compact ? 42 : menuMetrics.height,
+          compact ? "Touch rows inset bb's native input height" : "Desktop rows match the menu item height");
+        assert.deepEqual(focusedMetrics.labelInsets, [1, 1, 1, 1], "Label fields have equal insets from the rounded row highlight");
+        assert.deepEqual(focusedMetrics.clearInsets, [1, 1, 1, 1], "X buttons have equal insets from the rounded row highlight");
         assert.ok(Math.abs(focusedMetrics.padding - menuMetrics.padding) <= 1, "Text starts at the menu item inset");
         assert.equal(focusedMetrics.borderWidth, "1px");
         assert.ok(focusedMetrics.shadowDimensions.every((size) => size === 0), "A single border marks focus without a second outer ring");

@@ -129,7 +129,7 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
         <TableBody>
           {actions.map((action, index) => (
             <TableRow key={action.id} data-action-id={action.id} className="group border-0 hover:bg-transparent">
-              <TableCell className="w-[32%] rounded-l-sm px-0.5 py-px align-top group-hover:bg-state-hover group-focus-within:bg-state-hover max-md:pointer-coarse:py-0">
+              <TableCell className="w-[32%] rounded-l-sm p-px align-top group-hover:bg-state-hover group-focus-within:bg-state-hover">
                 <Input
                   aria-label={`Action ${index + 1} button label`}
                   className="h-6 rounded-sm border-transparent px-1.5 py-[0.1875rem] text-xs leading-4 hover:border-input focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:leading-6"
@@ -151,7 +151,7 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
                   ))}
                 />
               </TableCell>
-              <TableCell className="px-0.5 py-px align-top group-hover:bg-state-hover group-focus-within:bg-state-hover max-md:pointer-coarse:py-0">
+              <TableCell className="p-px align-top group-hover:bg-state-hover group-focus-within:bg-state-hover">
                 <Textarea
                   aria-label={`Action ${index + 1} prompt`}
                   className="h-6 min-h-6 resize-none rounded-sm border-transparent px-1.5 py-[0.1875rem] text-xs leading-4 hover:border-input focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:h-10 max-md:pointer-coarse:min-h-10 max-md:pointer-coarse:leading-6"
@@ -169,12 +169,12 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
                   }}
                 />
               </TableCell>
-              <TableCell className="w-7 rounded-r-sm px-0.5 py-px align-top group-hover:bg-state-hover group-focus-within:bg-state-hover max-md:pointer-coarse:w-11 max-md:pointer-coarse:py-0">
+              <TableCell className="w-[1.625rem] rounded-r-sm p-px align-top group-hover:bg-state-hover group-focus-within:bg-state-hover max-md:pointer-coarse:w-[2.625rem]">
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 rounded-sm text-muted-foreground hover:text-foreground [&_[data-icon-root]]:size-3.5 max-md:pointer-coarse:h-10 max-md:pointer-coarse:w-9"
+                  className="h-6 w-6 rounded-sm text-muted-foreground hover:text-foreground [&_[data-icon-root]]:size-3.5 max-md:pointer-coarse:h-10 max-md:pointer-coarse:w-10"
                   aria-label={`${actions.length === 1 ? "Clear" : "Remove"} action ${index + 1}`}
                   onClick={() => {
                     const next = draft.current.length === 1
