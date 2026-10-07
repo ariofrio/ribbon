@@ -7,18 +7,18 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import plugin from "./server";
 
-describe("automatic agent wait staging", () => {
+describe("automatic stage guidance", () => {
   it.each(["codex", "claude"])(
-    "supplies the wait rule to %s without a stage mention",
+    "directs %s to the stage skill without requiring a stage mention",
     async (providerId) => {
       const { bb, harness } = setup();
       await plugin(bb);
       const resolved = await harness.behavior.resolveAgentConfiguration(
         makePluginAgentConfigurationContext({ provider: { id: providerId } }),
       );
-      expect(resolved.instructions).toContain("BlockedOnOtherAgent");
-      expect(resolved.instructions).toContain("before yielding");
-      expect(resolved.instructions).toContain("Waiting on the user remains Active");
+      expect(resolved.instructions).toContain("thread-stages skill");
+      expect(resolved.instructions).toContain("when work starts, waits, resumes, or finishes");
+      expect(resolved.instructions).not.toContain("BlockedOnOtherAgent");
       expect(resolved.tools).toEqual([]);
       expect(resolved.skills).toEqual(["thread-stages"]);
       await harness.lifecycle.dispose();
