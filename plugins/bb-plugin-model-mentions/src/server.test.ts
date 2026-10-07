@@ -146,6 +146,34 @@ describe("Model mentions", () => {
     await host.lifecycle.dispose();
   });
 
+  it("prefers the named provider regardless of query word order", async () => {
+    const host = setup();
+    host.sdk.stub("providers.list", async () => [
+      { id: "pi", displayName: "Pi", available: true, icon: { glyph: "Toolbox" } },
+      providers[0]!,
+    ]);
+    host.sdk.stub("providers.models", async (args: ModelArgs) => ({
+      models: [model("opus", args?.providerId === "pi" ? "Claude Opus" : "Opus")],
+      selectedOnlyModels: [],
+      modelLoadError: null,
+    }));
+    const mentions = host.registrations.mentionProviders.find(
+      (p) => p.id === "model",
+    )!;
+    const context = { trigger: "@" as const, projectId: null, threadId: null };
+    for (const query of [
+      "opus claude", "claude opus", "model:opus claude", "model:claude opus",
+    ]) {
+      expect(
+        (await mentions.search({ ...context, query })).map((item) => item.subtitle),
+      ).toEqual(["Model · Claude Code", "Model · Pi"]);
+    }
+    expect(
+      (await mentions.search({ ...context, query: "opus" })).map((item) => item.subtitle),
+    ).toEqual(["Model · Pi", "Model · Claude Code"]);
+    await host.lifecycle.dispose();
+  });
+
   it("offers provider and supported reasoning mentions only when enabled", async () => {
     const host = setup();
     const provider = host.registrations.mentionProviders.find(

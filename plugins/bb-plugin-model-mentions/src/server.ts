@@ -84,6 +84,7 @@ export default function modelMentions(bb: BbPluginApi): void {
       const providers = (
         await bb.sdk.providers.list({ ...route, signal })
       ).filter((p) => p.available);
+      const providerRanks = new Map<PluginMentionItem, number>();
       const results = await Promise.allSettled(
         providers.map(async (provider) => {
           const catalog = await bb.sdk.providers.models({
@@ -110,19 +111,25 @@ export default function modelMentions(bb: BbPluginApi): void {
               )
                 return [];
               seen.add(`${providerId}:${model.model}`);
-              return [
-                {
-                  id: encode({
-                    providerId,
-                    providerName: target.displayName,
-                    model: model.model,
-                    displayName: model.displayName,
-                  }),
-                  title: model.displayName,
-                  subtitle: `Model · ${target.displayName}`,
-                  icon: await icon(target),
-                },
-              ];
+              const item: PluginMentionItem = {
+                id: encode({
+                  providerId,
+                  providerName: target.displayName,
+                  model: model.model,
+                  displayName: model.displayName,
+                }),
+                title: model.displayName,
+                subtitle: `Model · ${target.displayName}`,
+                icon: await icon(target),
+              };
+              providerRanks.set(
+                item,
+                query.split(/\s+/u).filter(
+                  (word) =>
+                    word.length > 0 && matches(word, target.displayName, providerId),
+                ).length,
+              );
+              return [item];
             }),
           );
           return items.flat();
@@ -132,6 +139,7 @@ export default function modelMentions(bb: BbPluginApi): void {
         .flatMap((result) =>
           result.status === "fulfilled" ? result.value : [],
         )
+        .sort((a, b) => providerRanks.get(b)! - providerRanks.get(a)!)
         .slice(0, 50);
     },
     resolve(id) {

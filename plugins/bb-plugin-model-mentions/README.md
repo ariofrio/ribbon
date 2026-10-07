@@ -10,6 +10,11 @@ search within models. You can include a provider name, such as
 `@model:opus claude`. The prefix is case-insensitive. Up to 50 available
 models are shown; narrow the query to find more.
 
+Model results prefer providers whose names or IDs match query words. With
+the scoped prefix, `@model:opus claude` and `@model:claude opus` prefer Claude
+Code over another provider whose model is named Claude Opus. In unprefixed
+searches, bb's shared menu can override the plugin's ordering.
+
 Mentions carry exact provider and model IDs as agent context. For example,
 “start a subthread with @Opus” tells the receiving agent which provider and
 model to use for that subthread. They work in new threads, follow-ups, and

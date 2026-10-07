@@ -8,3 +8,5 @@ provider and model IDs as task instructions while leaving composer pickers
 unchanged. Provider and supported reasoning-level mentions are opt-in settings.
 Use `@model:` to browse available models, or add a model or provider name
 after the prefix to narrow the results.
+Prefer providers named in the query regardless of word order; scoped queries
+preserve that ordering in the shared mention menu.

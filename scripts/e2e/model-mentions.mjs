@@ -25,6 +25,13 @@ export function prepareLogoProvider({ bb, cliEnv }) {
     .replace('"displayName":"bb"', '"displayName":"Mention logo provider"')
     .replace('"icon":"Toolbox"', '"icon":"./logo.svg"');
   writeFileSync(join(logoDir, "server.ts"), server);
+  writeFileSync(
+    join(fixtureDir, "server.ts"),
+    readFileSync(join(fixtureDir, "server.ts"), "utf8").replace(
+      `"BB_SCREENSHOT_MODEL_NAME":"${AGENT.modelName}"`,
+      '"BB_SCREENSHOT_MODEL_NAME":"Mention Demo"',
+    ),
+  );
   execFileSync(bb, ["plugin", "install", logoDir, "--yes"], {
     env: cliEnv,
     stdio: "inherit",
@@ -197,7 +204,18 @@ export async function verifyModelMentions({ stack, fixture }) {
     });
     await newPicker.filter({ hasNotText: /Loading models/i }).waitFor();
     const newSelection = await newPicker.innerText();
-    await newComposer.locator('[contenteditable="true"]').click();
+    const newEditor = newComposer.locator('[contenteditable="true"]');
+    await newEditor.click();
+    for (const query of ["model:mention demo", "model:demo mention"]) {
+      await newEditor.press("ControlOrMeta+A");
+      await page.keyboard.type(`Start a task with @${query}`);
+      await modelRows.filter({ hasText: `Model · ${AGENT.displayName}` }).waitFor();
+      await modelRows
+        .first()
+        .filter({ hasText: "Model · Mention logo provider" })
+        .waitFor();
+    }
+    await newEditor.press("ControlOrMeta+A");
     await page.keyboard.type(`Start a task with @model:${AGENT.modelName}`);
     await page
       .getByText("Model · Mention logo provider", { exact: true })
