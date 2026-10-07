@@ -2,6 +2,7 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -50,7 +51,8 @@ import {
 } from "./ThreadSectionMoveProvider.js";
 import { THREAD_ROW_ACTIONS } from "./threadRowActions.js";
 import { useCustomizeThreadRowActions } from "../list/customizeRowActionsContext.js";
-import { RibbonThreadMenuItems } from "../../ribbon/app/menu.js";
+import { RibbonThreadActionsMenu, RibbonThreadStageMenu } from "../../ribbon/app/menu.js";
+import { ThreadActionsEditor } from "../../ribbon/app/ThreadActionsEditor.js";
 
 interface ThreadActionsMenuBaseProps {
   thread: SidebarThread;
@@ -87,7 +89,7 @@ interface ThreadRowActionHandlers {
   actions: SidebarThreadActions;
   unarchiveThread: (threadId: string) => Promise<boolean>;
 }
-type ThreadActionsCompactStep = "actions" | "move";
+type ThreadActionsCompactStep = "actions" | "move" | "edit";
 
 interface ThreadActionsMenuItemsProps extends ThreadActionsMenuBaseProps {
   compactStep?: ThreadActionsCompactStep;
@@ -256,6 +258,24 @@ function ThreadActionsMenuItems({
   const isCompactViewport = useIsCompactViewport();
   const isDrawer = surface === "dropdown" && isCompactViewport;
   const showSeparators = !isDrawer;
+  const editorBack = useRef<HTMLElement | null>(null);
+
+  if (isDrawer && compactStep === "edit") {
+    return (
+      <>
+        <DropdownMenuItem ref={(node) => { editorBack.current = node; }} onSelect={(event) => {
+          event.preventDefault();
+          onCompactStepChange?.("actions");
+        }}>
+          <Icon name="ChevronLeft" aria-hidden />
+          Back
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Edit actions</DropdownMenuLabel>
+        <ThreadActionsEditor threadId={thread.id} onTabBoundary={() => editorBack.current?.focus()} />
+      </>
+    );
+  }
 
   if (isDrawer && compactStep === "move") {
     return (
@@ -302,8 +322,6 @@ function ThreadActionsMenuItems({
         <Fragment key={id}>
           {id === "archive" ? (
             <>
-              <RibbonThreadMenuItems thread={thread} surface={surface} drawer={isDrawer} />
-              {separator}
               {customizeRowActions ? (
                 <>
                   <ActionMenuItem
@@ -327,6 +345,24 @@ function ThreadActionsMenuItems({
             variant={menuVariant}
           />
           {id === "split" && onOpenInSplit ? separator : null}
+          {id === "read" ? separator : null}
+          {id === "move" ? (
+            <>
+              <RibbonThreadStageMenu thread={thread} surface={surface} drawer={isDrawer} />
+              {separator}
+            </>
+          ) : null}
+          {id === "rename" ? (
+            <>
+              <RibbonThreadActionsMenu
+                thread={thread}
+                surface={surface}
+                drawer={isDrawer}
+                onOpenEditor={() => onCompactStepChange?.("edit")}
+              />
+              {separator}
+            </>
+          ) : null}
         </Fragment>
       ))}
       <ActionMenuItem
@@ -490,10 +526,12 @@ export function ThreadRowAction({
 }
 
 function useThreadActionsMenuLifecycle(onOpenChange?: (open: boolean) => void) {
+  const [open, setOpen] = useState(false);
   const [compactStep, setCompactStep] =
     useState<ThreadActionsCompactStep>("actions");
   const handleOpenChange = useCallback(
     (open: boolean) => {
+      setOpen(open);
       if (!open) {
         setCompactStep("actions");
       }
@@ -502,7 +540,7 @@ function useThreadActionsMenuLifecycle(onOpenChange?: (open: boolean) => void) {
     [onOpenChange],
   );
 
-  return { compactStep, setCompactStep, handleOpenChange };
+  return { open, compactStep, setCompactStep, handleOpenChange };
 }
 
 export function ThreadArchiveQuickAction({
@@ -687,11 +725,11 @@ export function ThreadActionsMenu({
   onOpenChange,
   triggerClassName,
 }: ThreadActionsMenuProps) {
-  const { compactStep, setCompactStep, handleOpenChange } =
+  const { open, compactStep, setCompactStep, handleOpenChange } =
     useThreadActionsMenuLifecycle(onOpenChange);
 
   return (
-    <DropdownMenu onOpenChange={handleOpenChange}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -802,12 +840,6 @@ function ThreadActionsDesktopContextMenu({
       <ContextMenuContent
         aria-label="Thread actions"
         onCloseAutoFocus={onCloseAutoFocus}
-        onPointerUpCapture={(event) => {
-          // Releasing the right click that opened the menu must not pick the
-          // item that opened under it. Temporary until
-          // https://github.com/get-bb/bb/issues/4439 reaches the pinned UI.
-          if (event.button === 2) event.preventDefault();
-        }}
       >
         <ThreadActionsMenuItems
           thread={thread}

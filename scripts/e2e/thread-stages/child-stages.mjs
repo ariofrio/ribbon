@@ -41,7 +41,7 @@ export async function verifyChildStages({ stack, fixture }) {
       assert.ok(rendered.width > 0 && rendered.height > 0);
       await childRow.hover();
       await childRow.getByRole("button", { name: "Thread actions" }).click();
-      await page.getByRole("menuitem", { name: "Move to stage" }).click();
+      await page.getByRole("menuitem", { name: "Set stage" }).click();
       await page.getByRole("menuitemradio", { name: "Active" }).click();
       await childRow.locator('[aria-label="Active stage"]').waitFor({ state: "attached" });
       assert.equal(stageFor(fixture, child.id), "Active");

@@ -3,7 +3,7 @@ import { z } from "zod";
 const threadActionSchema = z
   .object({
     id: z.string().min(1).max(64),
-    label: z.string().trim().min(1).max(24),
+    label: z.string().trim().max(24),
     prompt: z.string().trim().min(1).max(10000),
   })
   .strict();
