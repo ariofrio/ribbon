@@ -127,8 +127,10 @@ and send the saved prompt to that thread when clicked.
 The same actions are available through `bb thread-stages actions list`, `set`, and
 `run`. Pass a thread ID or `--self`; `set --actions '<json-array>'` replaces
 the buttons, and `run <action-id>` sends a saved prompt. See the
-[Thread actions skill reference](skills/thread-stages/SKILL.md#thread-actions)
-for the JSON format.
+[Thread actions skill reference](skills/thread-actions/SKILL.md)
+for the JSON format. Invoking
+[Thread stages](skills/thread-stages/SKILL.md) is sufficient: it loads the
+Thread actions instructions when a request needs them.
 
 A thread's pull request adds its status. Its icon beside the PR number is
 green while open, amber once auto-merge is on or it is in the merge queue,

@@ -9,6 +9,10 @@ Start by running `bb thread-stages`, and discover the available operations
 and arguments from its help as needed. Do not rely on a memorized command
 surface.
 
+For requests to inspect, edit, or run saved prompt buttons beside thread titles,
+read [Thread actions](../thread-actions/SKILL.md) and follow its instructions.
+Load it when needed without asking the user to invoke it separately.
+
 ## Selecting threads
 
 Use the joined thread view, `bb thread-stages list --json`, before selecting
@@ -81,35 +85,6 @@ thread when someone else changes its stage, as "Thread stage updated: @Active
 → @Blocked on third party"; that move has already happened. Older messages may
 mention `@Idle`, now Active, or `@Blocked`, now split into the two Blocked
 stages.
-
-## Thread actions
-
-Thread actions are labeled buttons beside a thread's title. Running one sends
-its saved prompt to that thread, just like clicking the button.
-
-```sh
-bb thread-stages actions list [<thread>] [--self] [--json]
-bb thread-stages actions set [<thread>] [--self] --actions '<json-array>' [--json]
-bb thread-stages actions run <action-id> [<thread>] [--self] [--json]
-```
-
-Pass a thread ID or `--self`. `list` includes each action's ID, label, and prompt.
-`run` selects by action ID, not label.
-
-`set` replaces the entire ordered list; read the current
-list first when preserving existing buttons. Each action has a unique `id`
-(1–64 characters), a `label` (0–24), and a `prompt` (1–10000). Labels and
-prompts are trimmed; an empty label uses the prompt as the button label. For example:
-
-```sh
-bb thread-stages actions set --self --actions '[{"id":"review","label":"Review","prompt":"Review this change."}]'
-bb thread-stages actions run review --self
-```
-
-Use `--actions '[]'` to clear the buttons. `--actions-stdin` reads the JSON
-array from stdin instead of an argument. Invalid input leaves the saved
-actions unchanged, and archived threads reject changes. Changes appear in
-every open window.
 
 ## Layout preferences
 
