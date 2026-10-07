@@ -108,7 +108,7 @@ settings keeps the fade but not the pan, or cuts titles with bb's ellipsis
 instead. The pan respects reduced motion.
 
 Use **Edit actions** in a thread's context menu or ⋯ menu to edit labeled prompts.
-Fill the empty row at the bottom to add an action; edits save automatically once
+Fill the empty row at the bottom to add an action; edits save as you type once
 both fields are filled. Use X to clear or remove a row. Extra empty rows collapse
 when focus moves.
 Action buttons appear beside the thread title, colored like the section or project,

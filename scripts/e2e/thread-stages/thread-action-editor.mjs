@@ -120,6 +120,9 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         await page.keyboard.type("Review this change.");
         await page.keyboard.press("Enter");
         await page.keyboard.type("Check the keyboard flow too.");
+        // The open menu hides the painted sidebar from assistive technology.
+        await target.getByRole("button", { name: `Review in ${thread.title}`, includeHidden: true }).waitFor();
+        await focused(page, prompt(1));
         const promptBox = await prompt(1).boundingBox();
         const labelBox = await label(1).boundingBox();
         assert.ok(promptBox.height > labelBox.height + 8, "Focused multiline prompts expand to expose their text");
@@ -136,6 +139,8 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         await page.keyboard.press("ArrowLeft");
         await page.keyboard.type("!");
         assert.equal(await label(2).inputValue(), "Tes!t");
+        await target.getByRole("button", { name: `Tes!t in ${thread.title}`, includeHidden: true }).waitFor();
+        await focused(page, label(2));
         await activate(remove(1));
         await focused(page, label(1));
         assert.equal(await label(1).inputValue(), "Tes!t", "Removing a row focuses the next row without losing its draft");
@@ -182,6 +187,8 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
           && response.request().postDataJSON().actions[0]?.prompt.startsWith("A longer prompt"));
         await page.keyboard.press("ControlOrMeta+a");
         await page.keyboard.insertText("A longer prompt to review carefully. ".repeat(15));
+        await autosaved;
+        await focused(page, prompt(1));
         const fieldMetrics = await prompt(1).evaluate((field) => ({
           fontSize: getComputedStyle(field).fontSize,
           resize: getComputedStyle(field).resize,

@@ -33,7 +33,6 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
   const draft = useRef(actions);
   const saved = useRef(ribbon?.threadActions.get(threadId)?.actions ?? []);
   const queue = useRef(Promise.resolve());
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(false);
   const labelFields = useRef(new Map<string, HTMLInputElement>());
   const focusAfterRemoval = useRef<string | null>(null);
@@ -44,11 +43,9 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
   }, [actions]);
   const saveThreadActions = ribbon?.saveThreadActions;
   const flush = useCallback(() => {
-    if (timer.current !== null) clearTimeout(timer.current);
-    timer.current = null;
-    const snapshot = draft.current;
     queue.current = queue.current.then(async () => {
       if (!saveThreadActions) return;
+      const snapshot = draft.current;
       const next = snapshot.flatMap((action) => {
         const label = action.label.trim();
         const prompt = action.prompt.trim();
@@ -79,8 +76,7 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
   const changeActions = (next: ThreadAction[]) => {
     draft.current = withEmptyRow(next);
     setActions(draft.current);
-    if (timer.current !== null) clearTimeout(timer.current);
-    timer.current = setTimeout(flush, 300);
+    flush();
   };
   if (ribbon === null) return null;
   return (

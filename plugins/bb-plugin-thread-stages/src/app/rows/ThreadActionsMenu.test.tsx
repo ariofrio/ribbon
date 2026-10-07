@@ -89,11 +89,11 @@ it("keeps fields editable and serializes autosaves and removal while a save is p
   fireEvent.change(screen.getByRole("textbox", { name: "Action 1 button label" }), { target: { value: "Review" } });
   const prompt = screen.getByRole("textbox", { name: "Action 1 prompt" });
   fireEvent.change(prompt, { target: { value: "First prompt" } });
-  fireEvent.blur(prompt);
-  await waitFor(() => expect(calls).toBe(1));
+  await act(async () => { await Promise.resolve(); });
+  expect(calls).toBe(1);
   expect((prompt as HTMLTextAreaElement).disabled).toBe(false);
+  fireEvent.change(prompt, { target: { value: "Second prompt" } });
   fireEvent.change(prompt, { target: { value: "Latest prompt" } });
-  fireEvent.blur(prompt);
   await act(async () => { await Promise.resolve(); });
   expect(calls).toBe(1);
   await act(async () => finishFirstSave({ ok: true }));
@@ -104,11 +104,9 @@ it("keeps fields editable and serializes autosaves and removal while a save is p
   });
   const label = screen.getByRole("textbox", { name: "Action 1 button label" });
   fireEvent.change(label, { target: { value: "" } });
-  fireEvent.blur(label);
   await act(async () => { await Promise.resolve(); });
   expect(calls).toBe(2);
   fireEvent.change(label, { target: { value: "Review again" } });
-  fireEvent.blur(label);
   await waitFor(() => expect(calls).toBe(3));
   fireEvent.click(screen.getByRole("button", { name: "Remove action 1" }));
   await waitFor(() => expect(calls).toBe(4));
