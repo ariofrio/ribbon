@@ -2,7 +2,7 @@ import { verifyThreadActionEditor } from "../thread-stages/thread-action-editor.
 
 export default {
   id: "thread-action-editor",
-  cases: ["desktop", "compact"],
+  cases: ["desktop", "desktop-light", "compact"],
   plugins: ["bb-plugin-thread-stages"],
   run: verifyThreadActionEditor,
 };

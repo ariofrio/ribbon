@@ -10,18 +10,21 @@ async function focused(page, target) {
   });
 }
 
-export async function verifyThreadActionEditor({ stack, fixture, cases = ["desktop", "compact"] }) {
+export async function verifyThreadActionEditor({ stack, fixture, cases = ["desktop", "desktop-light", "compact"], themeId = "default" }) {
+  fixture.run(["theme", "set", themeId]);
   const thread = fixture.threads.get(FEATURED_THREAD);
   const project = fixture.projects.get(FEATURED_PROJECT);
   const browser = await launch();
   try {
     for (const testCase of cases) {
       const compact = testCase === "compact";
+      const colorScheme = compact || testCase === "desktop-light" ? "light" : "dark";
       const context = await openContext(browser, {
         viewport: compact ? { width: 390, height: 844 } : { width: 1280, height: 800 },
         hasTouch: compact,
-        colorScheme: compact ? "light" : "dark",
+        colorScheme,
       });
+      await context.addInitScript((mode) => localStorage.setItem("bb.theme", mode), colorScheme);
       const page = await context.newPage();
       const activate = (target) => compact ? target.tap() : target.click();
       const errors = [];
@@ -163,6 +166,19 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
           assert.ok(hovered.backgrounds.every((color) => color === transparent), "Focus suppresses other row highlights");
           assert.notEqual(editing.border, transparent, "The editing field retains its focus border");
           assert.ok(editing.backgrounds.every((color) => color !== transparent), "The editing row retains its highlight");
+          const [hoverAlpha, focusAlpha] = await prompt(1).evaluate((field, hoverColor) => {
+            const canvas = document.createElement("canvas");
+            canvas.width = canvas.height = 1;
+            const context = canvas.getContext("2d");
+            const alpha = (color) => {
+              context.clearRect(0, 0, 1, 1);
+              context.fillStyle = color;
+              context.fillRect(0, 0, 1, 1);
+              return context.getImageData(0, 0, 1, 1).data[3];
+            };
+            return [alpha(hoverColor), alpha(getComputedStyle(field.closest("td")).backgroundColor)];
+          }, hovered.background);
+          assert.ok(hoverAlpha > 0 && hoverAlpha < focusAlpha, "Field hover uses a softer wash than the focused row in either theme mode");
           await label(1).hover();
           const hoveredLabel = await paint(label(1));
           assert.equal(hoveredLabel.border, transparent, "Hovering another field in the editing row does not add a border");
