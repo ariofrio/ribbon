@@ -232,15 +232,23 @@ export async function verifyThreadIndicators({ stack, fixture }) {
         await observe(`Draft ${tone}`);
       }
       await row.hover();
-      await page.waitForFunction((node) => {
+      await page.waitForFunction(({ node, expectedOpacity }) => {
         let opacity = 1;
         for (let parent = node; parent && parent.tagName !== "BODY"; parent = parent.parentElement) {
           const style = getComputedStyle(parent);
-          if (style.visibility === "hidden" || style.display === "none") return true;
+          if (style.visibility === "hidden" || style.display === "none") return expectedOpacity === 0;
           opacity *= Number(style.opacity);
         }
-        return opacity === 0;
-      }, await glyph.elementHandle());
+        return opacity === expectedOpacity;
+      }, { node: await glyph.elementHandle(), expectedOpacity: provider === "__builtin__" ? 0 : 1 });
+      if (provider !== "__builtin__") {
+        const geometry = await row.evaluate((node) => ({
+          controlsRight: node.querySelector("[data-sidebar-row-controls]").getBoundingClientRect().right,
+          indicatorLeft: node.querySelector("[data-sidebar-thread-trailing-indicator]").getBoundingClientRect().left,
+        }));
+        assert.ok(geometry.controlsRight <= geometry.indicatorLeft,
+          "Ribbon's revealed controls leave the visible indicator's slot clear");
+      }
       console.log(`Checked hover for ${provider}`);
       const other = fixture.threads.get("Replace the legacy filter drawer");
       await root.locator(`a[data-sidebar-thread-id="${other.id}"]`).first().click({ modifiers: ["ControlOrMeta"] });
