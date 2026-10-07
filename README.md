@@ -35,6 +35,23 @@ bb plugin install thread-stages@ribbon
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
+### <img src="assets/icons/model-mentions.svg" alt="" width="26" align="absmiddle"> &nbsp;Model mentions
+
+Mention models and providers in task instructions using live provider catalogs.
+
+Type `@Opus` or another model name to choose a model and provider for a task.
+Mentions carry exact IDs and the provider's icon, and leave composer pickers unchanged.
+Provider and reasoning mentions are optional.
+
+```sh
+bb marketplace add git:github.com/ariofrio/ribbon
+bb plugin install model-mentions@ribbon
+```
+
+<a href="plugins/bb-plugin-model-mentions#readme">Read docs &rarr;</a>
+
+<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
+
 ### <img src="assets/icons/thread-titles.svg" alt="" width="26" align="absmiddle"> &nbsp;Thread titles
 
 Title threads from their first message and first turn, and refine generic, inaccurate, or overlong titles on the third user message.
