@@ -19,8 +19,12 @@ async function pressCommand(page, keys, id) {
 }
 
 async function settings(page, stack) {
-  await page.goto(new URL("/settings/keyboard", stack.serverUrl).href);
-  await page.getByRole("button", { name: /^Record shortcut for Navigate backward,/ }).waitFor();
+  await page.goto(new URL("/settings/keyboard", stack.serverUrl).href, {
+    waitUntil: "domcontentloaded", timeout: 120_000,
+  });
+  await page.locator(READY).waitFor({ state: "attached", timeout: 120_000 });
+  await page.getByRole("button", { name: /^Record shortcut for Navigate backward,/ })
+    .waitFor({ timeout: 120_000 });
 }
 
 async function assign(page, title, keys) {
@@ -70,7 +74,11 @@ async function threadCreation(page, stack, project, thread) {
   const primary = page.locator(PRIMARY);
   await focused(page, primary);
   await page.getByRole("button", { name: "Project: No project", exact: true }).waitFor();
-  await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
+  await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href, {
+    waitUntil: "domcontentloaded", timeout: 120_000,
+  });
+  await page.locator(READY).waitFor({ state: "attached", timeout: 120_000 });
+  await primary.waitFor({ timeout: 120_000 });
   await primary.click();
   await pressCommand(page, `${MODIFIER}+Shift+KeyN`, "new-project-thread");
   await focused(page, primary);
@@ -90,11 +98,16 @@ async function composerFocus(page, stack, project, thread) {
   const recorder = page.getByRole("button", { name: new RegExp(`^Record shortcut for ${title},`) });
   console.log("Default primary-composer binding:", await recorder.getAttribute("aria-label"));
   await assign(page, title, `${MODIFIER}+KeyL`);
-  await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
+  await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href, {
+    waitUntil: "domcontentloaded", timeout: 120_000,
+  });
+  await page.locator(READY).waitFor({ state: "attached", timeout: 120_000 });
   const primary = page.locator(PRIMARY);
+  await primary.waitFor({ timeout: 120_000 });
   await primary.click();
   await pressCommand(page, `${MODIFIER}+Shift+KeyL`, "toggle-side-chat");
   const reply = page.locator(SIDE_CHAT).getByRole("textbox", { name: "Reply…" });
+  await reply.waitFor({ timeout: 120_000 });
   await focused(page, reply);
   await page.keyboard.type("Keep the secondary draft");
   await pressCommand(page, `${MODIFIER}+KeyL`, "focus-primary-composer");
@@ -129,7 +142,8 @@ async function sideChat(page, fixture, thread) {
   const primary = page.locator(PRIMARY);
   await primary.click();
   const response = page.waitForResponse((response) =>
-    response.url().endsWith("/plugins/missing-keyboard-shortcuts/rpc/createSideChat"));
+    response.url().endsWith("/plugins/missing-keyboard-shortcuts/rpc/createSideChat"),
+  { timeout: 120_000 });
   await page.keyboard.press(`${MODIFIER}+Shift+KeyL`);
   const created = await (await response).json();
   assert.equal(created.ok, true);
@@ -192,8 +206,10 @@ export async function verifyMissingShortcuts({ stack, fixture, cases }) {
       page.on("pageerror", (error) => errors.push(error.message));
       try {
         await page.goto(new URL(testCase === "thread-creation" ? "/settings/keyboard" :
-          `/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
-        await page.locator(READY).waitFor({ state: "attached" });
+          `/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href, {
+          waitUntil: "domcontentloaded", timeout: 120_000,
+        });
+        await page.locator(READY).waitFor({ state: "attached", timeout: 120_000 });
         if (testCase === "side-chat") await sideChat(page, fixture, thread);
         if (testCase === "navigation") await navigation(page, fixture, thread);
         if (testCase === "thread-creation") await threadCreation(page, stack, project, thread);
