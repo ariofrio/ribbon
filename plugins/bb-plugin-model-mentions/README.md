@@ -5,6 +5,11 @@ your available providers. Choose a result to insert a mention with that
 provider's icon. The same model offered by different providers has separate
 results, with the provider's name underneath.
 
+Type `@model:` to browse models without a name filter, or `@model:opus` to
+search within models. You can include a provider name, such as
+`@model:opus claude`. The prefix is case-insensitive. Up to 50 available
+models are shown; narrow the query to find more.
+
 Mentions carry exact provider and model IDs as agent context. For example,
 “start a subthread with @Opus” tells the receiving agent which provider and
 model to use for that subthread. They work in new threads, follow-ups, and

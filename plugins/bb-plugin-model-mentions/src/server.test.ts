@@ -110,6 +110,42 @@ describe("Model mentions", () => {
     await host.lifecycle.dispose();
   });
 
+  it("browses models with the model: prefix and searches within that scope", async () => {
+    const host = setup();
+    host.sdk.stub("providers.models", async () => ({
+      models: [model("opus", "Opus"), model("sonnet", "Sonnet")],
+      selectedOnlyModels: [model("hidden", "Hidden")],
+      modelLoadError: null,
+    }));
+    const mentions = host.registrations.mentionProviders.find(
+      (p) => p.id === "model",
+    )!;
+    const query = {
+      trigger: "@" as const,
+      query: "model:",
+      projectId: null,
+      threadId: null,
+    };
+    expect((await mentions.search(query)).map((item) => item.title)).toEqual([
+      "Opus", "Sonnet", "Opus", "Sonnet",
+    ]);
+    expect(
+      (await mentions.search({ ...query, query: "MODEL: opus" })).map(
+        (item) => item.title,
+      ),
+    ).toEqual(["Opus", "Opus"]);
+    expect(
+      (await mentions.search({ ...query, query: "model:sonnet openrouter" })).map(
+        (item) => item.subtitle,
+      ),
+    ).toEqual(["Model · OpenRouter"]);
+    expect(await mentions.search({ ...query, query: "model:hidden" })).toEqual([]);
+    expect(await mentions.search({ ...query, query: "model" })).toEqual([]);
+    await host.behavior.setSettings({ modelMentions: false });
+    expect(await mentions.search(query)).toEqual([]);
+    await host.lifecycle.dispose();
+  });
+
   it("offers provider and supported reasoning mentions only when enabled", async () => {
     const host = setup();
     const provider = host.registrations.mentionProviders.find(

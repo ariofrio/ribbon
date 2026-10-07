@@ -78,6 +78,7 @@ export default function modelMentions(bb: BbPluginApi): void {
     label: "Models",
     async search(ctx) {
       if (!(await settings.get()).modelMentions || !ctx.query.trim()) return [];
+      const query = ctx.query.trim().replace(/^model:\s*/iu, "");
       const route = await routing(ctx);
       const signal = AbortSignal.timeout(1750);
       const providers = (
@@ -100,7 +101,7 @@ export default function modelMentions(bb: BbPluginApi): void {
               if (
                 seen.has(`${providerId}:${model.model}`) ||
                 !matches(
-                  ctx.query,
+                  query,
                   model.displayName,
                   model.model,
                   target.displayName,

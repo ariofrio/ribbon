@@ -98,7 +98,16 @@ export async function verifyModelMentions({ stack, fixture }) {
     await picker.filter({ hasText: AGENT.modelName }).waitFor();
     const initialSelection = await picker.innerText();
     await editor.click();
-    await page.keyboard.type(`For a subthread use @${AGENT.modelName}`);
+    await page.keyboard.type("For a subthread use @model:");
+    const modelRows = page.locator('button[title^="Models:"]');
+    await modelRows.first().waitFor();
+    const mentionResults = modelRows.first().locator("xpath=../../..");
+    assert.equal(
+      await mentionResults.getByText("Threads", { exact: true }).count(),
+      0,
+      "The model: prefix excludes the fixture's thread matches",
+    );
+    await page.keyboard.type(AGENT.modelName);
     await page
       .getByText(`Model · ${AGENT.displayName}`, { exact: true })
       .waitFor();
@@ -189,7 +198,7 @@ export async function verifyModelMentions({ stack, fixture }) {
     await newPicker.filter({ hasNotText: /Loading models/i }).waitFor();
     const newSelection = await newPicker.innerText();
     await newComposer.locator('[contenteditable="true"]').click();
-    await page.keyboard.type(`Start a task with @${AGENT.modelName}`);
+    await page.keyboard.type(`Start a task with @model:${AGENT.modelName}`);
     await page
       .getByText("Model · Mention logo provider", { exact: true })
       .waitFor();
