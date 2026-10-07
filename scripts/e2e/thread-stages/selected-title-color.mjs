@@ -7,7 +7,7 @@ export async function verifySelectedTitleColor({ stack, fixture }) {
   const thread = fixture.threads.get(FEATURED_THREAD);
   const inactiveThread = fixture.threads.get(THREADS.find((candidate) => candidate.stage === null).title);
   // Earlier suites can leave it Deferred or Completed, which mutes its title.
-  fixture.run(["sidebar", "place", inactiveThread.id, "--to", `${STAGES}/Active`]);
+  fixture.run(["thread-stages", "place", inactiveThread.id, "--to", `${STAGES}/Active`]);
   const project = fixture.projects.get(FEATURED_PROJECT);
   const browser = await launch();
   try {

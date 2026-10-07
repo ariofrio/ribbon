@@ -12,6 +12,10 @@ describe("sidebar migrations", () => {
     { name: "a new installation", previous: [] },
     { name: "main with child ordering", previous: RIBBON_SIDEBAR_MIGRATIONS },
     {
+      name: "main with thread actions",
+      previous: [...RIBBON_SIDEBAR_MIGRATIONS, THREAD_ACTIONS_MIGRATION, THREAD_ACTIONS_DISPLAY_MIGRATION],
+    },
+    {
       name: "an installed action-button preview",
       previous: [
         ...RIBBON_SIDEBAR_MIGRATIONS.slice(0, 4),
@@ -34,10 +38,11 @@ describe("sidebar migrations", () => {
 
     expect(
       database
-        .prepare("SELECT name FROM sqlite_master WHERE name IN ('child_order', 'thread_action', 'thread_action_display') ORDER BY name")
+        .prepare("SELECT name FROM sqlite_master WHERE name IN ('child_order', 'main_stage_order', 'thread_action', 'thread_action_display') ORDER BY name")
         .all(),
     ).toEqual([
       { name: "child_order" },
+      { name: "main_stage_order" },
       { name: "thread_action" },
       { name: "thread_action_display" },
     ]);

@@ -27,7 +27,7 @@ export async function reportBackgroundCommand(page, threadId) {
 export async function verifyThreadIcons({ stack, fixture }) {
   const thread = fixture.threads.get(FEATURED_THREAD);
   // Earlier filing and placement cases can move this shared thread out of Active.
-  fixture.run(["sidebar", "place", thread.id, "--to", `${STAGES}/Active`]);
+  fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/Active`]);
   await applyPluginState({ stack, ...fixture });
   const browser = await launch();
   try {
@@ -145,16 +145,16 @@ export async function verifyThreadIcons({ stack, fixture }) {
       assert.ok(Math.abs(hue - labelHue) < 0.5, `The Atlas heading's ${part} should keep its color's hue (${hue} vs ${labelHue})`);
     }
 
-    // A heading whose owner chose no icon carries the standard one: a book
-    // for a section, open while the section is, in the heading's own ink.
-    // Threads owns nothing to choose for, so it always does.
+    // A heading whose owner chose no icon carries a standard one that opens
+    // and shuts with its group, in the heading's own ink. Threads has nothing
+    // to choose, so it always carries its two messages.
     {
       const plain = sidebarRoot(page).locator('[data-sidebar="group-label"]').filter({
         has: page.getByRole("button", { name: /^(Collapse|Expand) Threads section$/ }),
       });
       const standard = (name) => plain.locator(`svg[data-icon="${name}"]`);
-      await standard("BookOpen").waitFor();
-      const glyph = await standard("BookOpen").evaluate((svg) => {
+      await standard("MessagesOpen").waitFor();
+      const glyph = await standard("MessagesOpen").evaluate((svg) => {
         const box = svg.getBoundingClientRect();
         const label = [...svg.closest('[data-sidebar="group-label"]').querySelectorAll("span")]
           .find((span) => span.childElementCount === 0 && span.textContent === "Threads");
@@ -163,19 +163,22 @@ export async function verifyThreadIcons({ stack, fixture }) {
       assert.deepEqual(
         { width: glyph.width, height: glyph.height, color: glyph.color },
         { width: 16, height: 16, color: glyph.ink },
-        "A standardized section icon should be a 16px glyph in the heading's ink",
+        "A standard heading icon should be a 16px glyph in the heading's ink",
       );
-      const drawnWidth = (name) => standard(name).evaluate((svg) => {
-        const boxes = [...svg.querySelectorAll("path:not(mask path)")].map((path) => path.getBoundingClientRect());
-        return Math.max(...boxes.map((box) => box.right)) - Math.min(...boxes.map((box) => box.left));
+      // Where the second message's outline lies past the first one's.
+      const past = (name) => standard(name).evaluate((svg) => {
+        const [front, back] = [...svg.querySelectorAll("path:not(mask path)")].map((path) => path.getBoundingClientRect());
+        return { right: back.right - front.right, bottom: back.bottom - front.bottom };
       });
-      const openWidth = await drawnWidth("BookOpen");
-      // The book shuts as its group folds, frame by frame, from open.
+      const open = await past("MessagesOpen");
+      assert.ok(open.right > 1 && open.bottom > 1.5,
+        `Open, the second message should be out to the bottom right of the first: ${JSON.stringify(open)}`);
+      // The messages shut as their group folds, frame by frame, from open.
       const shutting = plain.evaluate((group) => new Promise((resolve) => {
         const frames = [];
         const start = performance.now();
         requestAnimationFrame(function sample() {
-          const svg = group.querySelector('svg[data-icon="BookClosed"]');
+          const svg = group.querySelector('svg[data-icon="MessagesClosed"]');
           if (svg) frames.push(svg.getAttribute("data-ribbon-icon-opening"));
           if (frames.at(-1) === null || performance.now() - start > 2000) resolve(frames);
           else requestAnimationFrame(sample);
@@ -185,19 +188,18 @@ export async function verifyThreadIcons({ stack, fixture }) {
       await plain.getByRole("button", { name: "Collapse Threads section", exact: true }).click();
       const frames = await shutting;
       const drawn = frames.slice(0, -1).map(Number);
-      assert.equal(frames.at(-1), null, `The shut book should come to rest: ${JSON.stringify(frames)}`);
+      assert.equal(frames.at(-1), null, `The shut messages should come to rest: ${JSON.stringify(frames)}`);
       assert.ok(
         drawn.length >= 3 && drawn.some((open) => open > 0.2 && open < 0.8) && drawn.every((open, index) => index === 0 || open <= drawn[index - 1]),
-        `The book should shut through frames between open and shut: ${JSON.stringify(frames)}`,
+        `The messages should shut through frames between open and shut: ${JSON.stringify(frames)}`,
       );
-      // One book, drawn at one size: open, it is its two pages side by side,
-      // shut, one page and the spine rounding off its edge.
-      const shutWidth = await drawnWidth("BookClosed");
-      assert.ok(openWidth / shutWidth > 1.5 && openWidth / shutWidth < 2.1,
-        `The open book should be most of twice as wide as the shut one: ${openWidth} and ${shutWidth}`);
+      // Shut, the second message is tucked behind the first.
+      const shut = await past("MessagesClosed");
+      assert.ok(shut.right <= 0.5 && shut.bottom <= 0.5,
+        `Shut, the second message should be behind the first: ${JSON.stringify(shut)}`);
       await plain.hover();
       await plain.getByRole("button", { name: "Expand Threads section", exact: true }).click();
-      await standard("BookOpen").waitFor();
+      await standard("MessagesOpen").waitFor();
       // Atlas chose its own, which it keeps.
       await atlas.locator(`svg[data-icon="${SECTION.icon}"]`).waitFor();
     }
@@ -210,10 +212,11 @@ export async function verifyThreadIcons({ stack, fixture }) {
           number: 123, title: "Sidebar pull request", state: prState,
           url: "https://github.com/example/project/pull/123",
           baseRefName: "main", headRefName: "feature", updatedAt: "2026-09-18T00:00:00Z",
+          autoMerge: false, inMergeQueue: false,
           checks: { state: "no_checks", totalCount: 0, passedCount: 0, failedCount: 0, pendingCount: 0 },
           review: { state: "none", reviewRequestCount: 0 },
           mergeability: { state: "mergeable", mergeStateStatus: null, mergeable: null },
-          attention: "none",
+          attention: prState === "open" ? "none" : prState,
         },
       },
     }));
@@ -226,9 +229,10 @@ export async function verifyThreadIcons({ stack, fixture }) {
         const rowNode = document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${threadId}"]`);
         const badge = rowNode?.querySelector('[title="Sidebar pull request"]');
         const icon = badge?.querySelector("svg");
-        const statusTitle = `${state[0].toUpperCase()}${state.slice(1)} Pull Request`;
-        const reference = [...document.querySelectorAll(`[title="${statusTitle}"] svg`)]
-          .find((svg) => !svg.closest("[data-ribbon-sidebar-root]"));
+        const statusTitle = `${state[0].toUpperCase()}${state.slice(1)}`;
+        const reference = document.querySelector(
+          `[data-app-composer-role="primary"] a[href="https://github.com/example/project/pull/123"] [title="${statusTitle}"] svg`,
+        );
         if (!icon || !reference) return false;
         const range = document.createRange();
         range.setStartAfter(icon);

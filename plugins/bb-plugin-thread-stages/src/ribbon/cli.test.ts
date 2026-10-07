@@ -98,7 +98,6 @@ function thread(
     lifecycleOwnerThreadId: null,
     runtime: {
       displayStatus: "idle",
-      hostReconnectGraceExpiresAt: null,
     },
     ...values,
   };
@@ -140,8 +139,7 @@ function setup() {
           updatedAt: 40,
           runtime: {
             displayStatus: "active",
-            hostReconnectGraceExpiresAt: null,
-          },
+                },
         }),
       ],
       updatePlacement: (input: Parameters<typeof store.updatePlacement>[0]) =>
@@ -186,13 +184,13 @@ describe("Ribbon sidebar CLI", () => {
     expect(topLevel).toMatchObject({
       exitCode: 0,
       stdout: expect.stringContaining(
-        "bb sidebar <command> [options]",
+        "bb thread-stages <command> [options]",
       ),
     });
     expect(topLevel.stdout).toContain(
-      "Inspect and change Ribbon sidebar placement",
+      "Inspect and change thread stages, sidebar placement, and layout preferences",
     );
-    expect(topLevel.stdout).toContain("bb sidebar rekey");
+    expect(topLevel.stdout).toContain("bb thread-stages rekey");
 
     const placeHelp = await runRibbonSidebarCli(fixture.context, [
       "help",
@@ -201,7 +199,7 @@ describe("Ribbon sidebar CLI", () => {
     expect(placeHelp).toMatchObject({
       exitCode: 0,
       stdout: expect.stringContaining(
-        "bb sidebar place [<thread>] [--self] [--to <group-ref>]",
+        "bb thread-stages place [<thread>] [--self] [--to <group-ref>]",
       ),
     });
     expect(placeHelp.stdout).toContain("--self");
@@ -759,6 +757,6 @@ describe("Ribbon sidebar CLI", () => {
     ]);
     expect(malformed.exitCode).toBe(2);
     expect(malformed.stderr).toContain("unexpected argument 'thread-b'");
-    expect(malformed.stderr).toContain("bb sidebar show [<thread>]");
+    expect(malformed.stderr).toContain("bb thread-stages show [<thread>]");
   });
 });

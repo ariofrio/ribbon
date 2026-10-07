@@ -32,7 +32,19 @@ export const environmentGroupingSchema = z.union([
   z.literal("auto"),
   z.boolean(),
 ]);
-export type EnvironmentGrouping = z.infer<typeof environmentGroupingSchema>;
+
+export const THREAD_ROW_ACTION_IDS = [
+  "split",
+  "copyLink",
+  "read",
+  "pin",
+  "move",
+  "rename",
+  "archive",
+] as const;
+export const THREAD_ROW_ACTION_LIMIT = 3;
+export const threadRowActionIdSchema = z.enum(THREAD_ROW_ACTION_IDS);
+export type ThreadRowActionId = z.infer<typeof threadRowActionIdSchema>;
 
 const collapsibleSectionIdSchema = z.enum(["pinned", "threads"]);
 
@@ -120,6 +132,18 @@ export const preferenceDefinitions = {
     "Groups moved into More: threads, project:<id>, section:<id>, or machine:<id>.",
     "sidebar.hiddenGroups",
   ),
+  rowActions: definePreference(
+    z
+      .array(threadRowActionIdSchema)
+      .max(LIST_MAX_LENGTH)
+      .transform((value) => [...new Set(value)])
+      .refine((value) => value.length <= THREAD_ROW_ACTION_LIMIT, {
+        message: `Choose at most ${THREAD_ROW_ACTION_LIMIT} row actions`,
+      }),
+    [],
+    `Up to ${THREAD_ROW_ACTION_LIMIT} quick actions shown on a thread row's hover, left to right before its actions menu: split, copyLink, read, pin, move, rename, or archive. An empty list shows only the menu.`,
+    null,
+  ),
   collapsedSections: definePreference(
     z.array(collapsibleSectionIdSchema).max(LIST_MAX_LENGTH),
     [],
@@ -205,6 +229,24 @@ export function parsePreferenceValue<Key extends PreferenceKey>(
   };
 }
 
+export function parseStoredPreferenceValue<Key extends PreferenceKey>(
+  key: Key,
+  value: unknown,
+): PreferenceParseResult<Key> {
+  return parsePreferenceValue(
+    key,
+    key === "rowActions" ? knownRowActions(value) : value,
+  );
+}
+
+function knownRowActions(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  const known = value.filter(
+    (id) => threadRowActionIdSchema.safeParse(id).success,
+  );
+  return [...new Set(known)].slice(0, THREAD_ROW_ACTION_LIMIT);
+}
+
 export function describePreference(key: PreferenceKey): string {
   return preferenceDefinitions[key].description;
 }
@@ -217,6 +259,3 @@ export const preferencesChangedSignalSchema = z
     value: z.unknown(),
   })
   .strict();
-export type PreferencesChangedSignal = z.infer<
-  typeof preferencesChangedSignalSchema
->;

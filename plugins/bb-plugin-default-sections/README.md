@@ -9,7 +9,7 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install default-sections@ribbon
 ```
 
-Requires bb 0.44.0 or later. Installing the plugin moves no existing thread.
+Requires bb 0.45.0 or later. Installing the plugin moves no existing thread.
 
 ## Behavior
 

@@ -1,0 +1,24 @@
+{
+  "skill_name": "bb-upgrade",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Audit the Ribbon upgrade in evals/files/repository before we call it complete. Use the supplied 0.44 and 0.45 release snapshots under its upstream directory. Did we update every plugin, miss any API migrations or parity changes, and check all the release notes? Write upgrade-audit.md with evidence for each plugin, remaining gaps and concrete next-work proposals. Leave the implementation unchanged.",
+      "expected_output": "An evidenced audit covering all four plugins and detecting the partially upgraded title plugin, the two-argument RPC collision and changed automatic AI policy without inventing a public terminal controller.",
+      "files": [
+        "evals/files/repository"
+      ],
+      "expectations": [
+        "All four plugins are accounted for, including the behavior-free theme.",
+        "The title manifest and lockfile still require bb 0.44 / SDK 0.5.29 and the tier allowlist loses provider-defined tiers.",
+        "The directly registered placement helper misinterprets the RPC caller context as its options argument.",
+        "The missing 0.45 changelog entry is recorded and the supplied API diff is used instead.",
+        "The changed automatic AI-service policy makes the title settings claim inaccurate.",
+        "Composer discovery is not claimed to replace native terminal tab selection or visibility.",
+        "Scheduled draft submission is a feasible proposal, separate from required fixes.",
+        "The documented local title-worker policy is preserved; correcting the stale parity claim does not require replacing it with the host AI-service policy.",
+        "Only the audit output is changed."
+      ]
+    }
+  ]
+}

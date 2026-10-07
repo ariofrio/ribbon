@@ -11,7 +11,7 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install thread-titles@ribbon
 ```
 
-Requires bb 0.44.0 or later. Newly created visible threads are eligible;
+Requires bb 0.45.0 or later. Newly created visible threads are eligible;
 installing the plugin does not rename existing threads. No sidebar plugin is
 required.
 
@@ -83,10 +83,10 @@ using bb's own provider, model, and reasoning picker. That selection heads each
 pass's fallback stack on the source thread's machine, whatever the thread's own
 provider. A machine without the selected model starts with the automatic model.
 
-**Use automatic** clears the selection. Automatic titling runs what bb's own
-Codex title service runs: the newest Luna model in the Codex catalog of the
-thread's machine, at the lowest reasoning level, whatever the thread's own
-provider. A thread whose machine offers no Luna model is skipped.
+**Use automatic** clears the selection. Automatic titling uses the newest Luna
+model in the Codex catalog of the thread's machine, at the lowest reasoning
+level, whatever the thread's own provider. A thread whose machine offers no
+Luna model is skipped. This selection is independent of Settings → AI services.
 
 The transcript keeps user and assistant messages in full. Any tool text longer
 than 1,000 characters keeps only its first and last 500, and model reasoning is
@@ -106,8 +106,8 @@ Titles are at most 40 characters by default. Configure a limit between 20 and
 bb plugin config thread-titles set maxTitleLength 40
 ```
 
-The fallback stack is the selected model (if any), then bb's automatic model,
-then its fallback, with duplicate provider/model pairs removed. Ribbon mirrors
+The fallback stack is the selected model (if any), then the two newest Luna
+models, with duplicate provider/model pairs removed. Ribbon mirrors
 bb's Codex text-service chain using the two newest Luna models available on the
 thread's host. The SDK does not currently expose the service's internal model
 list. Each pass snapshots its stack; fallback never changes the saved selection.

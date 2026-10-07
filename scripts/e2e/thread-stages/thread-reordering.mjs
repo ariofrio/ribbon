@@ -8,7 +8,7 @@ import {
 } from "./sidebar.mjs";
 
 export async function verifyThreadReordering({ stack, fixture }) {
-  for (const thread of fixture.threads.values()) fixture.run(["sidebar", "place", thread.id, "--to", `${STAGES}/Active`]);
+  for (const thread of fixture.threads.values()) fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/Active`]);
   const browser = await launch();
   let releaseSave = () => {};
   let context;
@@ -109,7 +109,7 @@ export async function verifyThreadReordering({ stack, fixture }) {
     await context.close();
   } catch (error) {
     // Whether the plugin server still answers, and what it logged.
-    for (const args of [["plugin", "logs", "thread-stages"], ["sidebar", "groupings", "--json"]]) {
+    for (const args of [["plugin", "logs", "thread-stages"], ["thread-stages", "groupings", "--json"]]) {
       try {
         console.error(`bb ${args.join(" ")}:`, fixture.run(args).split("\n").slice(-30).join("\n"));
       } catch (diagnosticError) {
@@ -122,7 +122,7 @@ export async function verifyThreadReordering({ stack, fixture }) {
       .catch((diagnosticError) => console.error("Could not save the thread-reordering trace:", diagnosticError));
     throw error;
   } finally {
-    for (const spec of THREADS) if (spec.stage) fixture.run(["sidebar", "place", fixture.threads.get(spec.title).id, "--to", `${STAGES}/${spec.stage}`]);
+    for (const spec of THREADS) if (spec.stage) fixture.run(["thread-stages", "place", fixture.threads.get(spec.title).id, "--to", `${STAGES}/${spec.stage}`]);
     releaseSave();
     await browser.close();
   }

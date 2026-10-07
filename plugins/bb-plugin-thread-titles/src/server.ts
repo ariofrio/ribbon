@@ -60,7 +60,7 @@ const selection = z
       "ultra",
       "ultracode",
     ]),
-    serviceTier: z.enum(["default", "fast"]).optional(),
+    serviceTier: z.string().min(1).optional(),
   })
   .strict();
 export type Selection = z.infer<typeof selection>;

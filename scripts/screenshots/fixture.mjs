@@ -191,6 +191,8 @@ export async function routeGitHubState(context, { environments }) {
           url: pullRequestUrl(projectName, pr.number),
           state: "open",
           attention: pr.attention,
+          autoMerge: pr.details.autoMerge,
+          inMergeQueue: pr.details.inMergeQueue,
           baseRefName: "main",
           headRefName: "feature",
           updatedAt: "2026-09-18T00:00:00Z",
@@ -434,7 +436,7 @@ export function seed({ stack, workspaceRoot, bb, assignStages = true }) {
     for (const spec of THREADS) {
       if (spec.stage === null) continue;
       run([
-        "sidebar",
+        "thread-stages",
         "place",
         threads.get(spec.title).id,
         "--to",

@@ -11,7 +11,6 @@ import {
   type PluginThreadPanelProps,
   type ThreadChatMessageAction,
   useComposer,
-  useComposerView,
 } from "@get-bb/plugin-sdk/app";
 import {
   createElement,
@@ -166,10 +165,9 @@ function rpcErrorMessage(error: unknown, fallback: string): string {
 function ComposerNavigationBridge() {
   const context = useBbContext();
   const composer = useComposer();
-  const view = useComposerView();
   const markerRef = useRef<HTMLSpanElement>(null);
   const composerThreadId =
-    view.scope.kind === "thread" ? view.scope.threadId : null;
+    composer.scope.kind === "thread" ? composer.scope.threadId : null;
   useEffect(() => {
     rememberThreadProject(window.localStorage, context);
   }, [context.projectId, context.threadId]);
@@ -180,11 +178,11 @@ function ComposerNavigationBridge() {
     );
     const role = composerElement?.getAttribute("data-app-composer-role");
     if (role === "primary") {
-      if (view.scope.kind === "thread") {
+      if (composer.scope.kind === "thread") {
         const panelRoot =
           composerElement?.closest<HTMLElement>("[data-panel-group]");
         return registerPrimaryComposerFocus(
-          view.scope.threadId,
+          composer.scope.threadId,
           composer.focus,
           panelRoot === null || panelRoot === undefined
             ? undefined
@@ -225,7 +223,7 @@ function ComposerNavigationBridge() {
               },
         );
       }
-      if (view.scope.kind === "new-thread") {
+      if (composer.scope.kind === "new-thread") {
         return registerPrimaryComposerFocus(null, composer.focus);
       }
       return;
@@ -278,7 +276,7 @@ function ComposerNavigationBridge() {
         return bounds.width > 0 && bounds.height > 0;
       },
     });
-  }, [composer.focus, composerThreadId, context.threadId, view.scope.kind]);
+  }, [composer.focus, composerThreadId, context.threadId, composer.scope.kind]);
   return createElement("span", { hidden: true, ref: markerRef });
 }
 

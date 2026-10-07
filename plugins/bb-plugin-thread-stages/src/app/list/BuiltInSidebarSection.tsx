@@ -1,3 +1,4 @@
+import { ThreadCreationPlacementScope } from "./ThreadCreationPlacement.js";
 import { memo, type CSSProperties, type ReactNode } from "react";
 import type { ConsumeDragClickSuppression } from "../ui/use-drag-click-suppression.js";
 import {
@@ -122,7 +123,9 @@ function BuiltInSidebarSection({
       folded={folded}
       keepThreadId={keepThreadId}
     >
-      {content}
+      <ThreadCreationPlacementScope group={id}>
+        {content}
+      </ThreadCreationPlacementScope>
     </SortableSidebarSection>
   );
 }

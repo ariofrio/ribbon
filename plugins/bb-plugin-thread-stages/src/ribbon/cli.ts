@@ -109,7 +109,7 @@ function groupRef(value: string | undefined) {
   };
 }
 
-function resolveThreadId(
+export function resolveThreadId(
   positional: string | undefined,
   self: boolean,
   invocation: RibbonSidebarCliInvocation,
@@ -325,8 +325,8 @@ export function defineRibbonSidebarCli(
 ): PluginCliRegistration {
   const availableGroupings = () => orderedGroupings(context.groupings());
   return defineCli({
-    name: "sidebar",
-    summary: "Inspect and change Ribbon sidebar placement",
+    name: "thread-stages",
+    summary: "Inspect and change thread stages, sidebar placement, and layout preferences",
     usageErrorExitCode: 2,
     commands: {
       ...context.extraCommands,

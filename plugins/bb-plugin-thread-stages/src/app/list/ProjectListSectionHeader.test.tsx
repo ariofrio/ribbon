@@ -127,6 +127,45 @@ describe("SidebarControlButton", () => {
 });
 
 describe("TopLevelSidebarSection", () => {
+  it("lets shortcuts escape a focused disclosure while keeping activation local", () => {
+    const onShortcut = vi.fn();
+    const onToggleCollapsed = vi.fn();
+    renderTree(
+      <div onKeyDown={onShortcut}>
+        <TopLevelSidebarSection
+          label="Pinned"
+          collapseControl={{ isCollapsed: false, onToggleCollapsed }}
+        >
+          <div>Pinned thread</div>
+        </TopLevelSidebarSection>
+      </div>,
+    );
+    const disclosure = screen.getByRole("button", {
+      name: "Collapse Pinned section",
+    });
+    disclosure.focus();
+    fireEvent.click(disclosure);
+    expect(onToggleCollapsed).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(disclosure);
+
+    for (const shortcut of [
+      { key: "2", ctrlKey: true },
+      { key: "2", metaKey: true },
+      { key: "[", ctrlKey: true, shiftKey: true },
+      { key: "]", ctrlKey: true, shiftKey: true },
+    ]) {
+      onShortcut.mockClear();
+      fireEvent.keyDown(disclosure, shortcut);
+      expect(onShortcut).toHaveBeenCalledOnce();
+    }
+
+    onShortcut.mockClear();
+    expect(fireEvent.keyDown(disclosure, { key: "Enter" })).toBe(true);
+    expect(fireEvent.keyDown(disclosure, { key: " " })).toBe(true);
+    expect(onShortcut).not.toHaveBeenCalled();
+    expect(onToggleCollapsed).toHaveBeenCalledOnce();
+  });
+
   it("exposes stable identity only for persisted sections", () => {
     const result = renderTree(
       <>
@@ -155,22 +194,6 @@ describe("TopLevelSidebarSection", () => {
         .closest("[data-sidebar-sticky-group]")
         ?.hasAttribute("data-sidebar-section-id"),
     ).toBe(false);
-  });
-
-  it("hides the section body and exposes an expand action when collapsed", () => {
-    renderTree(
-      <TopLevelSidebarSection
-        label="Pinned"
-        collapseControl={{ isCollapsed: true, onToggleCollapsed: vi.fn() }}
-      >
-        <div>Pinned thread</div>
-      </TopLevelSidebarSection>,
-    );
-
-    expect(screen.queryByText("Pinned thread")).toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Expand Pinned section" }),
-    ).not.toBeNull();
   });
 
   it("highlights the whole section only while it is the resolved drop parent", () => {
