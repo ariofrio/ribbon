@@ -59,8 +59,6 @@ export const ribbonPreferencesAtom = atomWithLazy<SidebarPreferences>(() =>
   loadSidebarPreferences(window.localStorage),
 );
 export const ribbonErrorAtom = atom<string | null>(null);
-/** The thread whose prompt actions are being edited, if any. */
-export const ribbonActionsEditorAtom = atom<string | null>(null);
 
 /** Sends a row's saved prompt to its thread; the row calls this directly. */
 export const runRibbonThreadActionAtom = atom(
@@ -111,7 +109,6 @@ function sameThreadActions(
   if (left === right) return true;
   if (left === null || right === null) return false;
   return (
-    left.hideTitle === right.hideTitle &&
     left.actions.length === right.actions.length &&
     left.actions.every((action, index) => {
       const other = right.actions[index]!;
@@ -167,5 +164,4 @@ export function resetRibbonAtoms(store: ReturnType<typeof getDefaultStore>): voi
   store.set(ribbonLoadedAtom, NOTHING_LOADED);
   store.set(ribbonPreferencesAtom, loadSidebarPreferences(window.localStorage));
   store.set(ribbonErrorAtom, null);
-  store.set(ribbonActionsEditorAtom, null);
 }

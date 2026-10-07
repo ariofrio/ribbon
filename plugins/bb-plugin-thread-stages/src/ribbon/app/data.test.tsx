@@ -35,7 +35,9 @@ const Row = memo(function Row({ id }: { id: string }) {
 function Editor() {
   const ribbon = useRibbonData();
   return (
-    <button type="button" onClick={() => ribbon?.editActions("thr_a")}>
+    <button type="button" onClick={() => ribbon?.saveThreadActions("thr_other", [
+      { id: "review", label: "Review", prompt: "Review this." },
+    ])}>
       edit
     </button>
   );
@@ -86,6 +88,7 @@ describe("RibbonDataProvider rows", () => {
 
   it("re-renders a row only when what it draws from changes", async () => {
     stubs = stages("Deferred");
+    stubs.saveThreadActionsV1 = () => ({ ok: true });
     render(
       <RibbonDataProvider>
         <Row id="thr_a" />
@@ -97,8 +100,8 @@ describe("RibbonDataProvider rows", () => {
     const a = renders.get("thr_a")!;
     const b = renders.get("thr_b")!;
 
-    // Opening the actions editor changes the provider's value, not any row.
-    act(() => screen.getByText("edit").click());
+    // Editing another thread's actions changes the provider's value, not either row.
+    await act(async () => screen.getByText("edit").click());
     expect(renders.get("thr_a")).toBe(a);
     expect(renders.get("thr_b")).toBe(b);
 

@@ -515,7 +515,7 @@ describe("ThreadRow", () => {
     ).toBe("calc(var(--spacing) * 7.5)");
   });
 
-  it("orders the actions menu like the row actions, with customize before archive", async () => {
+  it("groups the shared row actions, with customize before archive", async () => {
     const customize = vi.fn();
     renderThreadRow({
       onCustomizeRowActions: customize,
@@ -537,8 +537,10 @@ describe("ThreadRow", () => {
       "---",
       "Copy thread link",
       "Mark read",
+      "---",
       "Pin",
       "Move to section",
+      "---",
       "Rename",
       "---",
       "Customize row actions",

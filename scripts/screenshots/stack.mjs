@@ -119,10 +119,13 @@ export async function startStack({ dataDir, logStream, prepare }) {
     return child;
   }
 
-  let server = launch(paths.serverEntry, {
+  const serverEnv = {
     BB_SERVER_PORT: String(serverPort),
     BB_SERVER_BIND_HOST: "127.0.0.1",
-  });
+    BB_SERVER_URL: serverUrl,
+    BB_HOST_DAEMON_PORT: String(hostDaemonPort),
+  };
+  let server = launch(paths.serverEntry, serverEnv);
   await waitFor(
     async () => {
       try {
@@ -159,6 +162,7 @@ export async function startStack({ dataDir, logStream, prepare }) {
     BB_CLI: BB_CLI_PATH,
     BB_DATA_DIR: dataDir,
     BB_SERVER_URL: serverUrl,
+    BB_HOST_DAEMON_PORT: String(hostDaemonPort),
     BB_PROJECT_ID: undefined,
     BB_THREAD_ID: undefined,
     BB_ENVIRONMENT_ID: undefined,
@@ -189,10 +193,7 @@ export async function startStack({ dataDir, logStream, prepare }) {
         server.once("exit", resolve);
         server.kill("SIGTERM");
       });
-      server = launch(paths.serverEntry, {
-        BB_SERVER_PORT: String(serverPort),
-        BB_SERVER_BIND_HOST: "127.0.0.1",
-      });
+      server = launch(paths.serverEntry, serverEnv);
       await waitFor(
         async () => {
           const response = await fetchFromStack(new URL("/api/v1/hosts", serverUrl)).catch(

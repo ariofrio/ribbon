@@ -1,178 +1,198 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Icon } from "@/components/ui/icon";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import type { ThreadAction } from "../thread-actions-store";
 import { useRibbonData } from "./data";
 
-/**
- * The dialog behind a thread's "Edit actions": up to a few labeled prompts
- * that become buttons on the row, and whether the title makes room for them.
- */
-export function ThreadActionsEditor() {
+const emptyAction = (): ThreadAction => ({ id: crypto.randomUUID(), label: "", prompt: "" });
+const isEmpty = ({ label, prompt }: ThreadAction) => !label.trim() && !prompt.trim();
+const withEmptyRow = (actions: ThreadAction[]) =>
+  actions.length === 0 || !isEmpty(actions[actions.length - 1]!) ? [...actions, emptyAction()] : actions;
+
+function expandPrompt(field: HTMLTextAreaElement) {
+  field.style.height = "auto";
+  const minimum = Number.parseFloat(getComputedStyle(field).minHeight);
+  field.style.height = `${Math.min(144, Math.max(minimum, field.scrollHeight + 2))}px`;
+}
+
+/** Labeled prompts edited in a thread's menu and drawn as buttons on its row. */
+export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
+  threadId: string;
+  onExit?: () => void;
+  onTabBoundary?: () => void;
+}) {
   const ribbon = useRibbonData();
-  const threadId = ribbon?.actionsEditor ?? null;
-  const [draft, setDraft] = useState<{
-    threadId: string;
-    actions: ThreadAction[];
-    hideTitle: boolean;
-  } | null>(null);
-  const [pending, setPending] = useState(false);
+  const [actions, setActions] = useState<ThreadAction[]>(
+    () => withEmptyRow([...(ribbon?.threadActions.get(threadId)?.actions ?? [])]),
+  );
   const [error, setError] = useState<string | null>(null);
-  const record = threadId === null ? undefined : ribbon?.threadActions.get(threadId);
+  const draft = useRef(actions);
+  const saved = useRef(ribbon?.threadActions.get(threadId)?.actions ?? []);
+  const queue = useRef(Promise.resolve());
+  const mounted = useRef(false);
+  const labelFields = useRef(new Map<string, HTMLInputElement>());
+  const focusAfterRemoval = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (focusAfterRemoval.current === null) return;
+    labelFields.current.get(focusAfterRemoval.current)?.focus();
+    focusAfterRemoval.current = null;
+  }, [actions]);
+  const saveThreadActions = ribbon?.saveThreadActions;
+  const flush = useCallback(() => {
+    queue.current = queue.current.then(async () => {
+      if (!saveThreadActions) return;
+      const snapshot = draft.current;
+      const next = snapshot.flatMap((action) => {
+        const label = action.label.trim();
+        const prompt = action.prompt.trim();
+        if (prompt) return [{ ...action, label, prompt }];
+        // Keep a saved action while its prompt is being edited to an empty value.
+        const previous = !isEmpty(action) && saved.current.find(({ id }) => id === action.id);
+        return previous ? [previous] : [];
+      });
+      if (JSON.stringify(next) === JSON.stringify(saved.current)) return;
+      try {
+        await saveThreadActions(threadId, next);
+        saved.current = next;
+        if (mounted.current) setError(null);
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : "Could not save thread actions";
+        if (mounted.current) setError(message);
+        else toast.error(message);
+      }
+    });
+  }, [saveThreadActions, threadId]);
   useEffect(() => {
-    if (threadId === null) {
-      setDraft(null);
-      return;
-    }
-    setDraft((current) =>
-      current?.threadId === threadId
-        ? current
-        : {
-            threadId,
-            actions: [...(record?.actions ?? [])],
-            hideTitle: record?.hideTitle ?? false,
-          },
-    );
-    setError(null);
-  }, [record, threadId]);
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      flush();
+    };
+  }, [flush]);
+  const changeActions = (next: ThreadAction[]) => {
+    draft.current = withEmptyRow(next);
+    setActions(draft.current);
+    flush();
+  };
   if (ribbon === null) return null;
-  const close = () => ribbon.editActions(null);
-  const invalid =
-    draft === null ||
-    draft.actions.some(({ label, prompt }) => !label.trim() || !prompt.trim());
   return (
-    <Dialog
-      open={threadId !== null}
-      onOpenChange={(open) => {
-        if (!open && !pending) close();
+    <form
+      aria-label="Edit thread actions"
+      className="space-y-2 [&_tr:focus-within>td]:bg-state-hover [&:not(:focus-within)_tr:hover>td]:bg-state-hover"
+      onKeyDown={(event) => {
+        // Text editing stays in the form; Escape returns to its parent menu.
+        if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+          const fields = [...event.currentTarget.querySelectorAll<HTMLElement>("input, textarea, button")];
+          const index = fields.indexOf(event.target as HTMLElement);
+          const next = fields[index + (event.shiftKey ? -1 : 1)];
+          const leave = onTabBoundary ?? onExit;
+          if (next || leave) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (next) {
+              next.focus();
+              if (next instanceof HTMLInputElement) next.select();
+            } else leave?.();
+            return;
+          }
+        }
+        if (event.key === "Escape" && onExit) {
+          event.preventDefault();
+          event.stopPropagation();
+          onExit();
+          return;
+        }
+        if (event.key !== "Escape") event.stopPropagation();
+      }}
+      onBlur={(event) => {
+        const lastFilled = draft.current.reduce((last, action, index) => isEmpty(action) ? last : index, -1);
+        const emptyRows = draft.current.slice(lastFilled + 1);
+        if (emptyRows.length > 1) {
+          const nextRowId = event.relatedTarget instanceof HTMLElement
+            ? event.relatedTarget.closest("tr")?.getAttribute("data-action-id") : null;
+          const keep = emptyRows.find(({ id }) => id === nextRowId) ?? emptyRows[0]!;
+          draft.current = [...draft.current.slice(0, lastFilled + 1), keep];
+          setActions(draft.current);
+        }
+        flush();
+      }}
+      onSubmit={(event) => {
+        event.preventDefault();
+        flush();
       }}
     >
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit thread actions</DialogTitle>
-          <DialogDescription>
-            Add buttons that send prompts to this thread.
-          </DialogDescription>
-        </DialogHeader>
-        {draft ? (
-          <form
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (invalid) return;
-              setPending(true);
-              setError(null);
-              void ribbon
-                .saveThreadActions(draft.threadId, draft.actions, draft.hideTitle)
-                .then(close)
-                .catch((cause: unknown) => {
-                  setError(
-                    cause instanceof Error ? cause.message : "Could not save thread actions",
-                  );
-                })
-                .finally(() => setPending(false));
-            }}
-          >
-            {draft.actions.map((action, index) => (
-              <div className="space-y-2 rounded-md border border-border p-3" key={action.id}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium">Action {index + 1}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={pending}
-                    onClick={() =>
-                      setDraft({
-                        ...draft,
-                        actions: draft.actions.filter(({ id }) => id !== action.id),
-                      })
-                    }
-                  >
-                    Remove
-                  </Button>
-                </div>
+      <Table aria-label="Thread actions" className="table-fixed border-separate border-spacing-0">
+        <TableBody>
+          {actions.map((action, index) => (
+            <TableRow key={action.id} data-action-id={action.id} className="border-0 hover:bg-transparent">
+              <TableCell className="w-[32%] rounded-l-sm p-0 align-top">
                 <Input
                   aria-label={`Action ${index + 1} button label`}
+                  className="h-[1.625rem] rounded-sm border-transparent px-[0.4375rem] py-1 text-xs leading-4 hover:bg-state-hover/50 focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:h-[2.625rem] max-md:pointer-coarse:py-2 max-md:pointer-coarse:leading-6"
+                  ref={(field) => {
+                    if (field) labelFields.current.set(action.id, field);
+                    else labelFields.current.delete(action.id);
+                  }}
                   maxLength={24}
                   placeholder="Button label"
-                  disabled={pending}
                   value={action.label}
-                  onChange={(event) =>
-                    setDraft({
-                      ...draft,
-                      actions: draft.actions.map((item) =>
-                        item.id === action.id ? { ...item, label: event.target.value } : item,
-                      ),
-                    })
-                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                      event.preventDefault();
+                      event.currentTarget.closest("tr")?.querySelector("textarea")?.focus();
+                    }
+                  }}
+                  onChange={(event) => changeActions(draft.current.map((item) =>
+                    item.id === action.id ? { ...item, label: event.target.value } : item,
+                  ))}
                 />
+              </TableCell>
+              <TableCell className="p-0 align-top">
                 <Textarea
                   aria-label={`Action ${index + 1} prompt`}
+                  className="h-[1.625rem] min-h-[1.625rem] resize-none rounded-sm border-transparent px-[0.4375rem] py-1 text-xs leading-4 hover:bg-state-hover/50 focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:h-[2.625rem] max-md:pointer-coarse:min-h-[2.625rem] max-md:pointer-coarse:py-2 max-md:pointer-coarse:leading-6"
+                  rows={1}
                   maxLength={10000}
-                  placeholder="Prompt to send to this thread"
-                  disabled={pending}
+                  placeholder="Prompt to send"
                   value={action.prompt}
-                  onChange={(event) =>
-                    setDraft({
-                      ...draft,
-                      actions: draft.actions.map((item) =>
-                        item.id === action.id ? { ...item, prompt: event.target.value } : item,
-                      ),
-                    })
-                  }
+                  onFocus={(event) => expandPrompt(event.currentTarget)}
+                  onBlur={(event) => { event.currentTarget.style.height = ""; }}
+                  onChange={(event) => {
+                    changeActions(draft.current.map((item) =>
+                      item.id === action.id ? { ...item, prompt: event.target.value } : item,
+                    ));
+                    expandPrompt(event.currentTarget);
+                  }}
                 />
-              </div>
-            ))}
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={draft.actions.length > 0 && draft.hideTitle}
-                disabled={pending || draft.actions.length === 0}
-                onCheckedChange={(checked) =>
-                  setDraft({ ...draft, hideTitle: checked === true })
-                }
-              />
-              Hide thread title
-            </label>
-            {error ? (
-              <p className="text-sm text-destructive" role="alert">
-                {error}
-              </p>
-            ) : null}
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pending}
-                onClick={() =>
-                  setDraft({
-                    ...draft,
-                    actions: [
-                      ...draft.actions,
-                      { id: crypto.randomUUID(), label: "", prompt: "" },
-                    ],
-                  })
-                }
-              >
-                Add action
-              </Button>
-              <Button type="submit" disabled={pending || invalid}>
-                Save actions
-              </Button>
-            </DialogFooter>
-          </form>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+              </TableCell>
+              <TableCell className="w-[1.625rem] rounded-r-sm p-0 align-top max-md:pointer-coarse:w-[2.625rem]">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-[1.625rem] w-[1.625rem] rounded-sm text-muted-foreground hover:bg-state-hover/50 hover:text-foreground focus-visible:ring-inset [&_[data-icon-root]]:size-3.5 max-md:pointer-coarse:h-[2.625rem] max-md:pointer-coarse:w-[2.625rem]"
+                  aria-label={`${actions.length === 1 ? "Clear" : "Remove"} action ${index + 1}`}
+                  onClick={() => {
+                    const next = draft.current.length === 1
+                      ? [{ ...action, label: "", prompt: "" }]
+                      : withEmptyRow(draft.current.filter(({ id }) => id !== action.id));
+                    focusAfterRemoval.current = (next[index] ?? next[next.length - 1]!).id;
+                    changeActions(next);
+                    flush();
+                  }}
+                >
+                  <Icon name="X" aria-hidden />
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+    </form>
   );
 }

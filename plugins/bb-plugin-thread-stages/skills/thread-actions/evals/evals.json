@@ -3,24 +3,24 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Use $thread-actions to give me the exact shell commands to inspect the current thread's saved buttons, replace them with a Review button whose ID is review and prompt is Review this change., hide the thread title, run that button, and later clear all buttons. Explain what happens to existing buttons when replacing them. Do not execute commands that change thread state or send messages.",
-      "expected_output": "Dedicated bb thread-stages actions commands using --self, a valid JSON array, --hide-title, the saved action ID, and an empty array to clear, with an explanation that set replaces the entire action list.",
+      "prompt": "Use $thread-actions to give me the exact shell commands to inspect the current thread's saved buttons, replace them with a Review button whose ID is review and prompt is Review this change., run that button, and later clear all buttons. Explain what happens to existing buttons when replacing them. Do not execute commands that change thread state or send messages.",
+      "expected_output": "Dedicated bb thread-stages actions commands using --self, a valid JSON array, the saved action ID, and an empty array to clear, with an explanation that set replaces the entire action list.",
       "files": [],
       "expectations": [
         "Uses dedicated bb thread-stages actions list, set, and run commands with --self.",
-        "The replacement has ID review, label Review, prompt Review this change., and --hide-title.",
+        "The replacement has ID review, label Review, prompt Review this change.",
         "Runs by action ID and clears with an empty JSON array.",
         "Explains that set replaces existing buttons and does not execute state-changing commands."
       ]
     },
     {
       "id": 2,
-      "prompt": "Use $thread-actions. I want to add a Review button to the current bb thread while preserving its existing buttons and hidden title. We are also considering adding it to every visible root: Billing cleanup (Active), Release checklist (Completed), Search indexing (Active, currently working), and Vendor access (Blocked on third party). I did not ask to resume anything. Explain how you would preserve the current buttons and title, and which roots are in scope by default. Do not execute commands that change thread state or send messages.",
-      "expected_output": "Read the current actions and hideTitle before replacing the complete list, preserve the existing entries and use --hide-title, choose a unique ID for the new button, and consult Thread stages to exclude Release checklist by default while retaining the other roots.",
+      "prompt": "Use $thread-actions. I want to add a Review button to the current bb thread while preserving its existing buttons. We are also considering adding it to every visible root: Billing cleanup (Active), Release checklist (Completed), Search indexing (Active, currently working), and Vendor access (Blocked on third party). I did not ask to resume anything. Explain how you would preserve the current buttons, and which roots are in scope by default. Do not execute commands that change thread state or send messages.",
+      "expected_output": "Read the current actions before replacing the complete list, preserve the existing entries, choose a unique ID for the new button, and consult Thread stages to exclude Release checklist by default while retaining the other roots.",
       "files": [],
       "expectations": [
         "Proposes reading the current thread's saved actions before preparing a replacement.",
-        "Preserves existing actions and uses --hide-title when saving the replacement list.",
+        "Preserves existing actions when saving the replacement list.",
         "Chooses a unique action ID rather than overwriting an existing button.",
         "Consults the Thread stages skill for bulk scope and excludes only Release checklist among the supplied roots.",
         "Does not execute state-changing commands or send messages."
