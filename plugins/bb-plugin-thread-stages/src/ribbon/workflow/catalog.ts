@@ -58,7 +58,8 @@ const STAGE_RINGS = byStage((stage) =>
 const STAGE_MARKS: Record<WorkflowStage, IconDataV1[]> = {
   Deferred: [],
   Active: [],
-  // A slash along the same diagonal, and as long, as the third party's arrow.
+  Waiting: [strokedPath("M12 7v5l3 2")],
+  // A slash along the same diagonal, and as long, as the external party's arrow.
   BlockedOnOtherAgent: [strokedPath("M9 15 15.5 8.5")],
   // Something coming back in from outside.
   BlockedOnThirdParty: [strokedPath("M15.5 8.5 9 15M9 10.25V15h4.75")],

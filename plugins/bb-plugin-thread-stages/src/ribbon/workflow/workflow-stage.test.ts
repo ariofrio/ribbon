@@ -14,6 +14,7 @@ describe("thread statuses", () => {
     expect(WORKFLOW_STAGES).toEqual([
       "Deferred",
       "Active",
+      "Waiting",
       "BlockedOnOtherAgent",
       "BlockedOnThirdParty",
       "Completed",
@@ -25,8 +26,10 @@ describe("thread statuses", () => {
     // Idle and Blocked are earlier names, kept for saved data and old messages.
     expect(parseWorkflowStage("Idle")).toBe("Active");
     expect(parseWorkflowStage("Blocked")).toBe("BlockedOnThirdParty");
-    expect(parseWorkflowStage("waiting")).toBe("BlockedOnThirdParty");
-    expect(parseWorkflowStage("Blocked on other agent")).toBe(
+    expect(parseWorkflowStage("waiting")).toBe("Waiting");
+    expect(parseWorkflowStage("Blocked on external party")).toBe("BlockedOnThirdParty");
+    expect(parseWorkflowStage("Blocked on other agent")).toBe("BlockedOnOtherAgent");
+    expect(parseWorkflowStage("Blocked on another thread")).toBe(
       "BlockedOnOtherAgent",
     );
     expect(parseWorkflowStage("blocked-on-third-party")).toBe(
@@ -43,8 +46,9 @@ describe("thread statuses", () => {
     expect(WORKFLOW_STAGES.map((stage) => WORKFLOW_STAGE_LABELS[stage])).toEqual([
       "Deferred",
       "Active",
-      "Blocked on other agent",
-      "Blocked on third party",
+      "Waiting",
+      "Blocked on another thread",
+      "Blocked on external party",
       "Completed",
     ]);
   });
@@ -55,7 +59,7 @@ describe("thread statuses", () => {
         showDeferredStage: false,
         showBlockedStage: false,
       }),
-    ).toEqual(["Active", "Completed"]);
+    ).toEqual(["Active", "Waiting", "Completed"]);
     expect(enabledWorkflowStages(undefined)).toEqual(WORKFLOW_STAGES);
   });
 
@@ -71,7 +75,7 @@ describe("thread statuses", () => {
       { threadId: "first", workflowStage: "Active", sortKey: "U", updatedAt: 1 },
       {
         threadId: "working",
-        workflowStage: "BlockedOnThirdParty",
+        workflowStage: "Waiting",
         sortKey: "U",
         updatedAt: 3,
       },
@@ -84,7 +88,7 @@ describe("thread statuses", () => {
       "second",
       "unassigned",
     ]);
-    expect(groups.BlockedOnThirdParty.map((thread) => thread.id)).toEqual(["working"]);
+    expect(groups.Waiting.map((thread) => thread.id)).toEqual(["working"]);
     expect(groups.Completed).toEqual([]);
   });
 

@@ -43,8 +43,9 @@ describe("stage catalog", () => {
     expect(grouping!.groups.map(({ id, label }) => [id, label])).toEqual([
       ["Deferred", "Deferred"],
       ["Active", "Active"],
-      ["BlockedOnOtherAgent", "Blocked on other agent"],
-      ["BlockedOnThirdParty", "Blocked on third party"],
+      ["Waiting", "Waiting"],
+      ["BlockedOnOtherAgent", "Blocked on another thread"],
+      ["BlockedOnThirdParty", "Blocked on external party"],
       ["Completed", "Completed"],
     ]);
     // A slash for another agent runs exactly along the third party's arrow.

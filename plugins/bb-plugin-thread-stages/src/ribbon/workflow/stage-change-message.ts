@@ -42,7 +42,7 @@ function stageMention(stage: WorkflowStage, start: number): PromptMention {
 }
 
 /**
- * "Thread stage updated: @Active → @Blocked on third party", with each stage a Thread stages
+ * "Thread stage updated: @Active → @Blocked on external party", with each stage a Thread stages
  * mention exactly as its composer menu would insert it, plus an agent-only note
  * that the move has already happened. Without Thread stages running, nothing
  * could resolve the mentions, so the stages are named in plain text.

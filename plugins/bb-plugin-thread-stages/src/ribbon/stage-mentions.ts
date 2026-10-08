@@ -15,16 +15,17 @@ const STAGE_MENTION_PROVIDER_ID = "stage";
 
 const STAGE_MEANINGS: Record<WorkflowStage, string> = {
   Deferred: "intentionally set aside for later",
-  Active: "available, or waiting on the user",
+  Active: "work is available or progressing under this thread's coordination, or the user has input, a decision, or a review to make",
+  Waiting: "standing by for an established condition, such as observation, a scheduled start, or recovery, with no current action or user decision due",
   BlockedOnOtherAgent:
-    "waiting for another agent's thread to finish or deliver something",
+    "another bb thread owns a required action or result, and no useful independent work remains here",
   BlockedOnThirdParty:
-    "waiting for someone or something outside bb, such as a reviewer, CI, or a vendor",
-  Completed: "finished, and treated like archived work",
+    "an independent external party owns a required action or response, and no useful independent work remains here; the party may be a person, agent, or organization",
+  Completed: "the established objective has reached a durable result, with intended review and loose ends settled or delegated, so the thread can be put away",
 };
 
 const WAITING_ON_THE_USER =
-  "Waiting on the user is Active, not a Blocked stage: ending a turn already waits on the user, so do not move a thread because you asked the user something.";
+  "User input, decisions, approval, and intended review keep the thread Active, never Waiting or Blocked. Ending a turn does not by itself change the stage.";
 
 /** Mentions sent before a rename keep resolving. */
 const RENAMED_STAGES: Record<string, WorkflowStage> = { idle: "Active" };
@@ -45,16 +46,16 @@ function placement(stage: WorkflowStage): string {
 function stageContext(stage: WorkflowStage | "Blocked"): string {
   if (stage === "Blocked") {
     return [
-      `@Blocked was a workflow stage that Thread stages has since split into Blocked on other agent, ${STAGE_MEANINGS.BlockedOnOtherAgent}, and Blocked on third party, ${STAGE_MEANINGS.BlockedOnThirdParty}.`,
+      `@Blocked was a workflow stage that Thread stages has since split into ${WORKFLOW_STAGE_LABELS.BlockedOnOtherAgent}, where ${STAGE_MEANINGS.BlockedOnOtherAgent}, and ${WORKFLOW_STAGE_LABELS.BlockedOnThirdParty}, where ${STAGE_MEANINGS.BlockedOnThirdParty}. Use Waiting for standby on a condition instead of an action owned by another party. Read the thread-stages skill before selecting a stage.`,
       `When a message asks for a thread to be put in it, finish any work it asks for first, then run ${placement("BlockedOnOtherAgent")} or ${placement("BlockedOnThirdParty")}, whichever the thread is waiting on, with \`--self\` in place of <thread> for the current thread.`,
       WAITING_ON_THE_USER,
     ].join(" ");
   }
   const label = WORKFLOW_STAGE_LABELS[stage];
   return [
-    `@${label} is the ${label} workflow stage that Thread stages gives bb threads: ${STAGE_MEANINGS[stage]}.`,
+    `@${label} is the ${label} workflow stage that Thread stages gives bb threads: ${STAGE_MEANINGS[stage]}. Read the thread-stages skill before selecting or changing a stage.`,
     `When a message asks for a thread to be put in this stage, whether in a sentence such as "do this, then @${label}" or with the mention alone, finish any work it asks for first, then run ${placement(stage)}, with \`--self\` in place of <thread> for the current thread. A child thread has a stage of its own; place the child itself.`,
-    ...(stage === "Active" || isBlockedStage(stage) ? [WAITING_ON_THE_USER] : []),
+    ...(stage === "Active" || stage === "Waiting" || isBlockedStage(stage) ? [WAITING_ON_THE_USER] : []),
   ].join(" ");
 }
 

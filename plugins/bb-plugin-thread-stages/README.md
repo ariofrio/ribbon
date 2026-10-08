@@ -39,12 +39,24 @@ the plugin's own lives under `src/ribbon/` and `src/icons/`.
 ## Grouping and ordering
 
 Choose **⋯ menu → Organize → Custom** for sections or **By project** for
-projects, or **By machine** for machines. Each keeps its own order and collapsed headings. A stage says whose
-move a thread is waiting on: **Active** is the user's or the thread's own,
-**Blocked on other agent** is another bb thread's, **Blocked on third party**
-is someone or something outside bb, **Deferred** is set aside, and
-**Completed** is done. Waiting on the user is Active, never a Blocked stage.
-Inside each group, Active and both Blocked stages share one manually ordered
+projects, or **By machine** for machines. Each keeps its own order and collapsed
+headings.
+
+The stage describes the thread's overall workflow. **Active** covers available
+or progressing work and user input or intended review. **Waiting** covers
+standby for an established condition, such as observation, a scheduled start,
+or recovery. **Blocked on another thread** and **Blocked on external party**
+mean a separate bb workflow or an independent outside counterpart owns a
+required action, with no useful independent work left here. The outside party
+may be a person, agent, or organization. This thread's own executing workers
+and managed jobs remain Active. **Deferred** is deliberately set aside.
+**Completed** means an established objective has reached a durable result,
+with intended review and loose ends settled or delegated. Initial answers,
+research, and proposals normally remain Active until that broader work is
+resolved. Waiting for the user is always Active.
+
+Inside each group, Active, Waiting, and both Blocked stages share one manually
+ordered
 list, followed by Deferred and then Completed. New roots enter at the top, and
 activity leaves positions unchanged.
 
@@ -67,7 +79,7 @@ matching result.
 Drag a root to reorder it within its list, onto its section's heading to put
 it first, or onto another section to move it there. Drag a child to reorder
 it among its siblings; it stays under its parent and keeps its stage.
-Active and both Blocked stages share the main list; changing between those
+Active, Waiting, and both Blocked stages share the main list; changing between those
 stages keeps a root's position. Every band follows its section, project, or machine order;
 reordering in one organization leaves the other organization’s order unchanged.
 Moving a root into another list defaults to the top through the UI or CLI,
@@ -163,20 +175,22 @@ settings lines the numbers up.
 ## Stages and shortcuts
 
 **Automatic stage updates** is on by default. It asks agents to keep their
-thread's stage current as work progresses. Turn it off to have agents change
+thread's stage aligned with its overall workflow, reading the skill and
+changing the stage only when it no longer fits. Ending a turn or individual
+request does not establish a transition. Turn it off to have agents change
 stages only when you explicitly request a change. The instruction changes
 when bb next constructs the agent's provider session; the stage skill stays
 available in both modes.
 
 Type `@` and a stage name in the composer to mention a stage, such as
-`@Blocked on other agent`. A mentioned stage tells the agent to place the
-thread there, so a message can end with "then @Blocked on other agent", and a
+`@Blocked on another thread`. A placement request using a stage mention tells
+the agent to place the thread there, so a message can end with "then @Blocked on another thread", and a
 queued message can be just the mention. Mentions of `@Idle` and `@Blocked` in
 older messages still resolve: Idle is now Active, and Blocked is split into
 the two Blocked stages.
 
 When you or another thread move a thread to a different stage, the plugin
-sends that thread "Thread stage updated: @Active → @Blocked on third party",
+sends that thread "Thread stage updated: @Active → @Blocked on external party",
 with agent-only
 context that tells the agent who moved it. The message queues while a turn
 is running or starts one on an idle thread. Automatic placement and a thread
@@ -194,8 +208,9 @@ thread as Completed is how it leaves the list.
 | --- | --- | --- |
 | ⌘. / ⌥⌘. | Ctrl+. / Ctrl+Alt+. | Complete and select the next main-list thread in this section or project |
 | ⇧⌘. | Ctrl+Shift+. | Return to Active, or undo the latest filing in this section or project |
-| ⌃⌥⌘. | Ctrl+Alt+Shift+. | Mark Blocked on other agent |
-| ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked on third party |
+| ⇧⌘, | Ctrl+Shift+, | Mark Waiting |
+| ⌃⌥⌘. | Ctrl+Alt+Shift+. | Mark Blocked on another thread |
+| ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked on external party |
 | ⌃⌘. | Ctrl+Alt+, | Defer |
 | ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main, Deferred, or Completed list, or a child among its siblings |
 | ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to that list's edge |
@@ -222,6 +237,7 @@ Section membership is BB core state; change it with `bb thread update`.
 ```sh
 bb thread-stages list --section <section-id> --stage BlockedOnThirdParty
 bb thread-stages show --self
+bb thread-stages stage Waiting --self
 bb thread-stages stage Completed --self
 bb thread-stages list --include-children --stage BlockedOnThirdParty
 bb thread update <thread> --section <section-id>

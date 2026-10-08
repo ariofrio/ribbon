@@ -3,13 +3,13 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "I'm preparing a routine bulk status notification. The visible roots are Billing cleanup (Active), Release checklist (Completed), Search indexing (Active, currently working), and Vendor access (Blocked on third party). I did not ask to resume anything. Which roots are in scope by default? Do not send any messages.",
+      "prompt": "I'm preparing a routine bulk status notification. The visible roots are Billing cleanup (Active), Release checklist (Completed), Search indexing (Active, currently working), and Vendor access (Blocked on external party). I did not ask to resume anything. Which roots are in scope by default? Do not send any messages.",
       "expected_output": "The agent excludes the Completed root by default while retaining the other visible roots, and explains that Completed is treated like archived work unless explicitly included or resumed.",
       "files": [],
       "expectations": [
         "The in-scope roots are Billing cleanup, Search indexing, and Vendor access.",
         "Release checklist is excluded because Completed roots are out of scope by default.",
-        "The response does not claim that Blocked on third party or Active roots are automatically excluded."
+        "The response does not claim that Blocked on external party or Active roots are automatically excluded."
       ]
     },
     {
@@ -19,7 +19,7 @@
       "files": [],
       "expectations": [
         "The agent keeps the thread in Active.",
-        "The agent does not propose moving the thread to Blocked on other agent or Blocked on third party.",
+        "The agent does not propose moving the thread to Waiting or either Blocked stage.",
         "The agent does not give a bb thread-stages stage command that changes the stage.",
         "Does not load Thread actions for this stage-only request."
       ]
@@ -27,11 +27,11 @@
     {
       "id": 3,
       "prompt": "Two root bb threads I own are stuck. Thread A can't continue until another bb thread lands the auth refactor it depends on. Thread B is waiting for the vendor to approve our SSO app. Which stage should each go in, and what exact command would place each one? Use <thread-a> and <thread-b> as placeholders. Don't run anything.",
-      "expected_output": "Thread A goes to Blocked on other agent and thread B to Blocked on third party, each placed by stage ID.",
+      "expected_output": "Thread A goes to Blocked on another thread and thread B to Blocked on external party, each placed by stage ID.",
       "files": [],
       "expectations": [
-        "Thread A is placed in Blocked on other agent with `bb thread-stages stage BlockedOnOtherAgent <thread-a>`.",
-        "Thread B is placed in Blocked on third party with `bb thread-stages stage BlockedOnThirdParty <thread-b>`."
+        "Thread A is placed in Blocked on another thread with `bb thread-stages stage BlockedOnOtherAgent <thread-a>`.",
+        "Thread B is placed in Blocked on external party with `bb thread-stages stage BlockedOnThirdParty <thread-b>`."
       ]
     },
     {
@@ -60,8 +60,8 @@
     },
     {
       "id": 6,
-      "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched off. We need to wait for another bb thread to finish its QA tests before continuing. I have not requested a stage change. What should happen to this thread's stage before yielding? Explain without executing any commands.",
-      "expected_output": "The agent keeps Active because automatic stage updates is off and no stage change was requested, while recognizing that the dependency would otherwise fit Blocked on other agent.",
+      "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched off. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not requested a stage change. What should happen to this thread's stage before yielding? Explain without executing any commands.",
+      "expected_output": "The agent keeps Active because automatic stage updates is off and no stage change was requested, while recognizing that the dependency would otherwise fit Blocked on another thread.",
       "files": [],
       "expectations": [
         "The agent leaves the stage unchanged because automatic updates is off.",
@@ -70,11 +70,11 @@
     },
     {
       "id": 7,
-      "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched on. We need to wait for another bb thread to finish its QA tests before continuing. I have not mentioned a stage. What should happen to this thread's stage before yielding? Explain and give the exact command you would run, without executing any commands.",
-      "expected_output": "The agent selects Blocked on other agent without requiring a stage mention and gives the correct current-thread placement command.",
+      "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched on. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not mentioned a stage. What should happen to this thread's stage before yielding? Explain and give the exact command you would run, without executing any commands.",
+      "expected_output": "The agent selects Blocked on another thread without requiring a stage mention and gives the correct current-thread placement command.",
       "files": [],
       "expectations": [
-        "The agent selects Blocked on other agent without requiring a stage mention.",
+        "The agent selects Blocked on another thread without requiring a stage mention.",
         "The proposed command is bb thread-stages stage BlockedOnOtherAgent --self."
       ]
     },
@@ -106,6 +106,66 @@
       "expectations": [
         "The selected stage is Active and command is null.",
         "The reason identifies unavailable overall scope or earlier follow-ups as preventing a completion decision."
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "Use $thread-stages. This thread owns a week of network observation. Recorders are collecting and a scheduled collector reports incidents; there is no current incident, user decision, or action due. What stage fits between reports? Do not run commands.",
+      "expected_output": "Waiting: established passive observation with a reporting arrangement, even though recorders continue collecting.",
+      "files": [],
+      "expectations": [
+        "Selects Waiting rather than Active or a Blocked stage.",
+        "Does not claim that a date is an external party."
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "Use $thread-stages. This thread coordinates three workers actively implementing its task, including a managed job on another machine. A different thread also owns a separate refactor this task will need later. What stage fits now? Do not run commands.",
+      "expected_output": "Active while owned workers progress and useful work remains; hierarchy and machine do not decide ownership.",
+      "files": [],
+      "expectations": [
+        "Selects Active while work under this thread's coordination is progressing.",
+        "Does not block solely because an independent later dependency exists."
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "Use $thread-stages. Classify these threads: A is waiting for a system to recover automatically, with an established health check; B needs the user to choose how to recover; C needs a vendor to restore its account; D has a managed external AI job accepted into a queue for a scheduled start. No other useful work remains. Do not run commands.",
+      "expected_output": "A and D are Waiting, B is Active, C is Blocked on external party.",
+      "files": [],
+      "expectations": [
+        "Distinguishes standby from a required external intervention.",
+        "Keeps required user direction Active."
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "Use $thread-stages. The thread's implementation PR is merged and the requested production check passed. Its result is saved where it belongs. The intended review was completed, and the only follow-up was handed to another tracked thread whose owner has been notified. We did not separately agree on a formal closing condition. What stage fits? Do not run commands.",
+      "expected_output": "Completed: the established objective is fulfilled and loose ends are settled or delegated, without requiring a separate closing agreement.",
+      "files": [],
+      "expectations": [
+        "Selects Completed without asking for ceremonial closing approval.",
+        "Recognizes tracked delegation with a notified receiving owner as closure."
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "Use $thread-stages. I began this thread by asking how we might redesign a plugin. You just delivered a long research report with several unresolved design choices and want me to review it before we decide whether to implement. What stage fits? Do not run commands.",
+      "expected_output": "Active: exploratory research and intended user review leave the broader work open.",
+      "files": [],
+      "expectations": [
+        "Selects Active rather than Completed or Waiting.",
+        "Does not treat the size of the report or the end of the turn as completion."
+      ]
+    },
+    {
+      "id": 16,
+      "prompt": "Use $thread-stages. An independent outside AI service owns a required deliverable for this thread and is currently running. Another thread is merely listening for optional unsolicited findings from an outside service using an established collector. Neither has other work or a user decision due. What stage fits each? Do not run commands.",
+      "expected_output": "The required independent deliverable is Blocked on external party; optional established listening is Waiting.",
+      "files": [],
+      "expectations": [
+        "Uses ownership of a required action rather than whether the outside counterpart is human or AI.",
+        "Does not confuse an independent counterpart with this thread's executing worker."
       ]
     }
   ]

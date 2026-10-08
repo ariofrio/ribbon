@@ -15,7 +15,7 @@
     },
     {
       "id": 2,
-      "prompt": "Use $thread-actions. I want to add a Review button to the current bb thread while preserving its existing buttons. We are also considering adding it to every visible root: Billing cleanup (Active), Release checklist (Completed), Search indexing (Active, currently working), and Vendor access (Blocked on third party). I did not ask to resume anything. Explain how you would preserve the current buttons, and which roots are in scope by default. Do not execute commands that change thread state or send messages.",
+      "prompt": "Use $thread-actions. I want to add a Review button to the current bb thread while preserving its existing buttons. We are also considering adding it to every visible root: Billing cleanup (Active), Release checklist (Completed), Search indexing (Active, currently working), and Vendor access (Blocked on external party). I did not ask to resume anything. Explain how you would preserve the current buttons, and which roots are in scope by default. Do not execute commands that change thread state or send messages.",
       "expected_output": "Read the current actions before replacing the complete list, preserve the existing entries, choose a unique ID for the new button, and consult Thread stages to exclude Release checklist by default while retaining the other roots.",
       "files": [],
       "expectations": [

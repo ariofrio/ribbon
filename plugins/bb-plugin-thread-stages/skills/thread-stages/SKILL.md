@@ -1,6 +1,6 @@
 ---
 name: thread-stages
-description: Inspect and organize bb threads across sections, projects, and the Deferred, Active, Blocked on other agent, Blocked on third party, and Completed workflow stages. Use when deciding which stage a bb thread belongs in, including after asking the user something, selecting threads by sidebar organization or stage before bulk work or messaging, changing a thread's or child's stage, moving and ordering root threads, ordering children among siblings, managing saved prompt actions beside thread titles, or reading and changing the thread list's layout preferences. Discover the installed CLI rather than assuming its commands.
+description: Inspect and organize bb threads across sections, projects, and the Deferred, Active, Waiting, Blocked on another thread, Blocked on external party, and Completed workflow stages. Use when deciding which stage a bb thread belongs in, including after asking the user something, selecting threads by sidebar organization or stage before bulk work or messaging, changing a thread's or child's stage, moving and ordering root threads, ordering children among siblings, managing saved prompt actions beside thread titles, or reading and changing the thread list's layout preferences. Discover the installed CLI rather than assuming its commands.
 ---
 
 # Thread stages
@@ -33,25 +33,70 @@ Turning it off tells agents to change stages only when the user explicitly
 requests a change. Setting changes apply when bb next constructs the agent's
 provider session.
 
-A stage says whose move a thread is waiting on:
+A stage describes the thread's overall workflow, including what can progress
+and whose action is needed. Inspect its current stage before changing it; write
+only when it no longer fits. A turn ending, a short side discussion, runtime
+idleness, or a routine monitoring check does not by itself change the stage.
+Respect an explicit instruction to retain a stage or let the user manage it.
 
-| Stage | ID | Whose move |
+| Stage | ID | Meaning |
 | --- | --- | --- |
-| **Deferred** | `Deferred` | Nobody's yet: intentionally set aside for later. |
-| **Active** | `Active` | The user's or this thread's: available, working, or waiting on the user. |
-| **Blocked on other agent** | `BlockedOnOtherAgent` | Another agent's: another bb thread must finish or deliver something this one depends on. |
-| **Blocked on third party** | `BlockedOnThirdParty` | Someone or something outside bb: a reviewer, CI, a vendor, a date. |
-| **Completed** | `Completed` | Nobody's: finished, and treated like archived work. |
+| **Deferred** | `Deferred` | Intentionally set aside for later. |
+| **Active** | `Active` | Meaningful work is available or progressing under this thread's coordination, or the user has input, a decision, or a review to make. |
+| **Waiting** | `Waiting` | Standing by for an established condition, with no current action or user decision due. |
+| **Blocked on another thread** | `BlockedOnOtherAgent` | Another bb thread owns a required action or result, and no useful independent work remains here. |
+| **Blocked on external party** | `BlockedOnThirdParty` | An independent external party owns a required action or response, and no useful independent work remains here. |
+| **Completed** | `Completed` | The established objective has reached a durable result and the thread can be put away, with intended review and loose ends settled or delegated. |
 
-Set Completed only when the user's full objective for this thread is
-fulfilled. Check the full conversation for outstanding work; finishing a
-step or turn is insufficient. If the completion boundary is unclear, keep
-Active.
+Waiting on the user is **Active**, never Waiting or Blocked. This includes
+questions, decisions, approval, direction, and intended review. An answer or
+report does not establish that the user has reviewed it; opening the thread,
+read status, and silence do not establish review either.
 
-Waiting on the user is **Active**, never a Blocked stage. Ending a turn already
-hands the thread to the user, so do not move a thread because you asked the
-user a question, requested approval, or finished work for them to review. The
-user is not a third party.
+Use **Waiting** for passive observation or listening, elapsed time, an accepted
+job awaiting its scheduled start, propagation, or system recovery. Establish
+what will resume the work and how it will be noticed or checked; do not promise
+automatic follow-up without an actual arrangement. If that path still needs to
+be established, stay Active. Return to Active when meaningful work or a user
+decision becomes due. Regular checks within an ongoing observation period do
+not require toggling the stage.
+
+Work actively executing through this thread's workers or managed jobs is
+**Active**, whether local or remote. A separate bb workflow that owns a required
+delivery is **Blocked on another thread**, even if that thread is currently
+running or shares a parent, project, provider, or machine. Identify the
+responsible thread in the conversation when relevant; do not infer ownership
+from hierarchy alone. An independent outside counterpart is **Blocked on
+external party**, whether a person, an AI agent, an organization, or a mix.
+Expecting a response does not turn a required external action into Waiting,
+and the stage itself does not authorize sending reminders. Optional listening
+for findings can be Waiting when no counterpart owes a required delivery.
+
+A system recovering on its own is Waiting; repair work or a user decision is
+Active; a vendor's required intervention is Blocked on external party. CI or
+an external job progressing under this thread's coordination is Active, and
+an accepted queued job is Waiting. If useful independent work remains,
+continue it in Active before marking the thread Blocked.
+
+### Completing a thread
+
+Set **Completed** when the established objective has been carried through to
+a finished result that is safe to put away. Check the full conversation:
+intended review, open questions, delivery, and follow-ups must be **settled or
+delegated**. Results belong in their lasting destination, such as a merged PR
+or code saved or published where the work requires it. Delegation means the
+remaining responsibility is tracked elsewhere and its receiving owner has
+been notified; simply mentioning future work does not close it. Work this
+thread still coordinates remains its responsibility.
+
+Initial questions, exploratory research, and proposals normally keep Active:
+they may be preparation for broader work. A substantial report alone does not
+establish closure. Standalone research can finish when its actual scope,
+review, and follow-ups are fulfilled or delegated. Use the request, conversation,
+and delivery evidence to infer completion after established work; a separate
+explicit closing agreement is not required. Concrete loose ends or meaningful
+uncertainty keep Active, while the abstract possibility of future questions
+does not. Finishing an individual request or turn is insufficient.
 
 Place a thread by stage ID:
 `bb thread-stages stage BlockedOnOtherAgent --self`.
@@ -60,8 +105,8 @@ Each child has its own stage and remains nested beneath its parent. A child
 can be reordered among its siblings, while its stage remains independent.
 
 New root threads enter at the top of their section, project, and machine.
-Active and both Blocked stages share the main band; changing between those
-stages keeps a root's position. Deferred and Completed are subgroups of the
+Active, Waiting, and both Blocked stages share the main band; changing between
+those stages keeps a root's position. Deferred and Completed are subgroups of the
 current organization and use its saved order. Section, project, and machine
 orders are independent. Moving a root into another band defaults to the top
 through either the UI or CLI. Returning from Deferred or Completed to Active
@@ -80,7 +125,8 @@ sorting; automatic sorting keeps its selected order.
 Treat **Completed** threads as out of scope by default. Exclude them from bulk
 operations, messages, and notifications unless the user explicitly includes
 them or intends to resume them. Do not archive a thread merely to mark it
-Completed; Completed threads archive on their own after seven days.
+Completed; Completed threads archive on their own after the configured retention period
+(seven days by default).
 
 Stages change only when someone sets them; thread activity alone never changes a
 stage. A working thread keeps its stage, and the list shows the work by
@@ -90,14 +136,16 @@ ring, because the thread is waiting on the user rather than working.
 
 ## Stage mentions
 
-A mention of a stage, such as `@Active` or `@Blocked on third party`, names
-that stage. A message that mentions one, in a sentence such as "do this, then
-@Blocked on other agent" or on its own, asks for the thread to be placed in
+A mention of a stage, such as `@Active` or `@Blocked on external party`, names
+that stage. A placement request, such as "do this, then @Blocked on another
+thread" or a stage mention on its own, asks for the thread to be placed in
 that stage once the rest of the message is done. The plugin also tells a
 thread when someone else changes its stage, as "Thread stage updated: @Active
-→ @Blocked on third party"; that move has already happened. Older messages may
+→ @Blocked on external party"; that move has already happened. Older messages may
 mention `@Idle`, now Active, or `@Blocked`, now split into the two Blocked
-stages.
+stages. Earlier blocker names still resolve to their renamed stages; the stored
+IDs remain unchanged. Discussing a stage without requesting placement does not
+ask for a stage change.
 
 ## Layout preferences
 

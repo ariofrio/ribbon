@@ -53,7 +53,7 @@ export async function verifyMobileStageMenu({ stack, fixture, cases }) {
         await activate(move);
         await back.waitFor();
         assert.deepEqual(await menu.getByRole("menuitemradio").allTextContents(), [
-          "Deferred", "Active", "Blocked on other agent", "Blocked on third party", "Completed",
+          "Deferred", "Active", "Waiting", "Blocked on another thread", "Blocked on external party", "Completed",
         ]);
         assert.equal(await menu.getByRole("menuitem", { name: "Rename", exact: true }).count(), 0);
         assert.equal(await menu.getByRole("menuitemradio", { name: "Active", exact: true }).getAttribute("aria-checked"), "true");
@@ -70,9 +70,16 @@ export async function verifyMobileStageMenu({ stack, fixture, cases }) {
         assert.equal(await menu.getByRole("menuitemradio").count(), 0, "Reopening resets the drawer to its action page");
         await activate(move);
         await back.waitFor();
-        await activate(menu.getByRole("menuitemradio", { name: "Blocked on third party", exact: true }));
+        await activate(menu.getByRole("menuitemradio", { name: "Waiting", exact: true }));
         await menu.waitFor({ state: "hidden" });
-        await target.locator('[aria-label="Blocked on third party stage"]').waitFor();
+        await target.locator('[aria-label="Waiting stage"]').waitFor();
+        assert.equal(stageFor(fixture, thread.id), "Waiting");
+        await open();
+        await activate(move);
+        await back.waitFor();
+        await activate(menu.getByRole("menuitemradio", { name: "Blocked on external party", exact: true }));
+        await menu.waitFor({ state: "hidden" });
+        await target.locator('[aria-label="Blocked on external party stage"]').waitFor();
         assert.equal(stageFor(fixture, thread.id), "BlockedOnThirdParty");
         assert.deepEqual(errors, []);
         console.log(`Mobile stage menu (${testCase}): navigation, Back, reset, and stage selection passed`);

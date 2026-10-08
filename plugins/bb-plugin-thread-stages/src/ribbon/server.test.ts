@@ -18,7 +18,9 @@ describe("automatic stage guidance", () => {
         makePluginAgentConfigurationContext({ provider: { id: providerId } }),
       );
       expect(resolved.instructions).toContain("thread-stages skill");
-      expect(resolved.instructions).toContain("when work starts, waits, resumes, or finishes");
+      expect(resolved.instructions).toContain("Read the thread-stages skill");
+      expect(resolved.instructions).toContain("overall workflow state");
+      expect(resolved.instructions).toContain("only when it no longer fits");
       expect(resolved.instructions).not.toContain("BlockedOnOtherAgent");
       expect(resolved.tools).toEqual([]);
       expect(resolved.skills).toEqual(["thread-stages"]);
@@ -94,7 +96,7 @@ const threadStagesCatalog = {
         },
         {
           id: "BlockedOnThirdParty",
-          label: "Blocked on third party",
+          label: "Blocked on external party",
           visibleWhenEmpty: true,
           acceptsAssignments: true,
           defaultCollapsed: false,
@@ -807,7 +809,8 @@ describe("Ribbon sidebar server", () => {
       const stages = "plugin:thread-stages:stages";
       const place = async (threadId: string, groupId: string) => {
         if (method === "cli") {
-          await harness.behavior.runCli(["place", threadId, "--to", `${stages}/${groupId}`]);
+          const result = await harness.behavior.runCli(["place", threadId, "--to", `${stages}/${groupId}`]);
+          expect(result.exitCode).toBe(0);
         } else if (method === "shortcut") {
           await harness.behavior.callRpc("setWorkflowStage", { threadId, workflowStage: groupId });
         } else {
@@ -824,8 +827,8 @@ describe("Ribbon sidebar server", () => {
       };
       try {
         for (const stage of [
-          "BlockedOnOtherAgent", "BlockedOnThirdParty", "Active",
-          "BlockedOnOtherAgent", "Active", "BlockedOnThirdParty",
+          "Waiting", "BlockedOnOtherAgent", "BlockedOnThirdParty", "Active",
+          "BlockedOnOtherAgent", "Waiting", "Active", "BlockedOnThirdParty",
           "BlockedOnOtherAgent", "Active",
         ]) {
           await place("c", stage);
@@ -1571,7 +1574,7 @@ describe("Ribbon sidebar server", () => {
     expect(await harness.behavior.callRpc("getPlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
       threadId: "thread-child",
-    })).toMatchObject({ ok: true, value: { placement: { groupId: "BlockedOnOtherAgent" } } });
+    })).toMatchObject({ ok: true, value: { placement: { groupId: "Waiting" } } });
   });
 
   it("serves canonical built-in names in the standard grouping order", async () => {
@@ -1881,7 +1884,7 @@ describe("Ribbon sidebar server", () => {
       }),
     ).resolves.toMatchObject({
       ok: true,
-      value: { placement: { groupId: "BlockedOnOtherAgent" } },
+      value: { placement: { groupId: "Waiting" } },
     });
     expect(await order()).toEqual(["older", "middle", "newer"]);
   });
@@ -2103,7 +2106,7 @@ describe("Ribbon sidebar server", () => {
         threadId: "first",
         mode: "queue-if-active",
       });
-      const text = "Thread stage updated: @Active → @Blocked on third party";
+      const text = "Thread stage updated: @Active → @Blocked on external party";
       const mention = (label: string, itemId: string) => ({
         start: text.indexOf(`@${label}`),
         end: text.indexOf(`@${label}`) + label.length + 1,
@@ -2120,12 +2123,12 @@ describe("Ribbon sidebar server", () => {
           text,
           mentions: [
             mention("Active", "stage:active"),
-            mention("Blocked on third party", "stage:blockedonthirdparty"),
+            mention("Blocked on external party", "stage:blockedonthirdparty"),
           ],
         },
         {
           type: "text",
-          text: expect.stringContaining("from Active to Blocked on third party"),
+          text: expect.stringContaining("from Active to Blocked on external party"),
           mentions: [],
           visibility: "agent-only",
         },
