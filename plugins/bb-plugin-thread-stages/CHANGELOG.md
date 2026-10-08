@@ -1,5 +1,11 @@
 # bb-plugin-thread-stages
 
+## 2.0.1
+
+### Patch Changes
+
+- 3083116: Synchronize working thread rows' shimmers and rotating stage rings, including indicators added while work is running.
+
 ## 2.0.0
 
 ### Major Changes
