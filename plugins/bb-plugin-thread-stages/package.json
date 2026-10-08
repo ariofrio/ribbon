@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-thread-stages",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "bb's thread list with workflow stages, stable thread order, and section and project icons.",
   "license": "MIT",
   "repository": {
