@@ -34,8 +34,9 @@ requests a change. Setting changes apply when bb next constructs the agent's
 provider session.
 
 A stage describes the thread's overall workflow, including what can progress
-and whose action is needed. Inspect its current stage before changing it; write
-only when it no longer fits. A turn ending, a short side discussion, runtime
+and whose action is needed. Inspect its current stage with
+`bb thread-stages show --self --json` before changing it; write only when it no
+longer fits. A turn ending, a short side discussion, runtime
 idleness, or a routine monitoring check does not by itself change the stage.
 Respect an explicit instruction to retain a stage or let the user manage it.
 
