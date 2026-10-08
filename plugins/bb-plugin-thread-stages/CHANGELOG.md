@@ -1,5 +1,57 @@
 # bb-plugin-thread-stages
 
+## 2.0.0
+
+### Major Changes
+
+- b0fe698: Simplify the CLI to `stage`, `order`, and explicit list filters, removing the grouping catalog commands. JSON thread views now expose named section, project, and machine objects plus stage metadata. Keep legacy `place` commands compatible and preserve stages when archived threads are included in a list.
+- d4e26cc: The CLI is now `bb thread-stages`, named after the plugin, instead of
+  `bb sidebar`; its commands are unchanged. Scripts that call `bb sidebar` must
+  switch. The skill reads layout preferences from `prefs list` instead of a
+  hand-kept list, warns that `bb thread-list prefs` changes bb's built-in list
+  rather than this sidebar, and has its evals back.
+
+### Minor Changes
+
+- 42d547a: Require bb 0.45.0 and Plugin SDK 0.6.15, with the matching shared UI. Sync
+  Thread stages with bb's thread list: configurable hover actions, live draft
+  indicators for collapsed groups, and group-aware placement of new threads.
+  Use the current composer API and support provider-defined service tiers for
+  title generation.
+- d7717c6: Limit Completed and Deferred previews to two rows including Show more, with a setting for one through five rows. Keep the selected thread within the preview budget.
+- 09d338b: Add `bb thread-stages actions list`, `set`, and `run` to inspect, replace, and run saved thread prompt actions. Document the commands in the thread-stages skill.
+- 3bac46b: Group thread menu actions, rename Move to stage to Set stage, and edit prompt buttons in a compact submenu that saves as you type. Empty labels use the prompt as the button label. Rounded rows use placeholders for labels and prompts, with a trailing blank row for new actions and X to clear or remove a row. Prompts expand for editing and keyboard focus follows row navigation. Remove the Hide thread title option from the sidebar and CLI.
+- 96c3d77: Add Waiting for established standby, rename the blocker labels to distinguish another bb thread from an external party, and align agent guidance and completion semantics with the whole thread workflow. Existing blocker IDs, saved shortcuts, and thread positions are preserved.
+
+### Patch Changes
+
+- 5eaa68f: Add Automatic stage updates, enabled by default, to direct agents to the thread-stages skill as work starts, waits, resumes, or finishes. Turning it off instructs agents to change stages only on explicit user requests. Keep the skill available in both modes and exclude side chats.
+- b0fe698: Show Custom as the selected sort for manual ordering. Honor automatic sort choices and restore saved positions when returning to Custom.
+- b0fe698: Preserve manual order when delayed creation events carry old membership, and refresh group definitions before reconciling a move into a newly created section.
+- b0fe698: Limit placement to sections, projects, and workflow stages. Remove the obsolete provider rekey command and simplify stage inheritance.
+- 802201c: Open Move to stage as a separate mobile menu page with a Back action, instead of listing every stage among the main thread actions.
+- f569664: Keep hovered and selected sticky parent rows opaque so scrolling child titles do not show through their highlights.
+- 42d547a: Use bb's public PR status fields when the richer GitHub lookup is unavailable,
+  preserving merge-queue and auto-merge indicators and reporting checks, review,
+  and merge conflicts.
+- a5682a1: Queue stage-change notices while a thread is busy instead of steering its active turn. Idle threads still start a turn when a notice arrives.
+- 5a47932: Keep newly Completed threads at the top whether filed through the UI or CLI,
+  while allowing their saved order to be changed by dragging, keyboard shortcuts,
+  or CLI placement. Reordering preserves completion time and the thread's
+  retained position when returning to the main list.
+- b0fe698: Place section moves at the top consistently from the thread menu, CLI, and group-header drops, including Deferred and Completed threads.
+- d601495: Place threads entering another sidebar list at the top through the CLI or UI. Keep positions when switching between Active and Blocked, returning to Active, or undoing a stage move.
+- b0fe698: Order stage subgroups within their containing section or project, keeping each organization independent. Section moves now use one placement operation for every stage band.
+- c117330: Clarify that automatic completion requires the thread's full objective to be fulfilled, and keep unfinished or unclear scope Active.
+- eff03a8: Place hover-only row controls and the child toggle before per-thread prompt buttons and the PR number, without reserving hidden controls' space at rest. Keep the ellipsis in the indicator slot, with consistent spacing between row buttons and before saved prompts or PR numbers. Match row control sizing and hover styling to the ellipsis button, and rename the prompt editor to Edit thread actions. Rename the stage menu to Move to stage.
+  
+  Preserve recorded migration order when upgrading existing installations.
+- 9e694e3: Give the Threads heading its own standard icon, by section or by project: two
+  messages, drawn as message-multiple-01 while the group is open. As it folds,
+  the second message slides back behind the first until only one shows, and
+  slides out again as it opens.
+- b0fe698: Reconcile direct BB membership changes with the same top placement used by menus and drops, including changes made while the plugin is offline. Preserve explicit anchors, move every root of dragged environment groups, and save an independent manual order for machine view.
+
 ## 1.0.0
 
 ### Major Changes
