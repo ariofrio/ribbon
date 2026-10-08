@@ -23,6 +23,10 @@ import { MarqueeText } from "./thread-title";
 import { SHINE_ATTRIBUTE, ShineContent } from "./row-shine";
 import { ThreadIndicator } from "./thread-indicator";
 
+// Keep Ribbon's selected-row tint opaque when a parent sticks above its children.
+export const RIBBON_SELECTED_ROW_SURFACE_CLASS =
+  "bg-sidebar-accent bg-[linear-gradient(var(--sidebar-accent),var(--sidebar-accent)),linear-gradient(var(--sidebar),var(--sidebar))]";
+
 // bb's own pull request colors, plus amber for a PR that will merge on its
 // own (GitHub's merge-queue color).
 const PR_LIFECYCLE_ICONS = {
