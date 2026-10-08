@@ -36,6 +36,7 @@ describe("stage bands", () => {
   it("treats a thread without a stage as Idle", () => {
     expect(bandOf(undefined)).toBe("main");
     expect(bandOf("BlockedOnThirdParty")).toBe("main");
+    expect(bandOf("Waiting")).toBe("main");
   });
 
   it("keeps automatic sorting within every stage band", () => {

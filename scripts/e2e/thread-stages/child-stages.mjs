@@ -29,7 +29,7 @@ export async function verifyChildStages({ stack, fixture }) {
       await list.waitFor({ timeout: 120_000 });
       const childRow = row(list, child.id);
       await childRow.waitFor();
-      const icon = childRow.locator('[aria-label="Blocked on third party stage"]');
+      const icon = childRow.locator('[aria-label="Blocked on external party stage"]');
       await icon.waitFor();
       const rendered = await icon.evaluate((node) => {
         const style = getComputedStyle(node);

@@ -56,9 +56,9 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
     await composer.click();
     await page.keyboard.type("then @bl");
     // Only Thread stages' provider supplies this subtitle to the menu.
-    await page.getByText("Stage · waiting for another agent's thread to finish or deliver something", { exact: true }).waitFor();
+    await page.getByText("Stage · another bb thread owns a required action or result, and no useful independent work remains here", { exact: true }).waitFor();
     await page.keyboard.press("Enter");
-    const inserted = page.locator('[data-app-composer-role="primary"] [data-prompt-mention]').filter({ hasText: "Blocked on other agent" });
+    const inserted = page.locator('[data-app-composer-role="primary"] [data-prompt-mention]').filter({ hasText: "Blocked on another thread" });
     await inserted.waitFor();
     assert.equal((await composer.innerText()).includes("@bl"), false, "Picking the stage must replace the typed query with its pill");
     await composer.press(process.platform === "darwin" ? "Meta+a" : "Control+a");

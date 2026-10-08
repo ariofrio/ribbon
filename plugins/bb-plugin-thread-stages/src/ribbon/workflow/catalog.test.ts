@@ -43,18 +43,19 @@ describe("stage catalog", () => {
     expect(grouping!.groups.map(({ id, label }) => [id, label])).toEqual([
       ["Deferred", "Deferred"],
       ["Active", "Active"],
-      ["BlockedOnOtherAgent", "Blocked on other agent"],
-      ["BlockedOnThirdParty", "Blocked on third party"],
+      ["Waiting", "Waiting"],
+      ["BlockedOnOtherAgent", "Blocked on another thread"],
+      ["BlockedOnThirdParty", "Blocked on external party"],
       ["Completed", "Completed"],
     ]);
-    // A slash for another agent runs exactly along the third party's arrow.
+    // The other thread's slash is perpendicular to the external party's arrow.
     const marks = (stage: (typeof WORKFLOW_STAGES)[number]) =>
       STAGE_ICONS[stage].children!.slice(1);
     expect(marks("Active")).toEqual([]);
     expect(marks("BlockedOnOtherAgent")).toEqual([
       expect.objectContaining({
         tag: "path",
-        attrs: expect.objectContaining({ d: "M9 15 15.5 8.5" }),
+        attrs: expect.objectContaining({ d: "M9 9 15.5 15.5" }),
       }),
     ]);
     expect(marks("BlockedOnThirdParty")).toEqual([

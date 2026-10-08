@@ -3,14 +3,27 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "I'm preparing a routine bulk status notification. The visible roots are Billing cleanup (Active), Release checklist (Completed), Search indexing (Active, currently working), and Vendor access (Blocked on third party). I did not ask to resume anything. Which roots are in scope by default? Do not send any messages.",
+      "prompt": "I'm preparing a routine bulk status notification. The visible roots are Billing cleanup (Active), Release checklist (Completed), Search indexing (Active, currently working), and Vendor access (Blocked on external party). I did not ask to resume anything. Which roots are in scope by default? Do not send any messages.",
       "expected_output": "The agent excludes the Completed root by default while retaining the other visible roots, and explains that Completed is treated like archived work unless explicitly included or resumed.",
       "files": [],
       "expectations": [
         "The in-scope roots are Billing cleanup, Search indexing, and Vendor access.",
         "Release checklist is excluded because Completed roots are out of scope by default.",
-        "The response does not claim that Blocked on third party or Active roots are automatically excluded."
-      ]
+        "The response does not claim that Blocked on external party or Active roots are automatically excluded."
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "in_scope": [
+          "Billing cleanup",
+          "Search indexing",
+          "Vendor access"
+        ]
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": true,
+      "allow_inspection": true
     },
     {
       "id": 2,
@@ -19,20 +32,49 @@
       "files": [],
       "expectations": [
         "The agent keeps the thread in Active.",
-        "The agent does not propose moving the thread to Blocked on other agent or Blocked on third party.",
+        "The agent does not propose moving the thread to Waiting or either Blocked stage.",
         "The agent does not give a bb thread-stages stage command that changes the stage.",
         "Does not load Thread actions for this stage-only request."
-      ]
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "stage": "Active",
+        "command": null
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": true,
+      "forbidden_reads": [
+        "thread-actions"
+      ],
+      "allow_inspection": false
     },
     {
       "id": 3,
       "prompt": "Two root bb threads I own are stuck. Thread A can't continue until another bb thread lands the auth refactor it depends on. Thread B is waiting for the vendor to approve our SSO app. Which stage should each go in, and what exact command would place each one? Use <thread-a> and <thread-b> as placeholders. Don't run anything.",
-      "expected_output": "Thread A goes to Blocked on other agent and thread B to Blocked on third party, each placed by stage ID.",
+      "expected_output": "Thread A goes to Blocked on another thread and thread B to Blocked on external party, each placed by stage ID.",
       "files": [],
       "expectations": [
-        "Thread A is placed in Blocked on other agent with `bb thread-stages stage BlockedOnOtherAgent <thread-a>`.",
-        "Thread B is placed in Blocked on third party with `bb thread-stages stage BlockedOnThirdParty <thread-b>`."
-      ]
+        "Thread A is placed in Blocked on another thread with `bb thread-stages stage BlockedOnOtherAgent <thread-a>`.",
+        "Thread B is placed in Blocked on external party with `bb thread-stages stage BlockedOnThirdParty <thread-b>`."
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "stages": {
+          "thread_a": "BlockedOnOtherAgent",
+          "thread_b": "BlockedOnThirdParty"
+        },
+        "commands": [
+          "bb thread-stages stage BlockedOnOtherAgent <thread-a>",
+          "bb thread-stages stage BlockedOnThirdParty <thread-b>"
+        ]
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": true,
+      "allow_inspection": false
     },
     {
       "id": 4,
@@ -43,7 +85,19 @@
         "The agent gives `bb thread-stages prefs set organizationMode project` or an equivalent JSON value.",
         "The agent gives `bb thread-stages prefs set environmentGrouping false`.",
         "The agent does not use `bb thread-list prefs` for either change."
-      ]
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "commands": [
+          "bb thread-stages prefs set organizationMode project",
+          "bb thread-stages prefs set environmentGrouping false"
+        ]
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": true,
+      "allow_inspection": false
     },
     {
       "id": 5,
@@ -56,27 +110,63 @@
         "Runs by action ID and clears with an empty JSON array.",
         "Explains that set replaces existing buttons and does not execute state-changing commands.",
         "Reads the linked Thread actions skill without asking the user to invoke another skill."
-      ]
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "commands": [
+          "bb thread-stages actions list --self",
+          "bb thread-stages actions set --self --actions '[{\"id\":\"review\",\"label\":\"Review\",\"prompt\":\"Review this change.\"}]'",
+          "bb thread-stages actions run review --self",
+          "bb thread-stages actions set --self --actions '[]'"
+        ],
+        "replaces_existing": true
+      },
+      "required_reads": [
+        "thread-stages",
+        "thread-actions"
+      ],
+      "automatic_updates": true,
+      "allow_inspection": true
     },
     {
       "id": 6,
-      "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched off. We need to wait for another bb thread to finish its QA tests before continuing. I have not requested a stage change. What should happen to this thread's stage before yielding? Explain without executing any commands.",
-      "expected_output": "The agent keeps Active because automatic stage updates is off and no stage change was requested, while recognizing that the dependency would otherwise fit Blocked on other agent.",
+      "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched off. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not requested a stage change. What should happen to this thread's stage before yielding? Explain without executing any commands.",
+      "expected_output": "The agent keeps Active because automatic stage updates is off and no stage change was requested, while recognizing that the dependency would otherwise fit Blocked on another thread.",
       "files": [],
       "expectations": [
         "The agent leaves the stage unchanged because automatic updates is off.",
         "The agent does not instruct that a placement command should now be executed."
-      ]
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "stage": "Active",
+        "command": null
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": false,
+      "allow_inspection": false
     },
     {
       "id": 7,
-      "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched on. We need to wait for another bb thread to finish its QA tests before continuing. I have not mentioned a stage. What should happen to this thread's stage before yielding? Explain and give the exact command you would run, without executing any commands.",
-      "expected_output": "The agent selects Blocked on other agent without requiring a stage mention and gives the correct current-thread placement command.",
+      "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched on. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not mentioned a stage. What should happen to this thread's stage before yielding? Explain and give the exact command you would run, without executing any commands.",
+      "expected_output": "The agent selects Blocked on another thread without requiring a stage mention and gives the correct current-thread placement command.",
       "files": [],
       "expectations": [
-        "The agent selects Blocked on other agent without requiring a stage mention.",
+        "The agent selects Blocked on another thread without requiring a stage mention.",
         "The proposed command is bb thread-stages stage BlockedOnOtherAgent --self."
-      ]
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "stage": "BlockedOnOtherAgent",
+        "command": "bb thread-stages stage BlockedOnOtherAgent --self"
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": true,
+      "allow_inspection": false
     },
     {
       "id": 8,
@@ -86,7 +176,17 @@
       "expectations": [
         "The selected stage is Active and command is null.",
         "The reason identifies outstanding deployment or production verification in the earlier objective."
-      ]
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "stage": "Active",
+        "command": null
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": true,
+      "allow_inspection": false
     },
     {
       "id": 9,
@@ -96,7 +196,17 @@
       "expectations": [
         "The selected stage is Completed and command is bb thread-stages stage Completed --self.",
         "The reason identifies the fulfilled investigation as the full agreed objective without inventing implementation or deployment requirements."
-      ]
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "stage": "Completed",
+        "command": "bb thread-stages stage Completed --self"
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": true,
+      "allow_inspection": false
     },
     {
       "id": 10,
@@ -106,7 +216,505 @@
       "expectations": [
         "The selected stage is Active and command is null.",
         "The reason identifies unavailable overall scope or earlier follow-ups as preventing a completion decision."
-      ]
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "stage": "Active",
+        "command": null
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": true,
+      "allow_inspection": false
+    },
+    {
+      "id": 11,
+      "prompt": "Use $thread-stages. This thread owns a week of network observation. Recorders are collecting and a scheduled collector reports incidents; there is no current incident, user decision, or action due. What stage fits between reports? Do not run commands.",
+      "expected_output": "Waiting: established passive observation with a reporting arrangement, even though recorders continue collecting.",
+      "files": [],
+      "expectations": [
+        "Selects Waiting rather than Active or a Blocked stage.",
+        "Does not claim that a date is an external party."
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "stage": "Waiting"
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": true,
+      "allow_inspection": false
+    },
+    {
+      "id": 12,
+      "prompt": "Use $thread-stages. This thread coordinates three workers actively implementing its task, including a managed job on another machine. A different thread also owns a separate refactor this task will need later. What stage fits now? Do not run commands.",
+      "expected_output": "Active while owned workers progress and useful work remains; hierarchy and machine do not decide ownership.",
+      "files": [],
+      "expectations": [
+        "Selects Active while work under this thread's coordination is progressing.",
+        "Does not block solely because an independent later dependency exists."
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "stage": "Active"
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": true,
+      "allow_inspection": false
+    },
+    {
+      "id": 13,
+      "prompt": "Use $thread-stages. Classify these threads: A is waiting for a system to recover automatically, with an established health check; B needs the user to choose how to recover; C needs a vendor to restore its account; D has a managed external AI job accepted into a queue for a scheduled start. No other useful work remains. Do not run commands.",
+      "expected_output": "A and D are Waiting, B is Active, C is Blocked on external party.",
+      "files": [],
+      "expectations": [
+        "Distinguishes standby from a required external intervention.",
+        "Keeps required user direction Active."
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "stages": {
+          "a": "Waiting",
+          "b": "Active",
+          "c": "BlockedOnThirdParty",
+          "d": "Waiting"
+        }
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": true,
+      "allow_inspection": false
+    },
+    {
+      "id": 14,
+      "prompt": "Use $thread-stages. The thread's implementation PR is merged and the requested production check passed. Its result is saved where it belongs. The intended review was completed, and the only follow-up was handed to another tracked thread whose owner has been notified. We did not separately agree on a formal closing condition. What stage fits? Do not run commands.",
+      "expected_output": "Completed: the established objective is fulfilled and loose ends are settled or delegated, without requiring a separate closing agreement.",
+      "files": [],
+      "expectations": [
+        "Selects Completed without asking for ceremonial closing approval.",
+        "Recognizes tracked delegation with a notified receiving owner as closure."
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "stage": "Completed"
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": true,
+      "allow_inspection": false
+    },
+    {
+      "id": 15,
+      "prompt": "Use $thread-stages. I began this thread by asking how we might redesign a plugin. You just delivered a long research report with several unresolved design choices and want me to review it before we decide whether to implement. What stage fits? Do not run commands.",
+      "expected_output": "Active: exploratory research and intended user review leave the broader work open.",
+      "files": [],
+      "expectations": [
+        "Selects Active rather than Completed or Waiting.",
+        "Does not treat the size of the report or the end of the turn as completion."
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "stage": "Active"
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": true,
+      "allow_inspection": false
+    },
+    {
+      "id": 16,
+      "prompt": "Use $thread-stages. An independent outside AI service owns a required deliverable for this thread and is currently running. Another thread is merely listening for optional unsolicited findings from an outside service using an established collector. Neither has other work or a user decision due. What stage fits each? Do not run commands.",
+      "expected_output": "The required independent deliverable is Blocked on external party; optional established listening is Waiting.",
+      "files": [],
+      "expectations": [
+        "Uses ownership of a required action rather than whether the outside counterpart is human or AI.",
+        "Does not confuse an independent counterpart with this thread's executing worker."
+      ],
+      "mode": "recommendation",
+      "expected_answer": {
+        "stages": {
+          "required": "BlockedOnThirdParty",
+          "optional": "Waiting"
+        }
+      },
+      "required_reads": [
+        "thread-stages"
+      ],
+      "automatic_updates": true,
+      "allow_inspection": false
+    },
+    {
+      "id": 17,
+      "name": "observation",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Waiting; perform 1 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Waiting.",
+        "There are exactly 1 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Observe network reliability for eight days, report incidents, and review/clean up at the end.",
+          "conversation": [
+            "The user authorized ongoing observation and incident reports. No user input or review is currently due."
+          ],
+          "evidence": [
+            "Recorders are running on all three machines.",
+            "The five-minute collector delivers incidents and recoveries to this thread.",
+            "Latest snapshot: no incidents; observation deadline is six days away.",
+            "There is no evidence to investigate or configuration work remaining."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Waiting",
+        "writes": 1
+      }
+    },
+    {
+      "id": 18,
+      "name": "user_review",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 1 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Active.",
+        "There are exactly 1 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "BlockedOnThirdParty",
+        "work": {
+          "objective": "Compare two migration designs, obtain the user’s review, then implement the selected approach.",
+          "conversation": [
+            "The user asked to review the comparison before implementation.",
+            "The comparison has been saved in comparison.md; no selection has been made."
+          ],
+          "evidence": [
+            "Both options are ready for review.",
+            "All prerequisite research is complete. No third party owes a response."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Active",
+        "writes": 1
+      }
+    },
+    {
+      "id": 19,
+      "name": "own_workers",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 1 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Active.",
+        "There are exactly 1 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "BlockedOnOtherAgent",
+        "work": {
+          "objective": "Coordinate implementation and verification of a feature.",
+          "conversation": [
+            "This thread owns and coordinates the implementation, including its workers."
+          ],
+          "evidence": [
+            "Two workers managed by this thread are actively implementing components.",
+            "A managed remote verification job is actively executing.",
+            "There is no independent handoff or outside delivery dependency."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Active",
+        "writes": 1
+      }
+    },
+    {
+      "id": 20,
+      "name": "independent_thread",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to BlockedOnOtherAgent; perform 1 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is BlockedOnOtherAgent.",
+        "There are exactly 1 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Integrate the contract produced by a separately owned BB refactor workflow.",
+          "conversation": [
+            "@thread:thr_refactor owns the contract refactor and has accepted the required delivery.",
+            "This thread cannot integrate until that workflow supplies the contract."
+          ],
+          "evidence": [
+            "The independent refactor workflow is running.",
+            "All useful preparation and independent work here is finished.",
+            "The responsible workflow already knows about the dependency; no additional message is requested."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnOtherAgent",
+        "writes": 1
+      }
+    },
+    {
+      "id": 21,
+      "name": "external_ai",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to BlockedOnThirdParty; perform 1 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is BlockedOnThirdParty.",
+        "There are exactly 1 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Integrate a required dataset from an independently operated outside AI service.",
+          "conversation": [
+            "The outside service owns and has accepted delivery of the dataset.",
+            "It is independently operated, outside BB, and not a worker or managed job of this thread."
+          ],
+          "evidence": [
+            "The outside AI is actively producing the required dataset.",
+            "No useful independent work remains here.",
+            "The user owes no input and reminders are not authorized."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnThirdParty",
+        "writes": 1
+      }
+    },
+    {
+      "id": 22,
+      "name": "exploratory_report",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 0 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Active.",
+        "There are exactly 0 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Investigate an architecture question in preparation for a potential implementation PR.",
+          "conversation": [
+            "The user opened with a research question and asked for a comparison to discuss.",
+            "The research report is saved. Design questions and the user’s intended review remain unsettled."
+          ],
+          "evidence": [
+            "A substantial report has been prepared.",
+            "No implementation direction has been chosen.",
+            "The report has not been reviewed by the user."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Active",
+        "writes": 0
+      }
+    },
+    {
+      "id": 23,
+      "name": "durable_completion",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Completed; perform 1 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Completed.",
+        "There are exactly 1 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Ship the agreed feature and verify production behavior.",
+          "conversation": [
+            "The agreed feature was implemented, reviewed by the user, merged, and published.",
+            "The requested production check has passed.",
+            "A separate nonblocking follow-up is tracked in another thread; its receiving owner was notified and accepted responsibility.",
+            "No separate explicit closing agreement was discussed."
+          ],
+          "evidence": [
+            "The durable result is published.",
+            "There are no remaining open questions, intended reviews, deliveries, or follow-ups owned or coordinated by this thread."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Completed",
+        "writes": 1
+      }
+    },
+    {
+      "id": 24,
+      "name": "routine_observation",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Waiting; perform 0 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Waiting.",
+        "There are exactly 0 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Waiting",
+        "work": {
+          "objective": "Continue an established observation window and report incidents.",
+          "conversation": [
+            "The collectors and incident delivery are established.",
+            "The user requested only a routine snapshot check."
+          ],
+          "evidence": [
+            "Latest snapshot: normal operation, no incidents.",
+            "No user decision or investigation is due.",
+            "The end of the observation window is not due; collector delivery remains healthy."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Waiting",
+        "writes": 0
+      }
+    },
+    {
+      "id": 25,
+      "name": "missing_resume_path",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 0 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Active.",
+        "There are exactly 0 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Observe reliability for a week and follow up on incidents.",
+          "conversation": [
+            "The user wants automatic incident reporting.",
+            "The recorders have been started, but no collector, scheduled check, notification, or other resumption arrangement has been set up."
+          ],
+          "evidence": [
+            "There is no mechanism for this thread to receive incidents or notice the end of the window.",
+            "Establishing that mechanism remains work owned by this thread.",
+            "The user owes no input."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Active",
+        "writes": 0
+      }
+    },
+    {
+      "id": 26,
+      "name": "automatic_off",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 0 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Active.",
+        "There are exactly 0 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": false,
+      "required_reads": [],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Integrate a contract from the independent BB refactor thread.",
+          "conversation": [
+            "Automatic stage updates are disabled. The user has not requested a stage change.",
+            "@thread:thr_refactor owns the required contract and has accepted delivery."
+          ],
+          "evidence": [
+            "All useful independent work here is finished.",
+            "The separate refactor workflow is still running."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Active",
+        "writes": 0
+      }
     }
   ]
 }

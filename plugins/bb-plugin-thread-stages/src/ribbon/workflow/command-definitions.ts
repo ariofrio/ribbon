@@ -25,16 +25,22 @@ export const WORKFLOW_COMMANDS = [
     title: "Return thread to Active",
   },
   {
+    action: { kind: "stage", stage: "Waiting" },
+    defaultShortcut: { key: ",", mod: true, shift: true },
+    id: "wait-thread",
+    title: "File thread as Waiting",
+  },
+  {
     action: { kind: "stage", stage: "BlockedOnOtherAgent" },
     defaultShortcut: { alt: true, control: true, key: ".", mod: true },
     id: "block-thread-on-agent",
-    title: "File thread as Blocked on other agent",
+    title: "File thread as Blocked on another thread",
   },
   {
     action: { kind: "stage", stage: "BlockedOnThirdParty" },
     defaultShortcut: { control: true, key: ".", mod: true, shift: true },
     id: "block-thread",
-    title: "File thread as Blocked on third party",
+    title: "File thread as Blocked on external party",
   },
   {
     action: { kind: "stage", stage: "Deferred" },
