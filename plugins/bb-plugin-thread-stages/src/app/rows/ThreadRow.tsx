@@ -90,6 +90,7 @@ import type { SidebarSortableDragBindings } from "./sortableMotion.js";
 import { SidebarThreadDragChip } from "../dnd/sidebarThreadDragChip.js";
 import { SplitPaneMiniMap } from "./SplitPaneMiniMap.js";
 import {
+  RIBBON_SELECTED_ROW_SURFACE_CLASS,
   RibbonActionButtons,
   RibbonStageGlyph,
   RibbonTrailingIndicator,
@@ -558,10 +559,8 @@ function ThreadRowComponent({
       : COARSE_POINTER_ROW_HEIGHT_CLASS,
     showActive
       ? ribbon
-        // Ribbon's open row wears the hover surface, not bb's active one,
-        // and not the active-over-sidebar gradient bb paints on a sticky
-        // parent row.
-        ? `bg-sidebar-accent bg-none bb-sidebar-selected-row ${SIDEBAR_ROW_TEXT_CLASS}`
+        // Ribbon's open row wears the hover tint over the opaque sidebar.
+        ? `${RIBBON_SELECTED_ROW_SURFACE_CLASS} bb-sidebar-selected-row ${SIDEBAR_ROW_TEXT_CLASS}`
         : SIDEBAR_ROW_SELECTED_STATE_CLASS
       : SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,
     // A row outside Active stays dim while hovered and while open.
