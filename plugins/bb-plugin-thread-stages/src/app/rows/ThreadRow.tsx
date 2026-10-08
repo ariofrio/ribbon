@@ -76,6 +76,7 @@ import {
   SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,
   SIDEBAR_ROW_OPEN_IN_SPLIT_STATE_CLASS,
   SIDEBAR_ROW_SELECTED_STATE_CLASS,
+  SIDEBAR_STICKY_ROW_INTERACTIVE_SURFACE_CLASS,
   SIDEBAR_STATUS_GLYPH_BOX_CLASS,
   getSidebarThreadGroupLineLeft,
   getSidebarThreadRowPaddingLeft,
@@ -569,6 +570,8 @@ function ThreadRowComponent({
     !showActive && isOpenInSplit && SIDEBAR_ROW_OPEN_IN_SPLIT_STATE_CLASS,
     !showActive &&
       "has-[[data-state=open]]:bg-sidebar-accent has-[[data-sidebar-rename-anchor]:focus-visible]:bg-sidebar-accent",
+    !showActive && parentOptions?.stickyLevel !== undefined &&
+      SIDEBAR_STICKY_ROW_INTERACTIVE_SURFACE_CLASS,
     rowDragBindings && !rowDragBindings.disabled && "select-none",
     !isActionsOpen && "data-[sidebar-touch-armed=true]:!bg-transparent",
     nestTargetState && NEST_TARGET_STATE_CLASS[nestTargetState],

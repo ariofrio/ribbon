@@ -66,6 +66,11 @@ export function getSidebarThreadGroupLineLeft(depth: number): number {
 
 export const SIDEBAR_ROW_INTERACTIVE_STATE_CLASS = `cursor-pointer ${SIDEBAR_ROW_TEXT_CLASS} hover:bg-sidebar-accent hover:text-sidebar-accent-foreground`;
 
+// The accent can be translucent. Sticky rows need the sidebar beneath it so
+// descendants scrolling under a hovered or focused parent stay covered.
+export const SIDEBAR_STICKY_ROW_INTERACTIVE_SURFACE_CLASS =
+  "hover:bg-[linear-gradient(var(--sidebar-accent),var(--sidebar-accent)),linear-gradient(var(--sidebar),var(--sidebar))] has-[[data-state=open]]:bg-[linear-gradient(var(--sidebar-accent),var(--sidebar-accent)),linear-gradient(var(--sidebar),var(--sidebar))] has-[[data-sidebar-rename-anchor]:focus-visible]:bg-[linear-gradient(var(--sidebar-accent),var(--sidebar-accent)),linear-gradient(var(--sidebar),var(--sidebar))]";
+
 export const SIDEBAR_ROW_SELECTED_STATE_CLASS = `${CONTEXT_SELECTION_SURFACE_CLASS} bb-sidebar-selected-row ${SIDEBAR_ROW_TEXT_CLASS}`;
 
 export const SIDEBAR_ROW_OPEN_IN_SPLIT_STATE_CLASS =
