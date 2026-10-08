@@ -1,6 +1,7 @@
 import { verifyThreadTitles } from "../thread-titles.mjs";
 
 export default {
+  group: "placement",
   order: 10,
   id: "thread-titles",
   cases: ["once"],

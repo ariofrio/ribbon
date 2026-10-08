@@ -2,6 +2,7 @@ import { verifyStagePlacement } from "../thread-stages/stage-placement.mjs";
 import { waitForThreadStages } from "../thread-stages/new-thread-routing.mjs";
 
 export default {
+  group: "placement",
   order: 10,
   id: "stage-placement",
   cases: ["default-order"],
