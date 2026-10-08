@@ -295,4 +295,10 @@ bb plugin reload thread-stages
 published index, and `npm run check:catalog` reports what would change
 without writing.
 
+`npm run check:evals` validates the skill cases and tests their grader without
+calling a model; it also runs in the release gate. `npm run evals` executes all
+26 cases in fresh Claude Code sessions against a local BB CLI fixture. See
+[Skill evaluations](skills/thread-stages/evals/README.md) for filters,
+previous-version comparisons, artifacts, and the limits of this test.
+
 [MIT](LICENSE)

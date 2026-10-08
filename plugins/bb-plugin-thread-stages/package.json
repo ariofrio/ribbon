@@ -20,7 +20,9 @@
     "src",
     "!src/**/*.test.ts",
     "!src/**/*.test.tsx",
-    "skills"
+    "skills",
+    "!skills/**/__pycache__/**",
+    "!skills/**/*_test.py"
   ],
   "type": "module",
   "scripts": {
@@ -28,7 +30,9 @@
     "build:catalog": "node scripts/build-icon-catalog.mjs",
     "check:catalog": "node scripts/build-icon-catalog.mjs --check",
     "prepublishOnly": "npm run release:check",
-    "release:check": "npm run verify:lockfile && npm test && npm run typecheck && npm run verify:types && npm run build && npm run verify:styles && npm run verify:package",
+    "release:check": "npm run verify:lockfile && npm run check:evals && npm test && npm run typecheck && npm run verify:types && npm run build && npm run verify:styles && npm run verify:package",
+    "check:evals": "python3 skills/thread-stages/evals/evals_test.py",
+    "evals": "python3 skills/thread-stages/evals/run.py",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "verify:lockfile": "npm ci --workspaces=false --ignore-scripts --dry-run --no-audit --no-fund --loglevel=error",
