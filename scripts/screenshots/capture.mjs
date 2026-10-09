@@ -282,10 +282,14 @@ function padBox(box, padding) {
  * update chip for everything waiting on this host — bb itself, and each agent
  * CLI it found — so the same shot taken on two machines differs in the corner
  * for reasons no plugin here is responsible for. These shots are about the
- * plugins, so the chips stay out of them.
+ * plugins, so the chips stay out of them. The header's preferred workspace
+ * app also comes from host discovery and can arrive after the thread renders;
+ * keep its whole control, including its shortcut hint, out of the frame.
  */
-const HOST_STATE_STYLE =
-  '[data-sidebar="footer"] a[href="/settings/updates"] { display: none !important; }';
+const HOST_STATE_STYLE = [
+  '[data-sidebar="footer"] a[href="/settings/updates"] { display: none !important; }',
+  'span:has(> div button[aria-label="Choose another app to open workspace"]) { display: none !important; }',
+].join("\n");
 
 export async function openApp({ browser, stack, fixture, theme, viewport, style }) {
   const context = await browser.newContext({

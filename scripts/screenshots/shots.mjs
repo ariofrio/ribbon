@@ -4,6 +4,7 @@ import {
   SIDE_CHAT_QUESTION,
 } from "./fixture.mjs";
 import { settleAnimations } from "./settle.mjs";
+import { seedTitleShowcase, TITLE_SHOWCASE } from "./showcase.mjs";
 
 export const MODIFIER = process.platform === "darwin" ? "Meta" : "Control";
 
@@ -34,6 +35,37 @@ function sideChatPanel(page) {
   return page
     .locator("aside")
     .filter({ has: page.getByRole("textbox", { name: "Reply…" }) });
+}
+
+function composer(page) {
+  return page.locator('[data-app-composer-role="primary"]');
+}
+
+function modelResults(page) {
+  return page.locator('button[title^="Models:"]').first().locator("xpath=../../..");
+}
+
+async function prepareModelMentions(page) {
+  const editor = composer(page).locator('[contenteditable="true"]');
+  const picker = composer(page).getByRole("button", { name: /Provider, model and reasoning/ });
+  await picker.filter({ hasText: AGENT.modelName }).waitFor({ timeout: 120000 });
+  const initialSelection = await picker.innerText();
+  await editor.click();
+  await page.keyboard.type("Have @model:Sonnet");
+  const sonnet = page.locator('button[title^="Models:"]').filter({ hasText: "Model · Claude Code" });
+  await sonnet.waitFor({ timeout: 120000 });
+  await sonnet.click();
+  await composer(page).locator("[data-prompt-mention]").filter({ hasText: "Sonnet" }).waitFor();
+  await page.keyboard.type(" check the tests, then ask @model:Opus");
+  const results = modelResults(page);
+  await results.getByText("Model · Claude Code", { exact: true }).waitFor({ timeout: 120000 });
+  await results.getByText("Model · Pi", { exact: true }).waitFor({ timeout: 120000 });
+  if (await picker.innerText() !== initialSelection) throw new Error("Model mentions changed the composer selection");
+  // Keep the pointer off the results so hovering cannot change the selected
+  // suggestion or cover the menu with a tooltip.
+  const viewport = page.viewportSize();
+  await page.mouse.move(viewport.width - 1, viewport.height - 1);
+  await settleAnimations(page);
 }
 
 async function openSideChatByShortcut(page) {
@@ -106,7 +138,10 @@ async function hideFixtureModelLabel(page) {
  * own target rather than clicking it, because clicking scrolls the row into
  * view, and a scrolled sidebar is not the top of a sidebar.
  */
-async function openFeaturedThread(page, knownHref) {
+async function openFeaturedThread(page, knownHref, {
+  title = FEATURED_THREAD,
+  reply = "Dashboard polish is in place.",
+} = {}) {
   // Installing Thread stages changes bb's Automatic choice. Select it
   // explicitly so every shot exercises the only sidebar replacement in this
   // repository; its own shot supplies the route directly below.
@@ -132,7 +167,7 @@ async function openFeaturedThread(page, knownHref) {
   // Exactly, because the sidebar row previews the same reply, at greater
   // length, and either match would otherwise be ambiguous.
   await page
-    .getByText("Dashboard polish is in place.", { exact: true })
+    .getByText(reply, { exact: true })
     .waitFor();
   // The composer resolves its permission mode after the thread itself, and a
   // shot taken in between differs from the same shot taken after, in a corner
@@ -168,7 +203,7 @@ async function openFeaturedThread(page, knownHref) {
     "[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]",
   );
   await ribbon
-    .getByRole("link", { name: new RegExp(`^Open ${FEATURED_THREAD}`) })
+    .getByRole("link", { name: new RegExp(`^Open ${title}`) })
     .first()
     .waitFor({ timeout: 120000 });
   await page.waitForFunction(
@@ -211,9 +246,8 @@ export function setupScreenshots({ fixture }) {
 
 export const SHOTS = [
   {
-    // The collection, not a plugin: one window with three of the four at work —
-    // the stage sidebar with its section icon, the ChatGPT palette, and the
-    // side chat's shortcut plugin ready beneath. Nothing is shaded here,
+    // One everyday workflow: a review action, a delegated investigation, and
+    // a model choice in the composer. Nothing is shaded here,
     // because nothing is being pointed at.
     id: "collection",
     plugin: null,
@@ -225,8 +259,24 @@ export const SHOTS = [
     viewport: { width: 1080, height: 620 },
     async prepare({ page }) {
       await openFeaturedThread(page);
+      await prepareModelMentions(page);
     },
     highlights: () => [],
+  },
+  {
+    id: "model-mentions",
+    plugin: "bb-plugin-model-mentions",
+    outputs: THEME_FILES,
+    async prepare({ page }) {
+      await openFeaturedThread(page);
+      await prepareModelMentions(page);
+    },
+    highlights: (page) => [
+      { locator: modelResults(page), padding: 4 },
+      { locator: composer(page).locator('[contenteditable="true"]'), padding: 8 },
+    ],
+    focus: (page) => [modelResults(page), composer(page).locator('[contenteditable="true"]')],
+    card: { viewport: { width: 900, height: 500 } },
   },
   {
     id: "missing-keyboard-shortcuts",
@@ -307,6 +357,45 @@ export const SHOTS = [
     },
   },
   {
+    id: "thread-titles",
+    plugin: "bb-plugin-thread-titles",
+    outputs: THEME_FILES,
+    setup: seedTitleShowcase,
+    async prepare({ fixture, page }) {
+      await selectSidebar(page, SIDEBAR_PROVIDER);
+      const thread = fixture.titleShowcase;
+      await openFeaturedThread(page, `/projects/${thread.projectId}/threads/${thread.id}`, {
+        title: TITLE_SHOWCASE.title,
+        reply: TITLE_SHOWCASE.reply.split("\n\n")[0],
+      });
+      // This is the plugin's actual first-turn result, not a preassigned title.
+      await page.locator("[data-ribbon-sidebar-root]").getByRole("link", { name: new RegExp(`^Open ${TITLE_SHOWCASE.title}`) }).waitFor({ timeout: 120000 });
+      await page.getByText(TITLE_SHOWCASE.title, { exact: true }).last().waitFor();
+      await page.getByText("All 12 webhook tests pass.", { exact: false }).waitFor();
+      await settleAnimations(page);
+      // Fit the whole exchange. An overflowing timeline draws a bottom fade
+      // whose near-transparent pixels can rasterize differently in Chromium.
+      await page.locator('#thread-detail-timeline-panel [data-detail-scroll-fade="below"]').waitFor({ state: "hidden", timeout: 120000 });
+    },
+    highlights: (page) => [
+      { locator: page.getByText(TITLE_SHOWCASE.title, { exact: true }).last(), padding: 8 },
+      { locator: page.locator("[data-ribbon-sidebar-root]").getByRole("link", { name: new RegExp(`^Open ${TITLE_SHOWCASE.title}`) }), padding: 4 },
+      { locator: page.locator("#thread-detail-timeline-panel").getByText(/^Investigate https:/), padding: 8 },
+    ],
+    focus: (page) => [
+      page.getByText(TITLE_SHOWCASE.title, { exact: true }).last(),
+      page.locator("#thread-detail-timeline-panel"),
+    ],
+    focusAlign: "start",
+    card: {
+      viewport: { width: 800, height: 600 },
+      style: '[data-sidebar="panel"], [data-sidebar="gap"] { --sidebar-width: 240px !important; }',
+    },
+    teardown({ fixture }) {
+      fixture.run(["thread", "archive", fixture.titleShowcase.id]);
+    },
+  },
+  {
     id: "thread-stages",
     plugin: "bb-plugin-thread-stages",
     outputs: THEME_FILES,
@@ -321,6 +410,8 @@ export const SHOTS = [
         )
         .waitFor({ timeout: 120000 });
       await settleAnimations(page);
+      await page.locator("[data-ribbon-sidebar-root]").getByRole("button", { name: `Review in ${FEATURED_THREAD}`, exact: true }).waitFor();
+      await page.locator("[data-ribbon-sidebar-root]").getByRole("link", { name: /^Open Trace the backoff timer/ }).waitFor();
     },
     // The plugin owns every stage band, ring, and heading icon in the list,
     // so the shade lifts the whole list out of the window.

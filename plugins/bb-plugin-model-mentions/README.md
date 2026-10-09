@@ -5,6 +5,11 @@ your available providers. Choose a result to insert a mention with that
 provider's icon. The same model offered by different providers has separate
 results, with the provider's name underneath.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-dark.png">
+  <img src="assets/screenshot-light.png" alt="A Sonnet mention in the composer and Opus choices from Claude Code and Pi">
+</picture>
+
 Type `@model:` to browse models without a name filter, or `@model:opus` to
 search within models. You can include a provider name, such as
 `@model:opus claude`. The prefix is case-insensitive. Up to 50 available
