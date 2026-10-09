@@ -125,7 +125,7 @@ test("the relevance gate runs outside the renderer container", () => {
   assert.match(captureJob, /container:/u);
   assert.doesNotMatch(captureJob, /fetch-depth: 0/u);
   assert.match(captureJob, /uses: actions\/setup-node@v7/u);
-  assert.doesNotMatch(captureJob, /apt-get/u);
+  assert.match(captureJob, /name: Prepare the container/u);
   assert.match(captureJob, /run: npm ci/u);
   assert.match(
     captureJob,

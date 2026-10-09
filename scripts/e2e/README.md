@@ -76,7 +76,6 @@ and waits for composer focus before checking that thread's stage-change RPC.
 This avoids repeated application boots while keeping platform state isolated.
 Persistence suites retain their reload and fresh-client checks.
 
-The pinned CI container installs the locked dependencies directly. Their native
-packages provide Linux prebuilds; no compiler installation or custom image is
-needed. A future dependency update must pass both E2E and screenshot CI to verify
-that the native packages still install and run in that container.
+The pinned CI container still installs `make` and `g++`: bb-app's bundled
+`better-sqlite3` runs `node-gyp rebuild`, even though `node-pty` provides Linux
+prebuilds. Both E2E and screenshot CI need this setup.

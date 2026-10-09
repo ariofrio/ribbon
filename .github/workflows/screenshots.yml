@@ -77,9 +77,14 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: package-lock.json
-      # The locked native packages include Linux prebuilds.
+      # bb-app's bundled better-sqlite3 rebuilds from source. The image
+      # already carries Python, so only its compiler is missing.
+      - name: Prepare the container
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq make g++
       # Install every workspace together so the screenshot harness and all
-      # five plugins share one bb-app and one node-pty installation.
+      # five plugins share one bb-app and one native dependency build.
       - run: npm ci
       - run: npm run screenshots
       - name: Commit what changed

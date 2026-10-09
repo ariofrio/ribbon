@@ -112,7 +112,10 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: package-lock.json
-      # The locked native packages include Linux prebuilds.
+      - name: Prepare the container
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq make g++
       - run: npm ci
       - run: npm run test:e2e -- --group ${{ matrix.group }}
       - name: Preserve end-to-end failure diagnostics
