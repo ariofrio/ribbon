@@ -7,6 +7,7 @@ npm run test:e2e
 npm run test:e2e -- --list
 npm run test:e2e -- --case thread-titles:once
 npm run test:e2e -- --group placement
+npm run test:e2e -- --group ordering
 npm run test:e2e -- --group sidebar
 ```
 
@@ -35,25 +36,32 @@ Use an explicit order only when a suite requires it; ties use filename order.
 Suite IDs and case names must be nonempty and contain no colon. Duplicate IDs,
 duplicate cases, and malformed descriptors fail before bb starts.
 
-CI runs two groups on separate runners, each with its own isolated server, host
+CI runs three groups on separate runners, each with its own isolated server, host
 daemon, data directory, and full seeded fixture. Every group installs the same
 union of plugins and runs the same preparation hooks as the full run, preserving
 plugin coexistence. Suites still run sequentially in their original order inside
 each group. Without `--group`, the runner retains the full sequential run.
 
-The `placement` group contains the original sequence through `drag-regressions`,
-which restores fixture stages and archives its temporary children. The `sidebar`
-group contains the rest. Its grouping, child-collapse, child-stage, and later
-layout suites stay together because they leave child threads and list state for
-later suites. The groups need no state from one another; suite assertions read
-the current order or establish the state they test. Both groups must pass before
-the required `plugins` gate passes, and one group's failure does not cancel the
-other group's coverage or diagnostics.
+The groups divide the measured work while preserving each suite's original order:
 
-New suites default to `sidebar`. Set `group: "placement"` in a descriptor when
-it belongs with that sequence. Keep suites that depend on each other's state in
-the same group, and verify a group's full sequence from a fresh fixture after
-changing membership. `--list --group <name>` lists its cases without starting bb;
+- `placement`: composer and shortcut readiness, indicators, completed placement,
+  the full chronological/project stage-placement interaction matrix, plus
+  self-contained PR, routing, title-color, and model-mention suites.
+- `ordering`: thread titles, section/machine placement, sorting and reordering,
+  plus the platform-shortcut and stage-preview suites. These suites establish
+  the state they test or read the current order, so they need no mutations from
+  the placement or sidebar groups.
+- `sidebar`: the remaining suites, including the grouping, child-collapse,
+  child-stage, and later layout sequence. These stay together because they leave
+  child threads and list state for later suites.
+
+Every group must pass before the required `plugins` gate passes. One group's
+failure does not cancel another group's coverage or diagnostics.
+
+New suites default to `sidebar`. Set `group: "placement"` or `group: "ordering"`
+in a descriptor when it belongs with that sequence. Keep suites that depend on
+each other's state in the same group, and verify a group's full sequence from a
+fresh fixture after changing membership. `--list --group <name>` lists its cases without starting bb;
 invalid groups and selections with no cases fail before setup.
 
 The runner prints elapsed times for stack startup, plugin installation, suite
@@ -61,3 +69,18 @@ preparation, fixture seeding, each suite (including failures), and shutdown.
 Group data and server logs live under `.scratch/e2e/<group>/`; the full run uses
 `.scratch/e2e/all/`. Failure traces remain under `.scratch/e2e/`, and CI uploads
 separate diagnostic artifacts for each group.
+
+The platform-shortcut suite starts a fresh client for Linux, Windows, and Mac,
+then reuses it for that platform's seven shortcuts. Each interaction resets its
+owned thread to a different stage, waits for its rendered stage, returns through
+browser history when filing moved selection, and waits for composer focus before
+checking that thread's stage-change RPC. Repeated title clicks would instead
+trigger the row's double-click rename behavior.
+This avoids repeated application boots while keeping platform state isolated.
+Persistence suites retain their reload and fresh-client checks.
+
+The pinned CI container still installs `make` and `g++`: bb-app's bundled
+`better-sqlite3` ships Linux prebuilds, but npm's lockfile-driven install still
+invokes `node-gyp rebuild` despite its `gypfile: false` setting
+([npm/cli#10061](https://github.com/npm/cli/pull/10061)). Both E2E and screenshot
+CI need this setup until that npm fix is available.

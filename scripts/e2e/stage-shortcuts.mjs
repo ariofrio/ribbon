@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { AGENT, FEATURED_PROJECT } from "../screenshots/fixture.mjs";
+import { openContext, row, sidebar } from "./thread-stages/sidebar.mjs";
 
 export async function verifyStageShortcuts({ stack, fixture }) {
   const project = fixture.projects.get(FEATURED_PROJECT);
@@ -24,14 +25,15 @@ export async function verifyStageShortcuts({ stack, fixture }) {
         [mac ? "Control+Meta+Shift+." : "Control+Alt+Shift+,", "BlockedOnThirdParty"],
         [mac ? "Meta+Alt+." : "Control+Alt+.", "Completed"],
       ];
-      for (const [shortcut, stage] of shortcuts) {
-        console.log(`Checking ${platform}: ${shortcut} → ${stage}`);
-        const context = await browser.newContext();
+      const context = await openContext(browser);
+      try {
         await context.addInitScript((platform) => {
           Object.defineProperty(navigator, "platform", { get: () => platform });
         }, platform);
         const page = await context.newPage();
         await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
+        const list = sidebar(page);
+        await list.waitFor({ timeout: 120_000 });
         const editor = page.locator('[data-app-composer-role="primary"] [contenteditable="true"]');
         await editor.waitFor({ timeout: 120_000 });
         // The host snapshots commands when opening the palette. Refresh that
@@ -47,15 +49,35 @@ export async function verifyStageShortcuts({ stack, fixture }) {
           if (ready) break;
           assert.ok(Date.now() < deadline, `${platform}: stage commands did not register`);
         }
-        await editor.click();
-        const responsePromise = page.waitForResponse(
-          (response) => response.url().endsWith("/plugins/thread-stages/rpc/setWorkflowStage"),
-          { timeout: 15_000 },
-        );
-        await page.keyboard.press(shortcut);
-        const response = await responsePromise;
-        assert.match(response.request().postData(), new RegExp(`"workflowStage"\\s*:\\s*"${stage}"`));
-        assert.equal((await response.json()).ok, true, `${platform}: ${shortcut} files as ${stage}`);
+        for (const [shortcut, stage] of shortcuts) {
+          console.log(`Checking ${platform}: ${shortcut} → ${stage}`);
+          // Every shortcut must change the owned thread, even when another
+          // shortcut moved selection elsewhere or the prior platform ended
+          // on the same stage. Return through browser history without a boot;
+          // rapid repeated title clicks would intentionally start renaming.
+          const initial = stage === "Active" ? "Waiting" : "Active";
+          fixture.run(["thread-stages", "stage", initial, thread.id]);
+          await row(list, thread.id).getByLabel(`${initial} stage`, { exact: true }).waitFor();
+          if (!new URL(page.url()).pathname.endsWith(`/threads/${thread.id}`)) await page.goBack();
+          await page.waitForURL(`**/threads/${thread.id}`);
+          await editor.click();
+          await page.waitForFunction((node) => document.activeElement === node, await editor.elementHandle());
+          const responsePromise = page.waitForResponse(
+            (response) => response.url().endsWith("/plugins/thread-stages/rpc/setWorkflowStage")
+              && response.request().postDataJSON()?.threadId === thread.id,
+            { timeout: 15_000 },
+          );
+          void responsePromise.catch(() => undefined);
+          await page.keyboard.press(shortcut);
+          const response = await responsePromise;
+          assert.match(response.request().postData(), new RegExp(`"workflowStage"\\s*:\\s*"${stage}"`));
+          const result = await response.json();
+          assert.equal(result.ok, true, `${platform}: ${shortcut} files as ${stage}`);
+          const { destination } = result.result;
+          if (destination.kind === "thread") await page.waitForURL(`**/threads/${destination.threadId}`);
+          if (destination.kind === "compose") await page.waitForURL((url) => !url.pathname.includes("/threads/"));
+        }
+      } finally {
         await context.close();
       }
     }
