@@ -45,7 +45,13 @@ export function stageBands(
       bands.main.push(item);
       continue;
     }
-    bands[bandOf(stageOf(thread.id))].push(item);
+    const band = bandOf(stageOf(thread.id));
+    // A mixed environment stays available while its own list partitions its
+    // threads; its representative alone cannot decide the whole group's stage.
+    const mixed = item.kind === "environment" && item.group.nodes.some(
+      (node) => bandOf(stageOf(node.thread.id)) !== band,
+    );
+    bands[mixed ? "main" : band].push(item);
   }
   return bands;
 }
