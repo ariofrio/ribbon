@@ -28,9 +28,14 @@ async function verifyPreview({ page, group, threads, outside, fixture }) {
   fixture.run(["plugin", "config", "thread-stages", "set", "stagePreviewRows", "2"]);
   for (const stage of ["deferred", "completed"]) {
     const more = group.getByRole("button", { name: `Show 2 more ${stage}`, exact: true });
-    await more.focus();
-    await page.keyboard.press("Enter");
-    await page.waitForFunction(() => document.activeElement?.matches("a[data-sidebar-thread-id]"));
+    await more.waitFor();
+    const before = await visible();
+    await more.press("Enter");
+    await page.waitForFunction(([element, ids, before]) => {
+      const active = document.activeElement;
+      return element.contains(active) && active?.matches("a[data-sidebar-thread-id]") &&
+        ids.includes(active.dataset.sidebarThreadId) && !before.includes(active.dataset.sidebarThreadId);
+    }, [await group.elementHandle(), [...ids], before]);
     const selected = await page.evaluate(() => document.activeElement.dataset.sidebarThreadId);
     assert.ok(ids.has(selected), "Keyboard expansion focuses a revealed row in this list");
     await page.keyboard.press("Enter");
@@ -47,6 +52,17 @@ async function verifyPreview({ page, group, threads, outside, fixture }) {
     assert.ok(await link(group, selected).isVisible(), "The selected thread remains in the preview");
     await link(sidebar(page), outside.id).click();
     await page.waitForURL(`**/threads/${outside.id}`);
+    await page.mouse.move(1000, 800);
+    await page.waitForFunction((id) => {
+      const row = document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${id}"]`);
+      const background = row && getComputedStyle(row).backgroundColor;
+      return background && background !== "transparent" && background !== "rgba(0, 0, 0, 0)";
+    }, outside.id);
+    // Returning to a thread also restores its composer and panels. Finish that
+    // navigation before testing another deliberate move of keyboard focus.
+    const composer = page.locator('[data-app-composer-role="primary"] [contenteditable="true"]').first();
+    await composer.click();
+    await page.waitForFunction((element) => document.activeElement === element, await composer.elementHandle());
   }
   await page.waitForFunction(([element, ids]) =>
     [...element.querySelectorAll("[data-thread-id]")].filter((node) =>
@@ -56,8 +72,19 @@ async function verifyPreview({ page, group, threads, outside, fixture }) {
 }
 
 export async function verifyStagePreviews({ stack, fixture, cases }) {
-  const parent = fixture.threads.get(FEATURED_THREAD);
   const project = fixture.projects.get(FEATURED_PROJECT);
+  // Other suites change the featured thread's stage and restore its panels.
+  // Own the parent and navigation destination so those states cannot hide or
+  // take focus from the preview being exercised here.
+  const parent = fixture.runJson([
+    "thread", "spawn", "--project", project.id,
+    "--machine", "screenshots", "--environment", project.root,
+    "--provider", `acp-${AGENT.id}`, "--model", AGENT.modelId,
+    "--title", "Stage preview parent", "--permission-mode", "accept-edits",
+    "--prompt", "Check the preview.",
+  ]);
+  fixture.run(["thread", "wait", parent.id, "--status", "idle"]);
+  fixture.run(["thread-stages", "stage", "Active", parent.id]);
   const browser = await launch();
   const cleanup = [];
   try {
@@ -121,6 +148,12 @@ export async function verifyStagePreviews({ stack, fixture, cases }) {
         console.error("Preview readiness", {
           testCase,
           groups: await group.count(),
+          url: page.url(),
+          focused: await page.evaluate(() => ({
+            tag: document.activeElement?.tagName,
+            threadId: document.activeElement?.dataset.sidebarThreadId,
+            composerRole: document.activeElement?.closest("[data-app-composer-role]")?.dataset.appComposerRole,
+          })),
           list: await list.innerText(),
           containers: await list.locator('[data-sidebar-sticky-header]').evaluateAll((nodes) =>
             nodes.map((node) => ({ header: node.dataset.sidebarStickyHeader, text: node.innerText }))),
@@ -135,5 +168,6 @@ export async function verifyStagePreviews({ stack, fixture, cases }) {
     fixture.run(["thread-stages", "prefs", "reset", "environmentGrouping"]);
     fixture.run(["thread-stages", "prefs", "reset", "organizationMode"]);
     await browser.close();
+    fixture.run(["thread", "archive", parent.id]);
   }
 }
