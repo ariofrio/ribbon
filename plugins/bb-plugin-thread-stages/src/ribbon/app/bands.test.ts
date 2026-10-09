@@ -50,4 +50,23 @@ describe("stage bands", () => {
     expect(ids(bands.deferred)).toEqual(["b", "e"]);
     expect(ids(bands.completed)).toEqual(["a", "d"]);
   });
+
+  it("keeps an environment with mixed stages in the main band", () => {
+    const nodes = [item("done"), item("active")].map((item) => {
+      if (item.kind !== "thread") throw new Error("Expected a thread");
+      return item.node;
+    });
+    const environment: ProjectThreadItem = {
+      kind: "environment",
+      group: {
+        environmentId: "env_mixed",
+        environmentProviderId: null,
+        nodes: [nodes[0], nodes[1]],
+        stats: nodes[0].stats,
+      },
+    };
+    expect(stageBands([environment], (id) => id === "done" ? "Completed" : "Active").main)
+      .toEqual([environment]);
+    expect(stageBands([environment], () => "Completed").completed).toEqual([environment]);
+  });
 });

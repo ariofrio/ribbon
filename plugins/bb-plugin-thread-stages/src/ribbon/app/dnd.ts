@@ -41,7 +41,7 @@ export interface RibbonDndHandlers {
   ): Promise<boolean>;
 }
 
-/** Roots move within their band only. */
+/** Siblings move within their band only. */
 export function sameReorderableBand(
   activeStage: WorkflowStage,
   overStage: WorkflowStage,
@@ -81,7 +81,6 @@ export function useRibbonDnd(mode: OrganizationMode): RibbonDndHandlers | null {
     (active, over) => {
       if (!stageOf) return false;
       if (active.parentThreadId !== over.parentThreadId) return false;
-      if (active.parentThreadId !== null) return true;
       return sameReorderableBand(stageOf(active.id), stageOf(over.id));
     },
     [stageOf],

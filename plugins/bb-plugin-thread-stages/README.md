@@ -67,14 +67,16 @@ choice applies across groups and organizations. In the CLI, `chronologicalSort`
 is `none` for Custom, or `updated`, `created`, or `alpha` for automatic sorting.
 Dragging or using a shortcut to reorder rows switches back to Custom.
 
-Deferred and Completed preview roots in their containing group’s saved order; entering Completed
+Deferred and Completed preview threads in their containing group’s saved order; entering Completed
 inserts a thread first. **Completed and Deferred preview rows** sets a limit of 1–5 rows
 per stage, defaulting to 2, including **Show N more deferred/completed**.
 With two or more threads, the default shows one thread and that button;
 a single thread shows on its own. At limit 1, a single thread shows on its
 own; multiple threads show only the button. The open thread replaces a preview
 row when needed. **Show fewer** restores the preview, and search reveals every
-matching result.
+matching result. These previews apply to sections, projects, machines, Threads,
+Pinned, parent threads, and environment groups. An environment with mixed stages
+stays in the main list, with its threads partitioned inside it.
 
 Drag a root to reorder it within its list, onto its section's heading to put
 it first, or onto another section to move it there. Drag a child to reorder
@@ -143,6 +145,8 @@ instead. The pan respects reduced motion.
 Use **Edit thread actions** in a thread's context menu or ⋯ menu to edit labeled prompts.
 Fill the empty row at the bottom to add an action; edits save as you type once
 the prompt is filled. An empty label uses the prompt as the button label.
+Actions queue until the current turn finishes by default. Check **Steer** on an
+action to send its prompt into the current turn. Either starts a turn when the thread is idle.
 Use X to clear or remove a row. Extra empty rows collapse
 when focus moves.
 Action buttons appear beside the thread title, colored like the section, project, or machine,

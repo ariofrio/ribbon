@@ -5,6 +5,7 @@ const threadActionSchema = z
     id: z.string().min(1).max(64),
     label: z.string().trim().max(24),
     prompt: z.string().trim().min(1).max(10000),
+    steer: z.boolean().optional(),
   })
   .strict();
 

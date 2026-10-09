@@ -112,7 +112,8 @@ function sameThreadActions(
       return (
         action.id === other.id &&
         action.label === other.label &&
-        action.prompt === other.prompt
+        action.prompt === other.prompt &&
+        !!action.steer === !!other.steer
       );
     })
   );

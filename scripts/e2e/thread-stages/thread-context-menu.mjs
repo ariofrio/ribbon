@@ -98,8 +98,13 @@ export async function verifyThreadContextMenu({ stack, fixture }) {
       assert.equal(await label.inputValue(), "Revie!w", "failed saves keep the draft editable");
       const retry = page.waitForResponse((response) => response.url().endsWith("/rpc/saveThreadActionsV1") && response.status() === 200);
       await page.keyboard.press("Tab");
+      const steerNode = await editor.getByRole("checkbox", { name: "Steer action 1" }).elementHandle();
+      await page.waitForFunction((node) => document.activeElement === node, steerNode);
       await retry;
       await editor.getByRole("alert").waitFor({ state: "hidden" });
+      await page.keyboard.press("Tab");
+      const removeNode = await editor.getByRole("button", { name: "Remove action 1" }).elementHandle();
+      await page.waitForFunction((node) => document.activeElement === node, removeNode);
       const removed = page.waitForResponse((response) => response.url().endsWith("/rpc/saveThreadActionsV1") && response.status() === 200);
       await page.keyboard.press("Enter");
       await removed;

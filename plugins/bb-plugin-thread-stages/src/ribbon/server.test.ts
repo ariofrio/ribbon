@@ -505,7 +505,7 @@ describe("Ribbon sidebar server", () => {
         threads: [{ threadId: "thread-a", actions: [action] }],
       });
       const human = await harness.behavior.runCli(["actions", "list", "thread-a"]);
-      expect(human.stdout).toContain("review (Review this change.): Review this change.");
+      expect(human.stdout).toContain("review (Review this change., queue): Review this change.");
       const saved = await harness.behavior.runCli([
         "actions", "set", "thread-a", "--actions",
         JSON.stringify([{ ...action, label: "   ", prompt: "Check the tests." }]),
@@ -593,13 +593,13 @@ describe("Ribbon sidebar server", () => {
     }
   });
 
-  it("runs a saved prompt action through the CLI and rejects a missing action", async () => {
+  it.each([undefined, false, true])("runs a saved prompt action with steer=%s through the CLI and rejects a missing action", async (steer) => {
     const { bb, harness, send } = setup();
     await plugin(bb);
     try {
       await harness.behavior.callRpc("saveThreadActionsV1", {
         threadId: "thread-a",
-        actions: [{ id: "review", label: "Review", prompt: "Review this change." }],
+        actions: [{ id: "review", label: "Review", prompt: "Review this change.", steer }],
       });
       const result = await harness.behavior.runCli([
         "actions", "run", "review", "--self", "--json",
@@ -609,7 +609,7 @@ describe("Ribbon sidebar server", () => {
       expect(send).toHaveBeenCalledExactlyOnceWith({
         threadId: "thread-a",
         input: [{ type: "text", text: "Review this change.", mentions: [] }],
-        mode: "auto",
+        mode: steer ? "auto" : "queue-if-active",
       });
       const missing = await harness.behavior.runCli([
         "actions", "run", "missing", "thread-a", "--json",
@@ -632,6 +632,7 @@ describe("Ribbon sidebar server", () => {
       { id: "review", label: "Review", prompt: "Second" },
     ]),
     JSON.stringify([{ id: "review", label: "Review", prompt: "Review", extra: true }]),
+    JSON.stringify([{ id: "review", label: "Review", prompt: "Review", steer: "true" }]),
   ])("rejects invalid CLI actions without changing the saved actions: %s", async (input) => {
     const { bb, harness } = setup();
     await plugin(bb);
@@ -714,7 +715,7 @@ describe("Ribbon sidebar server", () => {
       expect(send).toHaveBeenCalledWith({
         threadId: "thread-a",
         input: [{ type: "text", text: "Review this change.", mentions: [] }],
-        mode: "auto",
+        mode: "queue-if-active",
       });
       await expect(harness.behavior.callRpc("runThreadActionV1", {
         threadId: "thread-a", actionId: "missing",

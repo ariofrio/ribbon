@@ -113,6 +113,8 @@ export async function pickUp(page, target) {
 export async function carryTo(page, target, edge = "before") {
   const box = await target.boundingBox();
   const y = edge === "before" ? box.y + 2 : box.y + box.height - 2;
+  // Move straight to the edge: intermediate synthetic steps can dwell in
+  // the middle long enough to arm nesting before testing reordering.
   await page.mouse.move(box.x + 60, y);
   return box;
 }

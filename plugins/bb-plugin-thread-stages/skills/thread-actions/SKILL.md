@@ -23,7 +23,8 @@ bb thread-stages actions set [<thread>] [--self] --actions '<json-array>' [--jso
 bb thread-stages actions run <action-id> [<thread>] [--self] [--json]
 ```
 
-Pass a thread ID or `--self`. `list` includes each action's ID, label, and prompt.
+Pass a thread ID or `--self`. `list` includes each action's ID, label, prompt,
+and `steer: true` when steered delivery is selected.
 `run` selects by action ID, not label.
 
 `set` replaces the entire ordered list; read the current
@@ -35,6 +36,10 @@ prompts are trimmed; an empty label uses the prompt as the button label. For exa
 bb thread-stages actions set --self --actions '[{"id":"review","label":"Review","prompt":"Review this change."}]'
 bb thread-stages actions run review --self
 ```
+
+An optional `steer` boolean selects delivery: `true` steers the current turn;
+`false` or omitted queues until it finishes. Both start a turn when the thread
+is idle. The editor's **Steer** checkbox sets the same option.
 
 Use `--actions '[]'` to clear the buttons. `--actions-stdin` reads the JSON
 array from stdin instead of an argument. Invalid input leaves the saved
