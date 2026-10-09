@@ -109,11 +109,11 @@ test("isolated groups partition every discovered case once, preserving suite ord
   assert.deepEqual(grouped[0].map((suite) => suite.id), [
     "composer-readiness", "missing-shortcuts", "terminal-shortcut", "thread-indicators",
     "completed-placement", "stage-placement",
+    "pr-number", "pr-status", "new-thread-routing", "selected-title-color", "model-mentions",
   ]);
   assert.deepEqual(grouped[1].map((suite) => suite.id), [
     "thread-titles", "section-placement", "machine-order", "custom-sort",
-    "thread-reordering", "drag-regressions", "pr-number", "pr-status",
-    "new-thread-routing", "selected-title-color", "stage-shortcuts", "model-mentions", "stage-previews",
+    "thread-reordering", "drag-regressions", "stage-shortcuts", "stage-previews",
   ]);
   const sidebarIds = new Set(grouped[2].map((suite) => suite.id));
   for (const id of ["grouping", "child-collapse", "child-stages", "child-rails", "child-reordering",

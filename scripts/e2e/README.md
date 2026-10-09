@@ -45,11 +45,12 @@ each group. Without `--group`, the runner retains the full sequential run.
 The groups divide the measured work while preserving each suite's original order:
 
 - `placement`: composer and shortcut readiness, indicators, completed placement,
-  and the full chronological/project stage-placement interaction matrix.
+  the full chronological/project stage-placement interaction matrix, plus
+  self-contained PR, routing, title-color, and model-mention suites.
 - `ordering`: thread titles, section/machine placement, sorting and reordering,
-  plus self-contained PR, routing, title-color, shortcut, model-mention, and
-  stage-preview suites. These suites establish the state they test or read the
-  current order, so they need no mutations from the placement or sidebar groups.
+  plus the platform-shortcut and stage-preview suites. These suites establish
+  the state they test or read the current order, so they need no mutations from
+  the placement or sidebar groups.
 - `sidebar`: the remaining suites, including the grouping, child-collapse,
   child-stage, and later layout sequence. These stay together because they leave
   child threads and list state for later suites.
@@ -58,9 +59,9 @@ Every group must pass before the required `plugins` gate passes. One group's
 failure does not cancel another group's coverage or diagnostics.
 
 New suites default to `sidebar`. Set `group: "placement"` or `group: "ordering"`
-in a descriptor when it belongs with that sequence. Keep suites that depend on each other's state in
-the same group, and verify a group's full sequence from a fresh fixture after
-changing membership. `--list --group <name>` lists its cases without starting bb;
+in a descriptor when it belongs with that sequence. Keep suites that depend on
+each other's state in the same group, and verify a group's full sequence from a
+fresh fixture after changing membership. `--list --group <name>` lists its cases without starting bb;
 invalid groups and selections with no cases fail before setup.
 
 The runner prints elapsed times for stack startup, plugin installation, suite
@@ -77,5 +78,7 @@ This avoids repeated application boots while keeping platform state isolated.
 Persistence suites retain their reload and fresh-client checks.
 
 The pinned CI container still installs `make` and `g++`: bb-app's bundled
-`better-sqlite3` runs `node-gyp rebuild`, even though `node-pty` provides Linux
-prebuilds. Both E2E and screenshot CI need this setup.
+`better-sqlite3` ships Linux prebuilds, but npm's lockfile-driven install still
+invokes `node-gyp rebuild` despite its `gypfile: false` setting
+([npm/cli#10061](https://github.com/npm/cli/pull/10061)). Both E2E and screenshot
+CI need this setup until that npm fix is available.

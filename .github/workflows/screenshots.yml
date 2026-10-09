@@ -77,8 +77,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: package-lock.json
-      # bb-app's bundled better-sqlite3 rebuilds from source. The image
-      # already carries Python, so only its compiler is missing.
+      # npm invokes node-gyp for bb-app's bundled better-sqlite3 even with
+      # packaged prebuilds. Keep the native-build tools until npm fixes this.
       - name: Prepare the container
         run: |
           apt-get update -qq
