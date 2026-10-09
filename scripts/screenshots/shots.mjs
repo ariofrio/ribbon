@@ -373,6 +373,9 @@ export const SHOTS = [
       await page.getByText(TITLE_SHOWCASE.title, { exact: true }).last().waitFor();
       await page.getByText("All 12 webhook tests pass.", { exact: false }).waitFor();
       await settleAnimations(page);
+      // Fit the whole exchange. An overflowing timeline draws a bottom fade
+      // whose near-transparent pixels can rasterize differently in Chromium.
+      await page.locator('#thread-detail-timeline-panel [data-detail-scroll-fade="below"]').waitFor({ state: "hidden", timeout: 120000 });
     },
     highlights: (page) => [
       { locator: page.getByText(TITLE_SHOWCASE.title, { exact: true }).last(), padding: 8 },
@@ -385,7 +388,7 @@ export const SHOTS = [
     ],
     focusAlign: "start",
     card: {
-      viewport: { width: 800, height: 440 },
+      viewport: { width: 800, height: 600 },
       style: '[data-sidebar="panel"], [data-sidebar="gap"] { --sidebar-width: 240px !important; }',
     },
     teardown({ fixture }) {
