@@ -1,3 +1,4 @@
+import { ribbonRootEnvironmentGroupKeyAtom } from "../../ribbon/app/atoms.js";
 import type { SidebarThread } from "../model/sidebar-thread.js";
 import type {
   ProjectThreadNode,
@@ -27,6 +28,7 @@ export function useNestDropPreview({
   const groupThreadsByEnvironment = useAtomValue(
     sidebarGroupThreadsByEnvironmentAtom,
   );
+  const rootEnvironmentGroupKey = useAtomValue(ribbonRootEnvironmentGroupKeyAtom);
   if (!sectionDnd) return null;
   const { activeThread, nestTarget } = sectionDnd;
   if (!activeThread || nestTarget?.state !== "valid") return sectionDnd;
@@ -36,6 +38,7 @@ export function useNestDropPreview({
       activeThread,
       compareThreads,
       groupThreadsByEnvironment,
+      rootEnvironmentGroupKey,
       parentThreadId: nestTarget.threadId,
       pinnedRootNodes,
       sections,

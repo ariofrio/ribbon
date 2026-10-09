@@ -7,6 +7,7 @@ import {
   type ProjectThreadNode,
   type SidebarSectionDefinition,
   type ThreadComparator,
+  type RootEnvironmentGroupKey,
 } from "../model/project-thread-groups.js";
 import { getSidebarItemKey } from "../rows/sidebarItemKeys.js";
 
@@ -14,6 +15,7 @@ interface ResolveNestPreviewBeforeKeyArgs {
   activeThread: SidebarThread;
   compareThreads: ThreadComparator | undefined;
   groupThreadsByEnvironment: boolean;
+  rootEnvironmentGroupKey?: RootEnvironmentGroupKey;
   parentThreadId: string;
   pinnedRootNodes: readonly ProjectThreadNode[];
   sections: readonly SidebarSectionDefinition[];
@@ -79,6 +81,7 @@ export function resolveSidebarNestPreviewBeforeKey({
   activeThread,
   compareThreads,
   groupThreadsByEnvironment,
+  rootEnvironmentGroupKey,
   parentThreadId,
   pinnedRootNodes,
   sections,
@@ -106,6 +109,7 @@ export function resolveSidebarNestPreviewBeforeKey({
     compareThreads,
     sections,
     groupThreadsByEnvironment,
+    rootEnvironmentGroupKey,
   );
   const parentNode = findThreadNode(projected, parentThreadId);
   return parentNode

@@ -171,6 +171,7 @@ import { getSidebarItemKey } from "../rows/sidebarItemKeys.js";
 import { useNestDropPreview } from "../dnd/useNestDropPreview.js";
 import { NO_THREAD_IDS, useThreadsHaveDraft } from "./sidebarDraftPresence.js";
 import { useChronologicalSectionThreadDnd } from "../dnd/SectionThreadDndContext.js";
+import { ribbonRootEnvironmentGroupKeyAtom } from "../../ribbon/app/atoms.js";
 import { StageBandedItems } from "../../ribbon/app/StageBandedItems.js";
 import {
   HeadingIconPicker,
@@ -2024,6 +2025,7 @@ export const ProjectThreadTree = memo(function ProjectThreadTree({
   const groupThreadsByEnvironment = useAtomValue(
     sidebarGroupThreadsByEnvironmentAtom,
   );
+  const rootEnvironmentGroupKey = useAtomValue(ribbonRootEnvironmentGroupKeyAtom);
   const rootItems = useMemo(
     () =>
       providedRootItems ??
@@ -2031,12 +2033,14 @@ export const ProjectThreadTree = memo(function ProjectThreadTree({
         projectThreads,
         compareThreads,
         groupThreadsByEnvironment,
+        rootEnvironmentGroupKey,
       ),
     [
       compareThreads,
       groupThreadsByEnvironment,
       projectThreads,
       providedRootItems,
+      rootEnvironmentGroupKey,
     ],
   );
 
@@ -2112,6 +2116,7 @@ export const ChronologicalSectionThreadSections = memo(
     const groupThreadsByEnvironment = useAtomValue(
       sidebarGroupThreadsByEnvironmentAtom,
     );
+    const rootEnvironmentGroupKey = useAtomValue(ribbonRootEnvironmentGroupKeyAtom);
     const rootItems = useMemo(
       () =>
         buildSectionThreadList(
@@ -2119,8 +2124,15 @@ export const ChronologicalSectionThreadSections = memo(
           compareThreads,
           sections,
           groupThreadsByEnvironment,
+          rootEnvironmentGroupKey,
         ),
-      [threads, compareThreads, sections, groupThreadsByEnvironment],
+      [
+        threads,
+        compareThreads,
+        sections,
+        groupThreadsByEnvironment,
+        rootEnvironmentGroupKey,
+      ],
     );
     const ribbonDnd = useRibbonDnd("chronological");
     const sectionDnd = useSectionThreadDnd({
