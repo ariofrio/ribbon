@@ -1,5 +1,15 @@
 # bb-plugin-thread-stages
 
+## 2.1.0
+
+### Minor Changes
+
+- bfcc21d: Queue saved thread actions by default and add a Steer checkbox to send an action into the current turn instead. Expose the same choice through the actions CLI.
+
+### Patch Changes
+
+- e8c1ac3: Show Completed and Deferred threads at the bottom with the configured preview limit in Pinned, parent threads, and environment groups. Keep mixed-stage environments available in the main list.
+
 ## 2.0.1
 
 ### Patch Changes
