@@ -6,6 +6,8 @@ import type { ChildRank } from "../child-order";
 import type { GroupingKey, PlacementRecordV1 } from "../placement-store";
 import type { rpcContract } from "../server";
 import type { ThreadActionsRecord } from "../thread-actions-store";
+import type { RootEnvironmentGroupKey } from "../../app/model/project-thread-groups.js";
+import { bandOf } from "./bands";
 import {
   parseWorkflowStage,
   type WorkflowStage,
@@ -91,6 +93,12 @@ export const ribbonStageLookupAtom = atom((get) => {
   return {
     stageOf: (threadId: string) => stageIn(stages, threadId),
   };
+});
+
+/** Root worktree groups stay within a stage band; children keep their parent's tree. */
+export const ribbonRootEnvironmentGroupKeyAtom = atom<RootEnvironmentGroupKey | undefined>((get) => {
+  const lookup = get(ribbonStageLookupAtom);
+  return lookup ? (thread) => bandOf(lookup.stageOf(thread.id)) : undefined;
 });
 
 export interface RibbonThread {

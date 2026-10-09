@@ -71,6 +71,7 @@ import {
   type ProjectThreadItem,
   type SidebarSectionDefinition,
   type ThreadComparator,
+  type RootEnvironmentGroupKey,
 } from "../model/project-thread-groups.js";
 import type {
   CollapsibleSidebarSectionId,
@@ -126,6 +127,7 @@ import {
   useSidebarMachineHosts,
   type SidebarProject,
 } from "../model/use-sidebar-data.js";
+import { ribbonRootEnvironmentGroupKeyAtom } from "../../ribbon/app/atoms.js";
 import { useRibbonData } from "../../ribbon/app/data.js";
 import {
   RibbonHeadingIcon,
@@ -472,11 +474,13 @@ function buildGroupSectionItem(
   threads: readonly SidebarThread[],
   compareThreads: ThreadComparator,
   groupThreadsByEnvironment: boolean,
+  rootEnvironmentGroupKey?: RootEnvironmentGroupKey,
 ): Extract<ProjectThreadItem, { kind: "section" }> {
   const items = buildProjectThreadGroups(
     threads,
     compareThreads,
     groupThreadsByEnvironment,
+    rootEnvironmentGroupKey,
   );
   return {
     kind: "section",
@@ -592,6 +596,7 @@ function ProjectModeSections({
   const groupThreadsByEnvironment = useAtomValue(
     sidebarGroupThreadsByEnvironmentAtom,
   );
+  const rootEnvironmentGroupKey = useAtomValue(ribbonRootEnvironmentGroupKeyAtom);
   const [collapsedProjectIdList, setCollapsedProjectIdList] = useAtom(
     collapsedProjectIdsAtom,
   );
@@ -672,8 +677,14 @@ function ProjectModeSections({
         personalThreads,
         compareThreads,
         groupThreadsByEnvironment,
+        rootEnvironmentGroupKey,
       ),
-    [compareThreads, groupThreadsByEnvironment, personalThreads],
+    [
+      compareThreads,
+      groupThreadsByEnvironment,
+      personalThreads,
+      rootEnvironmentGroupKey,
+    ],
   );
   const projectGroups = useMemo(
     () =>
@@ -687,9 +698,15 @@ function ProjectModeSections({
             : EMPTY_THREAD_LIST,
           compareThreads,
           groupThreadsByEnvironment,
+          rootEnvironmentGroupKey,
         ),
       ),
-    [compareThreads, groupThreadsByEnvironment, projectRows],
+    [
+      compareThreads,
+      groupThreadsByEnvironment,
+      projectRows,
+      rootEnvironmentGroupKey,
+    ],
   );
   const projectItemsByProjectId = useMemo(
     () =>
@@ -1090,6 +1107,7 @@ export function MachineModeSections({
   const groupThreadsByEnvironment = useAtomValue(
     sidebarGroupThreadsByEnvironmentAtom,
   );
+  const rootEnvironmentGroupKey = useAtomValue(ribbonRootEnvironmentGroupKeyAtom);
   const { hostsById } = useSidebarData();
   const hosts = useSidebarMachineHosts(hostsById);
   const [collapsedMachineKeyList, setCollapsedMachineKeyList] = useAtom(
@@ -1164,6 +1182,7 @@ export function MachineModeSections({
             nonPinnedThreads,
             compareThreads,
             groupThreadsByEnvironment,
+            rootEnvironmentGroupKey,
           )
         : [],
     [
@@ -1171,6 +1190,7 @@ export function MachineModeSections({
       groupThreadsByEnvironment,
       machineSections.length,
       nonPinnedThreads,
+      rootEnvironmentGroupKey,
     ],
   );
   const machineGroups = useMemo(
@@ -1183,9 +1203,15 @@ export function MachineModeSections({
           section.threadListState.threads,
           compareThreads,
           groupThreadsByEnvironment,
+          rootEnvironmentGroupKey,
         ),
       ),
-    [compareThreads, groupThreadsByEnvironment, machineSections],
+    [
+      compareThreads,
+      groupThreadsByEnvironment,
+      machineSections,
+      rootEnvironmentGroupKey,
+    ],
   );
   const machineItemsBySectionId = useMemo(
     () =>
