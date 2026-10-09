@@ -134,6 +134,7 @@ test("the end-to-end matrix runs every isolated group and keeps separate diagnos
   const endToEnd = source.slice(source.indexOf("\n  end-to-end:"), source.indexOf("\n  plugins:"));
   const groups = /group: \[([^\]]+)\]/u.exec(endToEnd)?.[1].split(",").map((name) => name.trim());
   assert.deepEqual(groups, E2E_GROUPS);
+  assert.doesNotMatch(endToEnd, /apt-get/u);
   assert.match(endToEnd, /fail-fast: false/u);
   assert.match(endToEnd, /run: npm run test:e2e -- --group \$\{\{ matrix\.group \}\}/u);
   assert.match(endToEnd, /name: end-to-end-diagnostics-\$\{\{ matrix\.group \}\}/u);

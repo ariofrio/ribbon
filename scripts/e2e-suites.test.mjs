@@ -95,6 +95,7 @@ test("an empty suite directory fails instead of reporting an empty run as passed
 });
 
 test("isolated groups partition every discovered case once, preserving suite order", async () => {
+  assert.deepEqual(E2E_GROUPS, ["placement", "ordering", "sidebar"]);
   const suites = selectSuites(await discoverSuites(), []);
   const cases = (selected) => selected.flatMap((suite) =>
     suite.selectedCases.map((name) => `${suite.id}:${name}`));
@@ -107,9 +108,18 @@ test("isolated groups partition every discovered case once, preserving suite ord
   }
   assert.deepEqual(grouped[0].map((suite) => suite.id), [
     "composer-readiness", "missing-shortcuts", "terminal-shortcut", "thread-indicators",
-    "completed-placement", "stage-placement", "thread-titles", "section-placement",
-    "machine-order", "custom-sort", "thread-reordering", "drag-regressions",
+    "completed-placement", "stage-placement",
   ]);
+  assert.deepEqual(grouped[1].map((suite) => suite.id), [
+    "thread-titles", "section-placement", "machine-order", "custom-sort",
+    "thread-reordering", "drag-regressions", "pr-number", "pr-status",
+    "new-thread-routing", "selected-title-color", "stage-shortcuts", "model-mentions", "stage-previews",
+  ]);
+  const sidebarIds = new Set(grouped[2].map((suite) => suite.id));
+  for (const id of ["grouping", "child-collapse", "child-stages", "child-rails", "child-reordering",
+    "collapsed-preview", "sticky-thread-surfaces", "thread-hover-response", "thread-row-layout", "title-lane"]) {
+    assert.ok(sidebarIds.has(id), `${id} stays with the shared child and layout state`);
+  }
   assert.deepEqual(groupSuites(suites), suites);
 });
 

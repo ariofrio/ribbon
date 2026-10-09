@@ -77,14 +77,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: package-lock.json
-      # node-pty is the only package without a Linux prebuild. The image
-      # already carries Python, so only its compiler is missing.
-      - name: Prepare the container
-        run: |
-          apt-get update -qq
-          apt-get install -y -qq make g++
+      # The locked native packages include Linux prebuilds.
       # Install every workspace together so the screenshot harness and all
-      # five plugins share one bb-app and one node-pty build.
+      # five plugins share one bb-app and one node-pty installation.
       - run: npm ci
       - run: npm run screenshots
       - name: Commit what changed

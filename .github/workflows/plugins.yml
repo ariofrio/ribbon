@@ -102,7 +102,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [placement, sidebar]
+        group: [placement, ordering, sidebar]
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
     steps:
@@ -112,10 +112,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: package-lock.json
-      - name: Prepare the container
-        run: |
-          apt-get update -qq
-          apt-get install -y -qq make g++
+      # The locked native packages include Linux prebuilds.
       - run: npm ci
       - run: npm run test:e2e -- --group ${{ matrix.group }}
       - name: Preserve end-to-end failure diagnostics
