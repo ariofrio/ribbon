@@ -1,7 +1,6 @@
 // Regenerates every plugin screenshot from one seeded bb.
 //
 //   npm run screenshots            capture every shot
-//   npm run screenshots -- --only icons
 //   npm run screenshots -- --keep  leave the seeded bb running for inspection
 //
 // Needs the Node in .nvmrc, Playwright's Chromium (npx playwright install
@@ -15,6 +14,7 @@ import { capture } from "./capture.mjs";
 import { applyPluginState, seed, writeFixtureProvider } from "./fixture.mjs";
 import { setupScreenshots, SHOTS } from "./shots.mjs";
 import { BB_CLI_PATH, startStack } from "./stack.mjs";
+import { prepareShowcase } from "./showcase.mjs";
 
 const harnessDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(harnessDirectory, "../..");
@@ -111,6 +111,7 @@ try {
       projects: seeded.projects,
       section: seeded.section,
     });
+    await prepareShowcase({ fixture: seeded, stack });
     return seeded;
   });
 

@@ -12,7 +12,7 @@
 
 <br>
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/hero-dark.png"><img src="assets/hero-light.png" alt="bb with Thread stages, the ChatGPT theme, and Missing keyboard shortcuts at work"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/hero-dark.png"><img src="assets/hero-light.png" alt="An Atlas workflow with a Review action, a child investigation, and model mentions in the ChatGPT theme"></picture></p>
 
 <br>
 
@@ -35,6 +35,8 @@ bb plugin install thread-stages@ribbon
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
+<a href="plugins/bb-plugin-model-mentions#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-model-mentions/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-model-mentions/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-model-mentions/assets/card-beside-dark.png"><img src="plugins/bb-plugin-model-mentions/assets/card-beside-light.png" alt="A Sonnet mention and Opus choices from Claude Code and Pi" align="right" width="45%"></picture></a>
+
 ### <img src="assets/icons/model-mentions.svg" alt="" width="26" align="absmiddle"> &nbsp;Model mentions
 
 Mention models and providers in task instructions using live provider catalogs.
@@ -51,6 +53,8 @@ bb plugin install model-mentions@ribbon
 <a href="plugins/bb-plugin-model-mentions#readme">Read docs &rarr;</a>
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
+
+<a href="plugins/bb-plugin-thread-titles#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-thread-titles/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-thread-titles/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-thread-titles/assets/card-beside-dark.png"><img src="plugins/bb-plugin-thread-titles/assets/card-beside-light.png" alt="An issue-link prompt with a useful title generated from the first turn" align="right" width="45%"></picture></a>
 
 ### <img src="assets/icons/thread-titles.svg" alt="" width="26" align="absmiddle"> &nbsp;Thread titles
 

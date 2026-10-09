@@ -47,6 +47,8 @@
   },
   "files": [
     "assets",
+    "!assets/screenshot*.png",
+    "!assets/card*.png",
     "dist",
     "src",
     "!src/**/*.test.ts",

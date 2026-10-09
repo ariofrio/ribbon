@@ -4,6 +4,11 @@ Title threads from their first message and first turn, and refine generic, inacc
 The update can run while the thread is busy and uses its recorded
 conversation, including assistant messages, tool results, and partial output.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-dark.png">
+  <img src="assets/screenshot-light.png" alt="An issue-link prompt titled Repair webhook retry backoff from the agent's first turn">
+</picture>
+
 ## Install
 
 ```sh
