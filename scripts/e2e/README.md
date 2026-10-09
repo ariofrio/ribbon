@@ -72,8 +72,10 @@ separate diagnostic artifacts for each group.
 
 The platform-shortcut suite starts a fresh client for Linux, Windows, and Mac,
 then reuses it for that platform's seven shortcuts. Each interaction resets its
-owned thread to a different stage, navigates back through the rendered sidebar,
-and waits for composer focus before checking that thread's stage-change RPC.
+owned thread to a different stage, waits for its rendered stage, returns through
+browser history when filing moved selection, and waits for composer focus before
+checking that thread's stage-change RPC. Repeated title clicks would instead
+trigger the row's double-click rename behavior.
 This avoids repeated application boots while keeping platform state isolated.
 Persistence suites retain their reload and fresh-client checks.
 

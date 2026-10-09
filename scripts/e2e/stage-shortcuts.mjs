@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { AGENT, FEATURED_PROJECT } from "../screenshots/fixture.mjs";
-import { link, openContext, row, sidebar } from "./thread-stages/sidebar.mjs";
+import { openContext, row, sidebar } from "./thread-stages/sidebar.mjs";
 
 export async function verifyStageShortcuts({ stack, fixture }) {
   const project = fixture.projects.get(FEATURED_PROJECT);
@@ -53,11 +53,12 @@ export async function verifyStageShortcuts({ stack, fixture }) {
           console.log(`Checking ${platform}: ${shortcut} → ${stage}`);
           // Every shortcut must change the owned thread, even when another
           // shortcut moved selection elsewhere or the prior platform ended
-          // on the same stage. Return through the rendered list without a boot.
+          // on the same stage. Return through browser history without a boot;
+          // rapid repeated title clicks would intentionally start renaming.
           const initial = stage === "Active" ? "Waiting" : "Active";
           fixture.run(["thread-stages", "stage", initial, thread.id]);
           await row(list, thread.id).getByLabel(`${initial} stage`, { exact: true }).waitFor();
-          await link(list, thread.id).click();
+          if (!new URL(page.url()).pathname.endsWith(`/threads/${thread.id}`)) await page.goBack();
           await page.waitForURL(`**/threads/${thread.id}`);
           await editor.click();
           await page.waitForFunction((node) => document.activeElement === node, await editor.elementHandle());
