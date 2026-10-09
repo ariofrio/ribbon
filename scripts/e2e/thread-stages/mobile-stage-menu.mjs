@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
 import { stageFor } from "./child-stages.mjs";
 import { launch, openContext, row, sidebar } from "./sidebar.mjs";
@@ -16,6 +18,7 @@ export async function verifyMobileStageMenu({ stack, fixture, cases }) {
         viewport: { width: 390, height: 844 }, hasTouch: touch, isMobile: touch,
       });
       try {
+        await context.tracing.start({ snapshots: true, sources: true });
         const page = await context.newPage();
         const activate = (target) => touch ? target.tap() : target.click();
         const errors = [];
@@ -32,12 +35,15 @@ export async function verifyMobileStageMenu({ stack, fixture, cases }) {
           if (testCase === "long-press") {
             const box = await target.boundingBox();
             const input = await context.newCDPSession(page);
-            await input.send("Input.dispatchTouchEvent", {
-              type: "touchStart", touchPoints: [{ x: box.x + 48, y: box.y + box.height / 2 }],
-            });
-            await menu.waitFor();
-            await input.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-            await input.detach();
+            try {
+              await input.send("Input.dispatchTouchEvent", {
+                type: "touchStart", touchPoints: [{ x: box.x + 48, y: box.y + box.height / 2 }],
+              });
+              await menu.waitFor();
+              await input.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+            } finally {
+              await input.detach();
+            }
           } else {
             await target.hover();
             await target.getByRole("button", { name: "Thread actions" }).click();
@@ -83,6 +89,12 @@ export async function verifyMobileStageMenu({ stack, fixture, cases }) {
         assert.equal(stageFor(fixture, thread.id), "BlockedOnThirdParty");
         assert.deepEqual(errors, []);
         console.log(`Mobile stage menu (${testCase}): navigation, Back, reset, and stage selection passed`);
+      } catch (error) {
+        const directory = resolve(".scratch/e2e");
+        await mkdir(directory, { recursive: true })
+          .then(() => context.tracing.stop({ path: resolve(directory, `mobile-stage-menu-${testCase}.trace.zip`) }))
+          .catch((diagnosticError) => console.error("Could not save the mobile stage menu trace:", diagnosticError));
+        throw error;
       } finally {
         await context.close();
       }
