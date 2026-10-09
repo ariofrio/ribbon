@@ -1,3 +1,4 @@
+import { StageBandedItems } from "../../ribbon/app/StageBandedItems.js";
 import { memo, useCallback, useMemo, type CSSProperties } from "react";
 import { DndContext, useDroppable } from "@dnd-kit/core";
 import {
@@ -160,7 +161,7 @@ const PinnedGroupedRootItems = memo(function PinnedGroupedRootItems({
   consumeClickSuppression,
   sectionDnd,
 }: PinnedGroupedRootItemsProps) {
-  return rootItems.map((item) => {
+  const renderItem = (item: ProjectThreadItem) => {
     if (item.kind === "environment") {
       return (
         <PinnedEnvironmentThreadGroupRow
@@ -200,7 +201,15 @@ const PinnedGroupedRootItems = memo(function PinnedGroupedRootItems({
         consumeClickSuppression={consumeClickSuppression}
       />
     );
-  });
+  };
+  return (
+    <StageBandedItems
+      items={rootItems}
+      selectedThreadId={selectedThreadId}
+      renderMain={(items) => items.map(renderItem)}
+      renderItem={renderItem}
+    />
+  );
 });
 
 export const PinnedThreadTree = memo(function PinnedThreadTree({
@@ -259,6 +268,49 @@ export const PinnedThreadTree = memo(function PinnedThreadTree({
     disabled: chronologicalDnd === null,
   });
 
+  const renderBandedNodes = (
+    nodes: readonly ProjectThreadNode[],
+    sortable: boolean,
+    sectionDnd?: SectionThreadDndState,
+  ) => {
+    const items: ProjectThreadItem[] = nodes.map((node) => ({ kind: "thread", node }));
+    const renderItem = (item: ProjectThreadItem) => {
+      if (item.kind !== "thread") return null;
+      const commonProps = {
+        node: item.node,
+        selectedThreadId,
+        collapsedThreadIds,
+        collapsedEnvironmentIds,
+        onProjectSelect,
+        onToggleThreadCollapsed,
+        onToggleEnvironmentCollapsed,
+      };
+      return sortable ? (
+        <SortablePinnedRootItem
+          key={getPinnedRootNodeId(item.node)}
+          {...commonProps}
+          disabled={sectionDnd?.pinnedReorderPending ?? standaloneReorderDisabled}
+          displace={!sectionDnd}
+          sectionDnd={sectionDnd}
+        />
+      ) : (
+        <PinnedRootItem
+          key={getPinnedRootNodeId(item.node)}
+          {...commonProps}
+          consumeClickSuppression={consumeClickSuppression}
+        />
+      );
+    };
+    return (
+      <StageBandedItems
+        items={items}
+        selectedThreadId={selectedThreadId}
+        renderMain={(main) => main.map(renderItem)}
+        renderItem={renderItem}
+      />
+    );
+  };
+
   if (rootItems.length === 0) {
     return null;
   }
@@ -287,21 +339,7 @@ export const PinnedThreadTree = memo(function PinnedThreadTree({
               onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
             />
           ) : (
-            chronologicalRootNodes.map((node) => (
-              <SortablePinnedRootItem
-                key={getPinnedRootNodeId(node)}
-                node={node}
-                disabled={chronologicalDnd.pinnedReorderPending}
-                displace={false}
-                sectionDnd={chronologicalDnd}
-                selectedThreadId={selectedThreadId}
-                collapsedThreadIds={collapsedThreadIds}
-                collapsedEnvironmentIds={collapsedEnvironmentIds}
-                onProjectSelect={onProjectSelect}
-                onToggleThreadCollapsed={onToggleThreadCollapsed}
-                onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
-              />
-            ))
+            renderBandedNodes(chronologicalRootNodes, true, chronologicalDnd)
           )}
         </SortableContext>
       </div>
@@ -331,35 +369,11 @@ export const PinnedThreadTree = memo(function PinnedThreadTree({
             items={renderedRootNodeIds}
             strategy={verticalListSortingStrategy}
           >
-            {renderedRootNodes.map((node) => (
-              <SortablePinnedRootItem
-                key={getPinnedRootNodeId(node)}
-                node={node}
-                disabled={standaloneReorderDisabled}
-                selectedThreadId={selectedThreadId}
-                collapsedThreadIds={collapsedThreadIds}
-                collapsedEnvironmentIds={collapsedEnvironmentIds}
-                onProjectSelect={onProjectSelect}
-                onToggleThreadCollapsed={onToggleThreadCollapsed}
-                onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
-              />
-            ))}
+            {renderBandedNodes(renderedRootNodes, true)}
           </SortableContext>
         </DndContext>
       ) : (
-        renderedRootNodes.map((node) => (
-          <PinnedRootItem
-            key={getPinnedRootNodeId(node)}
-            node={node}
-            selectedThreadId={selectedThreadId}
-            collapsedThreadIds={collapsedThreadIds}
-            collapsedEnvironmentIds={collapsedEnvironmentIds}
-            onProjectSelect={onProjectSelect}
-            onToggleThreadCollapsed={onToggleThreadCollapsed}
-            onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
-            consumeClickSuppression={consumeClickSuppression}
-          />
-        ))
+        renderBandedNodes(renderedRootNodes, false)
       )}
     </div>
   );

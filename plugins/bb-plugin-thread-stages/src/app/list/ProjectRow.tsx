@@ -1065,19 +1065,29 @@ const EnvironmentThreadGroupRow = memo(function EnvironmentThreadGroupRow({
     () => nodes.map((node) => ({ kind: "thread", node })),
     [nodes],
   );
-  const { itemKeys, estimateRows, getNavigationEntries, alwaysMountedKeys } =
-    useWindowedThreadItems({
-      items: nodeItems,
-      collapsedThreadIds,
-      collapsedEnvironmentIds,
-      selectedThreadId,
-    });
+  const renderEnvironmentItem = (item: ProjectThreadItem) => (
+    <SectionDndItemRow
+      key={getSidebarItemKey(item)}
+      projectId={projectId}
+      item={item}
+      sectionDnd={sectionDnd}
+      depthOffset={depthOffset + 1 - depthAdjustment}
+      isEnvGrouped
+      selectedThreadId={selectedThreadId}
+      collapsedThreadIds={collapsedThreadIds}
+      collapsedEnvironmentIds={collapsedEnvironmentIds}
+      onProjectSelect={onProjectSelect}
+      onToggleThreadCollapsed={onToggleThreadCollapsed}
+      onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
+    />
+  );
 
   return (
     <>
       <SidebarStickyGroup
         ref={sortableRef}
         style={sortableStyle}
+        data-sidebar-environment-id={environmentId}
         className="space-y-0.5"
       >
         <EnvironmentThreadGroupHeader
@@ -1101,33 +1111,20 @@ const EnvironmentThreadGroupRow = memo(function EnvironmentThreadGroupRow({
         {!isCollapsed ? (
           <div className="relative space-y-px">
             <ThreadTreeGroupLine parentRowDepth={groupDepth} />
-            <SidebarWindowedItems
-              itemKeys={itemKeys}
-              estimateRows={estimateRows}
-              getNavigationEntries={getNavigationEntries}
-              alwaysMountedKeys={alwaysMountedKeys}
-              renderItem={(index) => {
-                const node = nodes[index];
-                if (!node) {
-                  return null;
-                }
-                return (
-                  <SectionDndItemRow
-                    key={node.thread.id}
-                    projectId={projectId}
-                    item={nodeItems[index]}
-                    sectionDnd={sectionDnd}
-                    depthOffset={depthOffset + 1 - depthAdjustment}
-                    isEnvGrouped
-                    selectedThreadId={selectedThreadId}
-                    collapsedThreadIds={collapsedThreadIds}
-                    collapsedEnvironmentIds={collapsedEnvironmentIds}
-                    onProjectSelect={onProjectSelect}
-                    onToggleThreadCollapsed={onToggleThreadCollapsed}
-                    onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
-                  />
-                );
-              }}
+            <StageBandedItems
+              items={nodeItems}
+              depth={groupDepth + 1}
+              selectedThreadId={selectedThreadId}
+              renderMain={(items) => (
+                <WindowedSectionItems
+                  items={items}
+                  collapsedThreadIds={collapsedThreadIds}
+                  collapsedEnvironmentIds={collapsedEnvironmentIds}
+                  selectedThreadId={selectedThreadId}
+                  renderItem={renderEnvironmentItem}
+                />
+              )}
+              renderItem={renderEnvironmentItem}
             />
           </div>
         ) : null}
@@ -1459,6 +1456,7 @@ const SectionTreeItemRow = memo(function SectionTreeItemRow({
         <SectionDndSortableList sectionDnd={sectionDnd} parentKey={section.key}>
           <StageBandedItems
             items={section.items}
+            depth={depthOffset === 0 ? 0 : depthOffset + 1}
             selectedThreadId={selectedThreadId}
             renderMain={(items) => (
               <WindowedSectionItems
@@ -1698,13 +1696,30 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
   );
   const rowProjectId = node.thread.projectId;
   const crossProjectId = rowProjectId !== projectId ? rowProjectId : null;
-  const { itemKeys, estimateRows, getNavigationEntries, alwaysMountedKeys } =
-    useWindowedThreadItems({
-      items: node.children,
-      collapsedThreadIds,
-      collapsedEnvironmentIds,
-      selectedThreadId,
-    });
+  const renderChildItem = (item: ProjectThreadItem, index: number, count: number) => {
+    const itemKey = getSidebarItemKey(item);
+    return (
+      <Fragment key={itemKey}>
+        {nestPreviewThread !== null && nestPreviewBeforeKey === itemKey ? (
+          <NestDropPreviewRow depth={parentRowDepth + 1} thread={nestPreviewThread} />
+        ) : null}
+        <SiblingLineage index={index} count={count}>
+          <SectionDndItemRow
+            projectId={rowProjectId}
+            item={item}
+            depthOffset={depthOffset}
+            selectedThreadId={selectedThreadId}
+            collapsedThreadIds={collapsedThreadIds}
+            collapsedEnvironmentIds={collapsedEnvironmentIds}
+            onProjectSelect={onProjectSelect}
+            onToggleThreadCollapsed={onToggleThreadCollapsed}
+            onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
+            sectionDnd={sectionDnd ?? undefined}
+          />
+        </SiblingLineage>
+      </Fragment>
+    );
+  };
   const row = (
     <ThreadRow
       thread={node.thread}
@@ -1724,6 +1739,7 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
   return (
     <SidebarStickyGroup
       style={sortableStyle}
+      data-sidebar-parent-thread-id={node.thread.id}
       className={cn(
         "relative space-y-0.5",
         afterSubtree && REORDER_PLACEMENT_CLASS.after,
@@ -1736,45 +1752,21 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
             <ThreadTreeGroupLine parentRowDepth={parentRowDepth} />
           )}
           {showChildren ? (
-            <SidebarWindowedItems
-              itemKeys={itemKeys}
-              estimateRows={estimateRows}
-              getNavigationEntries={getNavigationEntries}
-              alwaysMountedKeys={alwaysMountedKeys}
-              renderItem={(index) => {
-                const item = node.children[index];
-                if (!item) {
-                  return null;
-                }
-                const itemKey = getSidebarItemKey(item);
-                return (
-                  <Fragment key={itemKey}>
-                    {nestPreviewThread !== null &&
-                    nestPreviewBeforeKey === itemKey ? (
-                      <NestDropPreviewRow
-                        depth={parentRowDepth + 1}
-                        thread={nestPreviewThread}
-                      />
-                    ) : null}
-                    <SiblingLineage index={index} count={node.children.length}>
-                      <SectionDndItemRow
-                        projectId={rowProjectId}
-                        item={item}
-                        depthOffset={depthOffset}
-                        selectedThreadId={selectedThreadId}
-                        collapsedThreadIds={collapsedThreadIds}
-                        collapsedEnvironmentIds={collapsedEnvironmentIds}
-                        onProjectSelect={onProjectSelect}
-                        onToggleThreadCollapsed={onToggleThreadCollapsed}
-                        onToggleEnvironmentCollapsed={
-                          onToggleEnvironmentCollapsed
-                        }
-                        sectionDnd={sectionDnd ?? undefined}
-                      />
-                    </SiblingLineage>
-                  </Fragment>
-                );
-              }}
+            <StageBandedItems
+              items={node.children}
+              depth={parentRowDepth + 1}
+              selectedThreadId={selectedThreadId}
+              revealAll={nestPreviewThread !== null}
+              renderMain={(items) => (
+                <WindowedSectionItems
+                  items={items}
+                  collapsedThreadIds={collapsedThreadIds}
+                  collapsedEnvironmentIds={collapsedEnvironmentIds}
+                  selectedThreadId={selectedThreadId}
+                  renderItem={renderChildItem}
+                />
+              )}
+              renderItem={renderChildItem}
             />
           ) : null}
           {nestPreviewThread !== null && nestPreviewBeforeKey === null ? (
@@ -1910,7 +1902,7 @@ function WindowedSectionItems({
   collapsedThreadIds: Set<string>;
   collapsedEnvironmentIds: Set<string>;
   selectedThreadId?: string;
-  renderItem: (item: ProjectThreadItem) => ReactNode;
+  renderItem: (item: ProjectThreadItem, index: number, count: number) => ReactNode;
 }) {
   const { itemKeys, estimateRows, getNavigationEntries, alwaysMountedKeys } =
     useWindowedThreadItems({
@@ -1927,7 +1919,7 @@ function WindowedSectionItems({
       alwaysMountedKeys={alwaysMountedKeys}
       renderItem={(index) => {
         const item = items[index];
-        return item ? renderItem(item) : null;
+        return item ? renderItem(item, index, items.length) : null;
       }}
     />
   );
@@ -1974,18 +1966,16 @@ function SectionThreadTreeItems({
       renderItem={renderTreeItem}
     />
   );
-  // Roots partition into stage bands; a nested list is a parent's children.
-  const rows =
-    depthOffset === 0 ? (
-      <StageBandedItems
-        items={items}
-        selectedThreadId={selectedThreadId}
-        renderMain={renderWindowed}
-        renderItem={renderTreeItem}
-      />
-    ) : (
-      renderWindowed(items)
-    );
+  // Every run of siblings partitions into the same stage bands.
+  const rows = (
+    <StageBandedItems
+      items={items}
+      selectedThreadId={selectedThreadId}
+      renderMain={renderWindowed}
+      depth={depthOffset}
+      renderItem={renderTreeItem}
+    />
+  );
 
   return (
     <ProjectThreadTreeGroup onClickCapture={sectionDnd?.onClickCapture}>

@@ -8,6 +8,7 @@ import {
 import { CHROME_SECTION_LABEL_CLASS } from "./chrome-style-tokens";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_STAGE_PREVIEW_ROWS } from "../stage-preview-rows";
+import { getSidebarThreadRowPaddingLeft } from "../../app/rows/sidebarRowClasses.js";
 
 /** A flat continuation of section rows, with the current hierarchy kept visible. */
 export function StagePreview<T extends { id: string }>({
@@ -17,13 +18,15 @@ export function StagePreview<T extends { id: string }>({
   renderRow,
   revealAll = false,
   rowLimit = DEFAULT_STAGE_PREVIEW_ROWS,
+  depth = 0,
 }: {
   stage: "deferred" | "completed";
   rows: readonly T[];
   selectedRootId: string | null;
-  renderRow(row: T): ReactNode;
+  renderRow(row: T, index: number, count: number): ReactNode;
   revealAll?: boolean;
   rowLimit?: number;
+  depth?: number;
 }) {
   const [expanded, setExpanded] = useState(false);
   const list = useRef<HTMLUListElement>(null);
@@ -61,7 +64,7 @@ export function StagePreview<T extends { id: string }>({
   return (
     <>
       <ul className="space-y-px" id={id} ref={list}>
-        {visible.map(renderRow)}
+        {visible.map((row, index) => renderRow(row, index, visible.length))}
       </ul>
       {!revealAll &&
       (hidden > 0 || (expanded && rows.length > previewLimit)) ? (
@@ -71,6 +74,7 @@ export function StagePreview<T extends { id: string }>({
           data-ribbon-fold-piece=""
           aria-expanded={expanded}
           className={`flex h-7 w-full justify-start rounded-md pl-8 pr-2 ${CHROME_SECTION_LABEL_CLASS} hover:bg-sidebar-accent hover:text-subtle-foreground/75 focus-visible:ring-sidebar-ring`}
+          style={depth > 0 ? { paddingLeft: getSidebarThreadRowPaddingLeft(depth) + 24 } : undefined}
           size="sm"
           variant="ghost"
           type="button"
