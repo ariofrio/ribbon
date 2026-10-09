@@ -37,7 +37,8 @@ export async function verifyThreadActions({ stack, fixture }) {
     const editor = page.getByRole("menu", { name: "Edit thread actions", exact: true });
     await editor.waitFor();
     assert.equal(await page.getByRole("dialog", { name: "Edit thread actions" }).count(), 0);
-    assert.equal(await editor.getByRole("checkbox").count(), 0);
+    assert.equal(await editor.getByRole("checkbox", { name: "Steer action 1" }).isChecked(), false,
+      "New actions queue by default");
     assert.equal(await editor.getByRole("button", { name: "Add action" }).count(), 0);
     assert.equal(await editor.getByRole("button", { name: "Save actions" }).count(), 0);
     const labels = [
@@ -53,7 +54,7 @@ export async function verifyThreadActions({ stack, fixture }) {
     }
     await editor.focus();
     const tableLayout = await editor.getByRole("table", { name: "Thread actions" }).evaluate((table) => {
-      const fields = [...table.querySelectorAll("input, textarea")].map((field) => {
+      const fields = [...table.querySelectorAll("input:not([type=checkbox]), textarea")].map((field) => {
         const box = field.getBoundingClientRect();
         return { x: box.x, y: box.y, width: box.width, height: box.height };
       });

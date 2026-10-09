@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Icon } from "@/components/ui/icon";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
@@ -86,7 +87,8 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
       onKeyDown={(event) => {
         // Text editing stays in the form; Escape returns to its parent menu.
         if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
-          const fields = [...event.currentTarget.querySelectorAll<HTMLElement>("input, textarea, button")];
+          const fields = [...event.currentTarget.querySelectorAll<HTMLElement>("input, textarea, button")]
+            .filter((field) => field.tabIndex >= 0);
           const index = fields.indexOf(event.target as HTMLElement);
           const next = fields[index + (event.shiftKey ? -1 : 1)];
           const leave = onTabBoundary ?? onExit;
@@ -129,7 +131,7 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
         <TableBody>
           {actions.map((action, index) => (
             <TableRow key={action.id} data-action-id={action.id} className="border-0 hover:bg-transparent">
-              <TableCell className="w-[32%] rounded-l-sm p-0 align-top">
+              <TableCell className="w-[28%] rounded-l-sm p-0 align-top">
                 <Input
                   aria-label={`Action ${index + 1} button label`}
                   className="h-[1.625rem] rounded-sm border-transparent px-[0.4375rem] py-1 text-xs leading-4 hover:bg-state-hover/50 focus-visible:border-input focus-visible:ring-0 max-md:pointer-coarse:h-[2.625rem] max-md:pointer-coarse:py-2 max-md:pointer-coarse:leading-6"
@@ -168,6 +170,24 @@ export function ThreadActionsEditor({ threadId, onExit, onTabBoundary }: {
                     expandPrompt(event.currentTarget);
                   }}
                 />
+              </TableCell>
+              <TableCell className="w-[4.5rem] p-0 align-top">
+                <label
+                  className="flex h-[1.625rem] cursor-pointer items-center justify-center gap-1.5 rounded-sm px-1 text-xs leading-4 text-muted-foreground hover:bg-state-hover/50 hover:text-foreground max-md:pointer-coarse:h-[2.625rem]"
+                  title="Steer the current turn. Leave unchecked to queue until it finishes. Starts a turn when idle."
+                >
+                  <Checkbox
+                    aria-label={`Steer action ${index + 1}`}
+                    checked={action.steer === true}
+                    // Focus after the click so collapsing a prompt cannot move the drawer mid-tap.
+                    onPointerDown={(event) => event.preventDefault()}
+                    onClick={(event) => event.currentTarget.focus()}
+                    onCheckedChange={(checked) => changeActions(draft.current.map((item) =>
+                      item.id === action.id ? { ...item, steer: checked === true } : item,
+                    ))}
+                  />
+                  Steer
+                </label>
               </TableCell>
               <TableCell className="w-[1.625rem] rounded-r-sm p-0 align-top max-md:pointer-coarse:w-[2.625rem]">
                 <Button

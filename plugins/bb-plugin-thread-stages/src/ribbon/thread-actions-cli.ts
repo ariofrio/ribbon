@@ -17,7 +17,7 @@ const THREAD_POSITIONAL = { name: "thread", description: "Thread ID" };
 
 function humanActions(record: ThreadActionsRecord) {
   const actions = record.actions.map(
-    (action) => `  ${action.id} (${threadActionLabel(action)}): ${action.prompt}`,
+    (action) => `  ${action.id} (${threadActionLabel(action)}, ${action.steer ? "steer" : "queue"}): ${action.prompt}`,
   );
   return `Thread: ${record.threadId}\n${
     actions.length > 0 ? actions.join("\n") : "No actions"
@@ -49,7 +49,7 @@ export function threadActionCliCommands(context: ThreadActionsCliContext) {
           required: true,
           stdin: true,
           placeholder: "json-array",
-          description: "JSON array of {id, label, prompt}; unique IDs up to 64 characters, labels 0–24 (empty uses prompt), prompts 1–10000",
+          description: "JSON array of {id, label, prompt, steer?}; steer defaults to false (queue). Unique IDs up to 64 characters, labels 0–24 (empty uses prompt), prompts 1–10000",
         },
       },
       async run({ positionals, options }, invocation) {
