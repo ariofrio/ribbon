@@ -94,8 +94,8 @@ describe("sidebar migrations", () => {
       { name: "thread_action_display" },
     ]);
     if (previous.includes(THREAD_ACTIONS_MIGRATION)) {
-      expect(database.prepare("SELECT label, prompt FROM thread_action").all()).toEqual([
-        { label: "Update", prompt: "Update this thread" },
+      expect(database.prepare("SELECT label, prompt, steer FROM thread_action").all()).toEqual([
+        { label: "Update", prompt: "Update this thread", steer: 0 },
       ]);
     }
     if (previous.includes(ICON_MIGRATIONS[1])) {

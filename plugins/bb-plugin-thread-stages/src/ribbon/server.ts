@@ -963,7 +963,7 @@ export default async function ribbonServer(
     await bb.sdk.threads.send({
       threadId,
       input: [{ type: "text", text: action.prompt, mentions: [] }],
-      mode: "auto",
+      mode: action.steer ? "auto" : "queue-if-active",
     });
     return { ok: true as const };
   }

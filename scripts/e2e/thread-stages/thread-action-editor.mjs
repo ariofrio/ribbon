@@ -77,6 +77,7 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         await form.waitFor();
         const label = (index) => form.getByRole("textbox", { name: `Action ${index} button label` });
         const prompt = (index) => form.getByRole("textbox", { name: `Action ${index} prompt` });
+        const steer = (index) => form.getByRole("checkbox", { name: `Steer action ${index}` });
         const remove = (index) => form.getByRole("button", { name: `Remove action ${index}` });
         const paint = (field) => field.evaluate((node) => ({
           border: getComputedStyle(node).borderColor,
@@ -87,6 +88,7 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         assert.equal(await form.getByRole("columnheader").count(), 0, "Placeholders replace the table header");
         assert.equal(await form.getByPlaceholder("Button label").inputValue(), "");
         assert.equal(await form.getByPlaceholder("Prompt to send").inputValue(), "");
+        assert.equal(await steer(1).isChecked(), false, "New actions default to queueing");
         const appearance = await label(1).evaluate((field) => {
           const style = getComputedStyle(field);
           return { fontSize: style.fontSize, height: style.height, border: style.borderColor, background: style.backgroundColor };
@@ -112,7 +114,7 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         const focusedMetrics = await label(1).evaluate((field) => {
           const row = field.closest("tr");
           const first = row.cells[0];
-          const last = row.cells[2];
+          const last = row.cells[3];
           const style = getComputedStyle(field);
           const insets = (control, cell) => {
             const inner = control.getBoundingClientRect();
@@ -213,6 +215,24 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         const labelBox = await label(1).boundingBox();
         assert.ok(promptBox.height > labelBox.height + 8, "Focused multiline prompts expand to expose their text");
         await page.keyboard.press("Tab");
+        await focused(page, steer(1));
+        const steering = page.waitForResponse((response) => response.url() === rpc("saveThreadActionsV1") && response.status() === 200
+          && response.request().postDataJSON().actions[0]?.steer === true);
+        await page.keyboard.press("Space");
+        await steering;
+        assert.equal(await steer(1).isChecked(), true, "Space toggles steered delivery");
+        const checkPaint = await steer(1).evaluate((node) => ({
+          background: getComputedStyle(node).backgroundColor,
+          icon: node.querySelector("svg")?.getBoundingClientRect().width,
+        }));
+        assert.notEqual(checkPaint.background, transparent, "The selected checkbox paints its background");
+        assert.ok(checkPaint.icon > 0, "The selected checkbox paints its checkmark");
+        const queued = page.waitForResponse((response) => response.url() === rpc("saveThreadActionsV1") && response.status() === 200
+          && response.request().postDataJSON().actions[0]?.steer === false);
+        await activate(steer(1).locator(".."));
+        await queued;
+        assert.equal(await steer(1).isChecked(), false, "A pointer toggles queued delivery back on");
+        await page.keyboard.press("Tab");
         await focused(page, remove(1));
         assert.match(await remove(1).evaluate((button) => getComputedStyle(button).boxShadow), /inset/,
           "The X button's keyboard focus ring stays visible inside its flush bounds");
@@ -240,6 +260,8 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         await page.keyboard.press("Tab");
         await focused(page, prompt(2));
         assert.equal(await form.getByRole("textbox").count(), 4, "Leaving an empty row collapses redundant empty rows without losing focus");
+        await page.keyboard.press("Tab");
+        await focused(page, steer(2));
         await page.keyboard.press("Tab");
         await focused(page, remove(2));
         if (compact) {
@@ -297,6 +319,10 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         await activate(prompt(1));
         if (!compact) assert.equal(fieldMetrics.fontSize, menuMetrics.fontSize, "Editor text matches bb's menu typography");
         assert.equal(await form.evaluate((node) => node.scrollWidth > node.clientWidth), false, "The table fits without horizontal overflow");
+        const savedSteer = page.waitForResponse((response) => response.url() === rpc("saveThreadActionsV1") && response.status() === 200
+          && response.request().postDataJSON().actions[0]?.steer === true);
+        await activate(steer(1));
+        await savedSteer;
         if (compact) await activate(page.getByRole("menuitem", { name: "Back" }));
         else await page.mouse.click(1000, 650);
         await autosaved;
@@ -306,9 +332,11 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         assert.equal(payload.ok, true);
         const saved = payload.result;
         assert.equal(saved.threads.find((record) => record.threadId === thread.id).actions.length, 1);
+        assert.equal(saved.threads.find((record) => record.threadId === thread.id).actions[0].steer, true);
         if (!compact) {
           await target.click({ button: "right" });
           await page.getByRole("menu", { name: "Thread actions", exact: true }).getByRole("menuitem", { name: "Edit thread actions" }).hover();
+          assert.equal(await steer(1).isChecked(), true, "Reopening the editor preserves steered delivery");
           await label(1).click();
           await page.keyboard.press("ControlOrMeta+a");
           await page.keyboard.type("Check");
@@ -316,6 +344,8 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
           await focused(page, prompt(1));
           const cleared = page.waitForResponse((response) => response.url() === rpc("saveThreadActionsV1") && response.status() === 200
             && response.request().postDataJSON().actions.length === 0);
+          await page.keyboard.press("Tab");
+          await focused(page, steer(1));
           await page.keyboard.press("Tab");
           await focused(page, remove(1));
           await page.keyboard.press("Enter");

@@ -143,6 +143,8 @@ instead. The pan respects reduced motion.
 Use **Edit thread actions** in a thread's context menu or ⋯ menu to edit labeled prompts.
 Fill the empty row at the bottom to add an action; edits save as you type once
 the prompt is filled. An empty label uses the prompt as the button label.
+Actions queue until the current turn finishes by default. Check **Steer** on an
+action to send its prompt into the current turn. Either starts a turn when the thread is idle.
 Use X to clear or remove a row. Extra empty rows collapse
 when focus moves.
 Action buttons appear beside the thread title, colored like the section, project, or machine,

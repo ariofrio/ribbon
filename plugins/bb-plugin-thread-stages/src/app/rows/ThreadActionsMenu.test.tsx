@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { installTestPluginRuntime, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { CompactViewportOverrideProvider } from "@/components/ui/hooks/use-compact-viewport";
 import { RibbonDataProvider } from "../../ribbon/app/data";
@@ -9,7 +9,17 @@ import { makeSidebarThread } from "../model/fixtures";
 import { ThreadActionsMenu } from "./ThreadActionsMenu";
 
 installTestPluginRuntime();
-afterEach(cleanup);
+beforeEach(() => {
+  vi.stubGlobal("ResizeObserver", class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  });
+});
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 function CompactMenu() {
   return (
@@ -32,7 +42,7 @@ it("autosaves actions in the compact menu and maintains one trailing empty row o
   fireEvent.click(await screen.findByRole("menuitem", { name: "Edit thread actions" }));
   const form = await screen.findByRole("form", { name: "Edit thread actions" });
   expect(screen.getAllByRole("dialog")).toHaveLength(1);
-  expect(screen.queryByRole("checkbox")).toBeNull();
+  expect(screen.getByRole("checkbox", { name: "Steer action 1" })).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Add action" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Save actions" })).toBeNull();
   fireEvent.change(screen.getByRole("textbox", { name: "Action 1 button label" }), {
