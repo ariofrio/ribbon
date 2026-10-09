@@ -144,6 +144,33 @@
           "tagPrefix": "thread-titles/"
         }
       }
+    },
+    {
+      "id": "default-sections",
+      "displayName": "Default sections",
+      "description": "Give each project a default section, so its new threads start there.",
+      "icon": {
+        "url": "./plugins/bb-plugin-default-sections/assets/icon.svg"
+      },
+      "tags": [
+        "threads",
+        "sections",
+        "organization",
+        "productivity"
+      ],
+      "author": {
+        "name": "Andres Riofrio",
+        "github": "ariofrio",
+        "url": "https://github.com/ariofrio"
+      },
+      "source": {
+        "git": {
+          "url": "https://github.com/ariofrio/ribbon.git",
+          "subdir": "plugins/bb-plugin-default-sections",
+          "range": "*",
+          "tagPrefix": "default-sections/"
+        }
+      }
     }
   ]
 }

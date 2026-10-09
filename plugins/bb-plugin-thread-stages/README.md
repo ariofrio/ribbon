@@ -97,6 +97,11 @@ reordered enter at the top, newest first. Forks inherit their source thread's
 stage and hierarchy's section; unparenting preserves the child's stage and
 copies the former root's section placement.
 
+With [Default sections](../bb-plugin-default-sections#readme) installed, a
+project heading's **⋯ menu → Default section** chooses the section that
+project's new threads start in, and a section heading's **⋯ menu → Default
+for** ticks the projects whose new threads start there.
+
 Children hang from their parent by a bar in their own stage-ring column, which
 fills in for a hidden Active ring and parts around a shown one. Set **Child
 thread lines** to Tree to branch a line from the parent into each child's ring

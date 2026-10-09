@@ -68,6 +68,22 @@ bb plugin install thread-titles@ribbon
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
+### <img src="assets/icons/default-sections.svg" alt="" width="26" align="absmiddle"> &nbsp;Default sections
+
+Give each project a default section, so its new threads start there.
+
+Set it from Thread stages' project and section headings, the plugin's
+settings, or the CLI. Threads you place yourself stay where you put them.
+
+```sh
+bb marketplace add git:github.com/ariofrio/ribbon
+bb plugin install default-sections@ribbon
+```
+
+<a href="plugins/bb-plugin-default-sections#readme">Read docs &rarr;</a>
+
+<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
+
 <a href="plugins/bb-plugin-missing-keyboard-shortcuts#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-missing-keyboard-shortcuts/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-missing-keyboard-shortcuts/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-missing-keyboard-shortcuts/assets/card-beside-dark.png"><img src="plugins/bb-plugin-missing-keyboard-shortcuts/assets/card-beside-light.png" alt="A bb side chat opened with the ⇧⌘L shortcut" align="right" width="45%"></picture></a>
 
 ### <img src="assets/icons/missing-keyboard-shortcuts.svg" alt="" width="26" align="absmiddle"> &nbsp;Missing keyboard shortcuts
