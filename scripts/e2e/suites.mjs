@@ -2,6 +2,16 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+export const E2E_GROUPS = ["placement", "sidebar"];
+
+export function groupSuites(suites, group) {
+  if (group === undefined) return suites;
+  if (!E2E_GROUPS.includes(group)) throw new Error(`Unknown E2E group ${group}`);
+  const selected = suites.filter((suite) => (suite.group ?? "sidebar") === group);
+  if (selected.length === 0) throw new Error(`No E2E cases selected for group ${group}`);
+  return selected;
+}
+
 export async function discoverSuites(
   directory = new URL("./suites/", import.meta.url),
 ) {
@@ -31,6 +41,7 @@ export async function discoverSuites(
       suite.cases.some((name) => name.includes(":")) ||
       !names(suite.plugins) ||
       typeof suite.run !== "function" ||
+      (suite.group !== undefined && !E2E_GROUPS.includes(suite.group)) ||
       (suite.prepare !== undefined && typeof suite.prepare !== "function") ||
       (suite.order !== undefined && !Number.isFinite(suite.order))
     ) {

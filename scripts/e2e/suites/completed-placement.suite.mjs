@@ -2,6 +2,7 @@ import { verifyCompletedPlacement } from "../thread-stages/completed-placement.m
 import { waitForThreadStages } from "../thread-stages/new-thread-routing.mjs";
 
 export default {
+  group: "placement",
   order: 0,
   id: "completed-placement",
   cases: ["default-order"],

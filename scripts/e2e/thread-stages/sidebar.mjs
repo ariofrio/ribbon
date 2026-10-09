@@ -107,6 +107,8 @@ export async function pickUp(page, target) {
 /**
  * Carries a held row to the top or bottom sliver of another. The middle of a
  * row nests into it, so only its edges mean "beside".
+ * Move directly to the edge: intermediate pointer events can dwell in the
+ * nesting band on a busy renderer and change the intended gesture.
  */
 export async function carryTo(page, target, edge = "before") {
   const box = await target.boundingBox();

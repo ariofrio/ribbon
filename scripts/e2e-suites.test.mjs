@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { discoverSuites, selectSuites } from "./e2e/suites.mjs";
+import { discoverSuites, E2E_GROUPS, groupSuites, selectSuites } from "./e2e/suites.mjs";
 
 async function directory(t) {
   const scratch = resolve(".scratch/work");
@@ -92,4 +92,46 @@ test("the runner lists selected cases without starting bb", async () => {
 test("an empty suite directory fails instead of reporting an empty run as passed", async (t) => {
   const root = await directory(t);
   await assert.rejects(discoverSuites(root), /No E2E suites found/);
+});
+
+test("isolated groups partition every discovered case once, preserving suite order", async () => {
+  const suites = selectSuites(await discoverSuites(), []);
+  const cases = (selected) => selected.flatMap((suite) =>
+    suite.selectedCases.map((name) => `${suite.id}:${name}`));
+  const grouped = E2E_GROUPS.map((group) =>
+    groupSuites(suites, group));
+  assert.ok(grouped.every((group) => group.length > 0));
+  assert.deepEqual(grouped.flatMap(cases).sort(), cases(suites).sort());
+  for (const group of grouped) {
+    assert.deepEqual(group, suites.filter((suite) => group.includes(suite)));
+  }
+  assert.deepEqual(grouped[0].map((suite) => suite.id), [
+    "composer-readiness", "missing-shortcuts", "terminal-shortcut", "thread-indicators",
+    "completed-placement", "stage-placement", "thread-titles", "section-placement",
+    "machine-order", "custom-sort", "thread-reordering", "drag-regressions",
+  ]);
+  assert.deepEqual(groupSuites(suites), suites);
+});
+
+test("new suites join the sidebar group and misspelled groups fail discovery", async (t) => {
+  const root = await directory(t);
+  await add(root, "new", { id: "new", cases: ["one"], plugins: [] });
+  const suites = selectSuites(await discoverSuites(root), []);
+  assert.deepEqual(groupSuites(suites, "sidebar"), suites);
+  await add(root, "typo", { id: "typo", cases: ["one"], plugins: [], group: "sidebaar" });
+  await assert.rejects(discoverSuites(root), /Invalid E2E suite.*typo/);
+});
+
+test("group selectors list cases without starting bb and reject empty selections", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const run = (...args) => execFileSync(process.execPath,
+    ["scripts/e2e/run.mjs", "--list", ...args], { encoding: "utf8", stdio: "pipe" });
+  assert.equal(run("--group", "placement", "--case", "stage-placement:default-order"),
+    "stage-placement:default-order\n");
+  assert.throws(() => run("--group", "missing"), /Unknown E2E group missing/);
+  assert.throws(() => run("--group", "sidebar", "--case", "stage-placement:default-order"),
+    /No E2E cases selected/);
+  assert.throws(() => run("--group"), /--group requires a value/);
+  assert.throws(() => run("--group", "sidebar", "--group", "placement"),
+    /--group may only be supplied once/);
 });
