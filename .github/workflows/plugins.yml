@@ -113,9 +113,9 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Prepare the container
-        run: |
-          apt-get update -qq
-          apt-get install -y -qq make g++
+        run: apt-get update
+      - name: Install the native build tools
+        run: apt-get install -y make g++
       - run: npm ci
       - run: npm run test:e2e -- --group ${{ matrix.group }}
       - name: Preserve end-to-end failure diagnostics
