@@ -87,8 +87,21 @@ intended review, open questions, delivery, and follow-ups must be **settled or
 delegated**. Results belong in their lasting destination, such as a merged PR
 or code saved or published where the work requires it. Delegation means the
 remaining responsibility is tracked elsewhere and its receiving owner has
-been notified; simply mentioning future work does not close it. Work this
-thread still coordinates remains its responsibility.
+accepted it; notification alone is insufficient. Until acceptance is established,
+arranging the handoff remains Active; a proposed recipient does not yet own a
+blocker. Work this thread still coordinates remains its responsibility,
+including verification after a handoff.
+
+Filing an issue, submitting a PR, or sending a report finishes a delivery step;
+it does not by itself resolve the problem or delegate follow-up. Infer the
+objective from the full conversation, not just the latest request to submit
+findings. Keep unresolved findings open through resolution and verification
+unless the agreed scope explicitly ends at reporting or the remaining
+responsibility has been handed off. Useful investigation, intended user
+review, or an unestablished follow-up path keeps Active; a required fix owned
+by another thread or an external party uses the corresponding Blocked stage
+once no independent work remains. A bounded reporting task can finish even
+while its filed issue remains open.
 
 Initial questions, exploratory research, and proposals normally keep Active:
 they may be preparation for broader work. A substantial report alone does not

@@ -46,7 +46,7 @@ class EvalTests(unittest.TestCase):
 
     def test_manifest_and_source_contract(self):
         validate()
-        self.assertEqual(len(load_cases()), 26)
+        self.assertEqual(len(load_cases()), 32)
         self.assertIn("Waiting", self.source["stages"])
         self.assertIn("Inspect the current stage", self.source["instructions"]["on"])
         self.assertIn("only when the user explicitly", self.source["instructions"]["off"])

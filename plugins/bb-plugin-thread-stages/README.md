@@ -53,7 +53,10 @@ and managed jobs remain Active. **Deferred** is deliberately set aside.
 **Completed** means an established objective has reached a durable result,
 with intended review and loose ends settled or delegated. Initial answers,
 research, and proposals normally remain Active until that broader work is
-resolved. Waiting for the user is always Active.
+resolved. Filing an issue or submitting a report does not close unresolved
+findings unless the agreed scope ends at reporting or another owner accepts
+the remaining responsibility. Verification this thread still coordinates
+keeps it open. Waiting for the user is always Active.
 
 Inside each group, Active, Waiting, and both Blocked stages share one manually
 ordered

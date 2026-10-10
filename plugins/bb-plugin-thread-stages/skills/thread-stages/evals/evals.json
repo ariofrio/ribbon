@@ -292,12 +292,12 @@
     },
     {
       "id": 14,
-      "prompt": "Use $thread-stages. The thread's implementation PR is merged and the requested production check passed. Its result is saved where it belongs. The intended review was completed, and the only follow-up was handed to another tracked thread whose owner has been notified. We did not separately agree on a formal closing condition. What stage fits? Do not run commands.",
+      "prompt": "Use $thread-stages. The thread's implementation PR is merged and the requested production check passed. Its result is saved where it belongs. The intended review was completed, and the only follow-up was handed to another tracked thread whose owner has been notified and accepted responsibility. We did not separately agree on a formal closing condition. What stage fits? Do not run commands.",
       "expected_output": "Completed: the established objective is fulfilled and loose ends are settled or delegated, without requiring a separate closing agreement.",
       "files": [],
       "expectations": [
         "Selects Completed without asking for ceremonial closing approval.",
-        "Recognizes tracked delegation with a notified receiving owner as closure."
+        "Recognizes tracked delegation with an accepting receiving owner as closure."
       ],
       "mode": "recommendation",
       "expected_answer": {
@@ -708,6 +708,244 @@
           "evidence": [
             "All useful independent work here is finished.",
             "The separate refactor workflow is still running."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Active",
+        "writes": 0
+      }
+    },
+    {
+      "id": 27,
+      "name": "filed_issues_unresolved",
+      "mode": "automatic",
+      "prompt": "Report these issues. Draft, then make them scannable. Then review. Then submit. Use work.json for the conversation and completed delivery evidence; do not duplicate the already published reports.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 0 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Active.",
+        "There are exactly 0 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations.",
+        "Judge the overall investigation from the conversation rather than treating the latest submission request as a reporting-only scope."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Compare browser logins across headless/panel sessions and two Macs; investigate the headless timeout and cookie-persistence behavior.",
+          "conversation": [
+            "User: Compare what browser sessions are logged into across headless/panel automation and Mac mini/MacBook, on popular websites.",
+            "Assistant: Headless sessions start with fresh profiles. Live website checks timed out on the Mac mini.",
+            "User: This sounds like a problem; look into it. Is saved-cookie reuse supported on main or nightly, or already reported?",
+            "Assistant: Adding --use-mock-keychain to a local launcher wrapper restored navigation. Saved headless profiles are unsupported on main and nightly; no matching issues were found.",
+            "User: Report these issues. Draft, then make them scannable. Then review. Then submit.",
+            "User, during reporting: Does any of this occur on the homelab? Include Linux evidence.",
+            "Assistant: Drafted and reviewed two reports, added Linux evidence, submitted both, and read back their published bodies. Both match the reviewed drafts."
+          ],
+          "evidence": [
+            "Linux navigation and cookie reads passed without the Keychain workaround. Cookie loss between fresh headless sessions reproduced on both macOS and Linux.",
+            "The first report says the Mac mini browser can hang during cookie-key loading. The condition causing its Keychain hang and the Mac mini/MacBook difference have not been isolated.",
+            "The local wrapper is a workaround, not an upstream fix. The two published issues remain open; no receiving owner has accepted the remaining investigation or follow-up.",
+            "Browser-selection, Keychain-authorization, and launch-context comparisons can still be performed. The requested agent review of report text has finished."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Active",
+        "writes": 0
+      }
+    },
+    {
+      "id": 28,
+      "name": "upstream_fix_pending",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to BlockedOnThirdParty; perform 1 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is BlockedOnThirdParty.",
+        "There are exactly 1 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Restore browser automation and verify the upstream fix on both machines.",
+          "conversation": [
+            "The investigation and issue report are finished; upstream maintainers acknowledged the issue and accepted implementing the required fix.",
+            "This thread will test their released fix and remove its local workaround. That responsibility has not been handed off."
+          ],
+          "evidence": [
+            "The issue is still open and the required fix has not shipped.",
+            "No useful independent investigation or preparation remains and the user owes no decision.",
+            "The existing issue subscription will deliver updates here."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnThirdParty",
+        "writes": 1
+      }
+    },
+    {
+      "id": 29,
+      "name": "report_only_completion",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Completed; perform 1 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Completed.",
+        "There are exactly 1 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "File a standalone bug report with the supplied reproduction; stop after submission.",
+          "conversation": [
+            "The user explicitly limited this thread to drafting, reviewing, and filing the report; fixing the bug and tracking it to resolution are outside its scope.",
+            "The intended user review is complete, submission was authorized, and the published report matches the approved draft."
+          ],
+          "evidence": [
+            "The report is saved in the upstream issue tracker. The issue remains open.",
+            "No questions, reviews, deliveries, or follow-ups remain owned or coordinated by this thread."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Completed",
+        "writes": 1
+      }
+    },
+    {
+      "id": 30,
+      "name": "follow_up_after_submission",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 1 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Active.",
+        "There are exactly 1 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Completed",
+        "work": {
+          "objective": "Investigate a browser hang and report useful findings.",
+          "conversation": [
+            "After filing the issue, the agent marked this thread Completed.",
+            "The user then asked: \"Can in the title. Under what conditions?\" and \"Why does it break on one machine but not the other? Investigate and try different things so our report is useful.\"",
+            "The user clarified that they meant to keep the thread open until resolution."
+          ],
+          "evidence": [
+            "The issue remains open. A local workaround exists but no upstream fix is available.",
+            "Browser-version, Keychain-state, and launch-context comparisons can still be performed.",
+            "No receiving owner has accepted the investigation and follow-up responsibility."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Active",
+        "writes": 1
+      }
+    },
+    {
+      "id": 31,
+      "name": "unaccepted_handoff",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 0 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Active.",
+        "There are exactly 0 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Implement and ship the requested feature.",
+          "conversation": [
+            "The user requested a feature implementation and a production check.",
+            "The implementation PR is merged, the requested production check passed, and the result is saved where it belongs.",
+            "The intended review was completed. The only follow-up was handed to another tracked thread whose owner has been notified.",
+            "No separate formal closing condition was agreed."
+          ],
+          "evidence": [
+            "No other implementation, delivery, or intended review remains.",
+            "The handoff record contains the receiving owner notification; no acceptance is recorded."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Active",
+        "writes": 0
+      }
+    },
+    {
+      "id": 32,
+      "name": "reported_trigger_review_and_cleanup",
+      "mode": "automatic",
+      "prompt": "Why does it break on the Mac mini but not the MacBook? Investigate and try different things so our report is useful. Use work.json for the experiments and reporting steps already completed; do not repeat them or make new operational changes.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 0 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Active with exactly 0 stage writes.",
+        "Read the required skill and use the overall workflow evidence.",
+        "Successful report readback and an explained trigger do not settle intended user review or failed cleanup.",
+        "Do not invent a receiving owner, contact another thread, or perform operational mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Compare browser logins across headless/panel sessions and two Macs, investigate the timeout, and provide useful findings.",
+          "conversation": [
+            "User: Compare browser logins across headless/panel sessions and Mac mini/MacBook. The live checks timed out; look into the problem.",
+            "User: Report these issues. Draft, then make them scannable. Then review. Then submit. Include Linux evidence.",
+            "Assistant: Submitted and read back both reports.",
+            "User: Can in the title. Under what conditions?",
+            "Assistant: We have not isolated what makes Keychain block on this machine.",
+            "User: Investigate and try different things so our report is useful. Also, why does it break on Mac mini but not MacBook?",
+            "Assistant: Controlled experiments found that testing Chrome 151 requires approval for Chromium Safe Storage and hangs on both Macs when that request goes unanswered. Already-authorized builds and --use-mock-keychain pass. The original machine difference was browser selection.",
+            "Assistant: Updated the public report with preconditions, eight controlled experiments, and Linux evidence. The published report was read back and matches the reviewed text.",
+            "Diagnostic cleanup: Mac mini profiles were removed. MacBook cleanup failed with HTTP 502: Host is not connected. A bounded retry returned terminal_open_cancelled before opening. The scratch profiles remain on that host."
+          ],
+          "evidence": [
+            "The trigger and machine difference now have a tested explanation. Report submission and readback are complete.",
+            "The user is still reviewing the findings in this ongoing investigation; that review has not finished.",
+            "MacBook scratch-profile cleanup remains outstanding. No active test browsers were left by the completed probes.",
+            "No receiving owner has accepted the remaining review, cleanup, or verification responsibility. Browser/Keychain follow-up is still coordinated by this thread."
           ]
         }
       },
