@@ -197,7 +197,9 @@ When you or another thread move a thread to a different stage, the plugin
 sends that thread "Thread stage updated: @Active → @Blocked on external party",
 with agent-only
 context that tells the agent who moved it. The message queues while a turn
-is running or starts one on an idle thread. Automatic placement and a thread
+is running or starts one on an idle thread. Notices describe transitions, so a
+queued notice can arrive after the stage changes again. The agent reads the live
+stage before using a notice as current state. Automatic placement and a thread
 moving itself through the CLI send nothing. Turn off **Message threads when their
 stage changes** to stop these messages.
 
