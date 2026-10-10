@@ -19,6 +19,7 @@ export function StagePreview<T extends { id: string }>({
   revealAll = false,
   rowLimit = DEFAULT_STAGE_PREVIEW_ROWS,
   depth = 0,
+  continuation,
 }: {
   stage: "deferred" | "completed";
   rows: readonly T[];
@@ -27,6 +28,7 @@ export function StagePreview<T extends { id: string }>({
   revealAll?: boolean;
   rowLimit?: number;
   depth?: number;
+  continuation?: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
   const list = useRef<HTMLUListElement>(null);
@@ -73,7 +75,7 @@ export function StagePreview<T extends { id: string }>({
           aria-controls={id}
           data-ribbon-fold-piece=""
           aria-expanded={expanded}
-          className={`flex h-7 w-full justify-start rounded-md pl-8 pr-2 ${CHROME_SECTION_LABEL_CLASS} hover:bg-sidebar-accent hover:text-subtle-foreground/75 focus-visible:ring-sidebar-ring`}
+          className={`relative flex h-7 w-full justify-start rounded-md pl-8 pr-2 ${CHROME_SECTION_LABEL_CLASS} hover:bg-sidebar-accent hover:text-subtle-foreground/75 focus-visible:ring-sidebar-ring`}
           style={depth > 0 ? { paddingLeft: getSidebarThreadRowPaddingLeft(depth) + 24 } : undefined}
           size="sm"
           variant="ghost"
@@ -86,6 +88,7 @@ export function StagePreview<T extends { id: string }>({
             setExpanded((value) => !value);
           }}
         >
+          {continuation}
           {expanded ? `Show fewer ${stage}` : `Show ${hidden} more ${stage}`}
         </Button>
       ) : null}
