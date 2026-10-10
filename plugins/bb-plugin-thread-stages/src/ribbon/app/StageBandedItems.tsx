@@ -11,6 +11,7 @@ import { ribbonStageLookupAtom } from "./atoms";
 import { useRibbonList } from "./search";
 import { StagePreview } from "./stage-preview";
 import { stagePreviewRowsSetting } from "../stage-preview-rows";
+import { RailContinuation, SiblingBand } from "./rails";
 
 /**
  * A group's items in Ribbon's shape: the main list, then Deferred and
@@ -57,25 +58,50 @@ export function StageBandedItems({
         )?.id ?? null);
   return (
     <>
-      {bands.main.length > 0 ? renderMain(bands.main) : null}
-      <StagePreview
-        stage="deferred"
-        depth={depth}
-        rowLimit={rowLimit}
-        rows={rows(bands.deferred)}
-        selectedRootId={selectedRootId}
-        renderRow={({ id, item }, index, count) => <Fragment key={id}>{renderItem(item, index, count)}</Fragment>}
-        revealAll={revealAll || searchReveals}
-      />
-      <StagePreview
-        stage="completed"
-        depth={depth}
-        rowLimit={rowLimit}
-        rows={rows(bands.completed)}
-        selectedRootId={selectedRootId}
-        renderRow={({ id, item }, index, count) => <Fragment key={id}>{renderItem(item, index, count)}</Fragment>}
-        revealAll={revealAll || searchReveals}
-      />
+      {bands.main.length > 0 ? (
+        <SiblingBand hasFollowing={bands.deferred.length + bands.completed.length > 0}>
+          {renderMain(bands.main)}
+        </SiblingBand>
+      ) : null}
+      <SiblingBand
+        hasPrevious={bands.main.length > 0}
+        hasFollowing={bands.completed.length > 0}
+      >
+        <StagePreview
+          stage="deferred"
+          depth={depth}
+          rowLimit={rowLimit}
+          rows={rows(bands.deferred)}
+          selectedRootId={selectedRootId}
+          renderRow={({ id, item }, index, count) => <Fragment key={id}>{renderItem(item, index, count)}</Fragment>}
+          revealAll={revealAll || searchReveals}
+          continuation={
+            <RailContinuation
+              depth={depth}
+              tree={settings.values?.childThreadLines === "Tree"}
+              continuesGroup={bands.completed.length > 0}
+            />
+          }
+        />
+      </SiblingBand>
+      <SiblingBand hasPrevious={bands.main.length + bands.deferred.length > 0}>
+        <StagePreview
+          stage="completed"
+          depth={depth}
+          rowLimit={rowLimit}
+          rows={rows(bands.completed)}
+          selectedRootId={selectedRootId}
+          renderRow={({ id, item }, index, count) => <Fragment key={id}>{renderItem(item, index, count)}</Fragment>}
+          revealAll={revealAll || searchReveals}
+          continuation={
+            <RailContinuation
+              depth={depth}
+              tree={settings.values?.childThreadLines === "Tree"}
+              continuesGroup={false}
+            />
+          }
+        />
+      </SiblingBand>
     </>
   );
 }
