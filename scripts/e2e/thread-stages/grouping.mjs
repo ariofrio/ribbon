@@ -86,7 +86,7 @@ export async function verifyGrouping({ stack, fixture }) {
     const second = fixture.threads.get("Replace the legacy filter drawer").id;
     fixture.run(["thread-stages", "stage", "Active", second]);
     const secondRow = link(web, second);
-    await web.locator(`[data-thread-id="${second}"]`).getByLabel("Active stage", { exact: true }).waitFor();
+    await web.locator(`[data-thread-id="${second}"]`).getByLabel("In progress stage", { exact: true }).waitFor();
     const ids = new Set([second, featuredId]);
     const order = async (scope) => (await rowOrder(scope)).filter((id) => ids.has(id));
     const initialProjectOrder = await order(web);

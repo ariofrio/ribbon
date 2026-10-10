@@ -37,13 +37,14 @@ describe("stage catalog", () => {
       .toEqual(WORKFLOW_STAGES.map(() => "start"));
   });
 
-  it("labels the stages and marks the two Blocked stages apart", () => {
+  it("labels the stages and marks the three Blocked stages apart", () => {
     const [grouping] = createGroupingCatalog({}).groupings;
     expect(grouping!.defaultGroupId).toBe("Active");
     expect(grouping!.groups.map(({ id, label }) => [id, label])).toEqual([
       ["Deferred", "Deferred"],
-      ["Active", "Active"],
+      ["Active", "In progress"],
       ["Waiting", "Waiting"],
+      ["BlockedOnUser", "Blocked on user"],
       ["BlockedOnOtherAgent", "Blocked on another thread"],
       ["BlockedOnThirdParty", "Blocked on external party"],
       ["Completed", "Completed"],
@@ -66,13 +67,13 @@ describe("stage catalog", () => {
     ]);
   });
 
-  it("hides both Blocked stages behind one setting", () => {
+  it("hides all Blocked stages behind one setting", () => {
     const [grouping] = createGroupingCatalog({ showBlockedStage: false })
       .groupings;
     expect(
       grouping!.groups
         .filter(({ acceptsAssignments }) => !acceptsAssignments)
         .map(({ id }) => id),
-    ).toEqual(["BlockedOnOtherAgent", "BlockedOnThirdParty"]);
+    ).toEqual(["BlockedOnUser", "BlockedOnOtherAgent", "BlockedOnThirdParty"]);
   });
 });

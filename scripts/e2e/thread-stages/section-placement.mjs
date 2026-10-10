@@ -37,12 +37,13 @@ export async function verifySectionPlacement({ stack, fixture }) {
       }
     }
     for (const currentStage of ["Active", "Deferred", "Completed"]) {
-      console.log(`Checking ${currentStage} section menu placement`);
+      const stageLabel = currentStage === "Active" ? "In progress" : currentStage;
+      console.log(`Checking ${stageLabel} section menu placement`);
       stage(moving, currentStage);
       stage(resident, currentStage);
       place(fixture.section.id, ["--after", resident.id]);
       const group = section(page, fixture.section.id);
-      await row(group, resident.id).getByLabel(`${currentStage} stage`, { exact: true }).waitFor();
+      await row(group, resident.id).getByLabel(`${stageLabel} stage`, { exact: true }).waitFor();
       async function expandPreview() {
         if (currentStage === "Active") return;
         const more = group.getByRole("button", { name: new RegExp(`^Show \\d+ more ${currentStage.toLowerCase()}$`) });

@@ -1,5 +1,6 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { createOrderKeyBetween } from "./order-keys";
+import { isBlockedStage } from "./workflow/workflow-stage";
 
 const THREAD_STAGES_GROUPING_KEY = "plugin:thread-stages:stages";
 
@@ -602,7 +603,7 @@ export function createPlacementStore(
     if (!hasMainStageOrder || !getEligibleRoot.get(threadId)) return;
     const preserve = anchor?.kind === "preserve";
     const isMain = (stage: string | null) =>
-      stage === "Active" || stage === "Waiting" || stage === "BlockedOnOtherAgent" || stage === "BlockedOnThirdParty";
+      stage === "Active" || stage === "Waiting" || isBlockedStage(stage ?? undefined);
     for (const groupingKey of ORDER_GROUPING_KEYS) {
       const descriptor = options.grouping(groupingKey);
       if (!descriptor) continue;

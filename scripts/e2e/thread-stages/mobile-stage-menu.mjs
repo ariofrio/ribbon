@@ -36,6 +36,10 @@ export async function verifyMobileStageMenu({ stack, fixture, cases }) {
               type: "touchStart", touchPoints: [{ x: box.x + 48, y: box.y + box.height / 2 }],
             });
             await menu.waitFor();
+            // Release the held touch once the drawer reaches its final position.
+            await menu.evaluate(async (node) => {
+              await Promise.all(node.getAnimations({ subtree: true }).map((animation) => animation.finished));
+            });
             await input.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
             await input.detach();
           } else {
@@ -53,10 +57,10 @@ export async function verifyMobileStageMenu({ stack, fixture, cases }) {
         await activate(move);
         await back.waitFor();
         assert.deepEqual(await menu.getByRole("menuitemradio").allTextContents(), [
-          "Deferred", "Active", "Waiting", "Blocked on another thread", "Blocked on external party", "Completed",
+          "Deferred", "In progress", "Waiting", "Blocked on user", "Blocked on another thread", "Blocked on external party", "Completed",
         ]);
         assert.equal(await menu.getByRole("menuitem", { name: "Rename", exact: true }).count(), 0);
-        assert.equal(await menu.getByRole("menuitemradio", { name: "Active", exact: true }).getAttribute("aria-checked"), "true");
+        assert.equal(await menu.getByRole("menuitemradio", { name: "In progress", exact: true }).getAttribute("aria-checked"), "true");
         await activate(back);
         await move.waitFor();
         assert.equal(stageFor(fixture, thread.id), "Active", "Back keeps the stage unchanged");
@@ -74,6 +78,21 @@ export async function verifyMobileStageMenu({ stack, fixture, cases }) {
         await menu.waitFor({ state: "hidden" });
         await target.locator('[aria-label="Waiting stage"]').waitFor();
         assert.equal(stageFor(fixture, thread.id), "Waiting");
+        await open();
+        await activate(move);
+        await back.waitFor();
+        await activate(menu.getByRole("menuitemradio", { name: "Blocked on user", exact: true }));
+        await menu.waitFor({ state: "hidden" });
+        const userIcon = target.locator('[aria-label="Blocked on user stage"] svg');
+        await userIcon.waitFor();
+        const painted = await userIcon.evaluate((icon) => ({
+          width: icon.getBoundingClientRect().width,
+          height: icon.getBoundingClientRect().height,
+          display: getComputedStyle(icon).display,
+          opacity: getComputedStyle(icon.closest("[data-ribbon-sidebar-icon-slot]")).opacity,
+        }));
+        assert.deepEqual(painted, { width: 16, height: 16, display: "block", opacity: "1" });
+        assert.equal(stageFor(fixture, thread.id), "BlockedOnUser");
         await open();
         await activate(move);
         await back.waitFor();

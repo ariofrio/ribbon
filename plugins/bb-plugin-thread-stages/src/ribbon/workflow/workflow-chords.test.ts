@@ -209,7 +209,7 @@ describe("resolveStageChord", () => {
     });
   });
 
-  it("restores the main-list position of a task filed while Blocked", () => {
+  it.each(["BlockedOnUser", "BlockedOnOtherAgent", "BlockedOnThirdParty"] as const)("restores the main-list position of a task filed while %s", (previousStage) => {
     expect(
       resolveStageChord({
         threadId: "thr_open",
@@ -219,7 +219,7 @@ describe("resolveStageChord", () => {
         undoCandidates: [
           {
             threadId: "thr_next",
-            previousStage: "BlockedOnThirdParty",
+            previousStage,
             previousSortKey: "b",
             updatedAt: 10,
           },

@@ -19,6 +19,7 @@ export async function verifyStageShortcuts({ stack, fixture }) {
         [mac ? "Meta+." : "Control+.", "Completed"],
         [mac ? "Meta+Shift+." : "Control+Shift+.", "Active"],
         [mac ? "Meta+Shift+," : "Control+Shift+,", "Waiting"],
+        [mac ? "Meta+Alt+Shift+u" : "Control+Alt+Shift+u", "BlockedOnUser"],
         [mac ? "Control+Meta+." : "Control+Alt+,", "Deferred"],
         [mac ? "Control+Alt+Meta+." : "Control+Alt+Shift+.", "BlockedOnOtherAgent"],
         [mac ? "Control+Meta+Shift+." : "Control+Alt+Shift+,", "BlockedOnThirdParty"],
