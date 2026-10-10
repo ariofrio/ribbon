@@ -87,8 +87,10 @@ intended review, open questions, delivery, and follow-ups must be **settled or
 delegated**. Results belong in their lasting destination, such as a merged PR
 or code saved or published where the work requires it. Delegation means the
 remaining responsibility is tracked elsewhere and its receiving owner has
-accepted it; notification alone is insufficient. Work this thread still
-coordinates remains its responsibility, including verification after a handoff.
+accepted it; notification alone is insufficient. Until acceptance is established,
+arranging the handoff remains Active; a proposed recipient does not yet own a
+blocker. Work this thread still coordinates remains its responsibility,
+including verification after a handoff.
 
 Filing an issue, submitting a PR, or sending a report finishes a delivery step;
 it does not by itself resolve the problem or delegate follow-up. Infer the

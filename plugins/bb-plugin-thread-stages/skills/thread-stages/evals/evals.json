@@ -887,16 +887,16 @@
       "scenario": {
         "initial_stage": "Active",
         "work": {
-          "objective": "Ship the feature and ensure the follow-up cleanup is owned.",
+          "objective": "Implement and ship the requested feature.",
           "conversation": [
-            "The feature is implemented, reviewed, merged, published, and verified in production.",
-            "The agent created a tracked cleanup task and notified its proposed receiving owner.",
-            "The latest update says the feature shipped and the cleanup handoff was sent."
+            "The user requested a feature implementation and a production check.",
+            "The implementation PR is merged, the requested production check passed, and the result is saved where it belongs.",
+            "The intended review was completed. The only follow-up was handed to another tracked thread whose owner has been notified.",
+            "No separate formal closing condition was agreed."
           ],
           "evidence": [
-            "The cleanup task is still open; the proposed owner has not responded or accepted responsibility.",
-            "This thread has no confirmation that anyone else owns the remaining cleanup.",
-            "No other feature work or intended user review remains."
+            "No other implementation, delivery, or intended review remains.",
+            "The handoff record contains the receiving owner notification; no acceptance is recorded."
           ]
         }
       },

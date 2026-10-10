@@ -68,6 +68,12 @@ is reported as an error rather than silently substituted.
 | 30: follow-up after submission | Concrete user follow-up reopens a thread incorrectly marked Completed after submission. |
 | 31: unaccepted handoff | Tracking a task and notifying a proposed owner keeps Active until that owner accepts responsibility. |
 
+Case 31 preserves the notified-owner handoff from the original case 14, while
+case 14 now supplies an accepted handoff as the completion control. Case 31
+tests the change in the delegation contract without giving the thread a new
+objective to establish ownership. An unaccepted recipient owns neither a
+completed handoff nor a blocker; arranging the handoff remains Active.
+
 Automatic prompts ask for a workflow update without mentioning stages. The
 expected stage and write count stay outside the agent workspace. The fixture
 records CLI inspections, mutation attempts, target thread, resulting stage, and
@@ -88,6 +94,21 @@ the grader requires a nonempty reason but does not judge its meaning.
 grader and CLI fixture as part of `release:check`. These tests cover false passes
 from missing writes, duplicate writes, wrong targets, invalid commands, failed
 reads, missing completion events, and timeouts. They use no model credentials.
+
+## Comparing guidance
+
+Run the same committed case with `--ref <baseline>` and with the revised source,
+using the same model and CLI configuration. A behavioral regression requires a
+successful baseline session that makes the wrong stage decision, followed by a
+revised session that meets the contract. A timeout, failed skill read, or missing
+instruction string does not establish a behavioral regression. Inspect the
+transcripts and recorded writes on both sides.
+
+Cases 27–30 cover workflow boundaries that the previous guidance can also pass;
+their passing results do not measure improvement. Case 31 targets the changed
+handoff contract. Passing it does not establish that the original premature
+completion after issue submission has been reproduced or fixed. Model outcomes
+can vary between runs, so keep the artifacts and report the observed scope.
 
 ## Artifacts and limits
 
