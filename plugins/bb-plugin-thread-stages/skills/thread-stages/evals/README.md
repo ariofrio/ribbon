@@ -17,7 +17,7 @@ From the repository root:
 # Validate the cases and exercise the grader and CLI fixture without a model.
 npm run check:evals --workspace=bb-plugin-thread-stages
 
-# Execute all 26 cases, or just the ten automatic-update cases.
+# Execute all 28 cases, or just the twelve automatic-update cases.
 npm run evals --workspace=bb-plugin-thread-stages
 npm run evals --workspace=bb-plugin-thread-stages -- --mode automatic
 
@@ -52,16 +52,18 @@ is reported as an error rather than silently substituted.
 | Cases | What they exercise |
 | --- | --- |
 | 1–16: recommendation | Existing scope, stage, completion, preference, and linked-action questions. Agents return structured recommendations and obey each prompt's limits on execution. |
-| 17: observation | Established passive observation changes Active to Waiting. |
-| 18: user review | Pending user review changes an incorrect external blocker to Active. |
-| 19: own workers | Executing coordinated workers change an incorrect thread blocker to Active. |
+| 17: observation | Established passive observation changes In progress to Waiting. |
+| 18: user review | Pending user review changes an incorrect external blocker to Blocked on user. |
+| 19: own workers | Executing coordinated workers change an incorrect thread blocker to In progress. |
 | 20: independent thread | A required delivery independently owned by another BB workflow blocks this thread. |
 | 21: external AI | A required delivery owned by an independent outside AI is an external blocker. |
-| 22: exploratory report | Research with unsettled design and review keeps Active without a redundant write. |
+| 22: exploratory report | Research awaiting required user decisions and review becomes Blocked on user once independent work is exhausted. |
 | 23: durable completion | Delivered work with review and loose ends settled or delegated becomes Completed. |
 | 24: routine observation | A routine check leaves Waiting unchanged. |
-| 25: missing resumption path | Unfinished reporting setup keeps Active. |
+| 25: missing resumption path | Unfinished reporting setup keeps In progress. |
 | 26: automatic updates off | An independent dependency does not cause an unrequested stage write. |
+| 27: independent work before review | Pending user review leaves In progress unchanged while useful independent work remains. |
+| 28: user blocker unchanged | An established user blocker stays Blocked on user without a redundant write. |
 
 Automatic prompts ask for a workflow update without mentioning stages. The
 expected stage and write count stay outside the agent workspace. The fixture

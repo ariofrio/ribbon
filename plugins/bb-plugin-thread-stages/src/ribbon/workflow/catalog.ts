@@ -59,6 +59,13 @@ const STAGE_MARKS: Record<WorkflowStage, IconDataV1[]> = {
   Deferred: [],
   Active: [],
   Waiting: [strokedPath("M12 7v5l3 2")],
+  BlockedOnUser: [
+    {
+      tag: "circle",
+      attrs: { cx: 12, cy: 9, r: 2, stroke: "currentColor", strokeWidth: 1.5 },
+    },
+    strokedPath("M8.5 16v-1a3.5 3.5 0 0 1 7 0v1"),
+  ],
   // A slash perpendicular to, and as long as, the external party's arrow.
   BlockedOnOtherAgent: [strokedPath("M9 9 15.5 15.5")],
   // Something coming back in from outside.

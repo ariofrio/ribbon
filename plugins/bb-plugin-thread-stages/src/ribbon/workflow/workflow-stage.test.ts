@@ -5,6 +5,7 @@ import {
   destinationOrder,
   enabledWorkflowStages,
   groupThreadsByStage,
+  isBlockedStage,
   parseWorkflowStage,
   type ThreadAssignment,
 } from "./workflow-stage";
@@ -15,6 +16,7 @@ describe("thread statuses", () => {
       "Deferred",
       "Active",
       "Waiting",
+      "BlockedOnUser",
       "BlockedOnOtherAgent",
       "BlockedOnThirdParty",
       "Completed",
@@ -22,6 +24,9 @@ describe("thread statuses", () => {
     expect(parseWorkflowStage("backlog")).toBe("Deferred");
     expect(parseWorkflowStage("deferred")).toBe("Deferred");
     expect(parseWorkflowStage("active")).toBe("Active");
+    expect(parseWorkflowStage("In progress")).toBe("Active");
+    expect(parseWorkflowStage("in-progress")).toBe("Active");
+    expect(parseWorkflowStage("Blocked on user")).toBe("BlockedOnUser");
     expect(parseWorkflowStage("to-do")).toBe("Active");
     // Idle and Blocked are earlier names, kept for saved data and old messages.
     expect(parseWorkflowStage("Idle")).toBe("Active");
@@ -45,15 +50,16 @@ describe("thread statuses", () => {
   it("labels each stage for people", () => {
     expect(WORKFLOW_STAGES.map((stage) => WORKFLOW_STAGE_LABELS[stage])).toEqual([
       "Deferred",
-      "Active",
+      "In progress",
       "Waiting",
+      "Blocked on user",
       "Blocked on another thread",
       "Blocked on external party",
       "Completed",
     ]);
   });
 
-  it("keeps required stages while allowing Deferred and both Blocked stages to be hidden", () => {
+  it("keeps required stages while allowing Deferred and all Blocked stages to be hidden", () => {
     expect(
       enabledWorkflowStages({
         showDeferredStage: false,
@@ -61,6 +67,15 @@ describe("thread statuses", () => {
       }),
     ).toEqual(["Active", "Waiting", "Completed"]);
     expect(enabledWorkflowStages(undefined)).toEqual(WORKFLOW_STAGES);
+  });
+
+  it("recognizes user blockers and groups them independently of Waiting", () => {
+    expect(isBlockedStage("BlockedOnUser")).toBe(true);
+    const groups = groupThreadsByStage([{ id: "review", updatedAt: 1 }], [{
+      threadId: "review", workflowStage: "BlockedOnUser", sortKey: "U", updatedAt: 1,
+    }]);
+    expect(groups.BlockedOnUser.map(({ id }) => id)).toEqual(["review"]);
+    expect(groups.Waiting).toEqual([]);
   });
 
   it("defaults unassigned threads to Active and honors explicit sort keys", () => {

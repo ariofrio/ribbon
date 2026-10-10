@@ -44,7 +44,7 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
     }, undefined, { timeout: 60_000 });
     const pills = await rendered.jsonValue();
     await rendered.dispose();
-    assert.deepEqual(pills.map(({ label }) => label), ["Completed", "Active"]);
+    assert.deepEqual(pills.map(({ label }) => label), ["Completed", "In progress"]);
     for (const pill of pills) {
       assert.notEqual(pill.display, "none");
       assert.ok(pill.width > 0, `${pill.label} must take up space`);
@@ -54,20 +54,20 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
 
     const composer = page.locator('[data-app-composer-role="primary"] [contenteditable="true"]');
     await composer.click();
-    await page.keyboard.type("then @bl");
+    await page.keyboard.type("then @user");
     // Only Thread stages' provider supplies this subtitle to the menu.
-    await page.getByText("Stage · another bb thread owns a required action or result, and no useful independent work remains here", { exact: true }).waitFor();
+    await page.getByText("Stage · the user owes input, a decision, approval, direction, or intended review, and no useful independent work remains here", { exact: true }).waitFor();
     await page.keyboard.press("Enter");
-    const inserted = page.locator('[data-app-composer-role="primary"] [data-prompt-mention]').filter({ hasText: "Blocked on another thread" });
+    const inserted = page.locator('[data-app-composer-role="primary"] [data-prompt-mention]').filter({ hasText: "Blocked on user" });
     await inserted.waitFor();
-    assert.equal((await composer.innerText()).includes("@bl"), false, "Picking the stage must replace the typed query with its pill");
+    assert.equal((await composer.innerText()).includes("@user"), false, "Picking the stage must replace the typed query with its pill");
     await composer.press(process.platform === "darwin" ? "Meta+a" : "Control+a");
     await page.keyboard.press("Backspace");
 
     const events = JSON.parse(fixture.run(["thread", "log", thread.id, "--all", "--json"]));
     const serialized = JSON.stringify(events);
-    assert.ok(serialized.includes("this thread's stage changed from Completed to Active"), "The agent must receive the notice's agent-only context");
-    assert.ok(serialized.includes("@Active is the Active workflow stage"), "The agent must receive each stage mention's resolved context");
+    assert.ok(serialized.includes("this thread's stage changed from Completed to In progress"), "The agent must receive the notice's agent-only context");
+    assert.ok(serialized.includes("@In progress is the In progress workflow stage"), "The agent must receive each stage mention's resolved context");
     await context.close();
   } finally {
     setMessages(false);

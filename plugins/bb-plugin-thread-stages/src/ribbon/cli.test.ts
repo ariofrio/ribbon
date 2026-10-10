@@ -446,7 +446,7 @@ describe("Ribbon sidebar CLI", () => {
     ).resolves.toEqual({
       exitCode: 0,
       stdout:
-        "\nID        TITLE                STATUS  SECTION       PROJECT     MACHINE  STAGE\nthread-a  Investigate wakeups  idle    Ribbon Suite  Storefront  host-a   Active\nthread-b  Fallback title       active  Ribbon Suite  Storefront  host-a   Active\n\n",
+        "\nID        TITLE                STATUS  SECTION       PROJECT     MACHINE  STAGE\nthread-a  Investigate wakeups  idle    Ribbon Suite  Storefront  host-a   In progress\nthread-b  Fallback title       active  Ribbon Suite  Storefront  host-a   In progress\n\n",
     });
   });
 
@@ -586,7 +586,7 @@ describe("Ribbon sidebar CLI", () => {
     ).resolves.toEqual({
       exitCode: 0,
       stdout:
-        "Thread: thread-a\n  Section: Ribbon Suite\n  Project: Storefront\n  Machine: host-a\n  Stage: Active\n",
+        "Thread: thread-a\n  Section: Ribbon Suite\n  Project: Storefront\n  Machine: host-a\n  Stage: In progress\n",
     });
 
     await expect(
@@ -598,7 +598,7 @@ describe("Ribbon sidebar CLI", () => {
       ]),
     ).resolves.toEqual({
       exitCode: 0,
-      stdout: "Thread thread-a updated\nThread: thread-a\n  Stage: Active\n",
+      stdout: "Thread thread-a updated\nThread: thread-a\n  Stage: In progress\n",
     });
   });
 

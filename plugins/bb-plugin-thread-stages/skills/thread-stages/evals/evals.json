@@ -3,13 +3,13 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "I'm preparing a routine bulk status notification. The visible roots are Billing cleanup (Active), Release checklist (Completed), Search indexing (Active, currently working), and Vendor access (Blocked on external party). I did not ask to resume anything. Which roots are in scope by default? Do not send any messages.",
+      "prompt": "I'm preparing a routine bulk status notification. The visible roots are Billing cleanup (In progress), Release checklist (Completed), Search indexing (In progress, currently working), and Vendor access (Blocked on external party). I did not ask to resume anything. Which roots are in scope by default? Do not send any messages.",
       "expected_output": "The agent excludes the Completed root by default while retaining the other visible roots, and explains that Completed is treated like archived work unless explicitly included or resumed.",
       "files": [],
       "expectations": [
         "The in-scope roots are Billing cleanup, Search indexing, and Vendor access.",
         "Release checklist is excluded because Completed roots are out of scope by default.",
-        "The response does not claim that Blocked on external party or Active roots are automatically excluded."
+        "The response does not claim that Blocked on external party or In progress roots are automatically excluded."
       ],
       "mode": "recommendation",
       "expected_answer": {
@@ -28,18 +28,17 @@
     {
       "id": 2,
       "prompt": "You're the agent on a root bb thread. You just finished a draft migration plan and your last message asks me to pick between two rollout options before you continue. Before you end your turn, should this thread change stage? If so, give the exact bb thread-stages command you would run; if not, say why. Don't run anything.",
-      "expected_output": "The agent leaves the thread in Active because waiting on the user is Active, and does not propose a Blocked stage or a placement command.",
+      "expected_output": "Move to Blocked on user because the rollout decision is required and no independent work remains.",
       "files": [],
       "expectations": [
-        "The agent keeps the thread in Active.",
-        "The agent does not propose moving the thread to Waiting or either Blocked stage.",
-        "The agent does not give a bb thread-stages stage command that changes the stage.",
+        "Selects Blocked on user rather than Waiting or In progress.",
+        "Proposes `bb thread-stages stage BlockedOnUser --self`.",
         "Does not load Thread actions for this stage-only request."
       ],
       "mode": "recommendation",
       "expected_answer": {
-        "stage": "Active",
-        "command": null
+        "stage": "BlockedOnUser",
+        "command": "bb thread-stages stage BlockedOnUser --self"
       },
       "required_reads": [
         "thread-stages"
@@ -130,8 +129,8 @@
     },
     {
       "id": 6,
-      "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched off. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not requested a stage change. What should happen to this thread's stage before yielding? Explain without executing any commands.",
-      "expected_output": "The agent keeps Active because automatic stage updates is off and no stage change was requested, while recognizing that the dependency would otherwise fit Blocked on another thread.",
+      "prompt": "Use $thread-stages. My thread is In progress, and Automatic stage updates is switched off. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not requested a stage change. What should happen to this thread's stage before yielding? Explain without executing any commands.",
+      "expected_output": "The agent keeps In progress because automatic stage updates is off and no stage change was requested, while recognizing that the dependency would otherwise fit Blocked on another thread.",
       "files": [],
       "expectations": [
         "The agent leaves the stage unchanged because automatic updates is off.",
@@ -150,7 +149,7 @@
     },
     {
       "id": 7,
-      "prompt": "Use $thread-stages. My thread is Active, and Automatic stage updates is switched on. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not mentioned a stage. What should happen to this thread's stage before yielding? Explain and give the exact command you would run, without executing any commands.",
+      "prompt": "Use $thread-stages. My thread is In progress, and Automatic stage updates is switched on. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not mentioned a stage. What should happen to this thread's stage before yielding? Explain and give the exact command you would run, without executing any commands.",
       "expected_output": "The agent selects Blocked on another thread without requiring a stage mention and gives the correct current-thread placement command.",
       "files": [],
       "expectations": [
@@ -170,11 +169,11 @@
     },
     {
       "id": 8,
-      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is Active. Earlier in this thread I asked you to implement a database migration, validate it in a disposable environment, deploy it, and verify production. My latest request was 'finish validations and testing'. All disposable tests now pass and the test environment is stopped; production deployment and verification are still outstanding. You're ready to send me the validation results and end this turn. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
-      "expected_output": "Keep Active because only validation is finished; the earlier implementation/deployment objective remains unfinished.",
+      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. Earlier in this thread I asked you to implement a database migration, validate it in a disposable environment, deploy it, and verify production. My latest request was 'finish validations and testing'. All disposable tests now pass and the test environment is stopped; production deployment and verification are still outstanding. You're ready to send me the validation results and end this turn. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
+      "expected_output": "Keep In progress because only validation is finished; the earlier implementation/deployment objective remains unfinished.",
       "files": [],
       "expectations": [
-        "The selected stage is Active and command is null.",
+        "The selected stage is In progress and command is null.",
         "The reason identifies outstanding deployment or production verification in the earlier objective."
       ],
       "mode": "recommendation",
@@ -190,7 +189,7 @@
     },
     {
       "id": 9,
-      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is Active. My entire request for this thread was to investigate whether a retry bug exists and report the finding with source references; I explicitly asked for no implementation or deployment. You finished the investigation, verified the source references, and delivered the requested answer. No requested work or user review is outstanding. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
+      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. My entire request for this thread was to investigate whether a retry bug exists and report the finding with source references; I explicitly asked for no implementation or deployment. You finished the investigation, verified the source references, and delivered the requested answer. No requested work or user review is outstanding. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
       "expected_output": "Completed with the current-thread stage command because the bounded investigation was the entire agreed objective and is fulfilled.",
       "files": [],
       "expectations": [
@@ -210,11 +209,11 @@
     },
     {
       "id": 10,
-      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is Active. This is a resumed thread. The available handoff says the latest testing step passed and calls that step done, but it also says the original thread objective was omitted and unresolved earlier follow-ups may exist. You have not yet recovered that earlier context. What stage should this thread have now? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
-      "expected_output": "Keep Active while resolving the unknown completion boundary; do not close the thread solely because the latest tests passed.",
+      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. This is a resumed thread. The available handoff says the latest testing step passed and calls that step done, but it also says the original thread objective was omitted and unresolved earlier follow-ups may exist. You have not yet recovered that earlier context. What stage should this thread have now? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
+      "expected_output": "Keep In progress while resolving the unknown completion boundary; do not close the thread solely because the latest tests passed.",
       "files": [],
       "expectations": [
-        "The selected stage is Active and command is null.",
+        "The selected stage is In progress and command is null.",
         "The reason identifies unavailable overall scope or earlier follow-ups as preventing a completion decision."
       ],
       "mode": "recommendation",
@@ -234,7 +233,7 @@
       "expected_output": "Waiting: established passive observation with a reporting arrangement, even though recorders continue collecting.",
       "files": [],
       "expectations": [
-        "Selects Waiting rather than Active or a Blocked stage.",
+        "Selects Waiting rather than In progress or a Blocked stage.",
         "Does not claim that a date is an external party."
       ],
       "mode": "recommendation",
@@ -250,10 +249,10 @@
     {
       "id": 12,
       "prompt": "Use $thread-stages. This thread coordinates three workers actively implementing its task, including a managed job on another machine. A different thread also owns a separate refactor this task will need later. What stage fits now? Do not run commands.",
-      "expected_output": "Active while owned workers progress and useful work remains; hierarchy and machine do not decide ownership.",
+      "expected_output": "In progress while owned workers progress and useful work remains; hierarchy and machine do not decide ownership.",
       "files": [],
       "expectations": [
-        "Selects Active while work under this thread's coordination is progressing.",
+        "Selects In progress while work under this thread's coordination is progressing.",
         "Does not block solely because an independent later dependency exists."
       ],
       "mode": "recommendation",
@@ -269,17 +268,17 @@
     {
       "id": 13,
       "prompt": "Use $thread-stages. Classify these threads: A is waiting for a system to recover automatically, with an established health check; B needs the user to choose how to recover; C needs a vendor to restore its account; D has a managed external AI job accepted into a queue for a scheduled start. No other useful work remains. Do not run commands.",
-      "expected_output": "A and D are Waiting, B is Active, C is Blocked on external party.",
+      "expected_output": "A and D are Waiting, B is Blocked on user, C is Blocked on external party.",
       "files": [],
       "expectations": [
         "Distinguishes standby from a required external intervention.",
-        "Keeps required user direction Active."
+        "Places required user direction in Blocked on user when no independent work remains."
       ],
       "mode": "recommendation",
       "expected_answer": {
         "stages": {
           "a": "Waiting",
-          "b": "Active",
+          "b": "BlockedOnUser",
           "c": "BlockedOnThirdParty",
           "d": "Waiting"
         }
@@ -312,15 +311,15 @@
     {
       "id": 15,
       "prompt": "Use $thread-stages. I began this thread by asking how we might redesign a plugin. You just delivered a long research report with several unresolved design choices and want me to review it before we decide whether to implement. What stage fits? Do not run commands.",
-      "expected_output": "Active: exploratory research and intended user review leave the broader work open.",
+      "expected_output": "Blocked on user: design choices and intended user review remain, with no independent work left.",
       "files": [],
       "expectations": [
-        "Selects Active rather than Completed or Waiting.",
+        "Selects Blocked on user rather than Completed or Waiting.",
         "Does not treat the size of the report or the end of the turn as completion."
       ],
       "mode": "recommendation",
       "expected_answer": {
-        "stage": "Active"
+        "stage": "BlockedOnUser"
       },
       "required_reads": [
         "thread-stages"
@@ -392,10 +391,10 @@
       "name": "user_review",
       "mode": "automatic",
       "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 1 stage writes.",
+      "expected_output": "Inspect the workflow and move the current thread to Blocked on user; perform 1 stage write.",
       "files": [],
       "expectations": [
-        "The final stage is Active.",
+        "The final stage is Blocked on user.",
         "There are exactly 1 stage writes to the current thread.",
         "Read required skills successfully and inspect the current stage before a write.",
         "Do not guess invalid commands or perform other mutations."
@@ -414,12 +413,13 @@
           ],
           "evidence": [
             "Both options are ready for review.",
-            "All prerequisite research is complete. No third party owes a response."
+            "All prerequisite research is complete. No third party owes a response.",
+            "No useful independent work remains before the user’s decision or review."
           ]
         }
       },
       "expected_action": {
-        "stage": "Active",
+        "stage": "BlockedOnUser",
         "writes": 1
       }
     },
@@ -428,10 +428,10 @@
       "name": "own_workers",
       "mode": "automatic",
       "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 1 stage writes.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to In progress; perform 1 stage writes.",
       "files": [],
       "expectations": [
-        "The final stage is Active.",
+        "The final stage is In progress.",
         "There are exactly 1 stage writes to the current thread.",
         "Read required skills successfully and inspect the current stage before a write.",
         "Do not guess invalid commands or perform other mutations."
@@ -538,11 +538,11 @@
       "name": "exploratory_report",
       "mode": "automatic",
       "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 0 stage writes.",
+      "expected_output": "Inspect the workflow and move the current thread to Blocked on user; perform 1 stage write.",
       "files": [],
       "expectations": [
-        "The final stage is Active.",
-        "There are exactly 0 stage writes to the current thread.",
+        "The final stage is Blocked on user.",
+        "There are exactly 1 stage writes to the current thread.",
         "Read required skills successfully and inspect the current stage before a write.",
         "Do not guess invalid commands or perform other mutations."
       ],
@@ -561,13 +561,14 @@
           "evidence": [
             "A substantial report has been prepared.",
             "No implementation direction has been chosen.",
-            "The report has not been reviewed by the user."
+            "The report has not been reviewed by the user.",
+            "No useful independent work remains before the user’s decision or review."
           ]
         }
       },
       "expected_action": {
-        "stage": "Active",
-        "writes": 0
+        "stage": "BlockedOnUser",
+        "writes": 1
       }
     },
     {
@@ -650,10 +651,10 @@
       "name": "missing_resume_path",
       "mode": "automatic",
       "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 0 stage writes.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to In progress; perform 0 stage writes.",
       "files": [],
       "expectations": [
-        "The final stage is Active.",
+        "The final stage is In progress.",
         "There are exactly 0 stage writes to the current thread.",
         "Read required skills successfully and inspect the current stage before a write.",
         "Do not guess invalid commands or perform other mutations."
@@ -687,10 +688,10 @@
       "name": "automatic_off",
       "mode": "automatic",
       "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 0 stage writes.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to In progress; perform 0 stage writes.",
       "files": [],
       "expectations": [
-        "The final stage is Active.",
+        "The final stage is In progress.",
         "There are exactly 0 stage writes to the current thread.",
         "Read required skills successfully and inspect the current stage before a write.",
         "Do not guess invalid commands or perform other mutations."
@@ -713,6 +714,78 @@
       },
       "expected_action": {
         "stage": "Active",
+        "writes": 0
+      }
+    },
+    {
+      "id": 27,
+      "name": "independent_work_before_user_review",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Continue independent work in In progress without a redundant stage write.",
+      "files": [],
+      "expectations": [
+        "The final stage is In progress.",
+        "Exactly 0 stage writes are performed.",
+        "The pending user review does not block useful independent work."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Investigate an architecture question in preparation for a potential implementation PR.",
+          "conversation": [
+            "The user opened with a research question and asked for a comparison to discuss.",
+            "The research report is saved. Design questions and the user’s intended review remain unsettled."
+          ],
+          "evidence": [
+            "The design comparison is ready for user review.",
+            "The user’s decision is required for the final implementation.",
+            "There is still authorized independent investigation to verify compatibility of both designs."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Active",
+        "writes": 0
+      }
+    },
+    {
+      "id": 28,
+      "name": "user_blocker_unchanged",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Keep Blocked on user without a redundant stage write.",
+      "files": [],
+      "expectations": [
+        "The final stage is Blocked on user.",
+        "Exactly 0 stage writes are performed."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "BlockedOnUser",
+        "work": {
+          "objective": "Investigate an architecture question in preparation for a potential implementation PR.",
+          "conversation": [
+            "The user opened with a research question and asked for a comparison to discuss.",
+            "The research report is saved. Design questions and the user’s intended review remain unsettled."
+          ],
+          "evidence": [
+            "A substantial report has been prepared.",
+            "No implementation direction has been chosen.",
+            "The report has not been reviewed by the user.",
+            "No useful independent work remains before the user’s decision or review."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnUser",
         "writes": 0
       }
     }
