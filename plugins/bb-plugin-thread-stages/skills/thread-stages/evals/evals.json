@@ -720,14 +720,15 @@
       "id": 27,
       "name": "filed_issues_unresolved",
       "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "prompt": "Report these issues. Draft, then make them scannable. Then review. Then submit. Use work.json for the conversation and completed delivery evidence; do not duplicate the already published reports.",
       "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 0 stage writes.",
       "files": [],
       "expectations": [
         "The final stage is Active.",
         "There are exactly 0 stage writes to the current thread.",
         "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
+        "Do not guess invalid commands or perform other mutations.",
+        "Judge the overall investigation from the conversation rather than treating the latest submission request as a reporting-only scope."
       ],
       "automatic_updates": true,
       "required_reads": [
@@ -736,18 +737,21 @@
       "scenario": {
         "initial_stage": "Active",
         "work": {
-          "objective": "Compare browser logins across two machines and headless/panel browsers; investigate the problems found.",
+          "objective": "Compare browser logins across headless/panel sessions and two Macs; investigate the headless timeout and cookie-persistence behavior.",
           "conversation": [
-            "The user asked to compare browser logins, then said: \"Live website checks timed out. This sounds like a problem; look into it.\"",
-            "Investigation found a browser hang and missing persistent headless logins. A local launcher workaround restored navigation.",
-            "The latest request was: \"Report these issues. Draft, then make them scannable. Then review. Then submit.\"",
-            "The reports were drafted, made scannable, reviewed by the agent, and submitted to the upstream tracker. Both published reports match the drafts."
+            "User: Compare what browser sessions are logged into across headless/panel automation and Mac mini/MacBook, on popular websites.",
+            "Assistant: Headless sessions start with fresh profiles. Live website checks timed out on the Mac mini.",
+            "User: This sounds like a problem; look into it. Is saved-cookie reuse supported on main or nightly, or already reported?",
+            "Assistant: Adding --use-mock-keychain to a local launcher wrapper restored navigation. Saved headless profiles are unsupported on main and nightly; no matching issues were found.",
+            "User: Report these issues. Draft, then make them scannable. Then review. Then submit.",
+            "User, during reporting: Does any of this occur on the homelab? Include Linux evidence.",
+            "Assistant: Drafted and reviewed two reports, added Linux evidence, submitted both, and read back their published bodies. Both match the reviewed drafts."
           ],
           "evidence": [
-            "Both issues are open. The upstream launcher still needs a fix; only the local workaround is installed.",
-            "The report says Chrome \"can\" hang. The machine-specific conditions and why one machine works while the other fails have not been isolated.",
-            "Controlled comparisons of browser versions and Keychain state remain available to improve the report.",
-            "No receiving owner has accepted the remaining investigation or follow-up responsibility."
+            "Linux navigation and cookie reads passed without the Keychain workaround. Cookie loss between fresh headless sessions reproduced on both macOS and Linux.",
+            "The first report says the Mac mini browser can hang during cookie-key loading. The condition causing its Keychain hang and the Mac mini/MacBook difference have not been isolated.",
+            "The local wrapper is a workaround, not an upstream fix. The two published issues remain open; no receiving owner has accepted the remaining investigation or follow-up.",
+            "Browser-selection, Keychain-authorization, and launch-context comparisons can still be performed. The requested agent review of report text has finished."
           ]
         }
       },
@@ -897,6 +901,51 @@
           "evidence": [
             "No other implementation, delivery, or intended review remains.",
             "The handoff record contains the receiving owner notification; no acceptance is recorded."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Active",
+        "writes": 0
+      }
+    },
+    {
+      "id": 32,
+      "name": "reported_trigger_review_and_cleanup",
+      "mode": "automatic",
+      "prompt": "Why does it break on the Mac mini but not the MacBook? Investigate and try different things so our report is useful. Use work.json for the experiments and reporting steps already completed; do not repeat them or make new operational changes.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 0 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Active with exactly 0 stage writes.",
+        "Read the required skill and use the overall workflow evidence.",
+        "Successful report readback and an explained trigger do not settle intended user review or failed cleanup.",
+        "Do not invent a receiving owner, contact another thread, or perform operational mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Compare browser logins across headless/panel sessions and two Macs, investigate the timeout, and provide useful findings.",
+          "conversation": [
+            "User: Compare browser logins across headless/panel sessions and Mac mini/MacBook. The live checks timed out; look into the problem.",
+            "User: Report these issues. Draft, then make them scannable. Then review. Then submit. Include Linux evidence.",
+            "Assistant: Submitted and read back both reports.",
+            "User: Can in the title. Under what conditions?",
+            "Assistant: We have not isolated what makes Keychain block on this machine.",
+            "User: Investigate and try different things so our report is useful. Also, why does it break on Mac mini but not MacBook?",
+            "Assistant: Controlled experiments found that testing Chrome 151 requires approval for Chromium Safe Storage and hangs on both Macs when that request goes unanswered. Already-authorized builds and --use-mock-keychain pass. The original machine difference was browser selection.",
+            "Assistant: Updated the public report with preconditions, eight controlled experiments, and Linux evidence. The published report was read back and matches the reviewed text.",
+            "Diagnostic cleanup: Mac mini profiles were removed. MacBook cleanup failed with HTTP 502: Host is not connected. A bounded retry returned terminal_open_cancelled before opening. The scratch profiles remain on that host."
+          ],
+          "evidence": [
+            "The trigger and machine difference now have a tested explanation. Report submission and readback are complete.",
+            "The user is still reviewing the findings in this ongoing investigation; that review has not finished.",
+            "MacBook scratch-profile cleanup remains outstanding. No active test browsers were left by the completed probes.",
+            "No receiving owner has accepted the remaining review, cleanup, or verification responsibility. Browser/Keychain follow-up is still coordinated by this thread."
           ]
         }
       },

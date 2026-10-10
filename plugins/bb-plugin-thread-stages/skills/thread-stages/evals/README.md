@@ -17,7 +17,7 @@ From the repository root:
 # Validate the cases and exercise the grader and CLI fixture without a model.
 npm run check:evals --workspace=bb-plugin-thread-stages
 
-# Execute all 31 cases, or just the fifteen automatic-update cases.
+# Execute all 32 cases, or just the sixteen automatic-update cases.
 npm run evals --workspace=bb-plugin-thread-stages
 npm run evals --workspace=bb-plugin-thread-stages -- --mode automatic
 
@@ -67,6 +67,15 @@ is reported as an error rather than silently substituted.
 | 29: report-only completion | A task explicitly limited to filing a report can finish while the issue stays open. |
 | 30: follow-up after submission | Concrete user follow-up reopens a thread incorrectly marked Completed after submission. |
 | 31: unaccepted handoff | Tracking a task and notifying a proposed owner keeps Active until that owner accepts responsibility. |
+| 32: reviewed report, unfinished workflow | Explaining the reported trigger and verifying publication keeps Active while user review and failed diagnostic cleanup remain open. |
+
+Cases 27 and 32 reconstruct two decision points from a browser-login
+investigation. Case 27 preserves the reporting request inside the earlier
+investigation and the Linux comparison added during reporting. Case 32 follows
+the controlled experiments and report update, with user review and failed
+scratch-profile cleanup still outstanding. Neither supplies the agent's later
+acknowledgment that completion was premature. Case 29 remains the explicitly
+bounded reporting-only completion control.
 
 Case 31 preserves the notified-owner handoff from the original case 14, while
 case 14 now supplies an accepted handoff as the completion control. Case 31
@@ -74,8 +83,9 @@ tests the change in the delegation contract without giving the thread a new
 objective to establish ownership. An unaccepted recipient owns neither a
 completed handoff nor a blocker; arranging the handoff remains Active.
 
-Automatic prompts ask for a workflow update without mentioning stages. The
-expected stage and write count stay outside the agent workspace. The fixture
+Automatic prompts ask for a workflow update or the user's next delivery step
+without mentioning stages. The expected stage and write count stay outside the
+agent workspace. The fixture
 records CLI inspections, mutation attempts, target thread, resulting stage, and
 invalid commands. Grading requires successful completion, successful required
 skill reads, the expected final state and exact write count, inspection before
@@ -104,8 +114,8 @@ revised session that meets the contract. A timeout, failed skill read, or missin
 instruction string does not establish a behavioral regression. Inspect the
 transcripts and recorded writes on both sides.
 
-Cases 27–30 cover workflow boundaries that the previous guidance can also pass;
-their passing results do not measure improvement. Case 31 targets the changed
+Cases 27–30 and 32 cover workflow boundaries that the previous guidance can also
+pass; their passing results do not measure improvement. Case 31 targets the changed
 handoff contract. Passing it does not establish that the original premature
 completion after issue submission has been reproduced or fixed. Model outcomes
 can vary between runs, so keep the artifacts and report the observed scope.
