@@ -17,7 +17,7 @@ From the repository root:
 # Validate the cases and exercise the grader and CLI fixture without a model.
 npm run check:evals --workspace=bb-plugin-thread-stages
 
-# Execute all 26 cases, or just the ten automatic-update cases.
+# Execute all 31 cases, or just the fifteen automatic-update cases.
 npm run evals --workspace=bb-plugin-thread-stages
 npm run evals --workspace=bb-plugin-thread-stages -- --mode automatic
 
@@ -62,6 +62,11 @@ is reported as an error rather than silently substituted.
 | 24: routine observation | A routine check leaves Waiting unchanged. |
 | 25: missing resumption path | Unfinished reporting setup keeps Active. |
 | 26: automatic updates off | An independent dependency does not cause an unrequested stage write. |
+| 27: filed issues unresolved | Submitting reports during an investigation keeps Active while useful work and unresolved findings remain. |
+| 28: upstream fix pending | An accepted upstream fix blocks this thread while its own verification responsibility remains open. |
+| 29: report-only completion | A task explicitly limited to filing a report can finish while the issue stays open. |
+| 30: follow-up after submission | Concrete user follow-up reopens a thread incorrectly marked Completed after submission. |
+| 31: unaccepted handoff | Tracking a task and notifying a proposed owner keeps Active until that owner accepts responsibility. |
 
 Automatic prompts ask for a workflow update without mentioning stages. The
 expected stage and write count stay outside the agent workspace. The fixture

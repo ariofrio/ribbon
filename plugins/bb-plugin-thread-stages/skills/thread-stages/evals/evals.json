@@ -292,12 +292,12 @@
     },
     {
       "id": 14,
-      "prompt": "Use $thread-stages. The thread's implementation PR is merged and the requested production check passed. Its result is saved where it belongs. The intended review was completed, and the only follow-up was handed to another tracked thread whose owner has been notified. We did not separately agree on a formal closing condition. What stage fits? Do not run commands.",
+      "prompt": "Use $thread-stages. The thread's implementation PR is merged and the requested production check passed. Its result is saved where it belongs. The intended review was completed, and the only follow-up was handed to another tracked thread whose owner has been notified and accepted responsibility. We did not separately agree on a formal closing condition. What stage fits? Do not run commands.",
       "expected_output": "Completed: the established objective is fulfilled and loose ends are settled or delegated, without requiring a separate closing agreement.",
       "files": [],
       "expectations": [
         "Selects Completed without asking for ceremonial closing approval.",
-        "Recognizes tracked delegation with a notified receiving owner as closure."
+        "Recognizes tracked delegation with an accepting receiving owner as closure."
       ],
       "mode": "recommendation",
       "expected_answer": {
@@ -708,6 +708,195 @@
           "evidence": [
             "All useful independent work here is finished.",
             "The separate refactor workflow is still running."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Active",
+        "writes": 0
+      }
+    },
+    {
+      "id": 27,
+      "name": "filed_issues_unresolved",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 0 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Active.",
+        "There are exactly 0 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Compare browser logins across two machines and headless/panel browsers; investigate the problems found.",
+          "conversation": [
+            "The user asked to compare browser logins, then said: \"Live website checks timed out. This sounds like a problem; look into it.\"",
+            "Investigation found a browser hang and missing persistent headless logins. A local launcher workaround restored navigation.",
+            "The latest request was: \"Report these issues. Draft, then make them scannable. Then review. Then submit.\"",
+            "The reports were drafted, made scannable, reviewed by the agent, and submitted to the upstream tracker. Both published reports match the drafts."
+          ],
+          "evidence": [
+            "Both issues are open. The upstream launcher still needs a fix; only the local workaround is installed.",
+            "The report says Chrome \"can\" hang. The machine-specific conditions and why one machine works while the other fails have not been isolated.",
+            "Controlled comparisons of browser versions and Keychain state remain available to improve the report.",
+            "No receiving owner has accepted the remaining investigation or follow-up responsibility."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Active",
+        "writes": 0
+      }
+    },
+    {
+      "id": 28,
+      "name": "upstream_fix_pending",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to BlockedOnThirdParty; perform 1 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is BlockedOnThirdParty.",
+        "There are exactly 1 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Restore browser automation and verify the upstream fix on both machines.",
+          "conversation": [
+            "The investigation and issue report are finished; upstream maintainers acknowledged the issue and accepted implementing the required fix.",
+            "This thread will test their released fix and remove its local workaround. That responsibility has not been handed off."
+          ],
+          "evidence": [
+            "The issue is still open and the required fix has not shipped.",
+            "No useful independent investigation or preparation remains and the user owes no decision.",
+            "The existing issue subscription will deliver updates here."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnThirdParty",
+        "writes": 1
+      }
+    },
+    {
+      "id": 29,
+      "name": "report_only_completion",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Completed; perform 1 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Completed.",
+        "There are exactly 1 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "File a standalone bug report with the supplied reproduction; stop after submission.",
+          "conversation": [
+            "The user explicitly limited this thread to drafting, reviewing, and filing the report; fixing the bug and tracking it to resolution are outside its scope.",
+            "The intended user review is complete, submission was authorized, and the published report matches the approved draft."
+          ],
+          "evidence": [
+            "The report is saved in the upstream issue tracker. The issue remains open.",
+            "No questions, reviews, deliveries, or follow-ups remain owned or coordinated by this thread."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Completed",
+        "writes": 1
+      }
+    },
+    {
+      "id": 30,
+      "name": "follow_up_after_submission",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 1 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Active.",
+        "There are exactly 1 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Completed",
+        "work": {
+          "objective": "Investigate a browser hang and report useful findings.",
+          "conversation": [
+            "After filing the issue, the agent marked this thread Completed.",
+            "The user then asked: \"Can in the title. Under what conditions?\" and \"Why does it break on one machine but not the other? Investigate and try different things so our report is useful.\"",
+            "The user clarified that they meant to keep the thread open until resolution."
+          ],
+          "evidence": [
+            "The issue remains open. A local workaround exists but no upstream fix is available.",
+            "Browser-version, Keychain-state, and launch-context comparisons can still be performed.",
+            "No receiving owner has accepted the investigation and follow-up responsibility."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "Active",
+        "writes": 1
+      }
+    },
+    {
+      "id": 31,
+      "name": "unaccepted_handoff",
+      "mode": "automatic",
+      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
+      "expected_output": "Inspect the workflow and keep or move the current thread to Active; perform 0 stage writes.",
+      "files": [],
+      "expectations": [
+        "The final stage is Active.",
+        "There are exactly 0 stage writes to the current thread.",
+        "Read required skills successfully and inspect the current stage before a write.",
+        "Do not guess invalid commands or perform other mutations."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Ship the feature and ensure the follow-up cleanup is owned.",
+          "conversation": [
+            "The feature is implemented, reviewed, merged, published, and verified in production.",
+            "The agent created a tracked cleanup task and notified its proposed receiving owner.",
+            "The latest update says the feature shipped and the cleanup handoff was sent."
+          ],
+          "evidence": [
+            "The cleanup task is still open; the proposed owner has not responded or accepted responsibility.",
+            "This thread has no confirmation that anyone else owns the remaining cleanup.",
+            "No other feature work or intended user review remains."
           ]
         }
       },
