@@ -142,7 +142,11 @@ that stage. A placement request, such as "do this, then @Blocked on another
 thread" or a stage mention on its own, asks for the thread to be placed in
 that stage once the rest of the message is done. The plugin also tells a
 thread when someone else changes its stage, as "Thread stage updated: @Active
-→ @Blocked on external party"; that move has already happened. Older messages may
+→ @Blocked on external party"; that move has already happened. Notices can wait
+in a queue while the thread works and describe an earlier transition, so read
+the live stage with `bb thread-stages show --self --json` before treating one
+as current state or deciding what to do. A thread's own stage writes do not
+send it a notice. Older messages may
 mention `@Idle`, now Active, or `@Blocked`, now split into the two Blocked
 stages. Earlier blocker names still resolve to their renamed stages; the stored
 IDs remain unchanged. Discussing a stage without requesting placement does not

@@ -2140,6 +2140,50 @@ describe("Ribbon sidebar server", () => {
       ]);
     });
 
+    it("keeps a queued notice historical after the receiving thread changes its own stage", async () => {
+      const { bb, harness, send } = setup({ threads: stageThreads() });
+      await plugin(bb);
+      await harness.behavior.runCli(
+        ["stage", "Completed", "--self"],
+        { threadId: "first" },
+      );
+      expect(send).not.toHaveBeenCalled();
+
+      await moveToStage(harness, "first", "Active");
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+      const queuedNotice = send.mock.calls[0]![0];
+      expect(queuedNotice.mode).toBe("queue-if-active");
+
+      await harness.behavior.runCli(
+        ["stage", "Completed", "--self"],
+        { threadId: "first" },
+      );
+      expect(send).toHaveBeenCalledTimes(1);
+      await expect(
+        harness.behavior.callRpc("getPlacementV1", {
+          groupingKey: "plugin:thread-stages:stages",
+          threadId: "first",
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        value: { placement: { groupId: "Completed" } },
+      });
+      expect(queuedNotice.input[0]).toMatchObject({
+        text: "Thread stage updated: @Completed → @Active",
+      });
+      expect(queuedNotice.input[1]).toMatchObject({
+        visibility: "agent-only",
+        text: expect.stringContaining("may have changed again"),
+      });
+      expect(JSON.stringify(queuedNotice.input[1])).toContain(
+        "bb thread-stages show --self --json",
+      );
+      expect(JSON.stringify(queuedNotice.input[1])).toContain(
+        "Changes made by this thread do not send it a notice",
+      );
+      await harness.lifecycle.dispose();
+    });
+
     it("messages a child when its own stage changes", async () => {
       const threads = stageThreads();
       const root = threads[0]!;
@@ -2167,6 +2211,53 @@ describe("Ribbon sidebar server", () => {
         ok: true,
         value: { placement: { groupId: "Active" } },
       });
+    });
+
+    it("queues both opposing changes made by the user and another thread", async () => {
+      const { bb, harness, send } = setup({ threads: stageThreads() });
+      await plugin(bb);
+      await moveToStage(harness, "first", "Completed");
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+      await harness.behavior.runCli(
+        ["stage", "Active", "first"],
+        { threadId: "second" },
+      );
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+      expect(send.mock.calls.map(([request]) => ({
+        threadId: request.threadId,
+        mode: request.mode,
+        transition: request.input[0],
+      }))).toEqual([
+        {
+          threadId: "first",
+          mode: "queue-if-active",
+          transition: expect.objectContaining({
+            text: "Thread stage updated: @Active → @Completed",
+          }),
+        },
+        {
+          threadId: "first",
+          mode: "queue-if-active",
+          transition: expect.objectContaining({
+            text: "Thread stage updated: @Completed → @Active",
+          }),
+        },
+      ]);
+      for (const [request] of send.mock.calls) {
+        expect(JSON.stringify(request.input[1])).toContain(
+          "bb thread-stages show --self --json",
+        );
+      }
+      await expect(
+        harness.behavior.callRpc("getPlacementV1", {
+          groupingKey: "plugin:thread-stages:stages",
+          threadId: "first",
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        value: { placement: { groupId: "Active" } },
+      });
+      await harness.lifecycle.dispose();
     });
 
 
