@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import Database from "better-sqlite3";
 import { fetchFromStack } from "../screenshots/fetch.mjs";
 
 async function until(check, label) {
@@ -96,6 +95,7 @@ export async function verifyThreadTitles({ stack, fixture }) {
 }
 
 export async function verifyDeletedThreadTitles({ stack, fixture }) {
+  const { default: Database } = await import("better-sqlite3");
   const { run, runJson } = fixture;
   const transcriptsPath = join(stack.dataDir, "transcripts.json");
   const originalTranscripts = readFileSync(transcriptsPath, "utf8");
