@@ -7,12 +7,13 @@ export async function verifyStagePlacement({ stack, fixture }) {
   const other = fixture.threads.get(FEATURED_THREAD);
   const projectId = fixture.projects.get(FEATURED_PROJECT).id;
   const place = (thread, stage) => fixture.run(["thread-stages", "stage", stage, thread.id]);
-  const labels = { Active: "Active", Waiting: "Waiting", Deferred: "Deferred", BlockedOnOtherAgent: "Blocked on another thread", BlockedOnThirdParty: "Blocked on external party" };
+  const labels = { Active: "In progress", Waiting: "Waiting", BlockedOnUser: "Blocked on user", Deferred: "Deferred", BlockedOnOtherAgent: "Blocked on another thread", BlockedOnThirdParty: "Blocked on external party" };
   const mac = process.platform === "darwin";
   const shortcuts = {
     Waiting: mac ? "Meta+Shift+," : "Control+Shift+,",
     Active: mac ? "Meta+Shift+." : "Control+Shift+.",
     Deferred: mac ? "Control+Meta+." : "Alt+Control+,",
+    BlockedOnUser: mac ? "Alt+Meta+Shift+u" : "Alt+Control+Shift+u",
     BlockedOnOtherAgent: mac ? "Alt+Control+Meta+." : "Alt+Control+Shift+.",
     BlockedOnThirdParty: mac ? "Control+Meta+Shift+." : "Alt+Control+Shift+,",
   };
@@ -52,7 +53,7 @@ export async function verifyStagePlacement({ stack, fixture }) {
       async function mainOrder() {
         return group.locator('[aria-label$=" stage"]').evaluateAll((icons) =>
           icons.filter((icon) =>
-            ["Active stage", "Waiting stage", "Blocked on another thread stage", "Blocked on external party stage"].includes(icon.getAttribute("aria-label")))
+            ["In progress stage", "Waiting stage", "Blocked on user stage", "Blocked on another thread stage", "Blocked on external party stage"].includes(icon.getAttribute("aria-label")))
             .map((icon) => icon.closest("[data-thread-id]"))
             .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)
             .map((row) => row.dataset.threadId));
@@ -78,7 +79,7 @@ export async function verifyStagePlacement({ stack, fixture }) {
           const group = document.querySelector(selector);
           const icons = [...group.querySelectorAll('[aria-label$=" stage"]')].filter((icon) =>
             deferred ? icon.getAttribute("aria-label") === "Deferred stage" :
-              ["Active stage", "Waiting stage", "Blocked on another thread stage", "Blocked on external party stage"].includes(icon.getAttribute("aria-label")));
+              ["In progress stage", "Waiting stage", "Blocked on user stage", "Blocked on another thread stage", "Blocked on external party stage"].includes(icon.getAttribute("aria-label")));
           const rows = icons.map((icon) => icon.closest("[data-thread-id]"));
           const target = rows.find((row) => row.dataset.threadId === id);
           return target && rows.every((row) => target.getBoundingClientRect().top <= row.getBoundingClientRect().top);
@@ -110,11 +111,11 @@ export async function verifyStagePlacement({ stack, fixture }) {
         await row(group, returning.id).getByLabel(`${labels[stage]} stage`, { exact: true }).waitFor();
       }
       for (const method of ["cli", "menu", "shortcut"]) {
-        for (const stage of ["Waiting", "BlockedOnOtherAgent", "BlockedOnThirdParty", "Deferred"]) {
+        for (const stage of ["Waiting", "BlockedOnUser", "BlockedOnOtherAgent", "BlockedOnThirdParty", "Deferred"]) {
           console.log(`Checking ${organization} ${method} stage entry: ${stage}`);
           place(returning, "Active");
           fixture.run(["thread-stages", "order", returning.id, "--by", organization === "project" ? "project" : "section", "--after", other.id]);
-          await row(group, returning.id).getByLabel("Active stage", { exact: true }).waitFor();
+          await row(group, returning.id).getByLabel("In progress stage", { exact: true }).waitFor();
           await afterOther();
           const before = await mainOrder();
           await move(stage, method);
@@ -128,7 +129,7 @@ export async function verifyStagePlacement({ stack, fixture }) {
             assert.deepEqual(await mainOrder(), before);
             await move("Active", method);
             await freshClient();
-            await row(group, returning.id).getByLabel("Active stage", { exact: true }).waitFor();
+            await row(group, returning.id).getByLabel("In progress stage", { exact: true }).waitFor();
             assert.deepEqual(await mainOrder(), before);
           }
         }

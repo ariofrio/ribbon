@@ -828,8 +828,8 @@ describe("Ribbon sidebar server", () => {
       };
       try {
         for (const stage of [
-          "Waiting", "BlockedOnOtherAgent", "BlockedOnThirdParty", "Active",
-          "BlockedOnOtherAgent", "Waiting", "Active", "BlockedOnThirdParty",
+          "Waiting", "BlockedOnUser", "BlockedOnOtherAgent", "BlockedOnThirdParty", "Active",
+          "BlockedOnOtherAgent", "Waiting", "Active", "BlockedOnUser", "BlockedOnThirdParty",
           "BlockedOnOtherAgent", "Active",
         ]) {
           await place("c", stage);
@@ -1527,7 +1527,7 @@ describe("Ribbon sidebar server", () => {
     });
   });
 
-  it("sets and lists a child's stage without changing its parent", async () => {
+  it.each(["BlockedOnUser", "BlockedOnThirdParty"])("sets and lists a child's %s stage without changing its parent", async (stage) => {
     const { bb, harness } = setup();
     await plugin(bb);
     await harness.behavior.callRpc("updatePlacementV1", {
@@ -1538,7 +1538,7 @@ describe("Ribbon sidebar server", () => {
     });
     expect(await harness.behavior.callRpc("updatePlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
-      groupId: "BlockedOnThirdParty",
+      groupId: stage,
       threadId: "thread-child",
       origin: "cli",
     })).toMatchObject({ ok: true });
@@ -1548,7 +1548,7 @@ describe("Ribbon sidebar server", () => {
     })).toMatchObject({ ok: true, value: { placement: { groupId: "Active" } } });
     const listed = await harness.behavior.runCli([
       "list", "--include-children", "--scope",
-      "plugin:thread-stages:stages/BlockedOnThirdParty", "--json",
+      `plugin:thread-stages:stages/${stage}`, "--json",
     ]);
     expect(JSON.parse(listed.stdout ?? "")).toEqual([
       expect.objectContaining({
@@ -1563,7 +1563,7 @@ describe("Ribbon sidebar server", () => {
     expect(JSON.parse(shown.stdout ?? "")).toMatchObject({
       threadId: "thread-child",
       parentThreadId: "thread-a",
-      stage: "BlockedOnThirdParty",
+      stage,
     });
     expect(await harness.behavior.callRpc("setWorkflowStage", {
       threadId: "thread-child", workflowStage: "Active",
@@ -2107,7 +2107,7 @@ describe("Ribbon sidebar server", () => {
         threadId: "first",
         mode: "queue-if-active",
       });
-      const text = "Thread stage updated: @Active → @Blocked on external party";
+      const text = "Thread stage updated: @In progress → @Blocked on external party";
       const mention = (label: string, itemId: string) => ({
         start: text.indexOf(`@${label}`),
         end: text.indexOf(`@${label}`) + label.length + 1,
@@ -2123,13 +2123,13 @@ describe("Ribbon sidebar server", () => {
           type: "text",
           text,
           mentions: [
-            mention("Active", "stage:active"),
+            mention("In progress", "stage:active"),
             mention("Blocked on external party", "stage:blockedonthirdparty"),
           ],
         },
         {
           type: "text",
-          text: expect.stringContaining("from Active to Blocked on external party"),
+          text: expect.stringContaining("from In progress to Blocked on external party"),
           mentions: [],
           visibility: "agent-only",
         },
@@ -2224,7 +2224,7 @@ describe("Ribbon sidebar server", () => {
         threadId: "first",
         input: [
           expect.objectContaining({
-            text: "Thread stage updated: @Active → @Completed",
+            text: "Thread stage updated: @In progress → @Completed",
           }),
           expect.anything(),
         ],
