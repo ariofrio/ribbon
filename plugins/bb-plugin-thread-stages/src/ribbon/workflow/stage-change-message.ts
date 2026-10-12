@@ -74,7 +74,7 @@ function stageChangeInput(
     },
     {
       type: "text",
-      text: `Ribbon sent this notice because this thread's stage changed from ${fromLabel} to ${toLabel}, made by ${ORIGIN_DESCRIPTIONS[change.origin]}. This notice records a past transition and may have waited in a queue; the stage may have changed again. Before treating it as current state or deciding what to do, read the live stage with bb thread-stages show --self --json. Changes made by this thread do not send it a notice. The move is already done, so do not place the thread again. No reply is needed unless the current stage changes what you should do.`,
+      text: `Ribbon sent this notice because this thread's stage changed from ${fromLabel} to ${toLabel}, made by ${ORIGIN_DESCRIPTIONS[change.origin]}. The move is already done, so do not place the thread again. No reply is needed unless the new stage changes what you should do.`,
       mentions: [],
       visibility: "agent-only",
     },
@@ -93,7 +93,7 @@ export function createStageChangeMessages(
       if (!(await options.enabled())) return;
       await bb.sdk.threads.send({
         threadId,
-        mode: "queue-if-active",
+        mode: "steer-if-active",
         input: stageChangeInput(change, options.threadStagesRunning()),
       });
     } catch (error) {
