@@ -2190,14 +2190,14 @@ describe("Ribbon sidebar server", () => {
           threadId: "first",
           mode: "steer-if-active",
           transition: expect.objectContaining({
-            text: "Thread stage updated: @Active → @Completed",
+            text: "Thread stage updated: @In progress → @Completed",
           }),
         },
         {
           threadId: "first",
           mode: "steer-if-active",
           transition: expect.objectContaining({
-            text: "Thread stage updated: @Completed → @Active",
+            text: "Thread stage updated: @Completed → @In progress",
           }),
         },
       ]);
