@@ -32,10 +32,25 @@ export async function verifyRowActions({ stack, fixture }) {
     });
     assert.equal(geometry.count, 4);
     assert.ok(geometry.titleRight <= geometry.controlsLeft + 4, "the title leaves room for every configured action and the menu");
-    await pin.click();
+    const setPinned = async (pinned) => {
+      const action = pinned ? "pin" : "unpin";
+      // The button label changes optimistically. Finish the owned mutation
+      // before another action can race its response and remount the row.
+      const responsePromise = page.waitForResponse((response) =>
+        new URL(response.url()).pathname === `/api/v1/threads/${thread.id}/${action}`
+          && response.request().method() === "POST");
+      void responsePromise.catch(() => undefined);
+      await target.getByRole("button", { name: pinned ? "Pin" : "Unpin", exact: true }).click();
+      const response = await responsePromise;
+      assert.ok(response.ok(), `The owned ${action} request succeeds`);
+      const saved = await response.json();
+      assert.equal(saved.id, thread.id);
+      assert.equal(saved.pinnedAt !== null, pinned);
+    };
+    await setPinned(true);
     await target.getByRole("button", { name: "Unpin", exact: true }).waitFor();
     await target.hover();
-    await target.getByRole("button", { name: "Unpin", exact: true }).click();
+    await setPinned(false);
     await target.getByRole("button", { name: "Pin", exact: true }).waitFor();
     await target.hover();
     await target.getByRole("button", { name: "Thread actions", exact: true }).click();
