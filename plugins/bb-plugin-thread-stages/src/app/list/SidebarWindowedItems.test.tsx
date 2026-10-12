@@ -21,7 +21,7 @@ const [, SIDEBAR_CONTENT_ATTR, SIDEBAR_CONTENT_VALUE] = selectorMatch;
 
 const VIEWPORT_RECT = new DOMRect(0, 0, 300, 500);
 
-const OFFSCREEN_ROW_RECT = new DOMRect(0, 1_000, 300, 30);
+const OFFSCREEN_ROW_RECT = new DOMRect(0, 2_000, 300, 30);
 
 let scrollElement: HTMLDivElement;
 interface FakeIntersectionObserver {
@@ -42,7 +42,7 @@ function wrapperAt(index: number): Element {
 }
 
 function emitIntersections(
-  entries: readonly { target: Element; isIntersecting: boolean }[],
+  entries: readonly { target: Element; isIntersecting: boolean; height?: number }[],
 ) {
   const observer = observerInstances.at(-1);
   if (!observer) {
@@ -54,7 +54,9 @@ function emitIntersections(
         ({
           target: entry.target,
           isIntersecting: entry.isIntersecting,
-          boundingClientRect: OFFSCREEN_ROW_RECT,
+          boundingClientRect: entry.height === undefined
+            ? OFFSCREEN_ROW_RECT
+            : new DOMRect(0, 2_000, 300, entry.height),
         }) as unknown as IntersectionObserverEntry,
     ),
     observer as unknown as IntersectionObserver,
@@ -157,6 +159,43 @@ afterEach(() => {
 });
 
 describe("SidebarWindowedItems", () => {
+  it("does not use empty placeholders to calibrate row heights", () => {
+    renderList({ current: scrollElement });
+    act(() => {
+      emitIntersections([
+        { target: wrapperAt(2), isIntersecting: false, height: 70 },
+        { target: wrapperAt(0), isIntersecting: true },
+      ]);
+    });
+    expect((wrapperAt(1) as HTMLElement).style.height).toBe("30px");
+  });
+
+  it("realizes entering rows before the observer callback returns", () => {
+    renderList({ current: scrollElement });
+    act(() => {
+      emitIntersections([{ target: wrapperAt(0), isIntersecting: true }]);
+      expect(screen.queryByTestId("real-item-0")).not.toBeNull();
+    });
+  });
+
+  it("does not render unchanged visible items when another item enters or leaves", () => {
+    const renderItem = vi.fn((index: number) => <span>Item {index}</span>);
+    render(withScrollRef({ current: scrollElement }, (
+      <SidebarWindowedItems
+        itemKeys={["first", "second", "third"]}
+        estimateRows={() => 1}
+        renderItem={renderItem}
+      />
+    )));
+    act(() => emitIntersections([{ target: wrapperAt(0), isIntersecting: true }]));
+    renderItem.mockClear();
+    act(() => emitIntersections([{ target: wrapperAt(1), isIntersecting: true }]));
+    expect(renderItem.mock.calls.map(([index]) => index)).toEqual([1]);
+    renderItem.mockClear();
+    act(() => emitIntersections([{ target: wrapperAt(1), isIntersecting: false }]));
+    expect(renderItem).not.toHaveBeenCalled();
+  });
+
   it("mounts and focuses an offscreen item on request without refocusing on updates", () => {
     const tree = (focusItemKey?: string) =>
       withScrollRef(

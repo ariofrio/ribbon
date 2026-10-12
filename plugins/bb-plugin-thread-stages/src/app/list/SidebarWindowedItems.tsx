@@ -1,5 +1,5 @@
 import {
-  startTransition,
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { flushSync } from "react-dom";
 import {
   SIDEBAR_CONTENT_SELECTOR,
   useSidebarContentElementRef,
@@ -18,7 +19,7 @@ import {
   type SidebarWindowedNavigationEntry,
 } from "./sidebarThreadShortcuts.js";
 
-const WINDOW_VIEWPORT_MARGIN_PX = 240;
+const WINDOW_VIEWPORT_MARGIN_PX = 1_200;
 const DEFAULT_ROW_HEIGHT_PX = 30;
 
 interface MeasuredItemHeight {
@@ -38,6 +39,38 @@ interface SidebarWindowedItemsProps {
 }
 
 const EMPTY_KEY_SET: ReadonlySet<string> = new Set();
+
+// Window changes must not rebuild the rows that are already on screen.
+// Their render callback is unchanged during an observer update, but can
+// change when the parent supplies new thread data or drag state.
+const SidebarWindowedItem = memo(function SidebarWindowedItem({
+  index,
+  isRealized,
+  placeholderHeight,
+  navigationValue,
+  wrapperRef,
+  renderItem,
+}: {
+  index: number;
+  isRealized: boolean;
+  placeholderHeight?: number;
+  navigationValue?: string;
+  wrapperRef: (node: HTMLDivElement | null) => void;
+  renderItem: SidebarWindowedItemsProps["renderItem"];
+}) {
+  return (
+    <div
+      ref={wrapperRef}
+      data-sidebar-windowed-item=""
+      {...(navigationValue !== undefined
+        ? { [SIDEBAR_WINDOWED_NAV_ATTRIBUTE]: navigationValue }
+        : undefined)}
+      style={isRealized ? undefined : { height: placeholderHeight }}
+    >
+      {isRealized ? renderItem(index) : null}
+    </div>
+  );
+});
 
 function mergeRealizedKeys(
   previous: ReadonlySet<string>,
@@ -154,7 +187,9 @@ export function SidebarWindowedItems({
     }
     const rows = rowsByKeyRef.current.get(key) ?? 0;
     measuredHeightsRef.current.set(key, { height, rows });
-    if (rows > 0) {
+    // A subtree mixes measured rows with estimated placeholders. Only a
+    // single rendered row can calibrate the estimates for the rest of the list.
+    if (rows === 1) {
       const perRow = height / rows;
       if (perRow >= 20 && perRow <= 80) {
         rowHeightRef.current = perRow;
@@ -250,7 +285,11 @@ export function SidebarWindowedItems({
               intended.set(key, true);
             } else if (!alwaysMountedKeysRef.current.has(key)) {
               intended.set(key, false);
-              recordMeasuredHeight(key, entry.boundingClientRect.height);
+              // A placeholder is an estimate, not a measurement. Feeding it
+              // back into the row height makes estimates oscillate as we scroll.
+              if (entry.target.childElementCount > 0) {
+                recordMeasuredHeight(key, entry.boundingClientRect.height);
+              }
             }
           }
           if (intended.size === 0) {
@@ -261,11 +300,14 @@ export function SidebarWindowedItems({
           for (const [key, isEntering] of intended) {
             (isEntering ? entering : leaving).push(key);
           }
-          startTransition(() =>
+          const update = () =>
             setRealizedKeys((previous) =>
               mergeRealizedKeys(previous, { add: entering, remove: leaving }),
-            ),
-          );
+            );
+          // The observer runs before paint. Commit entering rows now so the
+          // browser cannot paint their placeholders while React yields.
+          if (entering.length > 0) flushSync(update);
+          else update();
         },
         {
           root: scrollElement,
@@ -318,17 +360,15 @@ export function SidebarWindowedItems({
               : undefined;
         }
         return (
-          <div
+          <SidebarWindowedItem
             key={key}
-            ref={getWrapperRefCallback(key)}
-            data-sidebar-windowed-item=""
-            {...(navigationValue !== undefined
-              ? { [SIDEBAR_WINDOWED_NAV_ATTRIBUTE]: navigationValue }
-              : undefined)}
-            style={isRealized ? undefined : { height: placeholderHeight }}
-          >
-            {isRealized ? renderItem(index) : null}
-          </div>
+            index={index}
+            isRealized={isRealized}
+            wrapperRef={getWrapperRefCallback(key)}
+            navigationValue={navigationValue}
+            placeholderHeight={placeholderHeight}
+            renderItem={renderItem}
+          />
         );
       })}
     </>

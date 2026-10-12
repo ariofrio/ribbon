@@ -188,6 +188,35 @@ interface ThreadRowProps {
   options: ThreadRowOptions;
 }
 
+function CrossProjectMarker({
+  projectId,
+  onClick,
+}: {
+  projectId: string;
+  onClick: MouseEventHandler<HTMLSpanElement>;
+}) {
+  // Resolving a project name subscribes to the sidebar thread data. Rows in
+  // their own project do not need that subscription or its list projection.
+  const name = useSidebarProjectName(projectId);
+  const label = name ? `In project ${name}` : "In another project";
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          data-sidebar-thread-cross-project=""
+          role="img"
+          aria-label={label}
+          className="relative z-[31] flex size-5 shrink-0 items-center justify-center text-muted-foreground"
+          onClick={onClick}
+        >
+          <Icon name="FolderExport" className="size-3.5" aria-hidden />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 type ThreadRowClickCaptureHandler = MouseEventHandler<HTMLDivElement>;
 
 interface ThreadRowContainerArgs {
@@ -398,13 +427,6 @@ function ThreadRowComponent({
     hasComposerDraft,
   );
   const labelTitle = thread.displayTitle;
-  const crossProjectName = useSidebarProjectName(crossProjectId);
-  const crossProjectLabel =
-    crossProjectId === null
-      ? null
-      : crossProjectName
-        ? `In project ${crossProjectName}`
-        : "In another project";
   const handleRename = useCallback(
     (nextTitle: string) => actions.rename(thread.id, nextTitle),
     [actions, thread.id],
@@ -449,7 +471,7 @@ function ThreadRowComponent({
     parentOptions?.childActivity ?? NO_COLLAPSED_CHILD_ACTIVITY;
   const hasChildren = childCount > 0;
   const reserveActionSpace =
-    crossProjectLabel !== null || (isParentRow && hasChildren);
+    crossProjectId !== null || (isParentRow && hasChildren);
   const hasHiddenChildren = isParentRow && isParentCollapsed && hasChildren;
   const hiddenChildrenHaveDraft = useThreadsHaveDraft(
     hasHiddenChildren ? childActivity.threadIds : NO_THREAD_IDS,
@@ -753,7 +775,7 @@ function ThreadRowComponent({
         <span
           className={cn(
             "pointer-events-none relative flex min-w-0 items-center self-stretch",
-            ((crossProjectLabel === null && (!parentOptions || !hasChildren)) ||
+            ((crossProjectId === null && (!parentOptions || !hasChildren)) ||
               isEditing ||
               // Ribbon's lane spans the row: its child toggle sits against
               // the actions, as do action buttons and a right-hand PR number.
@@ -832,7 +854,7 @@ function ThreadRowComponent({
               <span
                 className={cn(
                   "bb-thread-title",
-                  (crossProjectLabel !== null || ribbon !== null) &&
+                  (crossProjectId !== null || ribbon !== null) &&
                     (ribbonMarquee ? "min-w-0" : "min-w-0 truncate"),
                   ribbon !== null && "flex min-w-0 flex-1 items-center gap-2",
                 )}
@@ -885,25 +907,15 @@ function ThreadRowComponent({
             </>
           )}
         </span>
-        {crossProjectLabel !== null ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                data-sidebar-thread-cross-project=""
-                role="img"
-                aria-label={crossProjectLabel}
-                className="relative z-[31] flex size-5 shrink-0 items-center justify-center text-muted-foreground"
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  rowLinkRef.current?.click();
-                }}
-              >
-                <Icon name="FolderExport" className="size-3.5" aria-hidden />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top">{crossProjectLabel}</TooltipContent>
-          </Tooltip>
+        {crossProjectId !== null ? (
+          <CrossProjectMarker
+            projectId={crossProjectId}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              rowLinkRef.current?.click();
+            }}
+          />
         ) : null}
         {ribbon === null ? childToggle : null}
       </span>
