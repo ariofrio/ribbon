@@ -40,7 +40,22 @@ export async function verifyGlobalInstructions({ stack, fixture }) {
     await page.goto(new URL("/settings/plugins/global-instructions", stack.serverUrl).href);
     const panel = page.getByRole("region", { name: "Global instructions editor" });
     const source = panel.getByRole("textbox", { name: "Global instructions" });
-    await expect(source).toHaveValue(original.replaceAll("\r\n", "\n"));
+    await expect(panel.getByRole("tab", { name: "Rich Markdown" })).toBeVisible();
+    await expect(source.getByRole("heading", { name: "Global rules" })).toBeVisible();
+    async function expectFillsViewport() {
+      await expect.poll(() => panel.evaluate((node) => {
+        const bounds = node.getBoundingClientRect();
+        const editor = node.querySelector('textarea, [role="textbox"]');
+        const editorBounds = editor.getBoundingClientRect();
+        const save = [...node.querySelectorAll('button')].find(button => button.textContent === "Save").getBoundingClientRect();
+        return { visibleFooter: save.bottom <= window.innerHeight,
+          fillsEditor: save.top - editorBounds.bottom >= 0 && save.top - editorBounds.bottom <= 20 };
+      })).toEqual({ visibleFooter: true, fillsEditor: true });
+      const bounds = await panel.evaluate(node => ({ bottom: node.getBoundingClientRect().bottom, editor: node.querySelector('textarea, [role="textbox"]').getBoundingClientRect().height, height: window.innerHeight }));
+      assert.ok(bounds.height - bounds.bottom >= 0 && bounds.height - bounds.bottom <= 40, "The editor panel fills the viewport below its header");
+      assert.ok(bounds.editor > 0, "The editor has space for content");
+    }
+    await expectFillsViewport();
     await expect(panel.getByText(file, { exact: true })).toBeVisible();
     await expect(panel.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
     console.log("Global instructions: source loaded; switching to rich mode.");
@@ -59,6 +74,17 @@ export async function verifyGlobalInstructions({ stack, fixture }) {
     assert.ok(appearance.height >= 300, "The editor must render its minimum height inside bb's CSS scope");
     console.log("Global instructions: rich mode renders; switching back to source.");
     await panel.getByRole("tab", { name: "Plain text" }).click();
+    await expect(source).toHaveValue(original.replaceAll("\r\n", "\n"));
+    await expectFillsViewport();
+    await page.setViewportSize({ width: 1280, height: 1200 });
+    await expect.poll(() => panel.evaluate(node => window.innerHeight - node.getBoundingClientRect().bottom)).toBeLessThanOrEqual(40);
+    await expectFillsViewport();
+    await panel.getByRole("tab", { name: "Rich Markdown" }).click();
+    await expect(source.getByRole("heading", { name: "Global rules" })).toBeVisible();
+    await expectFillsViewport();
+    await panel.getByRole("tab", { name: "Plain text" }).click();
+    await expect(source).toHaveValue(original.replaceAll("\r\n", "\n"));
+    await page.setViewportSize({ width: 1280, height: 960 });
     await expect(panel.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
     assert.equal(readFileSync(file, "utf8"), original, "Mode switches preserve exact source");
 
@@ -68,9 +94,10 @@ export async function verifyGlobalInstructions({ stack, fixture }) {
     await source.fill(large);
     console.log("Global instructions: saving large source.");
     await panel.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(panel.getByRole("status")).toHaveText("Saved. New agent sessions will use these instructions.");
+    await expect(panel.getByRole("status")).toHaveText("Saved");
     assert.equal(readFileSync(file, "utf8"), large);
     await page.reload();
+    await panel.getByRole("tab", { name: "Plain text" }).click();
     await expect(source).toHaveValue(large);
 
     async function verifyDelivery(prompt, expected) {
@@ -88,7 +115,7 @@ export async function verifyGlobalInstructions({ stack, fixture }) {
     const next = large.replace("Keep every detail.", "The next session sees this edit.");
     await source.fill(next);
     await panel.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(panel.getByRole("status")).toHaveText("Saved. New agent sessions will use these instructions.");
+    await expect(panel.getByRole("status")).toHaveText("Saved");
     fixture.run(["thread", "tell", threadId, "Check updated instructions"]);
     fixture.run(["thread", "wait", threadId, "--status", "idle"]);
     const delivered = readFileSync(join(stack.dataDir, "instruction-prompts.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line)).findLast((record) => record.threadId === threadId);
@@ -100,11 +127,12 @@ export async function verifyGlobalInstructions({ stack, fixture }) {
     fixture.run(["plugin", "enable", "global-instructions"]);
     disabled = false;
     await page.reload();
+    await panel.getByRole("tab", { name: "Plain text" }).click();
     await expect(source).toHaveValue(next);
 
     await source.fill("Keep details.");
     await panel.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(panel.getByRole("status")).toHaveText("Saved. New agent sessions will use these instructions.");
+    await expect(panel.getByRole("status")).toHaveText("Saved");
     await panel.getByRole("tab", { name: "Rich Markdown" }).click();
     await rich.click();
     await rich.press("ControlOrMeta+End");
@@ -114,7 +142,7 @@ export async function verifyGlobalInstructions({ stack, fixture }) {
     await expect(rich.locator("strong")).toHaveText("Keep details. Always verify.");
     assert.ok(await rich.locator("strong").evaluate(node => parseInt(getComputedStyle(node).fontWeight) >= 600), "Bold renders from a real toolbar click");
     await panel.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(panel.getByRole("status")).toHaveText("Saved. New agent sessions will use these instructions.");
+    await expect(panel.getByRole("status")).toHaveText("Saved");
     assert.equal(readFileSync(file, "utf8"), "**Keep details. Always verify.**");
     await rich.click();
     await rich.press("ControlOrMeta+End");
@@ -134,13 +162,17 @@ export async function verifyGlobalInstructions({ stack, fixture }) {
     await panel.getByRole("button", { name: "Reload latest" }).click();
     await expect(source).toHaveValue("External rules");
     await page.setViewportSize({ width: 390, height: 844 });
+    await expectFillsViewport();
     await source.click();
     await source.press("ControlOrMeta+End");
     await page.keyboard.type("\nMobile edit");
     await panel.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(panel.getByRole("status")).toHaveText("Saved. New agent sessions will use these instructions.");
+    await expect(panel.getByRole("status")).toHaveText("Saved");
     assert.equal(readFileSync(file, "utf8"), "External rules\nMobile edit");
     assert.ok(await panel.evaluate(node => node.scrollWidth <= node.clientWidth), "The editor fits a narrow viewport");
+    await panel.getByRole("tab", { name: "Rich Markdown" }).click();
+    await expect(rich).toContainText("Mobile edit");
+    await expectFillsViewport();
     assert.deepEqual(errors, []);
     console.log("Global instructions: rendered modes, large saves, stale drafts, mobile input, and real instruction delivery passed.");
   } catch (error) {

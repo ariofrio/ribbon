@@ -12,10 +12,10 @@ bb plugin install global-instructions@ribbon
 
 Requires bb 0.45.0 or later. Open **Settings → Global instructions**. The editor
 loads the server's existing `AGENTS.md`; installing the plugin never creates or
-replaces it. Choose **Plain text** to edit Markdown source, or **Rich Markdown**
-for headings, emphasis, lists, blockquotes, and code with the composer's Tiptap
-editing engine. Tables, task lists, images, and links also render in the rich
-editor. Formatting shortcuts and undo/redo work there.
+replaces it. The editor opens in **Rich Markdown**, with headings, emphasis, lists,
+blockquotes, and code using the composer's Tiptap editing engine. Choose
+**Plain text** to edit Markdown source. Both modes fill the available height.
+Tables, task lists, images, and links also render in the rich editor. Formatting shortcuts and undo/redo work there.
 
 Click **Save** to apply changes. Switching modes without editing preserves the
 original source. Rich edits normalize Markdown formatting; use plain text for

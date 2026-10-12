@@ -6,6 +6,12 @@ import app from "./app";
 
 afterEach(cleanup);
 
+async function plainText(slot: ReturnType<typeof renderSlot>) {
+  await slot.findByRole("textbox", { name: "Global instructions" });
+  fireEvent.mouseDown(slot.getByRole("tab", { name: "Plain text" }), { button: 0, ctrlKey: false });
+  return slot.findByRole("textbox", { name: "Global instructions" });
+}
+
 async function mount(instructions = "# Rules\n\nKeep **important** details.\n") {
   const loaded = await loadPluginApp(async () => app);
   const snapshot = { instructions, revision: "original", path: "/server/AGENTS.md" };
@@ -22,7 +28,8 @@ async function mount(instructions = "# Rules\n\nKeep **important** details.\n") 
 it("keeps exact Markdown when switching modes without editing", async () => {
   const original = "# Rules\r\n\r\nKeep **important** details.  \r\n";
   const slot = await mount(original);
-  const source = await slot.findByRole("textbox", { name: "Global instructions" });
+  expect((await slot.findByRole("textbox", { name: "Global instructions" })).tagName).toBe("DIV");
+  const source = await plainText(slot);
   expect((source as HTMLTextAreaElement).value).toBe(original.replaceAll("\r\n", "\n"));
   fireEvent.mouseDown(slot.getByRole("tab", { name: "Rich Markdown" }), { button: 0, ctrlKey: false });
   expect((await slot.findByRole("textbox", { name: "Global instructions" })).tagName).toBe("DIV");
@@ -34,11 +41,11 @@ it("keeps exact Markdown when switching modes without editing", async () => {
 
 it("saves source exceeding Custom instructions' limit", async () => {
   const slot = await mount();
-  const source = await slot.findByRole("textbox", { name: "Global instructions" });
+  const source = await plainText(slot);
   const instructions = "Rule.\n".repeat(1000);
   fireEvent.change(source, { target: { value: instructions } });
   fireEvent.click(slot.getByRole("button", { name: "Save" }));
-  await slot.findByText("Saved. New agent sessions will use these instructions.");
+  await slot.findByText("Saved");
   expect(slot.inspection.rpcCalls).toContainEqual({
     method: "instructions.save", input: { instructions, revision: "original" },
   });
@@ -53,7 +60,7 @@ it("keeps the local draft when saving fails", async () => {
       "instructions.save": () => { throw new Error("Disk is read-only"); },
     },
   });
-  const source = await slot.findByRole("textbox", { name: "Global instructions" });
+  const source = await plainText(slot);
   fireEvent.change(source, { target: { value: "My draft" } });
   fireEvent.click(slot.getByRole("button", { name: "Save" }));
   await slot.findByRole("alert");
@@ -72,7 +79,7 @@ it("keeps the local draft on conflict until the user reloads the file", async ()
       "instructions.save": () => { changed = true; return { status: "conflict", snapshot: latest }; },
     },
   });
-  const source = await slot.findByRole("textbox", { name: "Global instructions" });
+  const source = await plainText(slot);
   fireEvent.change(source, { target: { value: "My draft" } });
   fireEvent.click(slot.getByRole("button", { name: "Save" }));
   await slot.findByRole("alert");

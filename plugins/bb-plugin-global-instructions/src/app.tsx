@@ -5,13 +5,15 @@ import { Textarea } from "@/vendor/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/vendor/components/ui/tabs";
 import type { InstructionsSnapshot, rpcContract } from "./contract";
 import { RichEditor } from "./rich-editor";
+import { useEditorHeight } from "./use-editor-height";
 import "./styles.css";
 
 function GlobalInstructions() {
   const rpc = useRpc<typeof rpcContract>();
+  const panel = useEditorHeight();
   const [snapshot, setSnapshot] = useState<InstructionsSnapshot>();
   const [draft, setDraft] = useState("");
-  const [mode, setMode] = useState("plain");
+  const [mode, setMode] = useState("rich");
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string>();
   const [conflict, setConflict] = useState(false);
@@ -51,7 +53,7 @@ function GlobalInstructions() {
       const result = await rpc.call("instructions.save", { instructions: draft, revision: snapshot.revision });
       if (result.status === "conflict") {
         setConflict(true);
-        setError("AGENTS.md changed elsewhere. Your draft is still here. Copy any edits you want to keep, then reload the latest file.");
+        setError("File changed elsewhere. Copy your edits, then reload.");
       } else {
         setSnapshot(result.snapshot); setSaved(true);
       }
@@ -60,26 +62,25 @@ function GlobalInstructions() {
   }
 
   return (
-    <section className="bb-global-instructions flex flex-col gap-3" aria-label="Global instructions editor">
+    <section ref={panel} className="bb-global-instructions flex flex-col gap-3" aria-label="Global instructions editor">
       <div>
-        <p className="text-sm text-muted-foreground">Instructions for agents across every project and machine connected to this bb server. Saved changes apply to new agent sessions. Existing sessions may keep earlier instructions.</p>
+        <p className="text-sm text-muted-foreground">Applies to new agent sessions.</p>
         {snapshot && <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{snapshot.path}</p>}
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {snapshot ? <>
-        <Tabs value={mode} onValueChange={setMode}>
+        <Tabs className="global-instructions-tabs" value={mode} onValueChange={setMode}>
           <TabsList aria-label="Editor mode">
             <TabsTrigger value="plain" disabled={busy}>Plain text</TabsTrigger>
             <TabsTrigger value="rich" disabled={busy}>Rich Markdown</TabsTrigger>
           </TabsList>
-          <TabsContent value="plain">
+          <TabsContent className="global-instructions-pane" value="plain">
             <Textarea aria-label="Global instructions" value={draft} disabled={busy}
-              className="global-instructions-source min-h-80 font-mono text-sm" spellCheck={false}
+              className="global-instructions-source font-mono text-sm" spellCheck={false}
               onChange={(event) => edit(event.target.value)} />
           </TabsContent>
-          <TabsContent value="rich">
+          <TabsContent className="global-instructions-pane" value="rich">
             {mode === "rich" && <RichEditor key={editorGeneration} value={draft} disabled={busy} onChange={edit} />}
-            <p className="mt-2 text-xs text-muted-foreground">Rich editing formats Markdown. Use plain text to preserve exact source and custom Markdown syntax.</p>
           </TabsContent>
         </Tabs>
         <div className="flex flex-wrap items-center gap-2">
@@ -88,7 +89,7 @@ function GlobalInstructions() {
             {conflict ? "Reload latest" : dirty ? "Discard changes" : "Reload"}
           </Button>
           <span role="status" className="text-xs text-muted-foreground">
-            {saved ? "Saved. New agent sessions will use these instructions." : dirty ? "Unsaved changes" : "No character limit"}
+            {saved ? "Saved" : dirty ? "Unsaved changes" : "No character limit"}
           </span>
         </div>
       </> : busy ? <p role="status" className="text-sm text-muted-foreground">Loading instructions…</p>

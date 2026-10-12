@@ -60,8 +60,8 @@ export function RichEditor({ value, disabled, onChange }: {
     { label: "Code", active: editor?.isActive("codeBlock"), run: () => editor?.chain().focus().toggleCodeBlock().run() },
   ];
   return (
-    <div className="rounded-md border border-border bg-background">
-      <div role="toolbar" aria-label="Markdown formatting" className="flex flex-wrap gap-1 border-b border-border p-2">
+    <div className="global-instructions-rich-shell rounded-md border border-border bg-background">
+      <div role="toolbar" aria-label="Markdown formatting" className="flex shrink-0 flex-wrap gap-1 border-b border-border p-2">
         {actions.map(({ label, active, run }) => (
           <Button key={label} type="button" size="sm" variant={active ? "secondary" : "ghost"}
             aria-pressed={Boolean(active)} disabled={disabled || !editor} onClick={run}>{label}</Button>

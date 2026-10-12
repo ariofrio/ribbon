@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-global-instructions",
   "version": "0.1.0",
-  "description": "Edit global agent instructions in bb\u2019s server AGENTS.md with plain text or rich Markdown, without a character limit.",
+  "description": "Instructions for every agent.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -36,7 +36,7 @@
   },
   "bb": {
     "name": "Global instructions",
-    "description": "Edit global agent instructions in bb\u2019s server AGENTS.md with plain text or rich Markdown, without a character limit.",
+    "description": "Instructions for every agent.",
     "branding": {
       "icon": "./assets/icon.svg"
     },

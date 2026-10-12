@@ -37,7 +37,7 @@
     {
       "id": "global-instructions",
       "displayName": "Global instructions",
-      "description": "Edit global agent instructions in bb\u2019s server AGENTS.md with plain text or rich Markdown, without a character limit.",
+      "description": "Instructions for every agent.",
       "icon": {
         "url": "./plugins/bb-plugin-global-instructions/assets/icon.svg"
       },

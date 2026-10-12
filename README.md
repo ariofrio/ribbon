@@ -37,7 +37,7 @@ bb plugin install thread-stages@ribbon
 
 ### <img src="assets/icons/global-instructions.svg" alt="" width="26" align="absmiddle"> &nbsp;Global instructions
 
-Edit global agent instructions in bb’s server AGENTS.md with plain text or rich Markdown, without a character limit.
+Instructions for every agent.
 
 Open **Settings → Global instructions**. Saved instructions apply to new agent
 sessions across every project and machine connected to the server.
