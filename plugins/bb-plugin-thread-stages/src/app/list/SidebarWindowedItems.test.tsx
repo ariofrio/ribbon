@@ -3,6 +3,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import type { ReactNode, RefObject } from "react";
 import { createPortal } from "react-dom";
+import * as reactDom from "react-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SIDEBAR_CONTENT_SELECTOR,
@@ -10,6 +11,11 @@ import {
   SidebarContentElementProvider,
 } from "../ui/sidebar.js";
 import { SidebarWindowedItems } from "./SidebarWindowedItems.js";
+
+vi.mock("react-dom", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-dom")>();
+  return { ...actual, flushSync: vi.fn(actual.flushSync) };
+});
 
 const selectorMatch = SIDEBAR_CONTENT_SELECTOR.match(/^\[([\w-]+)="(.+)"\]$/);
 if (!selectorMatch) {
@@ -27,6 +33,7 @@ let scrollElement: HTMLDivElement;
 interface FakeIntersectionObserver {
   callback: IntersectionObserverCallback;
   observed: Set<Element>;
+  rootMargin: string;
 }
 
 const observerInstances: FakeIntersectionObserver[] = [];
@@ -42,25 +49,24 @@ function wrapperAt(index: number): Element {
 }
 
 function emitIntersections(
-  entries: readonly { target: Element; isIntersecting: boolean; height?: number }[],
+  entries: readonly { target: Element; isIntersecting: boolean; height?: number; top?: number }[],
+  kind: "both" | "buffer" | "viewport" = "both",
 ) {
-  const observer = observerInstances.at(-1);
-  if (!observer) {
-    throw new Error("No IntersectionObserver was created");
+  const latestObservers = [...observerInstances].reverse();
+  const selected = kind === "both"
+    ? [latestObservers.find((observer) => observer.rootMargin !== "0px"),
+       latestObservers.find((observer) => observer.rootMargin === "0px")]
+    : [latestObservers.find((observer) => (observer.rootMargin === "0px") === (kind === "viewport"))];
+  for (const observer of selected) {
+    if (!observer) throw new Error(`No ${kind} IntersectionObserver was created`);
+    observer.callback(entries.map((entry) => ({
+      target: entry.target,
+      isIntersecting: entry.isIntersecting &&
+        (observer.rootMargin !== "0px" || entry.top === undefined ||
+          (entry.top < 500 && entry.top + (entry.height ?? 30) > 0)),
+      boundingClientRect: new DOMRect(0, entry.top ?? 2_000, 300, entry.height ?? 30),
+    })) as unknown as IntersectionObserverEntry[], observer as unknown as IntersectionObserver);
   }
-  observer.callback(
-    entries.map(
-      (entry) =>
-        ({
-          target: entry.target,
-          isIntersecting: entry.isIntersecting,
-          boundingClientRect: entry.height === undefined
-            ? OFFSCREEN_ROW_RECT
-            : new DOMRect(0, 2_000, 300, entry.height),
-        }) as unknown as IntersectionObserverEntry,
-    ),
-    observer as unknown as IntersectionObserver,
-  );
 }
 
 function mountSidebarContentContainer(clientHeight: number) {
@@ -123,7 +129,9 @@ beforeEach(() => {
     class {
       callback: IntersectionObserverCallback;
       observed = new Set<Element>();
-      constructor(callback: IntersectionObserverCallback) {
+      rootMargin: string;
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+        this.rootMargin = options?.rootMargin ?? "0px";
         this.callback = callback;
         observerInstances.push(this as unknown as FakeIntersectionObserver);
       }
@@ -194,6 +202,59 @@ describe("SidebarWindowedItems", () => {
     renderItem.mockClear();
     act(() => emitIntersections([{ target: wrapperAt(1), isIntersecting: false }]));
     expect(renderItem).not.toHaveBeenCalled();
+  });
+
+  it("does not flush React for rows that are already realized", () => {
+    renderList({ current: scrollElement });
+    act(() => emitIntersections([{ target: wrapperAt(0), isIntersecting: true }]));
+    const flush = vi.mocked(reactDom.flushSync);
+    flush.mockClear();
+    act(() => emitIntersections([{ target: wrapperAt(0), isIntersecting: true }]));
+    expect(flush).not.toHaveBeenCalled();
+  });
+
+  it("defers mounting buffer rows while realizing viewport rows immediately", () => {
+    renderList({ current: scrollElement });
+    act(() => {
+      emitIntersections([
+        { target: wrapperAt(0), isIntersecting: true, top: 20 },
+        { target: wrapperAt(1), isIntersecting: true, top: 800 },
+      ]);
+      expect(screen.queryByTestId("real-item-0")).not.toBeNull();
+      expect(screen.queryByTestId("real-item-1")).toBeNull();
+    });
+    expect(screen.queryByTestId("real-item-1")).not.toBeNull();
+  });
+
+  it("promotes a pending buffer row as soon as it enters the viewport", () => {
+    renderList({ current: scrollElement });
+    act(() => {
+      emitIntersections([{ target: wrapperAt(0), isIntersecting: true, top: 800 }], "buffer");
+      expect(screen.queryByTestId("real-item-0")).toBeNull();
+      emitIntersections([{ target: wrapperAt(0), isIntersecting: true, top: 20 }], "viewport");
+      expect(screen.queryByTestId("real-item-0")).not.toBeNull();
+    });
+  });
+
+  it("does not recount subtrees or rebuild navigation when the window changes", () => {
+    const estimateRows = vi.fn(() => 1);
+    const getNavigationEntries = vi.fn((index: number) => [
+      { projectId: "proj_test", threadId: `thr_${index}` },
+    ]);
+    render(withScrollRef({ current: scrollElement }, (
+      <SidebarWindowedItems
+        itemKeys={["first", "second", "third"]}
+        estimateRows={estimateRows}
+        getNavigationEntries={getNavigationEntries}
+        renderItem={(index) => <span>Item {index}</span>}
+      />
+    )));
+    estimateRows.mockClear();
+    getNavigationEntries.mockClear();
+    act(() => emitIntersections([{ target: wrapperAt(0), isIntersecting: true }]));
+    act(() => emitIntersections([{ target: wrapperAt(0), isIntersecting: false }]));
+    expect(estimateRows).not.toHaveBeenCalled();
+    expect(getNavigationEntries).not.toHaveBeenCalled();
   });
 
   it("mounts and focuses an offscreen item on request without refocusing on updates", () => {
@@ -434,7 +495,7 @@ describe("SidebarWindowedItems", () => {
       }
     });
 
-    expect(observerInstances).toHaveLength(1);
+    expect(observerInstances).toHaveLength(2);
     expect(observerInstances[0]?.observed.size).toBe(3);
   });
 
