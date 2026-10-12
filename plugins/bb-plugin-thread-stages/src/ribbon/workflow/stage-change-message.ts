@@ -93,7 +93,7 @@ export function createStageChangeMessages(
       if (!(await options.enabled())) return;
       await bb.sdk.threads.send({
         threadId,
-        mode: "queue-if-active",
+        mode: "steer-if-active",
         input: stageChangeInput(change, options.threadStagesRunning()),
       });
     } catch (error) {

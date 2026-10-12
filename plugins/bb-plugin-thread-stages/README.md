@@ -200,8 +200,8 @@ another thread and Blocked on external party. In progress keeps the stored
 When you or another thread move a thread to a different stage, the plugin
 sends that thread "Thread stage updated: @In progress → @Blocked on external party",
 with agent-only
-context that tells the agent who moved it. The message queues while a turn
-is running or starts one on an idle thread. Automatic placement and a thread
+context that tells the agent who moved it. The message steers the active turn
+or starts one on an idle thread. Automatic placement and a thread
 moving itself through the CLI send nothing. Turn off **Message threads when their
 stage changes** to stop these messages.
 
