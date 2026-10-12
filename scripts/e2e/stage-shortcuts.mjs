@@ -20,6 +20,7 @@ export async function verifyStageShortcuts({ stack, fixture }) {
         [mac ? "Meta+." : "Control+.", "Completed"],
         [mac ? "Meta+Shift+." : "Control+Shift+.", "Active"],
         [mac ? "Meta+Shift+," : "Control+Shift+,", "Waiting"],
+        [mac ? "Meta+Alt+Shift+u" : "Control+Alt+Shift+u", "BlockedOnUser"],
         [mac ? "Control+Meta+." : "Control+Alt+,", "Deferred"],
         [mac ? "Control+Alt+Meta+." : "Control+Alt+Shift+.", "BlockedOnOtherAgent"],
         [mac ? "Control+Meta+Shift+." : "Control+Alt+Shift+,", "BlockedOnThirdParty"],
@@ -57,7 +58,8 @@ export async function verifyStageShortcuts({ stack, fixture }) {
           // rapid repeated title clicks would intentionally start renaming.
           const initial = stage === "Active" ? "Waiting" : "Active";
           fixture.run(["thread-stages", "stage", initial, thread.id]);
-          await row(list, thread.id).getByLabel(`${initial} stage`, { exact: true }).waitFor();
+          const initialLabel = initial === "Active" ? "In progress" : initial;
+          await row(list, thread.id).getByLabel(`${initialLabel} stage`, { exact: true }).waitFor();
           if (!new URL(page.url()).pathname.endsWith(`/threads/${thread.id}`)) await page.goBack();
           await page.waitForURL(`**/threads/${thread.id}`);
           await editor.click();

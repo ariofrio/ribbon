@@ -71,7 +71,7 @@ Group data and server logs live under `.scratch/e2e/<group>/`; the full run uses
 separate diagnostic artifacts for each group.
 
 The platform-shortcut suite starts a fresh client for Linux, Windows, and Mac,
-then reuses it for that platform's seven shortcuts. Each interaction resets its
+then reuses it for that platform's eight shortcuts. Each interaction resets its
 owned thread to a different stage, waits for its rendered stage, returns through
 browser history when filing moved selection, and waits for composer focus before
 checking that thread's stage-change RPC. Repeated title clicks would instead

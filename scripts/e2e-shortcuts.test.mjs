@@ -8,17 +8,19 @@ function harness(t, { failAt, navigateAway = false } = {}) {
   const contexts = [];
   const sent = [];
   const resets = [];
+  const resetLabels = [];
   const returns = [];
   let closed = false;
-  const stages = ["Completed", "Active", "Waiting", "Deferred", "BlockedOnOtherAgent", "BlockedOnThirdParty", "Completed"];
+  const stages = ["Completed", "Active", "Waiting", "BlockedOnUser", "Deferred", "BlockedOnOtherAgent", "BlockedOnThirdParty", "Completed"];
   const keys = {
     "Control+.": 0, "Meta+.": 0,
     "Control+Shift+.": 1, "Meta+Shift+.": 1,
     "Control+Shift+,": 2, "Meta+Shift+,": 2,
-    "Control+Alt+,": 3, "Control+Meta+.": 3,
-    "Control+Alt+Shift+.": 4, "Control+Alt+Meta+.": 4,
-    "Control+Alt+Shift+,": 5, "Control+Meta+Shift+.": 5,
-    "Control+Alt+.": 6, "Meta+Alt+.": 6,
+    "Control+Alt+Shift+u": 3, "Meta+Alt+Shift+u": 3,
+    "Control+Alt+,": 4, "Control+Meta+.": 4,
+    "Control+Alt+Shift+.": 5, "Control+Alt+Meta+.": 5,
+    "Control+Alt+Shift+,": 6, "Control+Meta+Shift+.": 6,
+    "Control+Alt+.": 7, "Meta+Alt+.": 7,
   };
   t.mock.method(chromium, "launch", async () => ({
     async newContext() {
@@ -42,7 +44,10 @@ function harness(t, { failAt, navigateAway = false } = {}) {
               // Rapid repeated title clicks intentionally start renaming.
               if (!navigateAway || titleClicks++ === 0) url = "http://isolated/projects/project/threads/owned";
             } };
-          }, getByLabel() { return this; }, first() { return this; },
+          }, getByLabel(label, options) {
+            resetLabels.push({ label, options });
+            return this;
+          }, first() { return this; },
         };
         return {
           async goto(value) { url = value; }, url() { return url; },
@@ -79,7 +84,7 @@ function harness(t, { failAt, navigateAway = false } = {}) {
     runJson: () => ({ id: "owned" }),
     run(args) { if (args[0] === "thread-stages" && args[1] === "stage") resets.push(args); },
   };
-  return { fixture, stack: { serverUrl: "http://isolated" }, contexts, sent, resets, returns, isClosed: () => closed, stages };
+  return { fixture, stack: { serverUrl: "http://isolated" }, contexts, sent, resets, resetLabels, returns, isClosed: () => closed, stages };
 }
 
 test("shortcut checks reuse one client per platform while resetting every interaction", async (t) => {
@@ -89,9 +94,12 @@ test("shortcut checks reuse one client per platform while resetting every intera
   for (const platform of h.contexts.map((c) => c.platform)) {
     assert.deepEqual(h.sent.filter((s) => s.platform === platform).map((s) => s.body.workflowStage), h.stages);
   }
-  assert.equal(h.resets.length, 21);
+  assert.equal(h.resets.length, 24);
   assert.ok(h.resets.every((args) => args.at(-1) === "owned"));
   h.resets.forEach((args, index) => assert.notEqual(args[2], h.sent[index].body.workflowStage));
+  assert.deepEqual(h.resetLabels, h.resets.map((args) => ({
+    label: `${args[2] === "Active" ? "In progress" : args[2]} stage`, options: { exact: true },
+  })));
   assert.ok(h.contexts.every((c) => c.closed));
   assert.ok(h.isClosed());
 });
@@ -106,7 +114,7 @@ test("a failing shortcut closes its platform context and browser", async (t) => 
 test("shortcut setup restores selection after thread and compose navigation without repeated title clicks", async (t) => {
   const h = harness(t, { navigateAway: true });
   await verifyStageShortcuts(h);
-  assert.equal(h.sent.length, 21);
-  assert.equal(h.returns.length, 15);
+  assert.equal(h.sent.length, 24);
+  assert.equal(h.returns.length, 18);
   assert.ok(h.returns.every((url) => url.endsWith("/threads/owned")));
 });
