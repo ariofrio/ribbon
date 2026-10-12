@@ -71,16 +71,16 @@ function GlobalInstructions() {
       {snapshot ? <>
         <Tabs className="global-instructions-tabs" value={mode} onValueChange={setMode}>
           <TabsList aria-label="Editor mode">
-            <TabsTrigger value="plain" disabled={busy}>Plain text</TabsTrigger>
             <TabsTrigger value="rich" disabled={busy}>Rich Markdown</TabsTrigger>
+            <TabsTrigger value="plain" disabled={busy}>Plain text</TabsTrigger>
           </TabsList>
+          <TabsContent className="global-instructions-pane" value="rich">
+            {mode === "rich" && <RichEditor key={editorGeneration} value={draft} disabled={busy} onChange={edit} />}
+          </TabsContent>
           <TabsContent className="global-instructions-pane" value="plain">
             <Textarea aria-label="Global instructions" value={draft} disabled={busy}
               className="global-instructions-source font-mono text-sm" spellCheck={false}
               onChange={(event) => edit(event.target.value)} />
-          </TabsContent>
-          <TabsContent className="global-instructions-pane" value="rich">
-            {mode === "rich" && <RichEditor key={editorGeneration} value={draft} disabled={busy} onChange={edit} />}
           </TabsContent>
         </Tabs>
         <div className="flex flex-wrap items-center gap-2">
