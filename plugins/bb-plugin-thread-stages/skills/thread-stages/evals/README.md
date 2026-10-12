@@ -17,7 +17,7 @@ From the repository root:
 # Validate the cases and exercise the grader and CLI fixture without a model.
 npm run check:evals --workspace=bb-plugin-thread-stages
 
-# Execute all 32 cases, or just the sixteen automatic-update cases.
+# Execute all 34 cases, or just the eighteen automatic-update cases.
 npm run evals --workspace=bb-plugin-thread-stages
 npm run evals --workspace=bb-plugin-thread-stages -- --mode automatic
 
@@ -52,36 +52,40 @@ is reported as an error rather than silently substituted.
 | Cases | What they exercise |
 | --- | --- |
 | 1–16: recommendation | Existing scope, stage, completion, preference, and linked-action questions. Agents return structured recommendations and obey each prompt's limits on execution. |
-| 17: observation | Established passive observation changes Active to Waiting. |
-| 18: user review | Pending user review changes an incorrect external blocker to Active. |
-| 19: own workers | Executing coordinated workers change an incorrect thread blocker to Active. |
+| 17: observation | Established passive observation changes In progress to Waiting. |
+| 18: user review | Pending user review changes an incorrect external blocker to Blocked on user. |
+| 19: own workers | Executing coordinated workers change an incorrect thread blocker to In progress. |
 | 20: independent thread | A required delivery independently owned by another BB workflow blocks this thread. |
 | 21: external AI | A required delivery owned by an independent outside AI is an external blocker. |
-| 22: exploratory report | Research with unsettled design and review keeps Active without a redundant write. |
+| 22: exploratory report | Research awaiting required user decisions and review becomes Blocked on user once independent work is exhausted. |
 | 23: durable completion | Delivered work with review and loose ends settled or delegated becomes Completed. |
 | 24: routine observation | A routine check leaves Waiting unchanged. |
-| 25: missing resumption path | Unfinished reporting setup keeps Active. |
+| 25: missing resumption path | Unfinished reporting setup keeps In progress. |
 | 26: automatic updates off | An independent dependency does not cause an unrequested stage write. |
-| 27: filed issues unresolved | Submitting reports during an investigation keeps Active while useful work and unresolved findings remain. |
-| 28: upstream fix pending | An accepted upstream fix blocks this thread while its own verification responsibility remains open. |
-| 29: report-only completion | A task explicitly limited to filing a report can finish while the issue stays open. |
-| 30: follow-up after submission | Concrete user follow-up reopens a thread incorrectly marked Completed after submission. |
-| 31: unaccepted handoff | Tracking a task and notifying a proposed owner keeps Active until that owner accepts responsibility. |
-| 32: reviewed report, unfinished workflow | Explaining the reported trigger and verifying publication keeps Active while user review and failed diagnostic cleanup remain open. |
+| 27: independent work before review | Pending user review leaves In progress unchanged while useful independent work remains. |
+| 28: user blocker unchanged | An established user blocker stays Blocked on user without a redundant write. |
+| 29: filed issues unresolved | Submitting reports during an investigation keeps In progress while useful work and unresolved findings remain. |
+| 30: upstream fix pending | An accepted upstream fix blocks this thread while its own verification responsibility remains open. |
+| 31: report-only completion | A task explicitly limited to filing a report can finish while the issue stays open. |
+| 32: follow-up after submission | Concrete user follow-up reopens a thread incorrectly marked Completed after submission. |
+| 33: unaccepted handoff | Tracking a task and notifying a proposed owner keeps In progress until that owner accepts responsibility. |
+| 34: reviewed report, unfinished workflow | Explaining the trigger and verifying publication keeps In progress while failed cleanup still needs a resumption path and user review remains open. |
 
-Cases 27 and 32 reconstruct two decision points from a browser-login
-investigation. Case 27 preserves the reporting request inside the earlier
-investigation and the Linux comparison added during reporting. Case 32 follows
+Cases 29 and 34 reconstruct two decision points from a browser-login
+investigation. Case 29 preserves the reporting request inside the earlier
+investigation and the Linux comparison added during reporting. Case 34 follows
 the controlled experiments and report update, with user review and failed
-scratch-profile cleanup still outstanding. Neither supplies the agent's later
-acknowledgment that completion was premature. Case 29 remains the explicitly
+scratch-profile cleanup still outstanding. Arranging the cleanup follow-up is
+independent work; user review alone would instead use Blocked on user. Neither
+supplies the agent's later
+acknowledgment that completion was premature. Case 31 remains the explicitly
 bounded reporting-only completion control.
 
-Case 31 preserves the notified-owner handoff from the original case 14, while
-case 14 now supplies an accepted handoff as the completion control. Case 31
+Case 33 preserves the notified-owner handoff from the original case 14, while
+case 14 now supplies an accepted handoff as the completion control. Case 33
 tests the change in the delegation contract without giving the thread a new
 objective to establish ownership. An unaccepted recipient owns neither a
-completed handoff nor a blocker; arranging the handoff remains Active.
+completed handoff nor a blocker; arranging the handoff remains In progress.
 
 Automatic prompts ask for a workflow update or the user's next delivery step
 without mentioning stages. The expected stage and write count stay outside the
@@ -114,8 +118,8 @@ revised session that meets the contract. A timeout, failed skill read, or missin
 instruction string does not establish a behavioral regression. Inspect the
 transcripts and recorded writes on both sides.
 
-Cases 27–30 and 32 cover workflow boundaries that the previous guidance can also
-pass; their passing results do not measure improvement. Case 31 targets the changed
+Cases 29–32 and 34 cover workflow boundaries that the previous guidance can also
+pass; their passing results do not measure improvement. Case 33 targets the changed
 handoff contract. Passing it does not establish that the original premature
 completion after issue submission has been reproduced or fixed. Model outcomes
 can vary between runs, so keep the artifacts and report the observed scope.

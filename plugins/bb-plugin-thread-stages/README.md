@@ -42,25 +42,27 @@ Choose **⋯ menu → Organize → Custom** for sections or **By project** for
 projects, or **By machine** for machines. Each keeps its own order and collapsed
 headings.
 
-The stage describes the thread's overall workflow. **Active** covers available
-or progressing work and user input or intended review. **Waiting** covers
-standby for an established condition, such as observation, a scheduled start,
-or recovery. **Blocked on another thread** and **Blocked on external party**
-mean a separate bb workflow or an independent outside counterpart owns a
-required action, with no useful independent work left here. The outside party
-may be a person, agent, or organization. This thread's own executing workers
-and managed jobs remain Active. **Deferred** is deliberately set aside.
+The stage describes the thread's overall workflow. **In progress** covers
+available or progressing work under this thread's coordination, including its
+own executing workers and managed jobs. **Waiting** covers standby for an
+established condition, such as observation, a scheduled start, or recovery.
+**Blocked on user** means the user owes input, a decision, approval, direction,
+or intended review. **Blocked on another thread** and **Blocked on external
+party** mean a separate bb workflow or an independent outside counterpart owns
+a required action; the outside party may be a person, agent, or organization.
+Each Blocked stage applies only when no useful independent work remains here;
+continue that work in In progress first. **Deferred** is deliberately set aside.
 **Completed** means an established objective has reached a durable result,
 with intended review and loose ends settled or delegated. Initial answers,
-research, and proposals normally remain Active until that broader work is
-resolved. Filing an issue or submitting a report does not close unresolved
+research, and proposals keep In progress while useful independent work remains.
+Required user review uses Blocked on user once that independent work is done.
+Filing an issue or submitting a report does not close unresolved
 findings unless the agreed scope ends at reporting or another owner accepts
 the remaining responsibility. Verification this thread still coordinates
-keeps it open. Waiting for the user is always Active.
+keeps it open.
 
-Inside each group, Active, Waiting, and both Blocked stages share one manually
-ordered
-list, followed by Deferred and then Completed. New roots enter at the top, and
+Inside each group, In progress, Waiting, and all three Blocked stages share one
+manually ordered list, followed by Deferred and then Completed. New roots enter at the top, and
 activity leaves positions unchanged.
 
 **⋯ menu → Sort by → Custom** selects this saved manual order and is the
@@ -84,12 +86,13 @@ stays in the main list, with its threads partitioned inside it.
 Drag a root to reorder it within its list, onto its section's heading to put
 it first, or onto another section to move it there. Drag a child to reorder
 it among its siblings; it stays under its parent and keeps its stage.
-Active, Waiting, and both Blocked stages share the main list; changing between those
-stages keeps a root's position. Every band follows its section, project, or machine order;
+In progress, Waiting, and all three Blocked stages share the main list; changing
+between those stages keeps a root's position. Every band follows its section,
+project, or machine order;
 reordering in one organization leaves the other organization’s order unchanged.
 Moving a root into another list defaults to the top through the UI or CLI,
 and it can then be reordered by dragging, shortcuts, or CLI placement.
-Returning a deferred or completed root to Active restores its main-list
+Returning a deferred or completed root to In progress restores its main-list
 position, and undo restores the position before a stage move.
 bb owns section membership, pins, and lifecycle; project
 membership is bb's under project grouping too.
@@ -101,7 +104,7 @@ stage and hierarchy's section; unparenting preserves the child's stage and
 copies the former root's section placement.
 
 Children hang from their parent by a bar in their own stage-ring column, which
-fills in for a hidden Active ring and parts around a shown one. Set **Child
+fills in for a hidden In progress ring and parts around a shown one. Set **Child
 thread lines** to Tree to branch a line from the parent into each child's ring
 instead, or into a small hollow node while that ring is hidden.
 
@@ -192,15 +195,18 @@ available in both modes.
 Type `@` and a stage name in the composer to mention a stage, such as
 `@Blocked on another thread`. A placement request using a stage mention tells
 the agent to place the thread there, so a message can end with "then @Blocked on another thread", and a
-queued message can be just the mention. Mentions of `@Idle` and `@Blocked` in
-older messages still resolve: Idle is now Active, and Blocked is split into
-the two Blocked stages.
+queued message can be just the mention. Mentions of `@Idle`, `@Active`, and
+`@Blocked` in older messages still resolve:
+Idle and Active are now In progress, and Blocked is split into Blocked on
+another thread and Blocked on external party. In progress keeps the stored
+`Active` ID and existing shortcut bindings. Blocked on user has its own
+`BlockedOnUser` ID; existing assignments are unchanged.
 
 When you or another thread move a thread to a different stage, the plugin
-sends that thread "Thread stage updated: @Active → @Blocked on external party",
+sends that thread "Thread stage updated: @In progress → @Blocked on external party",
 with agent-only
-context that tells the agent who moved it. The message queues while a turn
-is running or starts one on an idle thread. Automatic placement and a thread
+context that tells the agent who moved it. The message steers the active turn
+or starts one on an idle thread. Automatic placement and a thread
 moving itself through the CLI send nothing. Turn off **Message threads when their
 stage changes** to stop these messages.
 
@@ -214,8 +220,9 @@ thread as Completed is how it leaves the list.
 | macOS | Linux / Windows | Action |
 | --- | --- | --- |
 | ⌘. / ⌥⌘. | Ctrl+. / Ctrl+Alt+. | Complete and select the next main-list thread in this section or project |
-| ⇧⌘. | Ctrl+Shift+. | Return to Active, or undo the latest filing in this section or project |
+| ⇧⌘. | Ctrl+Shift+. | Return to In progress, or undo the latest filing in this section or project |
 | ⇧⌘, | Ctrl+Shift+, | Mark Waiting |
+| ⌥⇧⌘U | Ctrl+Alt+Shift+U | Mark Blocked on user |
 | ⌃⌥⌘. | Ctrl+Alt+Shift+. | Mark Blocked on another thread |
 | ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked on external party |
 | ⌃⌘. | Ctrl+Alt+, | Defer |
@@ -245,6 +252,7 @@ Section membership is BB core state; change it with `bb thread update`.
 bb thread-stages list --section <section-id> --stage BlockedOnThirdParty
 bb thread-stages show --self
 bb thread-stages stage Waiting --self
+bb thread-stages stage BlockedOnUser --self
 bb thread-stages stage Completed --self
 bb thread-stages list --include-children --stage BlockedOnThirdParty
 bb thread update <thread> --section <section-id>
@@ -267,8 +275,8 @@ sibling position.
 Section, project, and machine orders are independent. `--by` selects which
 saved order `list` reads or `order` changes; it defaults to `section`.
 Deferred and Completed are bands within that organization and use its order.
-Order anchors must be in the same group and band; Active and both Blocked
-stages share the main band. Children have one sibling order across all views.
+Order anchors must be in the same group and band; In progress, Waiting, and all
+three Blocked stages share the main band. Children have one sibling order across all views.
 With Custom sorting, a move to another section starts at the top, including
 when returning to a section visited before. The thread menu, CLI, and core BB
 membership updates use the same placement policy as a drop on the group

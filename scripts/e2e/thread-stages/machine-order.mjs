@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { FEATURED_THREAD } from "../../screenshots/fixture.mjs";
-import { carryTo, heading, launch, link, openContext, pickUp, sidebar } from "./sidebar.mjs";
+import { carryTo, dropMarker, heading, launch, link, openContext, pickUp, sidebar } from "./sidebar.mjs";
 
 export async function verifyMachineOrder({ stack, fixture }) {
   const moving = fixture.threads.get(FEATURED_THREAD);
@@ -19,6 +21,7 @@ export async function verifyMachineOrder({ stack, fixture }) {
     const sectionOrder = savedOrder("builtin:sections");
     const projectOrder = savedOrder("builtin:projects");
     context = await openContext(browser, { organization: "machine", viewport: { width: 1280, height: 1200 } });
+    await context.tracing.start({ snapshots: true, sources: true });
     let page = await context.newPage();
     async function ready() {
       await page.goto(stack.serverUrl);
@@ -45,6 +48,13 @@ export async function verifyMachineOrder({ stack, fixture }) {
     await first(resident, moving);
     await pickUp(page, link(group, moving.id));
     await carryTo(page, link(group, resident.id), "before");
+    const marker = group.locator(`[data-thread-id="${resident.id}"][data-sidebar-reorder-placement="before"]`);
+    await marker.waitFor();
+    assert.ok(await marker.evaluate((node) => {
+      const line = getComputedStyle(node, "::before");
+      return line.content !== "none" && parseFloat(line.height) > 0 &&
+        line.backgroundColor !== "rgba(0, 0, 0, 0)";
+    }), "The insertion line is drawn before releasing the drag");
     const placed = page.waitForResponse((response) => response.url().endsWith("/rpc/updatePlacementV1"));
     await page.mouse.up();
     const response = await placed;
@@ -60,10 +70,23 @@ export async function verifyMachineOrder({ stack, fixture }) {
     // A heading drop uses this machine's rank too.
     await pickUp(page, link(group, resident.id));
     await carryTo(page, heading(group));
+    await dropMarker(group).waitFor({ state: "hidden" });
+    const overlay = group.locator("[data-sidebar-drop-target-overlay]");
+    await overlay.waitFor();
+    assert.ok(await overlay.evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return box.width > 0 && box.height > 0 && style.visibility === "visible" &&
+        style.backgroundColor !== "rgba(0, 0, 0, 0)";
+    }), "The group drop target is drawn before releasing the drag");
     const headed = page.waitForResponse((response) => response.url().endsWith("/rpc/updatePlacementV1"));
     await page.mouse.up();
     assert.ok((await (await headed).json()).result.ok);
     await first(resident, moving);
+  } catch (error) {
+    await mkdir(resolve(".scratch/e2e"), { recursive: true });
+    await context?.tracing.stop({ path: resolve(".scratch/e2e/machine-order.trace.zip") });
+    throw error;
   } finally {
     await context?.close();
     await browser.close();
