@@ -28,18 +28,20 @@ export async function verifyGlobalInstructions({ stack, fixture }) {
   const previous = existsSync(file) ? readFileSync(file) : null;
   const original = "# Global rules\r\n\r\nKeep **important** details.\r\n\r\n- First\r\n- Second\r\n\r\n| Rule | Reason |\r\n| --- | --- |\r\n| Verify | Accuracy |\r\n";
   writeFileSync(file, original);
-  const browser = await chromium.launch({ headless: true, args: ["--mute-audio"] });
-  const context = await browser.newContext({ viewport: { width: 1280, height: 960 } });
+  const launchClient = () => chromium.launchPersistentContext(join(stack.dataDir, "global-instructions-client"), {
+    headless: true, args: ["--mute-audio"], viewport: { width: 1280, height: 960 },
+  });
+  let context = await launchClient();
   await context.tracing.start({ screenshots: true, snapshots: true });
   let disabled = false;
   try {
-    const page = await context.newPage();
+    let page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     page.setDefaultTimeout(60_000);
     await page.goto(new URL("/settings/plugins/global-instructions", stack.serverUrl).href);
-    const panel = page.getByRole("region", { name: "Global instructions editor" });
-    const source = panel.getByRole("textbox", { name: "Global instructions" });
+    let panel = page.getByRole("region", { name: "Global instructions editor" });
+    let source = panel.getByRole("textbox", { name: "Global instructions" });
     await expect(panel.getByRole("tab", { name: "Rich Markdown" })).toBeVisible();
     await expect(source.getByRole("heading", { name: "Global rules" })).toBeVisible();
     async function expectFillsViewport() {
@@ -60,7 +62,7 @@ export async function verifyGlobalInstructions({ stack, fixture }) {
     await expect(panel.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
     console.log("Global instructions: source loaded; switching to rich mode.");
     await panel.getByRole("tab", { name: "Rich Markdown" }).click();
-    const rich = panel.getByRole("textbox", { name: "Global instructions" });
+    let rich = panel.getByRole("textbox", { name: "Global instructions" });
     await expect(rich.getByRole("heading", { name: "Global rules" })).toBeVisible();
     await expect(rich.getByRole("cell", { name: "Accuracy" })).toBeVisible();
     const appearance = await rich.evaluate((node) => {
@@ -92,9 +94,51 @@ export async function verifyGlobalInstructions({ stack, fixture }) {
     const large = "# Global rules\n\n" + ("Keep every detail. ".repeat(25) + "\n").repeat(1000) + "\n日本語 🎉\nGLOBAL_INSTRUCTIONS_END_MARKER";
     console.log("Global instructions: filling large source.");
     await source.fill(large);
+    const settingsSidebar = () => page.locator(':is([data-sidebar="sidebar"], [data-testid="settings-sidebar-body"])');
+    const settingsEntry = () => settingsSidebar().locator('a[href="/settings/plugins/global-instructions"]');
+    const indicator = () => settingsEntry().getByRole("img", { name: "Unsaved changes" });
+    await expect(indicator()).toBeVisible();
+    const dot = await indicator().evaluate(node => ({
+      width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height,
+      color: getComputedStyle(node).backgroundColor,
+    }));
+    assert.ok(dot.width > 0 && dot.height > 0 && dot.color !== "rgba(0, 0, 0, 0)", "The unsaved indicator must render outside the plugin's CSS scope");
+    await expect.poll(() => page.evaluate(() => new Promise((resolve, reject) => {
+      const request = indexedDB.open("bb-global-instructions-drafts-v1", 1);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const database = request.result;
+        const transaction = database.transaction("drafts", "readonly");
+        const records = transaction.objectStore("drafts").getAll();
+        records.onsuccess = () => resolve(records.result[0]?.instructions);
+        transaction.oncomplete = () => database.close();
+      };
+    }))).toBe(large);
+    assert.equal(readFileSync(file, "utf8"), original, "Checkpointing a draft must not apply agent instructions");
+    await settingsSidebar().getByRole("link", { name: "General", exact: true }).click();
+    await expect(panel).toHaveCount(0);
+    await expect(indicator()).toBeVisible();
+    await settingsEntry().click();
+    await expect(source).toHaveValue(large);
+
+    // Restart the whole browser process using its persistent client profile.
+    await context.close();
+    context = await launchClient();
+    await context.tracing.start({ screenshots: true, snapshots: true });
+    page = await context.newPage();
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.setDefaultTimeout(60_000);
+    await page.goto(new URL("/settings/general", stack.serverUrl).href);
+    await expect(indicator()).toBeVisible();
+    await settingsEntry().click();
+    panel = page.getByRole("region", { name: "Global instructions editor" });
+    source = panel.getByRole("textbox", { name: "Global instructions" });
+    rich = source;
+    await expect(source).toHaveValue(large);
     console.log("Global instructions: saving large source.");
     await panel.getByRole("button", { name: "Save", exact: true }).click();
     await expect(panel.getByRole("status")).toHaveText("Saved");
+    await expect(indicator()).toHaveCount(0);
     assert.equal(readFileSync(file, "utf8"), large);
     await page.reload();
     await panel.getByRole("tab", { name: "Plain text" }).click();
@@ -155,12 +199,18 @@ export async function verifyGlobalInstructions({ stack, fixture }) {
 
     await source.fill("Local draft");
     writeFileSync(file, "External rules");
-    await panel.getByRole("button", { name: "Save", exact: true }).click();
+    await settingsSidebar().getByRole("link", { name: "General", exact: true }).click();
+    await settingsEntry().click();
+    await expect(source).toHaveValue("Local draft");
+    await expect(panel.getByRole("alert")).toContainText("changed elsewhere");
+    await expect(panel.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+    await expect(indicator()).toBeVisible();
     await expect(panel.getByRole("alert")).toContainText("changed elsewhere");
     await expect(source).toHaveValue("Local draft");
     assert.equal(readFileSync(file, "utf8"), "External rules");
     await panel.getByRole("button", { name: "Reload latest" }).click();
     await expect(source).toHaveValue("External rules");
+    await expect(indicator()).toHaveCount(0);
     await page.setViewportSize({ width: 390, height: 844 });
     await expectFillsViewport();
     await source.click();
@@ -174,12 +224,12 @@ export async function verifyGlobalInstructions({ stack, fixture }) {
     await expect(rich).toContainText("Mobile edit");
     await expectFillsViewport();
     assert.deepEqual(errors, []);
-    console.log("Global instructions: rendered modes, large saves, stale drafts, mobile input, and real instruction delivery passed.");
+    console.log("Global instructions: rendered modes, sidebar indicator, draft recovery after navigation and browser restart, large saves, stale drafts, mobile input, and real instruction delivery passed.");
   } catch (error) {
     await context.tracing.stop({ path: join(stack.dataDir, "global-instructions.trace.zip") });
     throw error;
   } finally {
-    await browser.close();
+    await context.close();
     if (disabled) fixture.run(["plugin", "enable", "global-instructions"]);
     if (previous === null) rmSync(file, { force: true });
     else writeFileSync(file, previous);

@@ -90,7 +90,7 @@ describe("server AGENTS.md", () => {
   it("uses only public SDK imports", async () => {
     const result = await experimental_scanPublicSdkOnly(resolve("."), {
       allow: [/^vitest\/config$/, /^@tiptap\//, /^tiptap-markdown$/, /^react$/, /^@\//,
-        /^@testing-library\/react$/, /^@radix-ui\//, /^class-variance-authority$/, /^clsx$/, /^tailwind-merge$/],
+        /^@testing-library\/react$/, /^@radix-ui\//, /^class-variance-authority$/, /^clsx$/, /^tailwind-merge$/, /^fake-indexeddb(?:\/auto)?$/],
     });
     expect(result.violations).toEqual([]);
     expect(result.privateDependencies).toEqual([]);

@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
+import "fake-indexeddb/auto";
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { afterEach, expect, it } from "vitest";
 import app from "./app";
+import { draftStore } from "./draft-store";
 
-afterEach(cleanup);
+afterEach(async () => { cleanup(); await draftStore.clear("/server/AGENTS.md"); });
 
 async function plainText(slot: ReturnType<typeof renderSlot>) {
   await slot.findByRole("textbox", { name: "Global instructions" });
@@ -88,4 +90,44 @@ it("keeps the local draft on conflict until the user reloads the file", async ()
   fireEvent.click(slot.getByRole("button", { name: "Reload latest" }));
   await waitFor(() => expect((source as HTMLTextAreaElement).value).toBe("External rules"));
   slot.lifecycle.unmount();
+});
+
+it("restores an unsaved draft after the settings page is unmounted", async () => {
+  const first = await mount();
+  const source = await plainText(first);
+  fireEvent.change(source, { target: { value: "Keep this unsaved draft." } });
+  first.lifecycle.unmount();
+  const reopened = await mount();
+  const restored = await plainText(reopened);
+  expect((restored as HTMLTextAreaElement).value).toBe("Keep this unsaved draft.");
+  expect(reopened.getByRole("button", { name: "Save" }).hasAttribute("disabled")).toBe(false);
+  reopened.lifecycle.unmount();
+});
+
+it("restores a stale draft without allowing it to overwrite the newer server file", async () => {
+  await draftStore.write({ version: 1, id: "stale", mode: "plain", instructions: "My draft",
+    base: { path: "/server/AGENTS.md", instructions: "Before", revision: "before" } });
+  const slot = await mount("External update");
+  const source = await slot.findByRole("textbox", { name: "Global instructions" });
+  expect((source as HTMLTextAreaElement).value).toBe("My draft");
+  expect((await slot.findByRole("alert")).textContent).toContain("File changed elsewhere");
+  expect(slot.getByRole("button", { name: "Save" }).hasAttribute("disabled")).toBe(true);
+  fireEvent.click(slot.getByRole("button", { name: "Reload latest" }));
+  await waitFor(() => expect((source as HTMLTextAreaElement).value).toBe("External update"));
+  expect(await draftStore.read("/server/AGENTS.md")).toBeNull();
+  slot.lifecycle.unmount();
+});
+
+it("clears the checkpoint after saving so navigation opens the saved file", async () => {
+  const slot = await mount();
+  const source = await plainText(slot);
+  fireEvent.change(source, { target: { value: "New rules" } });
+  fireEvent.click(slot.getByRole("button", { name: "Save" }));
+  await slot.findByText("Saved");
+  await waitFor(async () => expect(await draftStore.read("/server/AGENTS.md")).toBeNull());
+  slot.lifecycle.unmount();
+  const reopened = await mount("New rules");
+  await reopened.findByRole("textbox", { name: "Global instructions" });
+  expect(reopened.getByRole("button", { name: "Save" }).hasAttribute("disabled")).toBe(true);
+  reopened.lifecycle.unmount();
 });

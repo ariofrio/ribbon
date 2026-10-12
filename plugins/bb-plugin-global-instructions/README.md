@@ -21,8 +21,15 @@ Click **Save** to apply changes. Switching modes without editing preserves the
 original source. Rich edits normalize Markdown formatting; use plain text for
 exact source, raw HTML, or custom Markdown syntax. Clear the text and save to
 remove these instructions. **Discard changes** restores the file on the server.
-If the file changed elsewhere, saving keeps your draft and asks you to reload
-the latest file; copy any edits you want to keep before reloading.
+
+Unsaved drafts stay on this client across navigation and frontend restarts,
+including their editor mode. A dot beside **Global instructions** in the settings
+sidebar marks an unsaved draft. Save or discard to clear it. Drafts use local
+IndexedDB storage and are not shared between devices or applied to agents until
+saved. If storage fails, the editor reports the failure and warns before closing.
+Restored drafts retain their original file revision. If the file changed
+elsewhere, the editor keeps your draft and asks you to reload the latest file;
+copy any edits you want to keep before reloading.
 
 ## What this edits
 
@@ -61,4 +68,6 @@ npm run release:check
 
 From the repository root, `npm run test:e2e -- --case global-instructions:editor`
 checks the rendered editor and instruction delivery against an isolated bb
-server and host daemon.
+server and host daemon, including draft recovery after restarting the browser.
+bb 0.45 has no settings-entry badge API; the indicator uses the supported
+content-script API and removes its owned nodes when the plugin unloads.
