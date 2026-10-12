@@ -15,8 +15,10 @@ const STAGE_MENTION_PROVIDER_ID = "stage";
 
 const STAGE_MEANINGS: Record<WorkflowStage, string> = {
   Deferred: "intentionally set aside for later",
-  Active: "work is available or progressing under this thread's coordination, or the user has input, a decision, or a review to make",
+  Active: "work is available or progressing under this thread's coordination",
   Waiting: "standing by for an established condition, such as observation, a scheduled start, or recovery, with no current action or user decision due",
+  BlockedOnUser:
+    "the user owes input, a decision, approval, direction, or intended review, and no useful independent work remains here",
   BlockedOnOtherAgent:
     "another bb thread owns a required action or result, and no useful independent work remains here",
   BlockedOnThirdParty:
@@ -25,7 +27,7 @@ const STAGE_MEANINGS: Record<WorkflowStage, string> = {
 };
 
 const WAITING_ON_THE_USER =
-  "User input, decisions, approval, and intended review keep the thread Active, never Waiting or Blocked. Ending a turn does not by itself change the stage.";
+  "User input, decisions, approval, direction, and intended review use Blocked on user when no useful independent work remains. Continue independent work in In progress first. Ending a turn does not by itself change the stage.";
 
 /** Mentions sent before a rename keep resolving. */
 const RENAMED_STAGES: Record<string, WorkflowStage> = { idle: "Active" };
