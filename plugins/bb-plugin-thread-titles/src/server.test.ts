@@ -177,6 +177,152 @@ async function setup() {
   };
 }
 
+const httpError = (status: number) => Object.assign(
+  new Error(`HTTP ${status}: ${status === 404 ? "Thread not found" : "Server unavailable"}`),
+  { name: "BbHttpError", status },
+);
+
+it.each([
+  ["message", "waiting"],
+  ["message", "running"],
+  ["initial", "claimed"],
+  ["initial", "running"],
+  ["initial", "applying"],
+  ["refinement", "waiting"],
+  ["refinement", "running"],
+  ["initial", "skipped"],
+] as const)("retires a missing source during %s/%s across reconciliation and reload", async (phase, state) => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  const db = h.bb.storage.database();
+  const row = db.prepare("SELECT data FROM title_jobs WHERE thread_id = ?").get("real") as { data: string };
+  const job = JSON.parse(row.data);
+  Object.assign(job, {
+    phase, state, workerId: state === "waiting" ? null : "worker",
+    automatic: false, reason: state === "skipped" ? "Title worker failed" : null,
+  });
+  db.prepare("UPDATE title_jobs SET state = ?, data = ? WHERE thread_id = ?").run(state, JSON.stringify(job), "real");
+  const lookups: string[] = [];
+  h.harness.inspection.sdk.stub("threads.get", async ({ threadId }) => {
+    lookups.push(threadId);
+    throw httpError(404);
+  });
+  h.harness.inspection.sdk.stub("threads.stop", async () => { throw httpError(404); });
+  h.harness.inspection.sdk.stub("threads.archive", async () => { throw httpError(404); });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(lookups).toEqual(["real"]);
+  for (let i = 0; i < 3; i++) await h.harness.behavior.runSchedule("title-reconciliation");
+  const next = await h.harness.lifecycle.reload(plugin);
+  cleanups.push(() => next.harness.lifecycle.dispose());
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  await next.harness.behavior.emitThreadEvent("thread.idle", { thread: h.worker, lastAssistantText: null });
+  expect(lookups).toEqual(["real"]);
+  expect(h.spawned).toHaveLength(0);
+  expect(h.updates).toHaveLength(0);
+  expect(h.harness.inspection.logEntries.filter((entry) => entry.level === "warn")).toEqual([]);
+});
+
+it("uses the source deletion event without fetching the removed thread", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  const lookups: string[] = [];
+  h.harness.inspection.sdk.stub("threads.get", async ({ threadId }) => {
+    lookups.push(threadId);
+    throw httpError(503);
+  });
+  await h.harness.behavior.emitThreadEvent("thread.deleted", { thread: { ...h.thread, deletedAt: Date.now() } });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(lookups).toEqual([]);
+  expect(h.spawned).toHaveLength(0);
+});
+
+it("retires a deleted worker without retrying its lookup or cleanup", async () => {
+  const h = await setup();
+  await firstTurn(h);
+  const lookups: string[] = [];
+  h.harness.inspection.sdk.stub("threads.get", async ({ threadId }) => {
+    lookups.push(threadId);
+    if (threadId === "worker") throw httpError(404);
+    return h.thread;
+  });
+  h.harness.inspection.sdk.stub("threads.stop", async () => { throw httpError(404); });
+  h.harness.inspection.sdk.stub("threads.archive", async () => { throw httpError(404); });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(lookups).toEqual(["real", "worker"]);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(lookups).toEqual(["real", "worker"]);
+  expect(h.spawned).toHaveLength(1);
+  expect(h.updates).toHaveLength(0);
+  expect(h.harness.inspection.logEntries.filter((entry) => entry.level === "warn")).toEqual([]);
+});
+
+it("keeps retrying temporary lookup failures", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.harness.inspection.sdk.stub("threads.get", async () => { throw httpError(503); });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  h.harness.inspection.sdk.stub("threads.get", async ({ threadId }) => threadId === "real" ? h.thread : h.worker);
+  h.user("Calendar");
+  h.endTurn();
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(1);
+});
+
+it.each(["history", "environment"] as const)("rechecks the source after a %s 404 during reconciliation", async (operation) => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Calendar");
+  h.endTurn();
+  let missing = false;
+  const lookups: string[] = [];
+  h.harness.inspection.sdk.stub("threads.get", async ({ threadId }) => {
+    lookups.push(threadId);
+    if (missing) throw httpError(404);
+    return h.thread;
+  });
+  if (operation === "history") h.harness.inspection.sdk.stub("threads.events.list", async () => {
+    missing = true;
+    throw httpError(404);
+  });
+  else h.harness.inspection.sdk.stub("environments.get", async () => { throw httpError(404); });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(lookups).toEqual(["real", "real"]);
+  if (operation === "history") {
+    await h.harness.behavior.runSchedule("title-reconciliation");
+    expect(lookups).toEqual(["real", "real"]);
+    expect(h.harness.inspection.logEntries.filter((entry) => entry.level === "warn")).toEqual([]);
+  } else {
+    h.harness.inspection.sdk.stub("environments.get", async () => ({ hostId: "host" }) as never);
+    await h.harness.behavior.runSchedule("title-reconciliation");
+    expect(h.spawned).toHaveLength(1);
+  }
+});
+
+it("retries temporary cleanup failures after reload without reviving a deleted source", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Calendar");
+  h.thread.title = "Calendar";
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  h.harness.inspection.sdk.stub("threads.archive", async () => { throw httpError(503); });
+  await h.harness.behavior.emitThreadEvent("thread.deleted", { thread: { ...h.thread, deletedAt: Date.now() } });
+  expect(h.harness.inspection.logEntries.filter((entry) => entry.level === "warn")).toHaveLength(1);
+  const next = await h.harness.lifecycle.reload(plugin);
+  cleanups.push(() => next.harness.lifecycle.dispose());
+  const lookups: string[] = [];
+  next.harness.inspection.sdk.stub("threads.get", async ({ threadId }) => {
+    lookups.push(threadId);
+    throw httpError(404);
+  });
+  next.harness.inspection.sdk.stub("threads.archive", async () => ({ count: 1 }) as never);
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(next.harness.inspection.sdk.callsTo("threads.archive")).toHaveLength(1);
+  expect(lookups).toEqual([]);
+  expect(h.spawned).toHaveLength(1);
+});
+
 it("refines once after the first turn ends, including assistant and tool content", async () => {
   const h = await setup();
   await h.harness.behavior.emitThreadEvent("thread.created", {

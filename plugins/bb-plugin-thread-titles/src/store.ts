@@ -31,6 +31,8 @@ export interface Job {
   // Provider cooldowns survive phase handoff as well as process restart.
   cooldowns?: Record<string, number>;
   recoverableFailure?: boolean;
+  // Deletion cancels every remaining phase, including first-message handoff.
+  sourceDeleted?: boolean;
   legacyRecoveryChecked?: boolean;
   // Legacy jobs used this flag for their sole fallback/length retry.
   onFallback?: boolean;

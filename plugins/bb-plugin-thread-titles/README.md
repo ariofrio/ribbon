@@ -43,6 +43,9 @@ is generic, materially inaccurate, or longer than the title length limit. New de
 stylistic preferences are not reasons to rewrite an accurate, specific title.
 Retries and agent messages do not count. Elapsed time alone never starts a new phase.
 Each worker is stopped and archived afterward.
+Deleting a source thread permanently cancels its title job. Reconciliation also
+retires jobs whose source is missing after a missed deletion event or restart;
+workers already deleted by bb require no further cleanup.
 
 The plugin saves the first stored title it observes before the first pass.
 bb initially displays a fallback derived from the first prompt while its stored
