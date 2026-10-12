@@ -37,7 +37,7 @@
     {
       "id": "global-instructions",
       "displayName": "Global instructions",
-      "description": "Instructions for every agent.",
+      "description": "Edit bb’s global AGENTS.md without a length limit.",
       "icon": {
         "url": "./plugins/bb-plugin-global-instructions/assets/icon.svg"
       },

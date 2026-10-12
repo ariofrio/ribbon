@@ -64,7 +64,7 @@ function GlobalInstructions() {
   return (
     <section ref={panel} className="bb-global-instructions flex flex-col gap-3" aria-label="Global instructions editor">
       <div>
-        <p className="text-sm text-muted-foreground">Applies to new agent sessions.</p>
+        <p className="text-sm text-muted-foreground">Shared across projects and connected machines. Saved changes apply to new agent sessions.</p>
         {snapshot && <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{snapshot.path}</p>}
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

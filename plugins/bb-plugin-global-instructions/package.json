@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-global-instructions",
   "version": "0.1.0",
-  "description": "Instructions for every agent.",
+  "description": "Edit bb’s global AGENTS.md without a length limit.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -36,7 +36,7 @@
   },
   "bb": {
     "name": "Global instructions",
-    "description": "Instructions for every agent.",
+    "description": "Edit bb’s global AGENTS.md without a length limit.",
     "branding": {
       "icon": "./assets/icon.svg"
     },
