@@ -6,6 +6,7 @@ import {
 } from "./panel-tab-selection";
 
 type FocusComposer = () => void;
+type OpenTerminal = (options: { terminalId: string }) => Promise<boolean>;
 
 interface PrimaryPanelTabHost {
   closePanel?(): boolean;
@@ -16,6 +17,7 @@ interface PrimaryPanelTabHost {
 
 interface PrimaryComposerRegistration {
   focus: FocusComposer;
+  openTerminal?: OpenTerminal;
   panelTabHost?: PrimaryPanelTabHost;
 }
 
@@ -43,9 +45,10 @@ export function registerPrimaryComposerFocus(
   threadId: string | null,
   focusComposer: FocusComposer,
   panelTabHost?: PrimaryPanelTabHost,
+  openTerminal?: OpenTerminal,
 ): () => void {
   const registrations = primaryComposersByThread.get(threadId) ?? [];
-  const registration = { focus: focusComposer, panelTabHost };
+  const registration = { focus: focusComposer, panelTabHost, openTerminal };
   registrations.push(registration);
   primaryComposersByThread.set(threadId, registrations);
   return () => {
@@ -58,6 +61,11 @@ export function registerPrimaryComposerFocus(
       primaryComposersByThread.delete(threadId);
     }
   };
+}
+
+export async function openPrimaryComposerTerminal(threadId: string, terminalId: string): Promise<boolean> {
+  const registration = primaryComposersByThread.get(threadId)?.at(-1);
+  return registration?.openTerminal?.({ terminalId }) ?? false;
 }
 
 export function hasPrimaryComposer(threadId: string | null): boolean {

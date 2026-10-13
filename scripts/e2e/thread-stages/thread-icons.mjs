@@ -229,9 +229,12 @@ export async function verifyThreadIcons({ stack, fixture }) {
         const rowNode = document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${threadId}"]`);
         const badge = rowNode?.querySelector('[title="Sidebar pull request"]');
         const icon = badge?.querySelector("svg");
-        const statusTitle = `${state[0].toUpperCase()}${state.slice(1)}`;
+        const iconName = {
+          open: "GitPullRequestArrow", draft: "GitPullRequestDraft",
+          merged: "GitMerge", closed: "GitPullRequestClosed",
+        }[state];
         const reference = document.querySelector(
-          `[data-app-composer-role="primary"] a[href="https://github.com/example/project/pull/123"] [title="${statusTitle}"] svg`,
+          `[data-app-composer-role="primary"] a[href="https://github.com/example/project/pull/123"] svg[data-icon="${iconName}"]`,
         );
         if (!icon || !reference) return false;
         const range = document.createRange();

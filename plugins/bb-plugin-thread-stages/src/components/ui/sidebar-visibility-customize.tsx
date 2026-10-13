@@ -1,32 +1,37 @@
+import { useCallback, useId, useMemo, type ReactNode } from "react";
 import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  type ReactNode,
-} from "react";
-import { DndContext, type DragEndEvent } from "@dnd-kit/core";
+  DndContext,
+  type DragEndEvent,
+  type Sensor,
+  type TouchSensorOptions,
+} from "@dnd-kit/core";
 import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Icon } from "@/components/ui/icon";
+import { Checkbox } from "./checkbox";
+import { Icon } from "./icon";
 import {
   COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
   COARSE_POINTER_ICON_SIZE_CLASS,
   COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-} from "@/components/ui/coarse-pointer-sizing";
-import { CHROME_SECTION_LABEL_CLASS } from "@/components/ui/chrome-style-tokens";
-import { cn } from "@/lib/utils";
-import type {
-  SidebarVisibilityItem,
-  SidebarActivationModifiers,
-} from "./SidebarVisibilityControls.js";
-import { useSidebarSortable } from "../rows/sortableMotion.js";
-import { useSidebarReorderDnd } from "../dnd/useSidebarReorderDnd.js";
+} from "./coarse-pointer-sizing";
+import { cn } from "../../lib/utils";
+import { SidebarCustomizePanel } from "./sidebar-customize-panel";
+import { useSidebarSortable } from "./sortable-motion";
+import { useSidebarReorderDnd } from "./use-sidebar-reorder-dnd";
+
+export interface SidebarVisibilityItem {
+  id: string;
+  title: string;
+  icon?: ReactNode;
+  disabled?: boolean;
+}
+
+export interface SidebarActivationModifiers {
+  metaKey: boolean;
+  ctrlKey: boolean;
+}
 
 export function SidebarVisibilityCustomize({
   items,
@@ -38,6 +43,7 @@ export function SidebarVisibilityCustomize({
   onVisibleChange,
   testIdPrefix = "sidebar-navigation",
   title,
+  touchSensor,
   variant,
   visibleIds,
 }: {
@@ -53,6 +59,7 @@ export function SidebarVisibilityCustomize({
   onVisibleChange: (id: string, visible: boolean) => void;
   testIdPrefix?: string;
   title: string;
+  touchSensor: Sensor<TouchSensorOptions>;
   variant: "compact" | "card";
   visibleIds: readonly string[];
 }) {
@@ -71,6 +78,7 @@ export function SidebarVisibilityCustomize({
   );
   const { dndContextProps, onClickCapture } = useSidebarReorderDnd({
     onDragEnd: handleDragEnd,
+    touchSensor,
   });
 
   const list = (
@@ -117,99 +125,6 @@ export function SidebarVisibilityCustomize({
     >
       {list}
     </SidebarCustomizePanel>
-  );
-}
-
-export function SidebarCustomizePanel({
-  children,
-  onDone,
-  testIdPrefix,
-  title,
-  variant,
-}: {
-  children: ReactNode;
-  onDone: () => void;
-  testIdPrefix: string;
-  title: string;
-  variant: "compact" | "card";
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const doneButtonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (variant === "compact") {
-      doneButtonRef.current?.focus();
-      return;
-    }
-    containerRef.current
-      ?.querySelector<HTMLElement>("[data-sidebar-customize-launch]")
-      ?.focus();
-  }, [variant]);
-
-  if (variant === "compact") {
-    return (
-      <div
-        ref={containerRef}
-        className="flex min-h-0 flex-1 flex-col"
-        data-testid={`${testIdPrefix}-customize-inline`}
-      >
-        <div className="flex shrink-0 items-center gap-1">
-          <div
-            className={cn("min-w-0 flex-1 px-2", CHROME_SECTION_LABEL_CLASS)}
-          >
-            {title}
-          </div>
-          <Button
-            ref={doneButtonRef}
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 shrink-0 px-2 text-xs text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent focus-visible:ring-2 max-md:pointer-coarse:h-9 max-md:pointer-coarse:text-sm"
-            onClick={onDone}
-          >
-            Done
-          </Button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto pt-1">{children}</div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={containerRef}
-      className="rounded-lg border border-sidebar-border/40 bg-sidebar-accent/40 p-1"
-      data-testid={`${testIdPrefix}-customize-inline`}
-      onKeyDown={(event) => {
-        if (
-          event.key !== "Escape" ||
-          !(event.target instanceof Node) ||
-          !event.currentTarget.contains(event.target)
-        )
-          return;
-        event.preventDefault();
-        onDone();
-      }}
-    >
-      <div className="flex items-center gap-1 pb-1">
-        <div
-          className={cn("min-w-0 flex-1 px-2 py-1", CHROME_SECTION_LABEL_CLASS)}
-        >
-          {title}
-        </div>
-        <Button
-          ref={doneButtonRef}
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-6 shrink-0 px-2 text-xs text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent focus-visible:ring-2"
-          onClick={onDone}
-        >
-          Done
-        </Button>
-      </div>
-      {children}
-    </div>
   );
 }
 

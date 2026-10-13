@@ -1,3 +1,4 @@
+import { AppThreadSectionMoveProvider } from "../rows/ThreadSectionMoveProvider.js";
 import {
   ThreadListVisibility,
   ThreadListMore,
@@ -18,17 +19,14 @@ import {
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { toast } from "sonner";
 import type { SidebarThread } from "../model/sidebar-thread.js";
-import {
-  experimental_useSidebarThreadActions,
-  useSdk,
-} from "@get-bb/plugin-sdk/app";
+import { useBbNavigate, useSdk } from "@get-bb/plugin-sdk/app";
 import {
   SidebarRenameProvider,
   useSidebarRename,
   useSidebarRenameState,
 } from "../rows/SidebarInlineRename.js";
-import { AppThreadSectionMoveProvider } from "../rows/ThreadSectionMoveProvider.js";
-import { useDialogState } from "../ui/useDialogState.js";
+import { useDialogState } from "@/components/ui/use-dialog-state";
+import { ThreadRowNavigationProvider } from "../rows/threadRowNavigation.js";
 import {
   buildProjectThreadGroups,
   foldedThreadPreview,
@@ -47,7 +45,7 @@ import { ThreadSectionCreateDialog } from "./ThreadSectionCreateDialog.js";
 import {
   ConfirmDeleteDialog,
   ConfirmDeleteDialogContent,
-} from "../ui/ConfirmDeleteDialog.js";
+} from "@/components/ui/confirm-delete-dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -120,6 +118,7 @@ import {
 } from "./BuiltInSidebarSection.js";
 import { ReorderableSidebarSectionOrderList } from "./ReorderableSidebarSectionOrderList.js";
 import { useSidebarModeSectionOrder } from "./useSidebarModeSectionOrder.js";
+import { useReadStatusGrouping } from "./useReadStatusGrouping.js";
 import { haveSameOrder } from "../model/stored-order.js";
 import {
   useSidebarData,
@@ -396,6 +395,7 @@ export function ProjectListShell({ children }: ProjectListShellProps) {
   // wait for the second before they read the first.
   const ribbon = useRibbonData();
   return (
+    <ThreadRowNavigationProvider>
     <SidebarContentElementProvider>
       <SidebarStickyStack
         data-sidebar-sticky-density="compact-actions"
@@ -409,6 +409,7 @@ export function ProjectListShell({ children }: ProjectListShellProps) {
         <SidebarGroupContent>{children}</SidebarGroupContent>
       </SidebarStickyStack>
     </SidebarContentElementProvider>
+    </ThreadRowNavigationProvider>
   );
 }
 
@@ -492,6 +493,7 @@ function buildGroupSectionItem(
 }
 
 function useGroupedModeThreadDnd({
+  containerProjectId,
   collapsedThreadIds,
   compareThreads,
   mode,
@@ -502,6 +504,7 @@ function useGroupedModeThreadDnd({
   rootItems,
   threads,
 }: {
+  containerProjectId?: string;
   collapsedThreadIds: Set<string>;
   mode: SidebarOrganizationMode;
   compareThreads: ThreadComparator;
@@ -523,6 +526,7 @@ function useGroupedModeThreadDnd({
   const ribbonDnd = useRibbonDnd(mode);
   const threadDnd = useSectionThreadDnd({
     containerId: CHRONOLOGICAL_CONTAINER_ID,
+    containerProjectId,
     enabled: true,
     rootItems,
     topLevelSectionOrder: order,
@@ -707,6 +711,7 @@ function ProjectModeSections({
     [effectivePinnedThreadIds, threads],
   );
   const threadDnd = useGroupedModeThreadDnd({
+    containerProjectId: personalProjectId ?? undefined,
     collapsedThreadIds,
     compareThreads,
       mode: "project",
@@ -1048,7 +1053,7 @@ function MachineSidebarSection({
       {...props}
       disabled={props.disabled || rename.isEditing}
       labelEditor={rename.editor}
-      onRename={rename.startEditing}
+      onRename={rename.startEditingFromDoubleClick}
       actions={renderActions(
         props.id,
         props.label,
@@ -1396,7 +1401,7 @@ function ProjectListComponent({
   searchQuery = "",
 }: ProjectListProps) {
   const sdk = useSdk();
-  const sidebarActions = experimental_useSidebarThreadActions();
+  const navigate = useBbNavigate();
   const { status, sections, projects, personalProject, archived } =
     useSidebarData();
   const personalProjectId = personalProject?.id ?? null;
@@ -1463,14 +1468,14 @@ function ProjectListComponent({
       pinned = false,
     ) => {
       onProjectSelect?.();
-      sidebarActions.openNewThread({
+      navigate.toCompose({
         ...(projectId !== null ? { projectId } : {}),
-        experimental_placement: { sectionId: sectionId ?? null, pinned },
+        placement: { sectionId: sectionId ?? null, pinned },
         ...(hostId ? { hostId } : {}),
         focusPrompt: true,
       });
     },
-    [onProjectSelect, sidebarActions],
+    [navigate, onProjectSelect],
   );
   const handleCreateProjectThread = useCallback(
     (projectId: string) => {
@@ -1566,6 +1571,7 @@ function ProjectListComponent({
       return;
     }
     setIsDeleteThreadSectionPending(true);
+    sectionDeleteDialog.onClose();
     void sdk.threadSections
       .delete({ id: section.id })
       .then(() => sectionDeleteDialog.onClose())
@@ -1691,7 +1697,7 @@ function ProjectListComponent({
   const ribbonReady = ribbon?.ready ?? false;
   const ribbonPlacements = ribbon?.placements;
   const ribbonChildRanks = ribbon?.childRanks;
-  const sidebarThreadComparator = useMemo<ThreadComparator>(() => {
+  const baseThreadComparator = useMemo<ThreadComparator>(() => {
     // Ribbon's retained order stands in for the sort wherever it has ranks.
     if (
       chronologicalSort === "none" &&
@@ -1717,10 +1723,15 @@ function ProjectListComponent({
     ribbonReady,
     sortDirection,
   ]);
-  const collapsedThreadIds = useMemo(
-    () => new Set(collapsedThreadIdList),
-    [collapsedThreadIdList],
-  );
+  const {
+    comparator: sidebarThreadComparator,
+    collapsedThreadIds,
+    toggleThreadCollapsed,
+  } = useReadStatusGrouping({
+    threads,
+    selectedThreadId,
+    comparator: baseThreadComparator,
+  });
   const collapsedEnvironmentIds = useMemo(
     () => new Set(collapsedEnvironmentIdList),
     [collapsedEnvironmentIdList],
@@ -1761,15 +1772,6 @@ function ProjectListComponent({
     [pinnedSidebarState.rootNodes],
   );
   const hasPinnedSection = pinnedSidebarState.rootNodes.length > 0;
-  const toggleThreadCollapsed = useCallback<ToggleCollapsedId>(
-    (threadId) => {
-      setCollapsedThreadIdList((current) => {
-        return toggleCollapsedIdList({ current, id: threadId });
-      });
-    },
-    [setCollapsedThreadIdList],
-  );
-
   const toggleEnvironmentCollapsed = useCallback<ToggleCollapsedId>(
     (environmentId) => {
       setCollapsedEnvironmentIdList((current) => {
