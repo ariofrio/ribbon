@@ -167,7 +167,7 @@ export function ThreadActionsMenu({
     useThreadActionsMenuLifecycle(onOpenChange);
 
   return (
-    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+    <DropdownMenu modal={false} open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -271,7 +271,7 @@ function ThreadActionsDesktopContextMenu({
   }, [dragging, handleOpenChange, open]);
 
   return (
-    <ContextMenu open={open} onOpenChange={handleOpenChange}>
+    <ContextMenu modal={false} open={open} onOpenChange={handleOpenChange}>
       <ContextMenuTrigger asChild disabled={disabled || dragging}>
         {children}
       </ContextMenuTrigger>

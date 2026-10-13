@@ -6,7 +6,7 @@ import { CompactViewportOverrideProvider } from "@/components/ui/hooks/use-compa
 import { RibbonDataProvider } from "../../ribbon/app/data";
 import { ribbonRpcStubs } from "../../ribbon/app/test-support";
 import { makeSidebarThread } from "../model/fixtures";
-import { ThreadActionsMenu } from "./ThreadActionsMenu";
+import { ThreadActionsContextMenu, ThreadActionsMenu } from "./ThreadActionsMenu";
 
 installTestPluginRuntime();
 beforeEach(() => {
@@ -30,6 +30,31 @@ function CompactMenu() {
     </CompactViewportOverrideProvider>
   );
 }
+
+it.each(["context", "dropdown"])("keeps outside controls reachable on the desktop %s menu", async (surface) => {
+  function DesktopMenu() {
+    const props = { thread: makeSidebarThread(), onRename: () => {} };
+    return (
+      <CompactViewportOverrideProvider isCompactViewport={false}>
+        <RibbonDataProvider>
+          {surface === "context"
+            ? <ThreadActionsContextMenu {...props}><button type="button">Thread row</button></ThreadActionsContextMenu>
+            : <ThreadActionsMenu {...props} />}
+          <button type="button">Outside control</button>
+        </RibbonDataProvider>
+      </CompactViewportOverrideProvider>
+    );
+  }
+  renderSlot({ component: DesktopMenu }, {}, { rpc: ribbonRpcStubs() });
+  if (surface === "context") fireEvent.contextMenu(screen.getByRole("button", { name: "Thread row" }));
+  else fireEvent.pointerDown(screen.getByRole("button", { name: "Thread actions" }), { button: 0 });
+  await screen.findByRole("menu", { name: "Thread actions" });
+  expect(getComputedStyle(document.body).pointerEvents).not.toBe("none");
+  const outside = screen.getByRole("button", { name: "Outside control" });
+  outside.focus();
+  await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+  expect(document.activeElement).toBe(outside);
+});
 
 it("autosaves actions in the compact menu and maintains one trailing empty row on unfocus", async () => {
   const slot = renderSlot({ component: CompactMenu }, {}, {
