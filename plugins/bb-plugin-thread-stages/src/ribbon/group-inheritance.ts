@@ -1,16 +1,12 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import type {
-  GroupingDescriptor,
-  GroupingKey,
-  PlacementStore,
-} from "./placement-store";
+import type { PlacementStore } from "./placement-store";
+import { THREAD_STAGES_GROUPING_KEY } from "./workflow/catalog";
 
 type Thread = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>;
 
 interface GroupInheritanceOptions {
   eligibleRoot(thread: Thread): boolean | "child" | Promise<boolean | "child">;
-  reconcileRoot(thread: Thread, eligible: boolean | "child"): void;
-  groupings(): readonly GroupingDescriptor[];
+  reconcileRoot(thread: Thread, eligible: boolean | "child"): void | Promise<void>;
   getPlacement: PlacementStore["getPlacement"];
   updatePlacement(
     input: Parameters<PlacementStore["updatePlacement"]>[0],
@@ -56,29 +52,18 @@ function inheritedSectionId(candidates: readonly Thread[]): string | null {
   return candidates.find(({ sectionId }) => sectionId !== null)?.sectionId ?? null;
 }
 
-function inheritedRibbonPlacements(
+function inheritedStage(
   candidates: readonly Thread[],
   options: GroupInheritanceOptions,
-): Map<GroupingKey, string> {
-  const placements = new Map<GroupingKey, string>();
-  for (const descriptor of options.groupings()) {
-    if (
-      descriptor.membership.kind !== "ribbon" ||
-      ("available" in descriptor && descriptor.available !== true)
-    ) {
-      continue;
-    }
-    for (const candidate of candidates) {
-      const result = options.getPlacement({
-        groupingKey: descriptor.groupingKey,
-        threadId: candidate.id,
-      });
-      if (!result.ok) continue;
-      placements.set(descriptor.groupingKey, result.value.placement.groupId);
-      break;
-    }
+): string | null {
+  for (const candidate of candidates) {
+    const result = options.getPlacement({
+      groupingKey: THREAD_STAGES_GROUPING_KEY,
+      threadId: candidate.id,
+    });
+    if (result.ok) return result.value.placement.groupId;
   }
-  return placements;
+  return null;
 }
 
 async function applyInheritedGroups(
@@ -89,7 +74,7 @@ async function applyInheritedGroups(
   inheritSection: boolean,
   inheritStage: boolean,
 ): Promise<void> {
-  const ribbonPlacements = inheritedRibbonPlacements(candidates, options);
+  const stage = inheritStage ? inheritedStage(candidates, options) : null;
   let reconciledTarget = target;
   if (inheritSection) {
     const sectionId = inheritedSectionId(candidates);
@@ -102,18 +87,17 @@ async function applyInheritedGroups(
     }
   }
 
-  options.reconcileRoot(
+  await options.reconcileRoot(
     reconciledTarget,
     await options.eligibleRoot(reconciledTarget),
   );
-  for (const [groupingKey, groupId] of ribbonPlacements) {
-    if (groupingKey === "plugin:thread-stages:stages" && !inheritStage)
-      continue;
+  if (stage !== null) {
+    const groupingKey = THREAD_STAGES_GROUPING_KEY;
     const current = options.getPlacement({ groupingKey, threadId: target.id });
-    if (current.ok && current.value.placement.groupId === groupId) continue;
+    if (current.ok && current.value.placement.groupId === stage) return;
     const result = await options.updatePlacement({
       groupingKey,
-      groupId,
+      groupId: stage,
       threadId: target.id,
       origin: "auto",
     });
@@ -167,7 +151,7 @@ export function registerThreadGroupInheritance(
         const thread = await bb.sdk.threads.get({ threadId: event.id });
         parentByThreadId.set(thread.id, thread.parentThreadId);
         if (thread.parentThreadId !== null) {
-          options.reconcileRoot(thread, await options.eligibleRoot(thread));
+          await options.reconcileRoot(thread, await options.eligibleRoot(thread));
           return;
         }
         if (oldParentThreadId == null) return;

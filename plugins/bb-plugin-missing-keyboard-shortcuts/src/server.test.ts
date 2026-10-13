@@ -89,6 +89,68 @@ describe("validateSideChat RPC", () => {
   });
 });
 
+describe("openTerminal RPC", () => {
+  it("creates a terminal without changing tabs owned by bb's panel navigator", async () => {
+    const updateTabs = vi.fn(async () => ({ revision: 5, tabs: [] }));
+    const host = createFakePluginHost({
+      pluginId: "missing-keyboard-shortcuts",
+      sdk: {
+        terminals: {
+          list: async () => ({ sessions: [] }),
+          create: async () => ({ id: "term_new" }),
+        },
+        threads: {
+          tabs: {
+            get: async () => ({ revision: 4, tabs: [{ id: "info", kind: "thread-info" }] }),
+            update: updateTabs,
+          },
+        },
+      },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await expect(host.harness.behavior.callRpc("openTerminal", {
+      preferredTerminalId: null,
+      threadId: "thr_parent",
+    })).resolves.toEqual({ created: true, terminalId: "term_new" });
+    expect(updateTabs).not.toHaveBeenCalled();
+  });
+
+  it("preserves an existing terminal tab and its explicit target when reusing it", async () => {
+    const updateTabs = vi.fn();
+    const create = vi.fn();
+    const host = createFakePluginHost({
+      pluginId: "missing-keyboard-shortcuts",
+      sdk: {
+        terminals: {
+          list: async () => ({ sessions: [{ id: "term_existing", status: "running" }] }),
+          create,
+        },
+        threads: {
+          tabs: {
+            get: async () => ({ revision: 4, tabs: [{
+              id: "terminal:term_existing:none", kind: "terminal", terminalId: "term_existing",
+              target: { kind: "environment", environmentId: "env_one" },
+            }] }),
+            update: updateTabs,
+          },
+        },
+      },
+    });
+    plugin(host.bb);
+    disposeHosts.push(() => host.harness.lifecycle.dispose());
+
+    await expect(host.harness.behavior.callRpc("openTerminal", {
+      preferredTerminalId: "term_existing", threadId: "thr_parent",
+    })).resolves.toEqual({ created: false, terminalId: "term_existing" });
+    expect(updateTabs).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+
+});
+
 describe("createSideChat RPC", () => {
   it("does not return a newly created side chat before provisioning finishes", async () => {
     let finishProvisioning!: () => void;

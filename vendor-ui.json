@@ -1,6 +1,6 @@
 {
   "$comment": "Single source of truth for the bb UI components each plugin vendors. scripts/vendor-ui.mjs owns plugins/*/src/vendor/ outright and is its only writer; a hand-edit, or any file in there no closure explains, fails npm run check:ui. Compose around a component instead of editing it \u2014 bb exports the seams (CompactViewportOverrideProvider, ResponsiveDrawerShell, MobileTrigger, stripRadixContentProps, MENU_ITEM_LAST_HOVERED_CLASS, LIST_HOVER_TRANSITION).",
-  "registry": "https://raw.githubusercontent.com/get-bb/bb/desktop-v0.45.0/packages/plugin-registry/r/{name}.json",
+  "registry": "https://raw.githubusercontent.com/get-bb/bb/desktop-v0.46.0/packages/plugin-registry/r/{name}.json",
   "plugins": {
     "plugins/bb-plugin-default-sections": [
       "select"
@@ -8,23 +8,40 @@
     "plugins/bb-plugin-thread-stages": {
       "root": "",
       "items": [
+        "action-menu-items",
         "button",
         "checkbox",
         "chrome-style-tokens",
         "coarse-pointer-sizing",
+        "compact-long-press-menu",
+        "confirm-delete-dialog",
         "context-menu",
+        "context-selection",
         "dialog",
         "dropdown-menu",
         "empty-state",
         "icon",
+        "inline-rename",
+        "inline-rename-editor",
         "input",
         "motion",
         "popover",
+        "rename-dialog",
+        "sidebar-hover-actions",
+        "sidebar-row-classes",
+        "sidebar-visibility-customize",
         "skeleton",
+        "sortable-motion",
+        "table",
         "textarea",
+        "thread-list-empty-state",
         "tooltip",
         "use-compact-viewport",
+        "use-dialog-state",
+        "use-drag-click-suppression",
         "use-pointer-coarse",
+        "use-reorder-dnd",
+        "use-sidebar-reorder-dnd",
         "utils"
       ]
     },

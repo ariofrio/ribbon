@@ -1,7 +1,7 @@
 import type { rpcContract } from "./server";
 import {
   definePluginApp,
-  experimental_useSidebarThreadActions,
+  useBbNavigate,
   ThreadChat,
   useBbContext,
   useRpc,
@@ -29,6 +29,7 @@ import {
   hasPrimaryComposer,
   isSecondaryComposerFocused,
   registerPrimaryComposerFocus,
+  openPrimaryComposerTerminal,
   registerSecondaryComposer,
   selectPrimaryPanelTabWhenReady,
 } from "./composer-navigation-bridge";
@@ -39,13 +40,12 @@ import {
 } from "./last-thread-project";
 import { projectThreadTarget } from "./new-thread-target";
 import {
-  focusVisibleTerminal,
+  focusVisibleTerminalWhenReady,
   isSecondaryComposerDomFocused,
   isTerminalFocused,
   isWithinTerminal,
 } from "./terminal-dom";
 import {
-  activateTerminalPanel,
   closePanel,
   readRecentSideChatTabId,
   readRecentTerminalId,
@@ -163,6 +163,7 @@ function rpcErrorMessage(error: unknown, fallback: string): string {
 }
 
 function ComposerNavigationBridge() {
+  const navigate = useBbNavigate();
   const context = useBbContext();
   const composer = useComposer();
   const markerRef = useRef<HTMLSpanElement>(null);
@@ -206,6 +207,14 @@ function ComposerNavigationBridge() {
                   button.click();
                   return true;
                 },
+                openPanel() {
+                  const button = panelRoot.querySelector<HTMLButtonElement>(
+                    'button[aria-label^="Show right panel"]',
+                  );
+                  if (button === null) return false;
+                  button.click();
+                  return true;
+                },
                 root: {
                   panelTabButtons: () =>
                     Array.from(
@@ -221,6 +230,7 @@ function ComposerNavigationBridge() {
                     ),
                 },
               },
+          navigate.experimental_openTerminal,
         );
       }
       if (composer.scope.kind === "new-thread") {
@@ -276,7 +286,7 @@ function ComposerNavigationBridge() {
         return bounds.width > 0 && bounds.height > 0;
       },
     });
-  }, [composer.focus, composerThreadId, context.threadId, composer.scope.kind]);
+  }, [composer.focus, composerThreadId, context.threadId, composer.scope.kind, navigate.experimental_openTerminal]);
   return createElement("span", { hidden: true, ref: markerRef });
 }
 
@@ -459,25 +469,17 @@ function activateAndFocusTerminal(
   isCurrentThread: (threadId: string) => boolean,
 ): () => void {
   if (!isCurrentThread(threadId)) return () => {};
-  const panel = readTerminalPanelSnapshot(window.localStorage, threadId);
-  if (!panel.isOpen || panel.activeTerminalId !== terminalId) {
-    notifyPanelStateChanged(
-      activateTerminalPanel(window.localStorage, threadId, terminalId),
-    );
-    return selectPrimaryPanelTabWhenReady(threadId, {
-      icon: "Terminal",
-      index: () =>
-        readTerminalPanelSnapshot(
-          window.localStorage,
-          threadId,
-        ).terminalIds.indexOf(terminalId),
-      isCurrent: () => isCurrentThread(threadId),
-      signal,
-    });
-  }
-
-  focusVisibleTerminal(document);
-  return () => {};
+  const stopFocusingTerminal = focusVisibleTerminalWhenReady(document, {
+    isCurrent: () => isCurrentThread(threadId),
+    isReady: () => {
+      const currentPanel = readTerminalPanelSnapshot(window.localStorage, threadId);
+      return currentPanel.isOpen && currentPanel.activeTerminalId === terminalId;
+    },
+    signal,
+  });
+  return () => {
+    stopFocusingTerminal();
+  };
 }
 
 function focusSideChatComposer(
@@ -529,15 +531,22 @@ function focusSideChatComposer(
 
 function MissingKeyboardShortcuts() {
   const rpc = useRpc<typeof rpcContract>();
+  const context = useBbContext();
   const contextRef = useRef<
     Pick<PluginCommandContext, "projectId" | "threadId">
-  >({ projectId: null, threadId: null });
-  const sidebarActions = experimental_useSidebarThreadActions();
-  // Thread-list updates replace these actions without cancelling in-flight shortcuts.
-  const sidebarActionsRef = useRef(sidebarActions);
+  >(context);
   useLayoutEffect(() => {
-    sidebarActionsRef.current = sidebarActions;
-  }, [sidebarActions]);
+    contextRef.current = {
+      projectId: context.projectId,
+      threadId: context.threadId,
+    };
+  }, [context.projectId, context.threadId]);
+  const navigate = useBbNavigate();
+  // Navigation updates replace these actions without cancelling in-flight shortcuts.
+  const navigateRef = useRef(navigate);
+  useLayoutEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
@@ -564,7 +573,7 @@ function MissingKeyboardShortcuts() {
       { once: true },
     );
     const isCurrentThread = (threadId: string) =>
-      contextRef.current.threadId === threadId;
+      !signal.aborted && contextRef.current.threadId === threadId;
     const focusExistingSideChat = (
       parentThreadId: string,
       childThreadId: string,
@@ -662,7 +671,7 @@ function MissingKeyboardShortcuts() {
         };
 
         if (id === "new-personal-thread") {
-          sidebarActionsRef.current.openNewThread({
+          navigateRef.current.toCompose({
             focusPrompt: true,
             projectId: PERSONAL_PROJECT_ID,
           });
@@ -670,7 +679,7 @@ function MissingKeyboardShortcuts() {
         }
 
         if (id === "new-project-thread") {
-          sidebarActionsRef.current.openNewThread({
+          navigateRef.current.toCompose({
             focusPrompt: true,
             projectId: projectThreadTarget(
               commandContext,
@@ -729,6 +738,7 @@ function MissingKeyboardShortcuts() {
               threadId,
               sideChat,
             );
+            if (!isCurrentThread(threadId)) return;
             if (reusable) {
               rememberRecentSideChatTabId(
                 window.localStorage,
@@ -794,7 +804,10 @@ function MissingKeyboardShortcuts() {
               : null);
           terminalInFlightThreads.add(threadId);
           void openTerminal(rpc, threadId, preferredTerminalId)
-            .then(({ terminalId }) => {
+            .then(async ({ terminalId }) => {
+              if (!isCurrentThread(threadId)) return;
+              const opened = await openPrimaryComposerTerminal(threadId, terminalId);
+              if (!opened || !isCurrentThread(threadId)) return;
               rememberRecentTerminalId(
                 window.localStorage,
                 threadId,

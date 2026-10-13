@@ -1,5 +1,15 @@
 # bb-plugin-chatgpt-theme
 
+## 0.2.7
+
+### Patch Changes
+
+- 42d547a: Require bb 0.45.0 and Plugin SDK 0.6.15, with the matching shared UI. Sync
+  Thread stages with bb's thread list: configurable hover actions, live draft
+  indicators for collapsed groups, and group-aware placement of new threads.
+  Use the current composer API and support provider-defined service tiers for
+  title generation.
+
 ## 0.2.6
 
 ### Patch Changes

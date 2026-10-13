@@ -3,8 +3,9 @@ import { z } from "zod";
 const threadActionSchema = z
   .object({
     id: z.string().min(1).max(64),
-    label: z.string().trim().min(1).max(24),
+    label: z.string().trim().max(24),
     prompt: z.string().trim().min(1).max(10000),
+    steer: z.boolean().optional(),
   })
   .strict();
 
@@ -13,10 +14,11 @@ export const threadActionsSchema = z.array(threadActionSchema).refine(
   "Action IDs must be unique.",
 );
 
-export const groupingKeySchema = z.union([
-  z.literal("builtin:projects"),
-  z.literal("builtin:sections"),
-  z.string().regex(/^plugin:[^:/]+:[^:/]+$/u),
+export const groupingKeySchema = z.enum([
+  "builtin:projects",
+  "builtin:sections",
+  "builtin:machines",
+  "plugin:thread-stages:stages",
 ]);
 
 const localIdSchema = z

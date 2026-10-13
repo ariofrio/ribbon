@@ -66,6 +66,8 @@ describe("Ribbon sidebar contracts", () => {
       "plugin:thread:stages:extra",
       "plugin:thread/stages:stages",
       "plugin::stages",
+      "plugin:other:stages",
+      "plugin:thread-stages:workflow",
     ]) {
       expect(() => groupingKeySchema.parse(invalid)).toThrow();
     }

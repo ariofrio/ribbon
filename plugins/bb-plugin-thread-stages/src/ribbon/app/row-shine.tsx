@@ -37,17 +37,12 @@ const SHINE_CONTENT_ATTRIBUTE = "data-ribbon-shine-content";
 const SHINE_SECONDS = 1;
 const SHINE_WAVE = "var(--ribbon-shine-width, 120px)";
 
-export function activeAnimationDelay(now: number): string {
-  return `${-(now % (SHINE_SECONDS * 1000))}ms`;
-}
-
 export function shineStyles(): string {
-  const slide = `${SHINE_SECONDS}s linear infinite;animation-delay:var(--ribbon-active-animation-delay)`;
+  const slide = `${SHINE_SECONDS}s linear infinite`;
   return [
     `@keyframes ribbon-shine-window{from{translate:0}to{translate:${SHINE_WAVE} 0}}`,
     `@keyframes ribbon-shine-content{from{translate:0}to{translate:calc(-1 * ${SHINE_WAVE}) 0}}`,
     "@media (prefers-reduced-motion: no-preference){" +
-      `[${ACTIVE_ROW_ATTRIBUTE}] [class*="animate-spin"]{animation-delay:var(--ribbon-active-animation-delay)}` +
       // The window reaches a wave past the piece as it slides; keep that out
       // of view and out of the sidebar's scroll width.
       `[${SHINE_ROW_ATTRIBUTE}] [${SHINE_ATTRIBUTE}]{overflow:clip;` +
@@ -66,6 +61,19 @@ export function shineStyles(): string {
       `[${SHINE_ROW_ATTRIBUTE}] [${SHINE_CONTENT_ATTRIBUTE}]{animation:ribbon-shine-content ${slide}}` +
       "}",
   ].join("\n");
+}
+
+function synchronizeRowAnimations(element: HTMLElement): void {
+  for (const animation of element.getAnimations?.({ subtree: true }) ?? []) {
+    if (
+      animation instanceof CSSAnimation &&
+      ["spin", "ribbon-shine-window", "ribbon-shine-content"].includes(animation.animationName) &&
+      animation.playState !== "paused" &&
+      animation.startTime !== 0
+    ) {
+      animation.startTime = 0;
+    }
+  }
 }
 
 /**
@@ -113,12 +121,20 @@ export function useRowShine(
   active: boolean,
   working: boolean,
 ): void {
+  // CSS animations start when styles resolve, which can be later than this
+  // render. A delay sampled here therefore cannot align different rows. Give
+  // their compositor animations the document timeline's common origin instead.
   useLayoutEffect(() => {
-    if (!working || !row.current) return;
-    row.current.style.setProperty(
-      "--ribbon-active-animation-delay",
-      activeAnimationDelay(performance.now()),
-    );
+    if (working && row.current) synchronizeRowAnimations(row.current);
+  });
+  useLayoutEffect(() => {
+    const element = row.current;
+    if (!working || !element) return;
+    // Also catches content added by a child and animations restarted when
+    // reduced motion is turned off, without ticking on the main thread.
+    const synchronize = () => synchronizeRowAnimations(element);
+    element.addEventListener("animationstart", synchronize);
+    return () => element.removeEventListener("animationstart", synchronize);
   }, [row, working]);
 
   // Measured only when layout is already done, by a ResizeObserver, and all

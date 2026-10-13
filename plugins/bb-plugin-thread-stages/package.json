@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-thread-stages",
-  "version": "1.0.0",
+  "version": "2.0.1",
   "description": "bb's thread list with workflow stages, stable thread order, and section and project icons.",
   "license": "MIT",
   "repository": {
@@ -20,7 +20,9 @@
     "src",
     "!src/**/*.test.ts",
     "!src/**/*.test.tsx",
-    "skills"
+    "skills",
+    "!skills/**/__pycache__/**",
+    "!skills/**/*_test.py"
   ],
   "type": "module",
   "scripts": {
@@ -28,7 +30,9 @@
     "build:catalog": "node scripts/build-icon-catalog.mjs",
     "check:catalog": "node scripts/build-icon-catalog.mjs --check",
     "prepublishOnly": "npm run release:check",
-    "release:check": "npm run verify:lockfile && npm test && npm run typecheck && npm run verify:types && npm run build && npm run verify:styles && npm run verify:package",
+    "release:check": "npm run verify:lockfile && npm run check:evals && npm test && npm run typecheck && npm run verify:types && npm run build && npm run verify:styles && npm run verify:package",
+    "check:evals": "python3 skills/thread-stages/evals/evals_test.py",
+    "evals": "python3 skills/thread-stages/evals/run.py",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "verify:lockfile": "npm ci --workspaces=false --ignore-scripts --dry-run --no-audit --no-fund --loglevel=error",
@@ -37,8 +41,8 @@
     "verify:types": "node ../../scripts/verify-types.mjs"
   },
   "engines": {
-    "bb": ">=0.45.0",
-    "bbPluginSdk": "^0.6.15"
+    "bb": ">=0.46.0",
+    "bbPluginSdk": "^0.6.37"
   },
   "bb": {
     "name": "Thread stages",
@@ -65,7 +69,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "0.6.15",
+    "@get-bb/plugin-sdk": "0.6.37",
     "@pierre/diffs": "^1.2.9",
     "@radix-ui/react-alert-dialog": "^1.1.19",
     "@radix-ui/react-context-menu": "^2.3.3",
@@ -83,7 +87,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "bb-app": "0.45.0",
+    "bb-app": "0.46.0",
     "better-sqlite3": "^12.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

@@ -4,11 +4,13 @@ import { resolve } from "node:path";
 import { FEATURED_PROJECT, FEATURED_THREAD, THREADS } from "../../screenshots/fixture.mjs";
 import {
   carryTo, dragChip, dropMarker, heading, launch, link, openContext, pickUp,
-  rowOrder, section, sidebar, STAGES,
+  rowOrder, section, sidebar,
 } from "./sidebar.mjs";
 
-export async function verifyThreadReordering({ stack, fixture }) {
-  for (const thread of fixture.threads.values()) fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/Active`]);
+export async function verifyThreadReordering({ stack, fixture, initialSort = "none" }) {
+  const savedSort = fixture.runJson(["thread-stages", "prefs", "get", "chronologicalSort"]).value;
+  fixture.run(["thread-stages", "prefs", "set", "chronologicalSort", initialSort]);
+  for (const thread of fixture.threads.values()) fixture.run(["thread-stages", "stage", "Active", thread.id]);
   const browser = await launch();
   let releaseSave = () => {};
   let context;
@@ -37,8 +39,15 @@ export async function verifyThreadReordering({ stack, fixture }) {
     }, { times: 1 });
     // Answered only once the gate opens, however long the checks before take.
     const saved = page.waitForResponse((response) => response.url().endsWith("/rpc/updatePlacementV1"), { timeout: 0 });
+    // Switching from an automatic sort writes a separate, debounced preference.
+    const sortSaved = initialSort === "none" ? Promise.resolve() : page.waitForResponse(
+      (response) => response.url().endsWith("/rpc/setPreference") &&
+        response.request().postDataJSON()?.key === "chronologicalSort" &&
+        response.request().postDataJSON()?.value === "none",
+    );
     // A failure before the gate opens closes the page; report that failure, not this one.
     void saved.catch(() => undefined);
+    void sortSaved.catch(() => undefined);
     await pickUp(page, source);
     const chip = dragChip(page);
     assert.ok(
@@ -66,6 +75,7 @@ export async function verifyThreadReordering({ stack, fixture }) {
     await marker.waitFor({ state: "hidden" });
     releaseSave();
     assert.ok((await saved).ok());
+    await sortSaved;
     assert.equal(page.url(), url, "dropping a thread must not open it");
     // A reload straight after the gated save has hung this page's main
     // thread in full runs, in bb's own unload rather than anything the list
@@ -109,7 +119,7 @@ export async function verifyThreadReordering({ stack, fixture }) {
     await context.close();
   } catch (error) {
     // Whether the plugin server still answers, and what it logged.
-    for (const args of [["plugin", "logs", "thread-stages"], ["thread-stages", "groupings", "--json"]]) {
+    for (const args of [["plugin", "logs", "thread-stages"], ["thread-stages", "list", "--json"]]) {
       try {
         console.error(`bb ${args.join(" ")}:`, fixture.run(args).split("\n").slice(-30).join("\n"));
       } catch (diagnosticError) {
@@ -122,7 +132,8 @@ export async function verifyThreadReordering({ stack, fixture }) {
       .catch((diagnosticError) => console.error("Could not save the thread-reordering trace:", diagnosticError));
     throw error;
   } finally {
-    for (const spec of THREADS) if (spec.stage) fixture.run(["thread-stages", "place", fixture.threads.get(spec.title).id, "--to", `${STAGES}/${spec.stage}`]);
+    fixture.run(["thread-stages", "prefs", "set", "chronologicalSort", savedSort]);
+    for (const spec of THREADS) if (spec.stage) fixture.run(["thread-stages", "stage", `${spec.stage}`, fixture.threads.get(spec.title).id]);
     releaseSave();
     await browser.close();
   }

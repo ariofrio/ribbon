@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-chatgpt-theme",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Restyle bb to match the OpenAI ChatGPT (Codex) desktop app.",
   "license": "MIT",
   "repository": {
@@ -30,8 +30,8 @@
     "typecheck": "tsc --noEmit"
   },
   "engines": {
-    "bb": ">=0.45.0",
-    "bbPluginSdk": "^0.6.15"
+    "bb": ">=0.46.0",
+    "bbPluginSdk": "^0.6.37"
   },
   "bb": {
     "name": "ChatGPT theme",
@@ -51,9 +51,9 @@
     ]
   },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "0.6.15",
+    "@get-bb/plugin-sdk": "0.6.37",
     "@types/node": "^22.0.0",
-    "bb-app": "0.45.0",
+    "bb-app": "0.46.0",
     "typescript": "^5.7.0"
   }
 }

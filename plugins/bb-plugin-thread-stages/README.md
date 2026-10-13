@@ -9,7 +9,7 @@ project icons.
 </picture>
 
 Install it and select **Thread stages** under **Settings → Appearance →
-Sidebar** (bb 0.45.0 or newer):
+Sidebar** (bb 0.46.0 or newer):
 
 ```sh
 bb marketplace add git:github.com/ariofrio/ribbon
@@ -19,7 +19,7 @@ bb plugin install thread-stages@ribbon
 ## Where it comes from
 
 This plugin is a fork of bb's own sidebar thread list, the built-in
-[`plugins/thread-list`](https://github.com/get-bb/bb/tree/desktop-v0.45.0/plugins/thread-list),
+[`plugins/thread-list`](https://github.com/get-bb/bb/tree/desktop-v0.46.0/plugins/thread-list),
 so it keeps everything bb's list does — pinned threads, custom sections,
 projects, machines, nested threads, drag to reorder, inline rename, search,
 the Organize, Sort, and Filter menus, and bb's own status glyphs — and adds
@@ -39,32 +39,55 @@ the plugin's own lives under `src/ribbon/` and `src/icons/`.
 ## Grouping and ordering
 
 Choose **⋯ menu → Organize → Custom** for sections or **By project** for
-projects. Each keeps its own order and collapsed headings. A stage says whose
-move a thread is waiting on: **Active** is the user's or the thread's own,
-**Blocked on other agent** is another bb thread's, **Blocked on third party**
-is someone or something outside bb, **Deferred** is set aside, and
-**Completed** is done. Waiting on the user is Active, never a Blocked stage.
-Inside each group, Active and both Blocked stages share one manually ordered
-list, followed by Deferred and then Completed. New roots enter at the top, and
+projects, or **By machine** for machines. Each keeps its own order and collapsed
+headings.
+
+The stage describes the thread's overall workflow. **In progress** covers
+available or progressing work under this thread's coordination, including its
+own executing workers and managed jobs. **Waiting** covers standby for an
+established condition, such as observation, a scheduled start, or recovery.
+**Blocked on user** means the user owes input, a decision, approval, direction,
+or intended review. **Blocked on another thread** and **Blocked on external
+party** mean a separate bb workflow or an independent outside counterpart owns
+a required action; the outside party may be a person, agent, or organization.
+Each Blocked stage applies only when no useful independent work remains here;
+continue that work in In progress first. **Deferred** is deliberately set aside.
+**Completed** means an established objective has reached a durable result,
+with intended review and loose ends settled or delegated. A report or proposal
+awaiting required user review is Blocked on user once independent work is done.
+
+Inside each group, In progress, Waiting, and all three Blocked stages share one
+manually ordered list, followed by Deferred and then Completed. New roots enter at the top, and
 activity leaves positions unchanged.
 
-Deferred and Completed preview roots in their saved order; entering Completed
+**⋯ menu → Sort by → Custom** selects this saved manual order and is the
+default. Updated at, Created at, and Alphabetical sort rows within each stage
+list instead; switching back to Custom restores their saved positions. The
+choice applies across groups and organizations. In the CLI, `chronologicalSort`
+is `none` for Custom, or `updated`, `created`, or `alpha` for automatic sorting.
+Dragging or using a shortcut to reorder rows switches back to Custom.
+
+Deferred and Completed preview threads in their containing group’s saved order; entering Completed
 inserts a thread first. **Completed and Deferred preview rows** sets a limit of 1–5 rows
 per stage, defaulting to 2, including **Show N more deferred/completed**.
 With two or more threads, the default shows one thread and that button;
 a single thread shows on its own. At limit 1, a single thread shows on its
 own; multiple threads show only the button. The open thread replaces a preview
 row when needed. **Show fewer** restores the preview, and search reveals every
-matching result.
+matching result. These previews apply to sections, projects, machines, Threads,
+Pinned, parent threads, and environment groups. An environment with mixed stages
+stays in the main list, with its threads partitioned inside it.
 
 Drag a root to reorder it within its list, onto its section's heading to put
 it first, or onto another section to move it there. Drag a child to reorder
 it among its siblings; it stays under its parent and keeps its stage.
-Active and both Blocked stages share the main list; changing between those
-stages keeps a root's position. Deferred and Completed keep their own orders.
+In progress, Waiting, and all three Blocked stages share the main list; changing
+between those stages keeps a root's position. Every band follows its section,
+project, or machine order;
+reordering in one organization leaves the other organization’s order unchanged.
 Moving a root into another list defaults to the top through the UI or CLI,
 and it can then be reordered by dragging, shortcuts, or CLI placement.
-Returning a deferred or completed root to Active restores its main-list
+Returning a deferred or completed root to In progress restores its main-list
 position, and undo restores the position before a stage move.
 bb owns section membership, pins, and lifecycle; project
 membership is bb's under project grouping too.
@@ -81,7 +104,7 @@ project's new threads start in, and a section heading's **⋯ menu → Default
 for** ticks the projects whose new threads start there.
 
 Children hang from their parent by a bar in their own stage-ring column, which
-fills in for a hidden Active ring and parts around a shown one. Set **Child
+fills in for a hidden In progress ring and parts around a shown one. Set **Child
 thread lines** to Tree to branch a line from the parent into each child's ring
 instead, or into a small hollow node while that ring is hidden.
 
@@ -114,23 +137,32 @@ workflow, background agent, or background command left running by an idle
 agent shimmers only its indicator, and the ring holds still.
 
 A title runs to the row's edge unless something stands in the trailing
-lane: a status indicator, a PR number, or a toggle for hidden children.
-Hovering the row opens the lane for its actions. A title that outgrows its
-row fades out at the edge and, while the row is
+lane: a status indicator, a PR number, or saved prompts. A toggle for hidden
+children also keeps its space beside the title.
+Hovering or focusing the row reveals configurable controls before saved prompts and the
+PR number, taking space from the title. The ellipsis replaces the status indicator
+in its trailing slot. **Customize row actions** chooses those
+controls for every thread; **Edit thread actions** changes only that thread's
+saved prompts. A title that outgrows its row fades out at the edge and, while the row is
 hovered or focused, pans to its end and back. **Long titles** in the plugin's
 settings keeps the fade but not the pan, or cuts titles with bb's ellipsis
 instead. The pan respects reduced motion.
 
-Use a thread's **⋯ menu → Edit actions** to add labeled prompts. Their
-buttons appear beside the thread title, colored like the section or project,
-and send the saved prompt to that thread when clicked. **Hide thread title**
-gives them the whole row.
+Use **Edit thread actions** in a thread's context menu or ⋯ menu to edit labeled prompts.
+Fill the empty row at the bottom to add an action; edits save as you type once
+the prompt is filled. An empty label uses the prompt as the button label.
+Actions queue until the current turn finishes by default. Check **Steer** on an
+action to send its prompt into the current turn. Either starts a turn when the thread is idle.
+Use X to clear or remove a row. Extra empty rows collapse
+when focus moves.
+Action buttons appear beside the thread title, colored like the section, project, or machine,
+and send the saved prompt to that thread when clicked.
 
 The same actions are available through `bb thread-stages actions list`, `set`, and
 `run`. Pass a thread ID or `--self`; `set --actions '<json-array>'` replaces
 the buttons, and `run <action-id>` sends a saved prompt. See the
 [Thread actions skill reference](skills/thread-actions/SKILL.md)
-for the JSON format and title setting. Invoking
+for the JSON format. Invoking
 [Thread stages](skills/thread-stages/SKILL.md) is sufficient: it loads the
 Thread actions instructions when a request needs them.
 
@@ -153,24 +185,29 @@ settings lines the numbers up.
 ## Stages and shortcuts
 
 **Automatic stage updates** is on by default. It asks agents to keep their
-thread's stage current as work progresses. Turn it off to have agents change
+thread's stage aligned with its overall workflow, reading the skill and
+changing the stage only when it no longer fits. Ending a turn or individual
+request does not establish a transition. Turn it off to have agents change
 stages only when you explicitly request a change. The instruction changes
 when bb next constructs the agent's provider session; the stage skill stays
 available in both modes.
 
 Type `@` and a stage name in the composer to mention a stage, such as
-`@Blocked on other agent`. A mentioned stage tells the agent to place the
-thread there, so a message can end with "then @Blocked on other agent", and a
-queued message can be just the mention. Mentions of `@Idle` and `@Blocked` in
-older messages still resolve: Idle is now Active, and Blocked is split into
-the two Blocked stages.
+`@Blocked on another thread`. A placement request using a stage mention tells
+the agent to place the thread there, so a message can end with "then @Blocked on another thread", and a
+queued message can be just the mention. Mentions of `@Idle`, `@Active`, and
+`@Blocked` in older messages still resolve:
+Idle and Active are now In progress, and Blocked is split into Blocked on
+another thread and Blocked on external party. In progress keeps the stored
+`Active` ID and existing shortcut bindings. Blocked on user has its own
+`BlockedOnUser` ID; existing assignments are unchanged.
 
 When you or another thread move a thread to a different stage, the plugin
-sends that thread "Thread stage updated: @Active → @Blocked on third party",
+sends that thread "Thread stage updated: @In progress → @Blocked on external party",
 with agent-only
-context that tells the agent who moved it. The message steers a running turn
-or starts one on an idle thread. Automatic placement and a thread moving
-itself through the CLI send nothing. Turn off **Message threads when their
+context that tells the agent who moved it. The message steers the active turn
+or starts one on an idle thread. Automatic placement and a thread
+moving itself through the CLI send nothing. Turn off **Message threads when their
 stage changes** to stop these messages.
 
 Completed threads auto-archive after seven days; **Auto-archive completed
@@ -183,9 +220,11 @@ thread as Completed is how it leaves the list.
 | macOS | Linux / Windows | Action |
 | --- | --- | --- |
 | ⌘. / ⌥⌘. | Ctrl+. / Ctrl+Alt+. | Complete and select the next main-list thread in this section or project |
-| ⇧⌘. | Ctrl+Shift+. | Return to Active, or undo the latest filing in this section or project |
-| ⌃⌥⌘. | Ctrl+Alt+Shift+. | Mark Blocked on other agent |
-| ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked on third party |
+| ⇧⌘. | Ctrl+Shift+. | Return to In progress, or undo the latest filing in this section or project |
+| ⇧⌘, | Ctrl+Shift+, | Mark Waiting |
+| ⌥⇧⌘U | Ctrl+Alt+Shift+U | Mark Blocked on user |
+| ⌃⌥⌘. | Ctrl+Alt+Shift+. | Mark Blocked on another thread |
+| ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked on external party |
 | ⌃⌘. | Ctrl+Alt+, | Defer |
 | ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main, Deferred, or Completed list, or a child among its siblings |
 | ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to that list's edge |
@@ -206,25 +245,48 @@ one is installed; they draw nothing bb's list does not.
 
 ## CLI
 
-The Ribbon sidebar's `bb sidebar` CLI is now `bb thread-stages`, with the same
-commands and the same stored stage key `plugin:thread-stages:stages`:
+Use `stage` to change workflow state and `order` to change manual position.
+Section membership is BB core state; change it with `bb thread update`.
 
 ```sh
-bb thread-stages groupings
-bb thread-stages groups builtin:sections
-bb thread-stages list --scope builtin:sections/<section-id>
+bb thread-stages list --section <section-id> --stage BlockedOnThirdParty
 bb thread-stages show --self
-bb thread-stages place --self --to plugin:thread-stages:stages/Completed
-bb thread-stages list --include-children --scope plugin:thread-stages:stages/BlockedOnThirdParty
-bb thread-stages place <thread> --to builtin:sections/<section-id> --before <thread>
-bb thread-stages place <child> --before <sibling>
+bb thread-stages stage Waiting --self
+bb thread-stages stage BlockedOnUser --self
+bb thread-stages stage Completed --self
+bb thread-stages list --include-children --stage BlockedOnThirdParty
+bb thread update <thread> --section <section-id>
+bb thread-stages order <thread> --by section --before <thread>
+bb thread-stages order <thread> --by project --first
+bb thread-stages order <thread> --by machine --last
+bb thread-stages order <child> --before <sibling>
 bb thread-stages children <thread>
 ```
 
 Use `bb thread-stages` to discover the full command surface. `list --json`
-joins thread metadata, project, section, and stage. Archived and hidden threads
+includes the complete BB thread metadata plus named `project`, `section`,
+and `machine` objects, `stage`, and `stageEnteredAtMs`. Filters compose:
+`--section`, `--project`, `--machine`, and `--stage`. Archived and hidden threads
 are excluded unless requested with `--include-archived` or `--include-hidden`.
 Add `--include-children` to list nested threads with their own stages.
+`show --json` returns the same thread view for roots, or a child's stage and
+sibling position.
+
+Section, project, and machine orders are independent. `--by` selects which
+saved order `list` reads or `order` changes; it defaults to `section`.
+Deferred and Completed are bands within that organization and use its order.
+Order anchors must be in the same group and band; In progress, Waiting, and all
+three Blocked stages share the main band. Children have one sibling order across all views.
+With Custom sorting, a move to another section starts at the top, including
+when returning to a section visited before. The thread menu, CLI, and core BB
+membership updates use the same placement policy as a drop on the group
+heading. Use `order` afterward to choose another position; automatic sorting
+keeps its selected order.
+
+The former `place` command remains available for existing scripts and installed
+agent instructions, but is hidden from help. Legacy stage anchors change
+section order. The old `list --scope` filter also remains supported; use the
+explicit filters in new scripts.
 
 The list's layout preferences — organization mode, sort, section order,
 hidden groups, and collapsed groups — are bb's, stored by the plugin and
@@ -247,5 +309,11 @@ bb plugin reload thread-stages
 `npm run build:catalog` regenerates the icon catalog from Hugeicons'
 published index, and `npm run check:catalog` reports what would change
 without writing.
+
+`npm run check:evals` validates the skill cases and tests their grader without
+calling a model; it also runs in the release gate. `npm run evals` executes all
+26 cases in fresh Claude Code sessions against a local BB CLI fixture. See
+[Skill evaluations](skills/thread-stages/evals/README.md) for filters,
+previous-version comparisons, artifacts, and the limits of this test.
 
 [MIT](LICENSE)

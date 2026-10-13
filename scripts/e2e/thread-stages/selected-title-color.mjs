@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { FEATURED_PROJECT, FEATURED_THREAD, THREADS } from "../../screenshots/fixture.mjs";
-import { launch, link, openContext, sidebar, STAGES } from "./sidebar.mjs";
+import { launch, link, openContext, sidebar } from "./sidebar.mjs";
 
 export async function verifySelectedTitleColor({ stack, fixture }) {
   fixture.run(["theme", "set", "plugin:chatgpt-theme:chatgpt"]);
   const thread = fixture.threads.get(FEATURED_THREAD);
   const inactiveThread = fixture.threads.get(THREADS.find((candidate) => candidate.stage === null).title);
   // Earlier suites can leave it Deferred or Completed, which mutes its title.
-  fixture.run(["thread-stages", "place", inactiveThread.id, "--to", `${STAGES}/Active`]);
+  fixture.run(["thread-stages", "stage", "Active", inactiveThread.id]);
   const project = fixture.projects.get(FEATURED_PROJECT);
   const browser = await launch();
   try {

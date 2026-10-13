@@ -30,7 +30,7 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
 import { useSidebarData } from "../../app/model/use-sidebar-data.js";
-import type { ActionMenuSurface } from "../../app/ui/action-menu-items.js";
+import type { ActionMenuSurface } from "@/components/ui/action-menu-items";
 import { PERSONAL_PROJECT_ID } from "../../icons/store";
 
 /**

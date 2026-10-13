@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
 import { AGENT, FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
-import { launch, openContext, row, sidebar, spawnChild, STAGES } from "./sidebar.mjs";
+import { launch, openContext, row, sidebar, spawnChild } from "./sidebar.mjs";
 
 export function stageFor(fixture, threadId) {
   const shown = fixture.runJson(["thread-stages", "show", threadId]);
-  return Array.isArray(shown)
-    ? shown.find(({ placement }) => placement.groupingKey === STAGES)?.placement.groupId
-    : shown.stage;
+  return shown.stage;
 }
 
 export async function verifyChildStages({ stack, fixture }) {
@@ -14,11 +12,11 @@ export async function verifyChildStages({ stack, fixture }) {
   const project = fixture.projects.get(FEATURED_PROJECT);
   const child = spawnChild(fixture, { parent, project, title: "Independent child stage", AGENT });
   const parentStage = stageFor(fixture, parent.id);
-  fixture.run(["thread-stages", "place", child.id, "--to", `${STAGES}/BlockedOnThirdParty`]);
+  fixture.run(["thread-stages", "stage", "BlockedOnThirdParty", child.id]);
   assert.equal(stageFor(fixture, child.id), "BlockedOnThirdParty");
   assert.equal(stageFor(fixture, parent.id), parentStage);
   assert.ok(fixture.runJson([
-    "thread-stages", "list", "--include-children", "--scope", `${STAGES}/BlockedOnThirdParty`,
+    "thread-stages", "list", "--include-children", "--stage", "BlockedOnThirdParty",
   ]).some(({ id }) => id === child.id));
 
   const browser = await launch();
@@ -31,7 +29,7 @@ export async function verifyChildStages({ stack, fixture }) {
       await list.waitFor({ timeout: 120_000 });
       const childRow = row(list, child.id);
       await childRow.waitFor();
-      const icon = childRow.locator('[aria-label="Blocked on third party stage"]');
+      const icon = childRow.locator('[aria-label="Blocked on external party stage"]');
       await icon.waitFor();
       const rendered = await icon.evaluate((node) => {
         const style = getComputedStyle(node);
@@ -44,8 +42,8 @@ export async function verifyChildStages({ stack, fixture }) {
       await childRow.hover();
       await childRow.getByRole("button", { name: "Thread actions" }).click();
       await page.getByRole("menuitem", { name: "Move to stage" }).click();
-      await page.getByRole("menuitemradio", { name: "Active" }).click();
-      await childRow.locator('[aria-label="Active stage"]').waitFor({ state: "attached" });
+      await page.getByRole("menuitemradio", { name: "In progress" }).click();
+      await childRow.locator('[aria-label="In progress stage"]').waitFor({ state: "attached" });
       assert.equal(stageFor(fixture, child.id), "Active");
       assert.equal(stageFor(fixture, parent.id), parentStage);
     } finally {

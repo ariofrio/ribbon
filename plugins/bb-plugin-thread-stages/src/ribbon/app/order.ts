@@ -1,17 +1,17 @@
 import type { ThreadComparator } from "../../app/model/project-thread-groups.js";
 import type { SidebarThread } from "../../app/model/sidebar-thread.js";
 import type { ChildRank } from "../child-order";
-import type { GroupingKey, PlacementRecordV1 } from "../placement-store";
+import type { OrderGroupingKey, PlacementRecordV1 } from "../placement-store";
 import type { OrganizationMode } from "../../shared/preferences.js";
 import { compareByCreatedAtDescending } from "../../app/model/project-thread-groups.js";
 
 /** The placement grouping whose ranks order roots in each organization. */
 export function placementGroupingKey(
   mode: OrganizationMode,
-): Extract<GroupingKey, "builtin:sections" | "builtin:projects"> | null {
+): OrderGroupingKey {
   if (mode === "chronological") return "builtin:sections";
   if (mode === "project") return "builtin:projects";
-  return null;
+  return "builtin:machines";
 }
 
 /** Rank by thread id, from a grouping's placements in their listed order. */

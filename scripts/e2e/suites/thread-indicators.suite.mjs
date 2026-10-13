@@ -1,6 +1,7 @@
 import { verifyThreadIndicators } from "../thread-stages/thread-indicators.mjs";
 
 export default {
+  group: "placement",
   order: -10,
   id: "thread-indicators",
   cases: ["parity"],

@@ -5,6 +5,7 @@ import {
   destinationOrder,
   enabledWorkflowStages,
   groupThreadsByStage,
+  isBlockedStage,
   parseWorkflowStage,
   type ThreadAssignment,
 } from "./workflow-stage";
@@ -14,6 +15,8 @@ describe("thread statuses", () => {
     expect(WORKFLOW_STAGES).toEqual([
       "Deferred",
       "Active",
+      "Waiting",
+      "BlockedOnUser",
       "BlockedOnOtherAgent",
       "BlockedOnThirdParty",
       "Completed",
@@ -21,12 +24,17 @@ describe("thread statuses", () => {
     expect(parseWorkflowStage("backlog")).toBe("Deferred");
     expect(parseWorkflowStage("deferred")).toBe("Deferred");
     expect(parseWorkflowStage("active")).toBe("Active");
+    expect(parseWorkflowStage("In progress")).toBe("Active");
+    expect(parseWorkflowStage("in-progress")).toBe("Active");
+    expect(parseWorkflowStage("Blocked on user")).toBe("BlockedOnUser");
     expect(parseWorkflowStage("to-do")).toBe("Active");
     // Idle and Blocked are earlier names, kept for saved data and old messages.
     expect(parseWorkflowStage("Idle")).toBe("Active");
     expect(parseWorkflowStage("Blocked")).toBe("BlockedOnThirdParty");
-    expect(parseWorkflowStage("waiting")).toBe("BlockedOnThirdParty");
-    expect(parseWorkflowStage("Blocked on other agent")).toBe(
+    expect(parseWorkflowStage("waiting")).toBe("Waiting");
+    expect(parseWorkflowStage("Blocked on external party")).toBe("BlockedOnThirdParty");
+    expect(parseWorkflowStage("Blocked on other agent")).toBe("BlockedOnOtherAgent");
+    expect(parseWorkflowStage("Blocked on another thread")).toBe(
       "BlockedOnOtherAgent",
     );
     expect(parseWorkflowStage("blocked-on-third-party")).toBe(
@@ -42,21 +50,32 @@ describe("thread statuses", () => {
   it("labels each stage for people", () => {
     expect(WORKFLOW_STAGES.map((stage) => WORKFLOW_STAGE_LABELS[stage])).toEqual([
       "Deferred",
-      "Active",
-      "Blocked on other agent",
-      "Blocked on third party",
+      "In progress",
+      "Waiting",
+      "Blocked on user",
+      "Blocked on another thread",
+      "Blocked on external party",
       "Completed",
     ]);
   });
 
-  it("keeps required stages while allowing Deferred and both Blocked stages to be hidden", () => {
+  it("keeps required stages while allowing Deferred and all Blocked stages to be hidden", () => {
     expect(
       enabledWorkflowStages({
         showDeferredStage: false,
         showBlockedStage: false,
       }),
-    ).toEqual(["Active", "Completed"]);
+    ).toEqual(["Active", "Waiting", "Completed"]);
     expect(enabledWorkflowStages(undefined)).toEqual(WORKFLOW_STAGES);
+  });
+
+  it("recognizes user blockers and groups them independently of Waiting", () => {
+    expect(isBlockedStage("BlockedOnUser")).toBe(true);
+    const groups = groupThreadsByStage([{ id: "review", updatedAt: 1 }], [{
+      threadId: "review", workflowStage: "BlockedOnUser", sortKey: "U", updatedAt: 1,
+    }]);
+    expect(groups.BlockedOnUser.map(({ id }) => id)).toEqual(["review"]);
+    expect(groups.Waiting).toEqual([]);
   });
 
   it("defaults unassigned threads to Active and honors explicit sort keys", () => {
@@ -71,7 +90,7 @@ describe("thread statuses", () => {
       { threadId: "first", workflowStage: "Active", sortKey: "U", updatedAt: 1 },
       {
         threadId: "working",
-        workflowStage: "BlockedOnThirdParty",
+        workflowStage: "Waiting",
         sortKey: "U",
         updatedAt: 3,
       },
@@ -84,7 +103,7 @@ describe("thread statuses", () => {
       "second",
       "unassigned",
     ]);
-    expect(groups.BlockedOnThirdParty.map((thread) => thread.id)).toEqual(["working"]);
+    expect(groups.Waiting.map((thread) => thread.id)).toEqual(["working"]);
     expect(groups.Completed).toEqual([]);
   });
 

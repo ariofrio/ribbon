@@ -1,17 +1,19 @@
 import assert from "node:assert/strict";
 import { FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
-import { carryTo, dropMarker, launch, link, openContext, pickUp, project, row, section, sidebar, STAGES, withPreferenceSaved } from "./sidebar.mjs";
+import { carryTo, dropMarker, launch, link, openContext, pickUp, project, row, section, sidebar, withPreferenceSaved } from "./sidebar.mjs";
 
 export async function verifyStagePlacement({ stack, fixture }) {
   const returning = fixture.threads.get("Add keyboard navigation to filters");
   const other = fixture.threads.get(FEATURED_THREAD);
   const projectId = fixture.projects.get(FEATURED_PROJECT).id;
-  const place = (thread, stage) => fixture.run(["thread-stages", "place", thread.id, "--to", `${STAGES}/${stage}`]);
-  const labels = { Active: "Active", Deferred: "Deferred", BlockedOnOtherAgent: "Blocked on other agent", BlockedOnThirdParty: "Blocked on third party" };
+  const place = (thread, stage) => fixture.run(["thread-stages", "stage", stage, thread.id]);
+  const labels = { Active: "In progress", Waiting: "Waiting", BlockedOnUser: "Blocked on user", Deferred: "Deferred", BlockedOnOtherAgent: "Blocked on another thread", BlockedOnThirdParty: "Blocked on external party" };
   const mac = process.platform === "darwin";
   const shortcuts = {
+    Waiting: mac ? "Meta+Shift+," : "Control+Shift+,",
     Active: mac ? "Meta+Shift+." : "Control+Shift+.",
     Deferred: mac ? "Control+Meta+." : "Alt+Control+,",
+    BlockedOnUser: mac ? "Alt+Meta+Shift+u" : "Alt+Control+Shift+u",
     BlockedOnOtherAgent: mac ? "Alt+Control+Meta+." : "Alt+Control+Shift+.",
     BlockedOnThirdParty: mac ? "Control+Meta+Shift+." : "Alt+Control+Shift+,",
   };
@@ -37,13 +39,21 @@ export async function verifyStagePlacement({ stack, fixture }) {
         await chooseOrganization(`${fixture.section.name} section`, "By project");
       }
       let group = organization === "project" ? project(page, projectId) : section(page, fixture.section.id);
-      const grouping = organization === "project" ? "builtin:projects" : "builtin:sections";
       const groupId = organization === "project" ? projectId : fixture.section.id;
+
+      async function freshClient(url = page.url()) {
+        const next = await context.newPage();
+        await page.close({ runBeforeUnload: false });
+        page = next;
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120_000 });
+        await sidebar(page).waitFor({ timeout: 120_000 });
+        group = organization === "project" ? project(page, projectId) : section(page, fixture.section.id);
+      }
 
       async function mainOrder() {
         return group.locator('[aria-label$=" stage"]').evaluateAll((icons) =>
           icons.filter((icon) =>
-            ["Active stage", "Blocked on other agent stage", "Blocked on third party stage"].includes(icon.getAttribute("aria-label")))
+            ["In progress stage", "Waiting stage", "Blocked on user stage", "Blocked on another thread stage", "Blocked on external party stage"].includes(icon.getAttribute("aria-label")))
             .map((icon) => icon.closest("[data-thread-id]"))
             .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)
             .map((row) => row.dataset.threadId));
@@ -69,7 +79,7 @@ export async function verifyStagePlacement({ stack, fixture }) {
           const group = document.querySelector(selector);
           const icons = [...group.querySelectorAll('[aria-label$=" stage"]')].filter((icon) =>
             deferred ? icon.getAttribute("aria-label") === "Deferred stage" :
-              ["Active stage", "Blocked on other agent stage", "Blocked on third party stage"].includes(icon.getAttribute("aria-label")));
+              ["In progress stage", "Waiting stage", "Blocked on user stage", "Blocked on another thread stage", "Blocked on external party stage"].includes(icon.getAttribute("aria-label")));
           const rows = icons.map((icon) => icon.closest("[data-thread-id]"));
           const target = rows.find((row) => row.dataset.threadId === id);
           return target && rows.every((row) => target.getBoundingClientRect().top <= row.getBoundingClientRect().top);
@@ -87,9 +97,7 @@ export async function verifyStagePlacement({ stack, fixture }) {
           await page.getByRole("menuitem", { name: /Move to stage/ }).hover();
           await page.getByRole("menuitemradio", { name: labels[stage], exact: true }).click();
         } else {
-          await page.goto(new URL(`/projects/${projectId}/threads/${returning.id}`, stack.serverUrl).href,
-            { waitUntil: "domcontentloaded" });
-          await sidebar(page).waitFor({ timeout: 120_000 });
+          await freshClient(new URL(`/projects/${projectId}/threads/${returning.id}`, stack.serverUrl).href);
           await page.locator('[data-app-composer-role="primary"] [contenteditable="true"]').click();
           const saved = page.waitForResponse((response) => response.url().endsWith("/rpc/setWorkflowStage"));
           await page.keyboard.press(shortcuts[stage]);
@@ -103,11 +111,11 @@ export async function verifyStagePlacement({ stack, fixture }) {
         await row(group, returning.id).getByLabel(`${labels[stage]} stage`, { exact: true }).waitFor();
       }
       for (const method of ["cli", "menu", "shortcut"]) {
-        for (const stage of ["BlockedOnOtherAgent", "BlockedOnThirdParty", "Deferred"]) {
+        for (const stage of ["Waiting", "BlockedOnUser", "BlockedOnOtherAgent", "BlockedOnThirdParty", "Deferred"]) {
           console.log(`Checking ${organization} ${method} stage entry: ${stage}`);
           place(returning, "Active");
-          fixture.run(["thread-stages", "place", returning.id, "--to", `${grouping}/${groupId}`, "--after", other.id]);
-          await row(group, returning.id).getByLabel("Active stage", { exact: true }).waitFor();
+          fixture.run(["thread-stages", "order", returning.id, "--by", organization === "project" ? "project" : "section", "--after", other.id]);
+          await row(group, returning.id).getByLabel("In progress stage", { exact: true }).waitFor();
           await afterOther();
           const before = await mainOrder();
           await move(stage, method);
@@ -120,9 +128,8 @@ export async function verifyStagePlacement({ stack, fixture }) {
             await move(stage === "BlockedOnOtherAgent" ? "BlockedOnThirdParty" : "BlockedOnOtherAgent", method);
             assert.deepEqual(await mainOrder(), before);
             await move("Active", method);
-            await page.reload({ waitUntil: "domcontentloaded" });
-            await sidebar(page).waitFor({ timeout: 120_000 });
-            await row(group, returning.id).getByLabel("Active stage", { exact: true }).waitFor();
+            await freshClient();
+            await row(group, returning.id).getByLabel("In progress stage", { exact: true }).waitFor();
             assert.deepEqual(await mainOrder(), before);
           }
         }
@@ -140,22 +147,14 @@ export async function verifyStagePlacement({ stack, fixture }) {
       await page.mouse.up();
       assert.ok((await dragged).ok());
       await first("Deferred", other);
-      await page.goto(new URL(`/projects/${projectId}/threads/${returning.id}`, stack.serverUrl).href,
-        { waitUntil: "domcontentloaded" });
-      await sidebar(page).waitFor({ timeout: 120_000 });
+      await freshClient(new URL(`/projects/${projectId}/threads/${returning.id}`, stack.serverUrl).href);
       await page.locator('[data-app-composer-role="primary"] [contenteditable="true"]').click();
       const reordered = page.waitForResponse((response) => response.url().endsWith("/rpc/reorderThread"));
       await page.keyboard.press(mac ? "Alt+Meta+ArrowUp" : "Alt+Control+ArrowUp");
       assert.ok((await reordered).ok());
       await first("Deferred");
       // A fresh client must read the saved preview order.
-      const url = page.url();
-      const fresh = await context.newPage();
-      await page.close({ runBeforeUnload: false });
-      page = fresh;
-      await page.goto(url, { waitUntil: "domcontentloaded" });
-      await sidebar(page).waitFor({ timeout: 120_000 });
-      group = organization === "project" ? project(page, projectId) : section(page, fixture.section.id);
+      await freshClient();
       await first("Deferred");
       place(other, "Active");
       if (organization === "project") {

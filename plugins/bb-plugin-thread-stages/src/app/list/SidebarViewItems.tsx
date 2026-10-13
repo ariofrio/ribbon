@@ -22,6 +22,7 @@ import {
   sidebarSortDirectionAtom,
   sidebarGroupThreadsByEnvironmentAtom,
   sidebarEnvironmentGroupingAtom,
+  sidebarGroupByReadStatusAtom,
   sidebarShowProviderIconsAtom,
 } from "../preferences/atoms.js";
 
@@ -91,6 +92,7 @@ export function SidebarHeaderMenuContents({
         compact ? (
           <DropdownMenuItem
             key={item.page}
+            className="[&>[data-icon-root]:last-child]:size-3 [&>[data-icon-root]:last-child]:text-subtle-foreground"
             onSelect={(event) => {
               event.preventDefault();
               onPageChange(item.page);
@@ -102,7 +104,7 @@ export function SidebarHeaderMenuContents({
           </DropdownMenuItem>
         ) : (
           <DropdownMenuSub key={item.page}>
-            <DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger className="[&>[data-icon-root]:last-child]:size-3 [&>[data-icon-root]:last-child]:text-subtle-foreground">
               <Icon name={item.icon} />
               {item.label}
             </DropdownMenuSubTrigger>
@@ -140,10 +142,13 @@ function SidebarViewItems({ page }: { page: SidebarViewPage }) {
   const setEnvironmentGrouping = useSetAtom(sidebarEnvironmentGroupingAtom);
   const groupByEnvironment = useAtomValue(sidebarGroupThreadsByEnvironmentAtom);
   const ribbon = useRibbonData();
+  const [groupByReadStatus, setGroupByReadStatus] = useAtom(
+    sidebarGroupByReadStatusAtom,
+  );
   const [showProviderIcons, setShowProviderIcons] = useAtom(
     sidebarShowProviderIconsAtom,
   );
-  const selectedSort = sort === "none" ? "updated" : sort;
+  const selectedSort = sort === "none" && !ribbon ? "updated" : sort;
   if (page === "filter") {
     return (
       <DropdownMenuGroup aria-label="Filter">
@@ -209,11 +214,25 @@ function SidebarViewItems({ page }: { page: SidebarViewPage }) {
             onSelect={(event) => {
               event.preventDefault();
               setEnvironmentGrouping(!groupByEnvironment);
+              if (!groupByEnvironment) setGroupByReadStatus(false);
             }}
           >
             By environment
             <span className="ml-auto inline-flex size-4 shrink-0 items-center justify-center">
               {groupByEnvironment && <Icon name="Check" className="size-4" />}
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            role="menuitemcheckbox"
+            aria-checked={groupByReadStatus}
+            onSelect={(event) => {
+              event.preventDefault();
+              setGroupByReadStatus(!groupByReadStatus);
+            }}
+          >
+            By read status
+            <span className="ml-auto inline-flex size-4 shrink-0 items-center justify-center">
+              {groupByReadStatus && <Icon name="Check" className="size-4" />}
             </span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
@@ -260,6 +279,22 @@ function SidebarViewItems({ page }: { page: SidebarViewPage }) {
   }
   return (
     <DropdownMenuGroup aria-label="Sort">
+      {ribbon ? (
+        <DropdownMenuItem
+          role="menuitemradio"
+          aria-checked={sort === "none"}
+          onSelect={(event) => {
+            event.preventDefault();
+            setSort("none");
+            setDirection("default");
+          }}
+        >
+          Custom
+          <span className="ml-auto inline-flex size-4 shrink-0 items-center justify-center">
+            {sort === "none" && <Icon name="Check" className="size-4" />}
+          </span>
+        </DropdownMenuItem>
+      ) : null}
       {SIDEBAR_SORT_OPTIONS.map((option) => {
         const selected = selectedSort === option.sort;
         const direction =

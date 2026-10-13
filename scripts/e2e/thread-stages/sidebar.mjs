@@ -3,7 +3,6 @@ import { chromium } from "playwright";
 /** bb's key for the selected thread list, and this plugin's entry in it. */
 export const PROVIDER = "thread-stages/thread-stages";
 export const PREFERENCES_KEY = "bb.plugin.thread-stages.preferences.v1";
-export const STAGES = "plugin:thread-stages:stages";
 export const READY = "[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]";
 
 export function launch() {
@@ -108,11 +107,15 @@ export async function pickUp(page, target) {
 /**
  * Carries a held row to the top or bottom sliver of another. The middle of a
  * row nests into it, so only its edges mean "beside".
+ * Move directly to the edge: intermediate pointer events can dwell in the
+ * nesting band on a busy renderer and change the intended gesture.
  */
 export async function carryTo(page, target, edge = "before") {
   const box = await target.boundingBox();
   const y = edge === "before" ? box.y + 2 : box.y + box.height - 2;
-  await page.mouse.move(box.x + 60, y, { steps: 10 });
+  // Move straight to the edge: intermediate synthetic steps can dwell in
+  // the middle long enough to arm nesting before testing reordering.
+  await page.mouse.move(box.x + 60, y);
   return box;
 }
 

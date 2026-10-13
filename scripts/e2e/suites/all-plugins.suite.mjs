@@ -1,5 +1,5 @@
 import { verifyAllPlugins } from "../thread-stages/all-plugins.mjs";
-import { waitForStageCatalog } from "../thread-stages/new-thread-routing.mjs";
+import { waitForThreadStages } from "../thread-stages/new-thread-routing.mjs";
 
 export default {
   order: 80,
@@ -11,7 +11,7 @@ export default {
     "bb-plugin-thread-stages",
   ],
   async prepare({ bb, cliEnv }) {
-    await waitForStageCatalog({ bb, cliEnv });
+    await waitForThreadStages({ bb, cliEnv });
   },
   run: verifyAllPlugins,
 };

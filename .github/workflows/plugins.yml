@@ -99,6 +99,10 @@ jobs:
     needs: relevant
     if: needs.relevant.outputs.run == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [placement, sidebar]
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
     steps:
@@ -113,14 +117,14 @@ jobs:
           apt-get update -qq
           apt-get install -y -qq make g++
       - run: npm ci
-      - run: npm run test:e2e
+      - run: npm run test:e2e -- --group ${{ matrix.group }}
       - name: Preserve end-to-end failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: end-to-end-diagnostics
+          name: end-to-end-diagnostics-${{ matrix.group }}
           path: |
-            .scratch/e2e/bb.log
+            .scratch/e2e/**/bb.log
             .scratch/e2e/*.trace.zip
           if-no-files-found: ignore
           include-hidden-files: true

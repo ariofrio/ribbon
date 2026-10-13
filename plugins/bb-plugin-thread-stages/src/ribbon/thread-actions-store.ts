@@ -4,12 +4,14 @@ export interface ThreadAction {
   id: string;
   label: string;
   prompt: string;
+  steer?: boolean;
 }
+
+export const threadActionLabel = ({ label, prompt }: ThreadAction) => label.trim() || prompt;
 
 export interface ThreadActionsRecord {
   threadId: string;
   actions: ThreadAction[];
-  hideTitle: boolean;
 }
 
 export const THREAD_ACTIONS_MIGRATION = `
@@ -32,40 +34,37 @@ export const THREAD_ACTIONS_DISPLAY_MIGRATION = `
   );
 `;
 
+export const THREAD_ACTIONS_STEER_MIGRATION = `
+  ALTER TABLE thread_action ADD COLUMN steer INTEGER NOT NULL DEFAULT 0;
+`;
+
 export function createThreadActionsStore(database: BetterSqlite3.Database) {
   const list = database.prepare(`
-    SELECT action.thread_id, action.action_id, action.label, action.prompt,
-      COALESCE(display.hide_title, 0) AS hide_title
+    SELECT action.thread_id, action.action_id, action.label, action.prompt, action.steer
     FROM thread_action AS action
-    LEFT JOIN thread_action_display AS display ON display.thread_id = action.thread_id
     ORDER BY action.thread_id, action.position
   `);
   const get = database.prepare(`
-    SELECT action_id, label, prompt FROM thread_action
+    SELECT action_id, label, prompt, steer FROM thread_action
     WHERE thread_id = ? AND action_id = ?
   `);
   const remove = database.prepare(
     "DELETE FROM thread_action WHERE thread_id = ?",
   );
   const insert = database.prepare(`
-    INSERT INTO thread_action(thread_id, action_id, label, prompt, position)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO thread_action(thread_id, action_id, label, prompt, position, steer)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
   const removeDisplay = database.prepare(
     "DELETE FROM thread_action_display WHERE thread_id = ?",
   );
-  const upsertDisplay = database.prepare(`
-    INSERT INTO thread_action_display(thread_id, hide_title) VALUES (?, ?)
-    ON CONFLICT(thread_id) DO UPDATE SET hide_title = excluded.hide_title
-  `);
   const save = database.transaction(
-    (threadId: string, actions: readonly ThreadAction[], hideTitle: boolean) => {
+    (threadId: string, actions: readonly ThreadAction[]) => {
       remove.run(threadId);
       actions.forEach((action, position) => {
-        insert.run(threadId, action.id, action.label, action.prompt, position);
+        insert.run(threadId, action.id, action.label, action.prompt, position, action.steer ? 1 : 0);
       });
-      if (actions.length > 0) upsertDisplay.run(threadId, Number(hideTitle));
-      else removeDisplay.run(threadId);
+      removeDisplay.run(threadId);
     },
   );
   const deleteThread = database.transaction((threadId: string) => {
@@ -81,27 +80,28 @@ export function createThreadActionsStore(database: BetterSqlite3.Database) {
         action_id: string;
         label: string;
         prompt: string;
-        hide_title: number;
+        steer: number;
       }>) {
         let record = records.at(-1);
         if (record?.threadId !== row.thread_id) {
-          record = { threadId: row.thread_id, actions: [], hideTitle: row.hide_title !== 0 };
+          record = { threadId: row.thread_id, actions: [] };
           records.push(record);
         }
         record.actions.push({
           id: row.action_id,
           label: row.label,
           prompt: row.prompt,
+          ...(row.steer ? { steer: true } : {}),
         });
       }
       return records;
     },
     get(threadId: string, actionId: string): ThreadAction | null {
       const row = get.get(threadId, actionId) as
-        | { action_id: string; label: string; prompt: string }
+        | { action_id: string; label: string; prompt: string; steer: number }
         | undefined;
       return row
-        ? { id: row.action_id, label: row.label, prompt: row.prompt }
+        ? { id: row.action_id, label: row.label, prompt: row.prompt, ...(row.steer ? { steer: true } : {}) }
         : null;
     },
     save,

@@ -1,6 +1,7 @@
 import { verifyDragRegressions } from "../thread-stages/drag-regressions.mjs";
 
 export default {
+  group: "placement",
   order: 25,
   id: "drag-regressions",
   cases: [

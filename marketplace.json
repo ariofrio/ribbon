@@ -63,6 +63,34 @@
       }
     },
     {
+      "id": "model-mentions",
+      "displayName": "Model mentions",
+      "description": "Mention models and providers in task instructions using live provider catalogs.",
+      "icon": {
+        "url": "./plugins/bb-plugin-model-mentions/assets/icon.svg"
+      },
+      "tags": [
+        "models",
+        "mentions",
+        "providers",
+        "threads",
+        "productivity"
+      ],
+      "author": {
+        "name": "Andres Riofrio",
+        "github": "ariofrio",
+        "url": "https://github.com/ariofrio"
+      },
+      "source": {
+        "git": {
+          "url": "https://github.com/ariofrio/ribbon.git",
+          "subdir": "plugins/bb-plugin-model-mentions",
+          "range": "*",
+          "tagPrefix": "model-mentions/"
+        }
+      }
+    },
+    {
       "id": "thread-stages",
       "displayName": "Thread stages",
       "description": "bb's thread list with workflow stages, stable thread order, and section and project icons.",

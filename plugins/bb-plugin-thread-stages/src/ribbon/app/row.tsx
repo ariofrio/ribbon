@@ -11,7 +11,7 @@ import type { SidebarThread } from "../../app/model/sidebar-thread.js";
 import type { ThreadListIndicatorState } from "../../app/model/thread-activity.js";
 import { longTitlesSetting } from "../long-titles";
 import { pullRequestSignal } from "../pull-request-status";
-import type { ThreadAction } from "../thread-actions-store";
+import { threadActionLabel, type ThreadAction } from "../thread-actions-store";
 import type { WorkflowStage } from "../workflow/workflow-stage";
 import { runRibbonThreadActionAtom } from "./atoms";
 import { useRibbonThread } from "./data";
@@ -22,6 +22,10 @@ import type { ThreadStatus } from "./thread-status";
 import { MarqueeText } from "./thread-title";
 import { SHINE_ATTRIBUTE, ShineContent } from "./row-shine";
 import { ThreadIndicator } from "./thread-indicator";
+
+// Keep Ribbon's selected-row tint opaque when a parent sticks above its children.
+export const RIBBON_SELECTED_ROW_SURFACE_CLASS =
+  "bg-sidebar-accent bg-[linear-gradient(var(--sidebar-accent),var(--sidebar-accent)),linear-gradient(var(--sidebar),var(--sidebar))]";
 
 // bb's own pull request colors, plus amber for a PR that will merge on its
 // own (GitHub's merge-queue color).
@@ -69,7 +73,6 @@ export function useRibbonRow(
     pending: boolean;
   } | null;
   actions: readonly ThreadAction[];
-  hideTitle: boolean;
   runThreadAction(threadId: string, actionId: string): Promise<void>;
 } | null {
   // The row's own slice of Ribbon's data, so a change elsewhere in the list
@@ -134,7 +137,6 @@ export function useRibbonRow(
           }
         : null,
     actions,
-    hideTitle: actions.length > 0 && (record?.hideTitle ?? false),
     runThreadAction,
   };
 }
@@ -202,7 +204,7 @@ export function RibbonActionButtons({
   const gap = gapPx === 0 ? "gap-0" : "gap-1";
   // The group asks for every label at full width plus its padding and the
   // gaps between, so the title beside it gives way before any label clips.
-  const widths = actions.map(({ id, label }) => measuredWidths[`${id}\0${label}`]);
+  const widths = actions.map((action) => measuredWidths[`${action.id}\0${threadActionLabel(action)}`]);
   const naturalWidth = widths.every((width) => width !== undefined)
     ? widths.reduce((total, width) => total + width, 0) +
       actions.length * 16 +
@@ -211,18 +213,19 @@ export function RibbonActionButtons({
   return (
     <span
       data-ribbon-thread-actions=""
-      className={`pointer-events-none flex min-w-0 flex-[0_1_max-content] items-center ${gap}`}
+      className={`pointer-events-none ml-2 flex min-w-0 flex-[0_1_max-content] items-center ${gap}`}
       style={{ flexBasis: naturalWidth === null ? "max-content" : naturalWidth }}
     >
       {actions.map((action) => {
-        const widthKey = `${action.id}\0${action.label}`;
+        const label = threadActionLabel(action);
+        const widthKey = `${action.id}\0${label}`;
         return (
           <Button
             key={action.id}
             type="button"
             size="sm"
             variant="ghost"
-            aria-label={`${action.label} in ${rowTitle}`}
+            aria-label={`${label} in ${rowTitle}`}
             disabled={runningActionId !== null}
             className="pointer-events-auto relative z-20 h-5 min-w-0 flex-[0_1_max-content] overflow-hidden rounded-md bg-[color:var(--ribbon-action-fill)] text-[11px] font-medium leading-none text-[color:var(--ribbon-action-ink)] ring-sidebar-ring hover:bg-[color:var(--ribbon-action-hover-fill)] hover:text-[color:var(--ribbon-action-hover-ink)] focus-visible:bg-[color:var(--ribbon-action-hover-fill)] focus-visible:text-[color:var(--ribbon-action-hover-ink)] focus-visible:ring-2 active:bg-[color:var(--ribbon-action-hover-fill)]"
             style={{
@@ -242,7 +245,7 @@ export function RibbonActionButtons({
             onPointerDown={(event) => event.stopPropagation()}
           >
             <MarqueeText
-              text={action.label}
+              text={label}
               onMeasure={(width) => {
                 setMeasuredWidths((current) =>
                   current[widthKey] === width ? current : { ...current, [widthKey]: width },

@@ -5,7 +5,7 @@
 <p align="center">A suite of <a href="https://getbb.app">bb</a> plugins for managing large amounts of agents.</p>
 
 <p align="center">
-  <a href="https://getbb.app"><img src="https://img.shields.io/badge/bb-0.45.0%2B-656D76?style=flat-square" alt="bb 0.45.0+"></a>
+  <a href="https://getbb.app"><img src="https://img.shields.io/badge/bb-0.46.0%2B-656D76?style=flat-square" alt="bb 0.46.0+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/ariofrio/ribbon?style=flat-square&color=656D76" alt="MIT license"></a>
   <a href="https://github.com/ariofrio/ribbon/actions/workflows/plugins.yml"><img src="https://img.shields.io/github/actions/workflow/status/ariofrio/ribbon/plugins.yml?branch=main&style=flat-square&label=CI" alt="CI status"></a>
 </p>
@@ -32,6 +32,23 @@ bb plugin install thread-stages@ribbon
 ```
 
 <a href="plugins/bb-plugin-thread-stages#readme">Read docs &rarr;</a>
+
+<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
+
+### <img src="assets/icons/model-mentions.svg" alt="" width="26" align="absmiddle"> &nbsp;Model mentions
+
+Mention models and providers in task instructions using live provider catalogs.
+
+Type `@Opus` or another model name to choose a model and provider for a task.
+Mentions carry exact IDs and the provider's icon, and leave composer pickers unchanged.
+Provider and reasoning mentions are optional.
+
+```sh
+bb marketplace add git:github.com/ariofrio/ribbon
+bb plugin install model-mentions@ribbon
+```
+
+<a href="plugins/bb-plugin-model-mentions#readme">Read docs &rarr;</a>
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 

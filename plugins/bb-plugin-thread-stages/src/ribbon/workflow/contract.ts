@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ORDER_GROUPING_KEYS } from "../placement-store";
 import { WORKFLOW_STAGES } from "./workflow-stage";
 const workflowStageSchema = z.enum(WORKFLOW_STAGES);
 const assignmentSchema = z
@@ -31,16 +32,12 @@ export const workflowRpcMethods = {
       .object({
         threadId: z.string().min(1).max(256),
         groupingKey: z
-          .enum(["builtin:sections", "builtin:projects"])
+          .enum(ORDER_GROUPING_KEYS)
           .optional(),
         workflowStage: workflowStageSchema,
         scope: z
           .object({
-            groupingKey: z.union([
-              z.literal("builtin:projects"),
-              z.literal("builtin:sections"),
-              z.string().regex(/^plugin:[^:/]+:[^:/]+$/u),
-            ]),
+            groupingKey: z.enum(ORDER_GROUPING_KEYS),
             groupId: z.string().min(1).max(128),
           })
           .strict()
@@ -55,7 +52,7 @@ export const workflowRpcMethods = {
       .object({
         threadId: z.string().min(1).max(256),
         groupingKey: z
-          .enum(["builtin:sections", "builtin:projects"])
+          .enum(ORDER_GROUPING_KEYS)
           .optional(),
         scope: z.enum(["step", "edge", "stage"]),
         direction: z.union([z.literal(-1), z.literal(1)]),

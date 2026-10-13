@@ -31,14 +31,12 @@ export function bandOf(stage: WorkflowStage | undefined): StageBand {
 }
 
 /**
- * Partitions a group's roots, in their retained order, into the main list
- * (Active and both Blocked stages), Deferred, and Completed. The previews use
- * their saved stage orders; the main list keeps the section or project rank.
+ * Partitions roots into the main list (In progress, Waiting, and all three Blocked stages),
+ * Deferred, and Completed, preserving the containing group's order in every band.
  */
 export function stageBands(
   items: readonly ProjectThreadItem[],
   stageOf: (threadId: string) => WorkflowStage | undefined,
-  stageRank: (threadId: string) => number,
 ): StageBands {
   const bands: StageBands = { main: [], deferred: [], completed: [] };
   for (const item of items) {
@@ -47,14 +45,13 @@ export function stageBands(
       bands.main.push(item);
       continue;
     }
-    bands[bandOf(stageOf(thread.id))].push(item);
-  }
-  for (const band of [bands.deferred, bands.completed]) {
-    band.sort((left, right) => {
-      const leftRank = stageRank(itemThread(left)?.id ?? "");
-      const rightRank = stageRank(itemThread(right)?.id ?? "");
-      return leftRank - rightRank;
-    });
+    const band = bandOf(stageOf(thread.id));
+    // A mixed environment stays available while its own list partitions its
+    // threads; its representative alone cannot decide the whole group's stage.
+    const mixed = item.kind === "environment" && item.group.nodes.some(
+      (node) => bandOf(stageOf(node.thread.id)) !== band,
+    );
+    bands[mixed ? "main" : band].push(item);
   }
   return bands;
 }

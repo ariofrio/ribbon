@@ -16,14 +16,13 @@ import {
   type ReactNode,
 } from "react";
 import type { ChildRank } from "../child-order";
-import type { GroupingKey, PlacementRecordV1 } from "../placement-store";
+import { ORDER_GROUPING_KEYS, type GroupingKey, type PlacementRecordV1 } from "../placement-store";
 import type { rpcContract } from "../server";
 import type { ThreadAction, ThreadActionsRecord } from "../thread-actions-store";
 import { THREAD_STAGES_GROUPING_KEY } from "../workflow/catalog";
 import type { WorkflowStage } from "../workflow/workflow-stage";
 import {
   resetRibbonAtoms,
-  ribbonActionsEditorAtom,
   ribbonChildRanksAtom,
   ribbonEnabledAtom,
   ribbonErrorAtom,
@@ -84,12 +83,8 @@ export interface RibbonData {
   saveThreadActions(
     threadId: string,
     actions: ThreadAction[],
-    hideTitle: boolean,
   ): Promise<void>;
   runThreadAction(threadId: string, actionId: string): Promise<void>;
-  /** The thread whose prompt actions are being edited, if any. */
-  actionsEditor: string | null;
-  editActions(threadId: string | null): void;
   rpc: RibbonRpc;
 }
 
@@ -111,7 +106,6 @@ export function useRibbonThread(threadId: string): RibbonThread | null {
   return enabled ? thread : null;
 }
 
-const ORDERED_GROUPINGS = ["builtin:sections", "builtin:projects"] as const;
 
 function message(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -145,7 +139,6 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
   const [loaded, setLoaded] = useAtom(ribbonLoadedAtom);
   const [preferences, setPreferences] = useAtom(ribbonPreferencesAtom);
   const [error, setError] = useAtom(ribbonErrorAtom);
-  const [actionsEditor, setActionsEditor] = useAtom(ribbonActionsEditorAtom);
   const latestRevisions = useRef(new Map<GroupingKey, number>());
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const stageRequest = useRef(0);
@@ -162,7 +155,7 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
 
   const loadPlacements = useCallback(async () => {
     await Promise.all(
-      ORDERED_GROUPINGS.map(async (groupingKey) => {
+      ORDER_GROUPING_KEYS.map(async (groupingKey) => {
         const result = await rpcRef.current.call("listPlacementsV1", { groupingKey });
         if (!result.ok) throw new Error(result.error.message);
         // Each grouping keeps its own snapshot; a late answer never undoes a
@@ -370,7 +363,7 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
   );
 
   const saveThreadActions = useCallback<RibbonData["saveThreadActions"]>(
-    async (threadId, actions, hideTitle) => {
+    async (threadId, actions) => {
       setError(null);
       const next = actions.map((action) => ({
         ...action,
@@ -380,12 +373,11 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
       await rpcRef.current.call("saveThreadActionsV1", {
         threadId,
         actions: next,
-        hideTitle: next.length > 0 && hideTitle,
       });
       setThreadActions((current) => {
         const updated = new Map(current);
         if (next.length > 0) {
-          updated.set(threadId, { threadId, actions: next, hideTitle: next.length > 0 && hideTitle });
+          updated.set(threadId, { threadId, actions: next });
         } else {
           updated.delete(threadId);
         }
@@ -433,12 +425,9 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
       reorderChildren,
       saveThreadActions,
       runThreadAction,
-      actionsEditor,
-      editActions: setActionsEditor,
       rpc,
     }),
     [
-      actionsEditor,
       changeView,
       childRanks,
       enteredStageAt,

@@ -1,5 +1,6 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import ribbonServer from "./ribbon/server.js";
+import { migrateCustomSort } from "./ribbon/custom-sort-migration.js";
 import {
   migratePreferences,
   preferenceCliCommands,
@@ -18,4 +19,5 @@ export default async function plugin(bb: BbPluginApi) {
     extraCommands: preferenceCliCommands(preferences),
   });
   await migratePreferences(bb);
+  await migrateCustomSort(bb, preferences);
 }

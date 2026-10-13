@@ -251,9 +251,13 @@ export const SHOTS = [
         await reply.elementHandle(),
       );
       await settleAnimations(page);
-      await page.keyboard.type(SIDE_CHAT_QUESTION);
-      await page.keyboard.press("Enter");
-      await page.getByText("Eighteen dashboard tests cover them.").waitFor();
+      const panel = sideChatPanel(page);
+      if (await panel.getByText(SIDE_CHAT_QUESTION, { exact: true }).count() === 0) {
+        await page.keyboard.type(SIDE_CHAT_QUESTION);
+        await page.keyboard.press("Enter");
+      }
+      await panel.getByText("Eighteen dashboard tests cover them.").waitFor();
+      await panel.getByRole("button", { name: "Stop run", exact: true }).waitFor({ state: "hidden" });
       await settleAnimations(page);
       await hideFixtureModelLabel(page);
     },

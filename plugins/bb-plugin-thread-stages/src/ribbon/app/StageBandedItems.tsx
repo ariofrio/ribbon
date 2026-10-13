@@ -13,7 +13,7 @@ import { StagePreview } from "./stage-preview";
 import { stagePreviewRowsSetting } from "../stage-preview-rows";
 
 /**
- * A group's roots in Ribbon's shape: the main list, then Deferred and
+ * A group's items in Ribbon's shape: the main list, then Deferred and
  * Completed as short previews that expand in place. The main list keeps the
  * windowed rendering bb gives every list; the previews keep the open thread
  * within their row budget when there is room for a thread.
@@ -24,13 +24,15 @@ export function StageBandedItems({
   renderMain,
   renderItem,
   revealAll = false,
+  depth = 0,
 }: {
   items: readonly ProjectThreadItem[];
   selectedThreadId?: string;
   /** Renders the main band the way the list renders any run of items. */
   renderMain: (items: readonly ProjectThreadItem[]) => ReactNode;
-  renderItem: (item: ProjectThreadItem) => ReactNode;
+  renderItem: (item: ProjectThreadItem, index: number, count: number) => ReactNode;
   revealAll?: boolean;
+  depth?: number;
 }) {
   const { revealAll: searchReveals } = useRibbonList();
   const settings = useSettings();
@@ -39,13 +41,9 @@ export function StageBandedItems({
   // partition again.
   const lookup = useAtomValue(ribbonStageLookupAtom);
   const stageOf = lookup?.stageOf;
-  const stageRank = lookup?.stageRank;
   const bands = useMemo(
-    () =>
-      stageOf && stageRank
-        ? stageBands(items, stageOf, stageRank)
-        : null,
-    [stageRank, items, stageOf],
+    () => stageOf ? stageBands(items, stageOf) : null,
+    [items, stageOf],
   );
   if (bands === null) return <>{renderMain(items)}</>;
   const rows = (band: readonly ProjectThreadItem[]) =>
@@ -62,18 +60,20 @@ export function StageBandedItems({
       {bands.main.length > 0 ? renderMain(bands.main) : null}
       <StagePreview
         stage="deferred"
+        depth={depth}
         rowLimit={rowLimit}
         rows={rows(bands.deferred)}
         selectedRootId={selectedRootId}
-        renderRow={({ id, item }) => <Fragment key={id}>{renderItem(item)}</Fragment>}
+        renderRow={({ id, item }, index, count) => <Fragment key={id}>{renderItem(item, index, count)}</Fragment>}
         revealAll={revealAll || searchReveals}
       />
       <StagePreview
         stage="completed"
+        depth={depth}
         rowLimit={rowLimit}
         rows={rows(bands.completed)}
         selectedRootId={selectedRootId}
-        renderRow={({ id, item }) => <Fragment key={id}>{renderItem(item)}</Fragment>}
+        renderRow={({ id, item }, index, count) => <Fragment key={id}>{renderItem(item, index, count)}</Fragment>}
         revealAll={revealAll || searchReveals}
       />
     </>

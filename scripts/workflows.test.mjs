@@ -6,6 +6,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { E2E_GROUPS } from "./e2e/suites.mjs";
 
 const workflows = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -126,6 +127,18 @@ test("no workflow runs twice for one push to a branch here", () => {
       `${file} listens for both push and pull_request, so it runs every job twice for a branch in this repository. Restrict its push trigger to a branch.`,
     );
   }
+});
+
+test("the end-to-end matrix runs every isolated group and keeps separate diagnostics", () => {
+  const source = readFileSync(join(workflows, "plugins.yml"), "utf8");
+  const endToEnd = source.slice(source.indexOf("\n  end-to-end:"), source.indexOf("\n  plugins:"));
+  const groups = /group: \[([^\]]+)\]/u.exec(endToEnd)?.[1].split(",").map((name) => name.trim());
+  assert.deepEqual(groups, E2E_GROUPS);
+  assert.match(endToEnd, /fail-fast: false/u);
+  assert.match(endToEnd, /run: npm run test:e2e -- --group \$\{\{ matrix\.group \}\}/u);
+  assert.match(endToEnd, /name: end-to-end-diagnostics-\$\{\{ matrix\.group \}\}/u);
+  assert.match(endToEnd, /\.scratch\/e2e\/\*\*\/bb\.log/u);
+  assert.match(endToEnd, /\.scratch\/e2e\/\*\.trace\.zip/u);
 });
 
 test("automation that updates pull requests uses the CI GitHub App", () => {

@@ -79,6 +79,54 @@ export async function verifyRowShine({ stack, fixture }) {
     await page.mouse.move(1200, 450);
     await page.waitForFunction(() => document.getAnimations().some((animation) => animation.playState === "running"));
 
+    const phases = () => list.locator("[data-ribbon-active-row]").evaluateAll((rows) => rows.flatMap((node) =>
+      node.getAnimations({ subtree: true })
+        .filter((animation) => ["spin", "ribbon-shine-window", "ribbon-shine-content"].includes(animation.animationName))
+        .map((animation) => ({
+          name: animation.animationName,
+          progress: animation.effect.getComputedTiming().progress,
+          transform: getComputedStyle(animation.effect.target).transform,
+        })),
+    ));
+    const verifyPhases = async () => {
+      const observations = await phases();
+      const rings = observations.filter(({ name }) => name === "spin");
+      assert.ok(rings.length >= 3, "several working rings are rendered");
+      const progress = observations.map(({ progress }) => progress);
+      assert.ok(progress.every((value) => value !== null), "every working animation has a phase");
+      assert.ok(Math.max(...progress) - Math.min(...progress) < 0.001,
+        `all row shimmers and rings share a phase: ${JSON.stringify(observations)}`);
+      assert.ok(rings.every(({ transform }) => transform === rings[0].transform),
+        "rings in different rows render the same rotation");
+    };
+    await verifyPhases();
+
+    // A draft adds a new shining indicator after the row is already moving.
+    // Wait for a phase well away from zero so a restarted animation cannot
+    // accidentally look synchronized.
+    await page.waitForFunction(() => {
+      const wave = document.querySelector("[data-ribbon-sidebar-root] [data-ribbon-shine-window]");
+      const progress = wave?.getAnimations()[0]?.effect.getComputedTiming().progress;
+      return progress > 0.25 && progress < 0.5;
+    });
+    const editor = page.locator('[data-app-composer-role="primary"] [contenteditable="true"]').first();
+    await editor.fill("A draft added while working");
+    await list.locator(`[data-thread-id="${thread.id}"] [data-sidebar-thread-trailing-indicator]`)
+      .getByLabel("Thread working with unsubmitted draft", { exact: true }).waitFor();
+    await verifyPhases();
+
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    assert.equal((await phases()).length, 0, "reduced motion stops all row shimmers and rings");
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.waitForFunction(() => {
+      const animations = [...document.querySelectorAll("[data-ribbon-sidebar-root] [data-ribbon-active-row]")]
+        .flatMap((node) => node.getAnimations({ subtree: true }))
+        .filter((animation) => ["spin", "ribbon-shine-window", "ribbon-shine-content"].includes(animation.animationName));
+      return animations.length > 0 && animations.every((animation) => !animation.pending &&
+        animation.effect.getComputedTiming().progress > 0);
+    });
+    await verifyPhases();
+
     // The wave still travels: the same row soon draws differently.
     const first = await row.screenshot({ animations: "allow" });
     const deadline = Date.now() + 10_000;

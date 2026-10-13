@@ -1,5 +1,18 @@
 # bb-plugin-missing-keyboard-shortcuts
 
+## 0.2.6
+
+### Patch Changes
+
+- 42d547a: Require bb 0.45.0 and Plugin SDK 0.6.15, with the matching shared UI. Sync
+  Thread stages with bb's thread list: configurable hover actions, live draft
+  indicators for collapsed groups, and group-aware placement of new threads.
+  Use the current composer API and support provider-defined service tiers for
+  title generation.
+- ba8b3db: Ignore delayed side-chat shortcut responses after navigating to another thread.
+- ba8b3db: Make Ctrl+` reliably open and focus thread terminals, including reopening a
+  closed panel, and keep terminal tabs in bb's saved thread tab list.
+
 ## 0.2.5
 
 ### Patch Changes

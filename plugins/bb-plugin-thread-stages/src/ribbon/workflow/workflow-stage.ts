@@ -1,6 +1,8 @@
 export const WORKFLOW_STAGES = [
   "Deferred",
   "Active",
+  "Waiting",
+  "BlockedOnUser",
   "BlockedOnOtherAgent",
   "BlockedOnThirdParty",
   "Completed",
@@ -10,14 +12,16 @@ export type WorkflowStage = (typeof WORKFLOW_STAGES)[number];
 
 export const WORKFLOW_STAGE_LABELS: Record<WorkflowStage, string> = {
   Deferred: "Deferred",
-  Active: "Active",
-  BlockedOnOtherAgent: "Blocked on other agent",
-  BlockedOnThirdParty: "Blocked on third party",
+  Active: "In progress",
+  Waiting: "Waiting",
+  BlockedOnUser: "Blocked on user",
+  BlockedOnOtherAgent: "Blocked on another thread",
+  BlockedOnThirdParty: "Blocked on external party",
   Completed: "Completed",
 };
 
 export function isBlockedStage(stage: string | undefined): boolean {
-  return stage === "BlockedOnOtherAgent" || stage === "BlockedOnThirdParty";
+  return stage === "BlockedOnUser" || stage === "BlockedOnOtherAgent" || stage === "BlockedOnThirdParty";
 }
 
 export interface WorkflowStageVisibilitySettings {
@@ -56,12 +60,15 @@ function stageKey(value: string): string {
 
 const STAGE_BY_KEY = new Map<string, WorkflowStage>(
   WORKFLOW_STAGES.flatMap((stage) => {
-    const entries: Array<[string, WorkflowStage]> = [[stageKey(stage), stage]];
+    const entries: Array<[string, WorkflowStage]> = [
+      [stageKey(stage), stage],
+      [stageKey(WORKFLOW_STAGE_LABELS[stage]), stage],
+    ];
     if (stage === "Deferred") entries.push(["backlog", stage]);
     // Idle and Blocked are earlier names that saved data and old messages use.
     if (stage === "Active") entries.push(["idle", stage], ["todo", stage]);
     if (stage === "BlockedOnThirdParty") {
-      entries.push(["blocked", stage], ["waiting", stage]);
+      entries.push(["blocked", stage]);
     }
     if (stage === "Completed") {
       entries.push(["done", stage], ["canceled", stage], ["cancelled", stage]);
@@ -87,6 +94,8 @@ export function groupThreadsByStage<Thread extends SidebarThreadLike>(
   const groups: Record<WorkflowStage, Thread[]> = {
     Deferred: [],
     Active: [],
+    Waiting: [],
+    BlockedOnUser: [],
     BlockedOnOtherAgent: [],
     BlockedOnThirdParty: [],
     Completed: [],

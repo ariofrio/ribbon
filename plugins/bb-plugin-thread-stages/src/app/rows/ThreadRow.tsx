@@ -1,6 +1,7 @@
 import {
   memo,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -12,6 +13,7 @@ import {
 import { useComposedRefs } from "@radix-ui/react-compose-refs";
 import { useAtomValue } from "jotai";
 import { Icon } from "@/components/ui/icon";
+import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
 import {
   Tooltip,
   TooltipContent,
@@ -26,13 +28,16 @@ import { cn } from "@/lib/utils";
 import { LIST_HOVER_TRANSITION } from "@/components/ui/motion";
 import {
   hasThreadListWorkingActivity,
+  resolveThreadListIndicator,
+  resolveThreadStatus,
   threadListIndicatorStateForThread,
   NO_COLLAPSED_CHILD_ACTIVITY,
   type CollapsedChildActivity,
   type ThreadListIndicatorState,
 } from "../model/thread-activity.js";
 import {
-  experimental_useSidebarThreadActions,
+  experimental_ThreadStatusGlyph as ThreadStatusGlyph,
+  experimental_THREAD_ACTION_GROUPS,
   experimental_useSidebarThreadSplit,
   experimental_useProviders,
   experimental_ProviderIcon as ProviderIcon,
@@ -41,7 +46,10 @@ import {
   useSidebarThreadDraft,
   useSidebarThreadRowStatus,
   useSidebarThreadShortcut,
+  useSdk,
   type PluginSidebarSplitPane,
+  type PluginThreadActionsInlineItem,
+  type PluginThreadActionsTriggerProps,
   type PluginSidebarThreadRowStatus,
 } from "@get-bb/plugin-sdk/app";
 import type { SidebarThread } from "../model/sidebar-thread.js";
@@ -61,34 +69,41 @@ import {
   SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
   SIDEBAR_HOVER_ACTIONS_INSET_CLASS,
   SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
-} from "../ui/sidebar-hover-actions.js";
-import type { ConsumeDragClickSuppression } from "../ui/use-drag-click-suppression.js";
+} from "@/components/ui/sidebar-hover-actions";
+import type { ConsumeDragClickSuppression } from "@/components/ui/use-drag-click-suppression";
 import { SidebarChildToggleChevron } from "./SidebarChildToggleChevron.js";
 import { useSidebarRename } from "./SidebarInlineRename.js";
 import { SidebarRowControls } from "./SidebarRowControls.js";
 import {
   SIDEBAR_CONTROL_BUTTON_CLASS,
   SIDEBAR_CONTROL_STATE_CLASS,
-  SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
   SIDEBAR_ROW_TEXT_CLASS,
   SIDEBAR_ROW_BASE_CLASS,
   SIDEBAR_ROW_GLYPH_SLOT_CLASS,
+  SIDEBAR_ROW_ACCENT_STATE_CLASS,
   SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,
   SIDEBAR_ROW_OPEN_IN_SPLIT_STATE_CLASS,
   SIDEBAR_ROW_SELECTED_STATE_CLASS,
   SIDEBAR_STATUS_GLYPH_BOX_CLASS,
   getSidebarThreadGroupLineLeft,
   getSidebarThreadRowPaddingLeft,
-} from "./sidebarRowClasses.js";
+} from "@/components/ui/sidebar-row-classes";
 import type {
   SidebarNestTargetState,
   SidebarReorderPlacement,
   ThreadRowNestDrop,
 } from "./sidebarThreadRowDroppable.js";
-import type { SidebarSortableDragBindings } from "./sortableMotion.js";
+import type { SidebarSortableDragBindings } from "@/components/ui/sortable-motion";
 import { SidebarThreadDragChip } from "../dnd/sidebarThreadDragChip.js";
 import { SplitPaneMiniMap } from "./SplitPaneMiniMap.js";
+import { ThreadRowQuickActions } from "./ThreadRowQuickActions.js";
+import { useRowActionCapacity } from "../../ribbon/app/use-row-action-capacity.js";
+import { useRibbonThreadActions } from "../../ribbon/app/row-actions.js";
+import { useOpenThreadInSplit } from "./threadRowNavigation.js";
+import { Button } from "@/components/ui/button";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "@/components/ui/coarse-pointer-sizing";
 import {
+  RIBBON_SELECTED_ROW_SURFACE_CLASS,
   RibbonActionButtons,
   RibbonStageGlyph,
   RibbonTrailingIndicator,
@@ -114,30 +129,22 @@ const RIBBON_ROW_BUTTON_CLASS = `${SIDEBAR_MORE_ACTION_TRIGGER_CLASS} shrink-0 c
 // The same 28px reach for the child toggle, which sits against the actions
 // so the two reaches meet. Under a coarse pointer bb already widens it.
 const RIBBON_CHEVRON_HIT_AREA_CLASS =
-  "-mr-1 pointer-fine:after:absolute pointer-fine:after:left-1/2 pointer-fine:after:top-1/2 pointer-fine:after:h-7 pointer-fine:after:w-7 pointer-fine:after:-translate-x-1/2 pointer-fine:after:-translate-y-1/2 pointer-fine:after:content-['']";
+  "pointer-fine:mx-1 pointer-fine:after:absolute pointer-fine:after:left-1/2 pointer-fine:after:top-1/2 pointer-fine:after:h-7 pointer-fine:after:w-7 pointer-fine:after:-translate-x-1/2 pointer-fine:after:-translate-y-1/2 pointer-fine:after:content-['']";
 // A toggle shown only on hover takes no room at rest, so the title runs on
 // past where it will appear; hovering the row opens it up, reach and all.
 const RIBBON_CHEVRON_REVEAL_CLASS =
-  "overflow-hidden pointer-fine:h-5 pointer-fine:w-0 pointer-fine:-ml-1.5 pointer-fine:mr-0 pointer-fine:after:hidden pointer-fine:group-hover/thread-row:w-5 pointer-fine:group-hover/thread-row:ml-0 pointer-fine:group-hover/thread-row:-mr-1 pointer-fine:group-hover/thread-row:after:block pointer-fine:group-has-[:focus-visible]/thread-row:w-5 pointer-fine:group-has-[:focus-visible]/thread-row:ml-0 pointer-fine:group-has-[:focus-visible]/thread-row:-mr-1 pointer-fine:group-has-[:focus-visible]/thread-row:after:block";
-// Ribbon's title runs to the row's edge; the trailing lane is reserved only
-// while something stands in it at rest, or while hover fills it with actions.
-const RIBBON_LANE_RESERVED_CLASS = "pr-(--bb-sidebar-hover-actions-inset)";
-const RIBBON_LANE_ON_HOVER_CLASS =
-  "pr-2 group-hover/thread-row:pr-(--bb-sidebar-hover-actions-inset) group-has-[:focus-visible]/thread-row:pr-(--bb-sidebar-hover-actions-inset) group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-(--bb-sidebar-hover-actions-inset)";
+  "overflow-hidden pointer-fine:h-5 pointer-fine:w-0 pointer-fine:mx-0 pointer-fine:after:hidden pointer-fine:group-hover/thread-row:w-5 pointer-fine:group-hover/thread-row:mx-1 pointer-fine:group-hover/thread-row:after:block pointer-fine:group-has-[:focus-visible]/thread-row:w-5 pointer-fine:group-has-[:focus-visible]/thread-row:mx-1 pointer-fine:group-has-[:focus-visible]/thread-row:after:block";
+// Hover controls open their own lane before prompts and PR information, so
+// only the title yields space while those persistent items stay in place.
+const RIBBON_ROW_CONTROLS_LANE_CLASS =
+  "relative w-0 shrink-0 self-stretch group-hover/thread-row:w-(--ribbon-row-controls-width) group-has-[:focus-visible]/thread-row:w-(--ribbon-row-controls-width) group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:w-(--ribbon-row-controls-width) max-md:pointer-coarse:hidden";
+import { ThreadActionsContextMenu, ThreadActionsMenu } from "./ThreadActionsMenu.js";
+import { useCustomizeThreadRowActions, useThreadRowActionsCustomizing } from "../list/customizeRowActionsContext.js";
+import { SIDEBAR_MORE_ACTION_TRIGGER_CLASS, SIDEBAR_STICKY_ROW_INTERACTIVE_SURFACE_CLASS } from "./sidebarRowClasses.js";
 import {
-  ThreadActionsContextMenu,
-  ThreadActionsMenu,
-  ThreadArchiveQuickAction,
-  canMoveThreadToSection,
-  ThreadRowQuickActions,
-  visibleThreadRowActions,
-} from "./ThreadActionsMenu.js";
-import { useThreadSectionMove } from "./ThreadSectionMoveProvider.js";
-import {
-  ThreadStatusGlyph,
-  resolveThreadStatus,
-  type ThreadStatusGlyphProps,
-} from "./ThreadStatusGlyph.js";
+  ThreadRowActionsEditor,
+  focusFirstRowActionSlot,
+} from "../list/ThreadRowActionsCustomize.js";
 
 const SIDEBAR_TITLE_DOUBLE_CLICK_MS = 400;
 
@@ -219,11 +226,15 @@ export const REORDER_PLACEMENT_CLASS: Record<SidebarReorderPlacement, string> =
       "after:pointer-events-none after:absolute after:inset-x-1 after:-bottom-px after:h-0.5 after:rounded-full after:bg-sidebar-ring after:content-['']",
   };
 
-function getHoverActionsInsetStyle(actionCount: number, ribbon: boolean): CSSProperties {
+function getHoverActionsInsetStyle(
+  actionCount: number,
+  ribbon: boolean,
+): CSSProperties {
+  const variable = ribbon
+    ? "--ribbon-row-controls-width"
+    : "--bb-sidebar-hover-actions-inset";
   return {
-    "--bb-sidebar-hover-actions-inset": ribbon
-      ? `calc(var(--spacing) * (9 + 7.5 * var(--ribbon-quick-action-count, ${actionCount})))`
-      : `calc(var(--spacing) * ${7.5 * actionCount})`,
+    [variable]: `calc(var(--spacing) * ${ribbon ? Math.max(0, 7.5 * actionCount - 0.5) : 7.5 * actionCount})`,
   } as CSSProperties;
 }
 
@@ -303,23 +314,29 @@ export function CollapsedThreadStatusGlyph({
     isRuntimeActive: activity.runtimeWorking,
     isWorkflowActive: activity.workflow,
   };
-  return <ThreadStatusGlyph {...statusProps} pluginStatus={pluginStatus} />;
+  return (
+    <ThreadStatusGlyph
+      indicator={resolveThreadListIndicator(statusProps)}
+      rowStatus={pluginStatus}
+    />
+  );
 }
 
-type ThreadTrailingIndicatorProps = ThreadStatusGlyphProps & {
-  pluginStatus: PluginSidebarThreadRowStatus | null;
-};
-
 function ThreadTrailingIndicator({
-  pluginStatus,
-  ...statusProps
-}: ThreadTrailingIndicatorProps) {
-  const { indicatorKind, pluginStatusIsVisible } = resolveThreadStatus(
-    statusProps,
-    pluginStatus,
+  state,
+  hideIdleDraftLabel,
+  rowStatus,
+}: {
+  state: ThreadListIndicatorState;
+  hideIdleDraftLabel: boolean;
+  rowStatus: PluginSidebarThreadRowStatus | null;
+}) {
+  const { indicatorKind, rowStatusIsVisible } = resolveThreadStatus(
+    state,
+    rowStatus,
   );
 
-  if (indicatorKind === "none" && !pluginStatusIsVisible) {
+  if (indicatorKind === "none" && !rowStatusIsVisible) {
     return null;
   }
 
@@ -331,23 +348,40 @@ function ThreadTrailingIndicator({
         SIDEBAR_STATUS_GLYPH_BOX_CLASS,
       )}
     >
-      <ThreadStatusGlyph {...statusProps} pluginStatus={pluginStatus} />
+      <ThreadStatusGlyph
+        indicator={indicatorKind}
+        rowStatus={rowStatus}
+        hideIdleDraftLabel={hideIdleDraftLabel}
+      />
     </span>
   );
 }
 
-function ThreadRestoreStatusAction({ thread }: { thread: SidebarThread }) {
+const ARCHIVED_ROW_ACTION_KEYS = ["bb--core/archive"];
+const CUSTOMIZE_ROW_ACTIONS_KEY = "thread-list/customizeRowActions";
+
+function renderThreadActionsTrigger(props: PluginThreadActionsTriggerProps) {
   return (
-    <span
-      className="relative z-10 pointer-events-auto"
-      onPointerDown={(event) => event.stopPropagation()}
-      onKeyDown={(event) => event.stopPropagation()}
+    <Button
+      {...props}
+      type="button"
+      variant="ghost"
+      size="icon"
+      className={cn(
+        props.className,
+        "rounded-md p-0",
+        "data-[state=open]:bg-state-active data-[state=open]:text-foreground",
+        SIDEBAR_CONTROL_BUTTON_CLASS,
+      )}
+      aria-label="Thread actions"
+      data-thread-actions-trigger=""
+      onClick={(event) => {
+        props.onClick?.(event);
+        event.stopPropagation();
+      }}
     >
-      <ThreadArchiveQuickAction
-        thread={thread}
-        className={SIDEBAR_CONTROL_BUTTON_CLASS}
-      />
-    </span>
+      <Icon name="MoreHorizontal" className={COARSE_POINTER_ICON_SIZE_CLASS} />
+    </Button>
   );
 }
 
@@ -376,7 +410,8 @@ function ThreadRowComponent({
 }: ThreadRowProps) {
   const [isDropdownActionsOpen, setIsDropdownActionsOpen] = useState(false);
   const [isContextActionsOpen, setIsContextActionsOpen] = useState(false);
-  const actions = experimental_useSidebarThreadActions();
+  const sdk = useSdk();
+  const openThreadInSplit = useOpenThreadInSplit();
   const showProviderIcons = useAtomValue(sidebarShowProviderIconsAtom);
   const { providers } = experimental_useProviders();
   const provider = showProviderIcons
@@ -401,8 +436,10 @@ function ThreadRowComponent({
         ? `In project ${crossProjectName}`
         : "In another project";
   const handleRename = useCallback(
-    (nextTitle: string) => actions.rename(thread.id, nextTitle),
-    [actions, thread.id],
+    async (nextTitle: string) => {
+      await sdk.threads.update({ threadId: thread.id, title: nextTitle });
+    },
+    [sdk, thread.id],
   );
   const rename = useSidebarRename({
     kind: "thread",
@@ -411,14 +448,17 @@ function ThreadRowComponent({
     label: "Thread name",
     onSave: handleRename,
   });
-  const { editor, isEditing, startEditing } = rename;
+  const { editor, isEditing, startEditing, startEditingFromDoubleClick } =
+    rename;
+  const finishCustomizingActions = useThreadRowActionsCustomizing(thread.id);
+  const isCustomizingActions = finishCustomizingActions !== null;
   const startTitleEditing = useCallback(
     (event: { preventDefault: () => void; stopPropagation: () => void }) => {
       event.preventDefault();
       event.stopPropagation();
-      startEditing();
+      startEditingFromDoubleClick();
     },
-    [startEditing],
+    [startEditingFromDoubleClick],
   );
   const miniMap = useThreadSplitMiniMap(thread.id);
   const isOpenInSplit = miniMap !== null;
@@ -426,16 +466,17 @@ function ThreadRowComponent({
   const onSplitDragPointerDown = split.splitProps.onPointerDown;
   const splitAvailable = split.isAvailable;
   const openInSplit = useCallback(() => {
-    actions.open(thread.id, { split: true });
-  }, [actions, thread.id]);
-  const sectionMove = useThreadSectionMove();
-  const rowActionIds = visibleThreadRowActions(
-    useAtomValue(threadRowActionsAtom),
-    {
-      split: splitAvailable,
-      move: canMoveThreadToSection(sectionMove, thread),
+    openThreadInSplit(thread.id);
+  }, [openThreadInSplit, thread.id]);
+  const rowActionKeys = useAtomValue(threadRowActionsAtom);
+  const registeredQuickActions = useRibbonThreadActions(thread, {
+    keys: thread.archivedAt !== null ? ARCHIVED_ROW_ACTION_KEYS : rowActionKeys,
+    requestRename: () => {
+      startEditing();
     },
-  );
+  });
+  const customizeRowActions = useCustomizeThreadRowActions();
+  const isCompactViewport = useIsCompactViewport();
   const parentOptions = options.kind === "parent" ? options : null;
   const isParentRow = parentOptions !== null;
   const isParentCollapsed = parentOptions?.isCollapsed ?? false;
@@ -485,11 +526,15 @@ function ThreadRowComponent({
     pluginThreadRowStatus,
   );
   const ribbon = useRibbonRow(thread, trailingIndicatorState, pluginThreadRowStatus);
-  // A pull request number on the right keeps its place under the pointer,
-  // so the lane the hover actions take is held open for it at rest.
-  const reserveRowActionSpace =
-    reserveActionSpace || ribbon?.pullRequest?.position === "right";
   const ribbonSettings = useRibbonRowSettings();
+  const shineRowRef = useRef<HTMLDivElement | null>(null);
+  const actionCapacity = useRowActionCapacity(shineRowRef, {
+    count: registeredQuickActions.length, enabled: ribbon !== null,
+    hasChildren, hasPrompts: (ribbon?.actions.length ?? 0) > 0,
+    hasPullRequest: ribbon?.pullRequest?.position === "right",
+    isCompact: isCompactViewport, isEditing, providerId: provider?.id,
+  });
+  const quickActions = registeredQuickActions.slice(0, actionCapacity);
   const organizationMode = useAtomValue(sidebarOrganizationModeAtom);
   const ribbonActionColor = useOwnerColor(
     ribbon === null
@@ -505,9 +550,8 @@ function ThreadRowComponent({
   // Ribbon's long titles fade at the edge, and pan on hover, in place of
   // bb's ellipsis.
   const ribbonMarquee = ribbon !== null && ribbonSettings.longTitles !== "Ellipsis";
-  // What stands in the lane at rest: an indicator, a right-hand PR number
-  // that would otherwise jump left on hover, a toggle for hidden children,
-  // or the row's own controls.
+  // Persistent items keep the indicator slot clear, so PR numbers and prompts
+  // share a trailing edge across rows. A quiet title can use that slot too.
   const ribbonLaneAtRest =
     ribbon !== null &&
     (miniMap !== null ||
@@ -515,11 +559,16 @@ function ThreadRowComponent({
       ribbon.status.pluginStatus !== null ||
       ribbon.status.pullRequestMark !== null ||
       ribbon.pullRequest?.position === "right" ||
-      hasHiddenChildren ||
       ribbon.actions.length > 0 ||
       thread.archivedAt !== null ||
       Boolean(shortcut));
-  const shineRowRef = useRef<HTMLDivElement | null>(null);
+  const ribbonControlsMeetIndicator =
+    ribbon !== null &&
+    ribbon.actions.length === 0 &&
+    ribbon.pullRequest?.position !== "right" &&
+    quickActions.length > 0 &&
+    thread.archivedAt === null &&
+    !shortcut;
   useRowShine(shineRowRef, ribbonShines, ribbonWorking);
   const lineage = useRowLineage();
   const trailingIndicatorKind = trailingIndicatorResolution.indicatorKind;
@@ -533,7 +582,8 @@ function ThreadRowComponent({
   const linkLabel = hasComposerDraft
     ? `Open ${labelTitle} (unsubmitted draft)`
     : `Open ${labelTitle}`;
-  const rowDragBindings = isEditing ? undefined : options.dragBindings;
+  const rowDragBindings =
+    isEditing || isCustomizingActions ? undefined : options.dragBindings;
   const nestTargetState = options.nestDrop?.state ?? null;
   const reorderPlacement = options.nestDrop?.reorderPlacement ?? null;
   const containerRef = useComposedRefs<HTMLDivElement>(
@@ -553,10 +603,8 @@ function ThreadRowComponent({
       : COARSE_POINTER_ROW_HEIGHT_CLASS,
     showActive
       ? ribbon
-        // Ribbon's open row wears the hover surface, not bb's active one,
-        // and not the active-over-sidebar gradient bb paints on a sticky
-        // parent row.
-        ? `bg-sidebar-accent bg-none bb-sidebar-selected-row ${SIDEBAR_ROW_TEXT_CLASS}`
+        // Ribbon's open row wears the hover tint over the opaque sidebar.
+        ? `${RIBBON_SELECTED_ROW_SURFACE_CLASS} bb-sidebar-selected-row ${SIDEBAR_ROW_TEXT_CLASS}`
         : SIDEBAR_ROW_SELECTED_STATE_CLASS
       : SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,
     // A row outside Active stays dim while hovered and while open.
@@ -565,10 +613,13 @@ function ThreadRowComponent({
     !showActive && isOpenInSplit && SIDEBAR_ROW_OPEN_IN_SPLIT_STATE_CLASS,
     !showActive &&
       "has-[[data-state=open]]:bg-sidebar-accent has-[[data-sidebar-rename-anchor]:focus-visible]:bg-sidebar-accent",
+    !showActive && parentOptions?.stickyLevel !== undefined &&
+      SIDEBAR_STICKY_ROW_INTERACTIVE_SURFACE_CLASS,
     rowDragBindings && !rowDragBindings.disabled && "select-none",
     !isActionsOpen && "data-[sidebar-touch-armed=true]:!bg-transparent",
     nestTargetState && NEST_TARGET_STATE_CLASS[nestTargetState],
     reorderPlacement && REORDER_PLACEMENT_CLASS[reorderPlacement],
+    isCustomizingActions && "bg-sidebar-accent",
   );
   const rowStyle = {
     ...getThreadRowStyle(options.depth),
@@ -589,6 +640,13 @@ function ThreadRowComponent({
   );
 
   const rowLinkRef = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (isCustomizingActions) {
+      focusFirstRowActionSlot(
+        rowLinkRef.current?.closest("[data-sidebar-rename-row]"),
+      );
+    }
+  }, [isCustomizingActions]);
   const handleRowClick = useCallback<MouseEventHandler<HTMLDivElement>>(
     (event) => {
       if (event.target !== event.currentTarget) {
@@ -625,6 +683,50 @@ function ThreadRowComponent({
         />
       )
     ) : null;
+  const actionsMenu = (
+    <ThreadActionsMenu
+      thread={thread}
+      triggerClassName={
+        ribbon ? RIBBON_ROW_BUTTON_CLASS : SIDEBAR_CONTROL_BUTTON_CLASS
+      }
+      onOpenInSplit={splitAvailable ? openInSplit : undefined}
+      onOpenChange={setIsDropdownActionsOpen}
+      onRename={rename.startEditingFromMenu}
+      onCloseAutoFocus={rename.onCloseAutoFocus}
+    />
+  );
+  const rowControls = (
+    <SidebarRowControls
+      // Completed is the default way a thread leaves Ribbon's list;
+      // additional hover actions are chosen by the user.
+      primaryAction={
+        <ThreadRowQuickActions
+          entries={thread.archivedAt === null ? quickActions : []}
+          className={
+            ribbon ? RIBBON_ROW_BUTTON_CLASS : SIDEBAR_CONTROL_BUTTON_CLASS
+          }
+          onMenuOpenChange={setIsDropdownActionsOpen}
+        />
+      }
+    >
+      {ribbon ? null : actionsMenu}
+    </SidebarRowControls>
+  );
+  const childToggle = parentOptions && hasChildren ? (
+    <SidebarChildToggleChevron
+      disabled={isEditing}
+      className={cn(
+        isEditing && "hidden",
+        ribbon !== null && RIBBON_CHEVRON_HIT_AREA_CLASS,
+        ribbon !== null && !isParentCollapsed && RIBBON_CHEVRON_REVEAL_CLASS,
+      )}
+      isCollapsed={isParentCollapsed}
+      expandLabel={`Expand ${labelTitle} threads`}
+      collapseLabel={`Collapse ${labelTitle} threads`}
+      onToggle={() => parentOptions.onToggleCollapsed(thread.id)}
+      revealOnHover={!isParentCollapsed}
+    />
+  ) : null;
   const rowContent = (
     <>
       {ribbonRails}
@@ -644,15 +746,25 @@ function ThreadRowComponent({
             !isEditing &&
             ribbon === null &&
             (reserveActionSpace
-              ? "pr-(--bb-sidebar-hover-actions-inset) max-md:pointer-coarse:pr-0"
+              ? "pr-(--bb-sidebar-hover-actions-inset) [@media(hover:none)]:pr-0"
               : SIDEBAR_HOVER_ACTIONS_INSET_CLASS),
           ribbon !== null &&
             !isEditing &&
-            (ribbonLaneAtRest ? RIBBON_LANE_RESERVED_CLASS : RIBBON_LANE_ON_HOVER_CLASS),
-          ribbon !== null && "max-md:pointer-coarse:[--ribbon-quick-action-count:0]",
+            (ribbonLaneAtRest ? "pr-9" : "pr-2"),
+          ribbon !== null &&
+            !isEditing &&
+            (ribbonControlsMeetIndicator
+              ? "group-hover/thread-row:pr-7.5 group-has-[:focus-visible]/thread-row:pr-7.5 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-7.5"
+              : "group-hover/thread-row:pr-9 group-has-[:focus-visible]/thread-row:pr-9 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-9"),
+          ribbon !== null &&
+            !isEditing &&
+            (ribbonLaneAtRest
+              ? "max-md:pointer-coarse:pr-9"
+              : "max-md:pointer-coarse:pr-2"),
         )}
+        data-ribbon-row-content={ribbon ? "" : undefined}
         style={getHoverActionsInsetStyle(
-          thread.archivedAt !== null ? 1 : rowActionIds.length,
+          thread.archivedAt !== null ? (ribbon ? 0 : 1) : quickActions.length,
           ribbon !== null,
         )}
       >
@@ -674,10 +786,12 @@ function ThreadRowComponent({
               openInSplit();
               return;
             }
-            if (consumeSidebarTitleDoubleClick(thread.id)) {
+            if (
+              consumeSidebarTitleDoubleClick(thread.id) &&
+              startEditingFromDoubleClick()
+            ) {
               event.preventDefault();
               event.stopPropagation();
-              startEditing();
               return;
             }
             onProjectSelect?.();
@@ -766,40 +880,50 @@ function ThreadRowComponent({
                   </TooltipContent>
                 </Tooltip>
               ) : null}
-              {ribbon?.hideTitle ? (
-                <span className="min-w-0 flex-1" />
-              ) : (
-                <span
-                  className={cn(
-                    "bb-thread-title",
-                    (crossProjectLabel !== null || ribbon !== null) &&
-                      (ribbonMarquee ? "min-w-0" : "min-w-0 truncate"),
-                    ribbon !== null && "flex min-w-0 flex-1 items-center gap-2",
-                  )}
-                  title={labelTitle}
-                  onDoubleClick={startTitleEditing}
-                  // Inline, past bb's own rule for the class: the title takes
-                  // only what the buttons and number beside it leave, so it
-                  // is the first to give way as the row narrows.
-                  style={ribbon ? { flex: "1 1 0%" } : undefined}
-                  {...(ribbon ? { [SHINE_ATTRIBUTE]: "" } : {})}
-                >
-                  {ribbon ? (
-                    <ShineContent className="flex items-center gap-2">
-                      {ribbonMarquee ? (
-                        <MarqueeText
-                          text={labelTitle}
-                          pan={ribbonSettings.longTitles === "Fade and pan on hover"}
-                        />
-                      ) : (
-                        <ThreadTitle threadId={thread.id} />
-                      )}
-                    </ShineContent>
-                  ) : (
-                    <ThreadTitle threadId={thread.id} />
-                  )}
+              <span
+                className={cn(
+                  "bb-thread-title",
+                  (crossProjectLabel !== null || ribbon !== null) &&
+                    (ribbonMarquee ? "min-w-0" : "min-w-0 truncate"),
+                  ribbon !== null && "flex min-w-0 flex-1 items-center gap-2",
+                )}
+                title={labelTitle}
+                onDoubleClick={startTitleEditing}
+                // Inline, past bb's own rule for the class: the title takes
+                // only what the buttons and number beside it leave, so it
+                // is the first to give way as the row narrows.
+                style={ribbon ? { flex: "1 1 0%" } : undefined}
+                {...(ribbon ? { [SHINE_ATTRIBUTE]: "" } : {})}
+              >
+                {ribbon ? (
+                  <ShineContent className="flex items-center gap-2">
+                    {ribbonMarquee ? (
+                      <MarqueeText
+                        text={labelTitle}
+                        pan={ribbonSettings.longTitles === "Fade and pan on hover"}
+                      />
+                    ) : (
+                      <ThreadTitle threadId={thread.id} />
+                    )}
+                  </ShineContent>
+                ) : (
+                  <ThreadTitle threadId={thread.id} />
+                )}
+              </span>
+              {ribbon ? childToggle : null}
+              {ribbon && !shortcut && thread.archivedAt === null && quickActions.length > 0 ? (
+                <span className={RIBBON_ROW_CONTROLS_LANE_CLASS}>
+                  <div
+                    data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
+                    className={cn(
+                      SIDEBAR_HOVER_ACTIONS_CLASS,
+                      "absolute inset-y-0 right-0 z-10 flex items-center",
+                    )}
+                  >
+                    {rowControls}
+                  </div>
                 </span>
-              )}
+              ) : null}
               {ribbon && ribbon.actions.length > 0 ? (
                 <RibbonActionButtons
                   actions={ribbon.actions}
@@ -832,21 +956,7 @@ function ThreadRowComponent({
             <TooltipContent side="top">{crossProjectLabel}</TooltipContent>
           </Tooltip>
         ) : null}
-        {parentOptions && hasChildren ? (
-          <SidebarChildToggleChevron
-            disabled={isEditing}
-            className={cn(
-              isEditing && "hidden",
-              ribbon !== null && RIBBON_CHEVRON_HIT_AREA_CLASS,
-              ribbon !== null && !isParentCollapsed && RIBBON_CHEVRON_REVEAL_CLASS,
-            )}
-            isCollapsed={isParentCollapsed}
-            expandLabel={`Expand ${labelTitle} threads`}
-            collapseLabel={`Collapse ${labelTitle} threads`}
-            onToggle={() => parentOptions.onToggleCollapsed(thread.id)}
-            revealOnHover={!isParentCollapsed}
-          />
-        ) : null}
+        {ribbon === null ? childToggle : null}
       </span>
       {rowDragBindings && !rowDragBindings.disabled && !isActionsOpen ? (
         <SidebarThreadDragChip
@@ -863,37 +973,34 @@ function ThreadRowComponent({
             "group-data-[sidebar-touch-armed=true]/thread-row:hidden",
           // Out of the row's flow, so the title decides how much of it to leave.
           ribbon !== null && "absolute inset-y-0 right-0",
-          isEditing && "hidden",
+          (isEditing || isCustomizingActions) && "hidden",
         )}
       >
         {thread.archivedAt !== null ? (
-          <span className="relative flex items-center max-md:pointer-coarse:hidden">
+          <span className="relative flex items-center [@media(hover:none)]:hidden">
             <div
               data-sidebar-hover-actions-open={
                 isActionsOpen ? "true" : undefined
               }
               className={cn(
                 SIDEBAR_HOVER_ACTIONS_CLASS,
-                "absolute right-full z-10 max-md:pointer-coarse:hidden",
+                "absolute z-10 flex items-center max-md:pointer-coarse:hidden",
+                ribbon ? "inset-y-0 right-0" : "right-full",
               )}
             >
-              <ThreadActionsMenu
-                thread={thread}
-                triggerClassName={SIDEBAR_CONTROL_BUTTON_CLASS}
-                onOpenInSplit={splitAvailable ? openInSplit : undefined}
-                onOpenChange={setIsDropdownActionsOpen}
-                onRename={rename.startEditingFromMenu}
-                onCloseAutoFocus={rename.onCloseAutoFocus}
-              />
+              {actionsMenu}
             </div>
-            <ThreadRestoreStatusAction thread={thread} />
+            <span className={ribbon ? SIDEBAR_HOVER_ACTIONS_FADE_CLASS : undefined}
+              onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+              <ThreadRowQuickActions entries={quickActions} className={SIDEBAR_CONTROL_BUTTON_CLASS} />
+            </span>
           </span>
         ) : shortcut ? (
           <AppCommandShortcutPill shortcut={shortcut} />
         ) : (
           <span
             className={cn(
-              "flex shrink-0 items-center justify-end max-md:pointer-coarse:pointer-events-none",
+              "flex shrink-0 items-center justify-end [@media(hover:none)]:pointer-events-none",
               COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
             )}
           >
@@ -936,11 +1043,11 @@ function ThreadRowComponent({
                   />
                 ) : (
                   <ThreadTrailingIndicator
-                    {...trailingIndicatorState}
+                    state={trailingIndicatorState}
                     hideIdleDraftLabel={
                       !hasHiddenChildren && trailingIndicatorKind === "draft"
                     }
-                    pluginStatus={pluginThreadRowStatus}
+                    rowStatus={pluginThreadRowStatus}
                   />
                 )}
               </span>
@@ -950,41 +1057,19 @@ function ThreadRowComponent({
                 }
                 className={cn(
                   SIDEBAR_HOVER_ACTIONS_CLASS,
-                  "absolute inset-y-0 right-0 z-10 flex items-center justify-end max-md:pointer-coarse:hidden",
+                  "absolute inset-y-0 right-0 z-10 flex items-center justify-end [@media(hover:none)]:hidden",
                   isEditing && "invisible pointer-events-none",
                 )}
               >
-                <SidebarRowControls
-                  // Completed is the default way a thread leaves Ribbon's list;
-                  // additional hover actions are chosen by the user.
-                  primaryAction={
-                    <ThreadRowQuickActions
-                      actionIds={rowActionIds}
-                      actions={actions}
-                      thread={thread}
-                      className={SIDEBAR_CONTROL_BUTTON_CLASS}
-                      onOpenInSplit={openInSplit}
-                      onRename={startEditing}
-                      onMenuOpenChange={setIsDropdownActionsOpen}
-                    />
-                  }
-                >
-                  <ThreadActionsMenu
-                    thread={thread}
-                    triggerClassName={
-                      ribbon ? RIBBON_ROW_BUTTON_CLASS : SIDEBAR_CONTROL_BUTTON_CLASS
-                    }
-                    onOpenInSplit={splitAvailable ? openInSplit : undefined}
-                    onOpenChange={setIsDropdownActionsOpen}
-                    onRename={rename.startEditingFromMenu}
-                    onCloseAutoFocus={rename.onCloseAutoFocus}
-                  />
-                </SidebarRowControls>
+                {ribbon ? actionsMenu : rowControls}
               </div>
             </span>
           </span>
         )}
       </span>
+      {finishCustomizingActions ? (
+        <ThreadRowActionsEditor onDone={finishCustomizingActions} />
+      ) : null}
     </>
   );
 
@@ -1023,8 +1108,8 @@ function ThreadRowComponent({
     <ThreadActionsContextMenu
       thread={thread}
       onOpenInSplit={splitAvailable ? openInSplit : undefined}
-      onOpenChange={setIsContextActionsOpen}
       onRename={rename.startEditingFromMenu}
+      onOpenChange={setIsContextActionsOpen}
       onCloseAutoFocus={rename.onCloseAutoFocus}
       disabled={isEditing}
       dragging={rowDragBindings?.isDragging ?? false}

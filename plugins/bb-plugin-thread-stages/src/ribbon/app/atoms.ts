@@ -59,8 +59,6 @@ export const ribbonPreferencesAtom = atomWithLazy<SidebarPreferences>(() =>
   loadSidebarPreferences(window.localStorage),
 );
 export const ribbonErrorAtom = atom<string | null>(null);
-/** The thread whose prompt actions are being edited, if any. */
-export const ribbonActionsEditorAtom = atom<string | null>(null);
 
 /** Sends a row's saved prompt to its thread; the row calls this directly. */
 export const runRibbonThreadActionAtom = atom(
@@ -86,15 +84,12 @@ export function stageIn(
   return parseWorkflowStage(stages.get(threadId)?.groupId ?? "Active") ?? "Active";
 }
 
-/** Stage lookups for a group's rows, one pair per set of stages; null outside the provider. */
+/** Stage lookup for a group's rows; null outside the provider. */
 export const ribbonStageLookupAtom = atom((get) => {
   if (!get(ribbonEnabledAtom)) return null;
   const stages = get(ribbonStagesAtom);
-  const ranks = new Map([...stages.keys()].map((id, index) => [id, index]));
   return {
     stageOf: (threadId: string) => stageIn(stages, threadId),
-    /** The saved position in the thread's stage, or the end if not yet loaded. */
-    stageRank: (threadId: string) => ranks.get(threadId) ?? Infinity,
   };
 });
 
@@ -111,14 +106,14 @@ function sameThreadActions(
   if (left === right) return true;
   if (left === null || right === null) return false;
   return (
-    left.hideTitle === right.hideTitle &&
     left.actions.length === right.actions.length &&
     left.actions.every((action, index) => {
       const other = right.actions[index]!;
       return (
         action.id === other.id &&
         action.label === other.label &&
-        action.prompt === other.prompt
+        action.prompt === other.prompt &&
+        !!action.steer === !!other.steer
       );
     })
   );
@@ -167,5 +162,4 @@ export function resetRibbonAtoms(store: ReturnType<typeof getDefaultStore>): voi
   store.set(ribbonLoadedAtom, NOTHING_LOADED);
   store.set(ribbonPreferencesAtom, loadSidebarPreferences(window.localStorage));
   store.set(ribbonErrorAtom, null);
-  store.set(ribbonActionsEditorAtom, null);
 }

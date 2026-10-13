@@ -59,5 +59,41 @@ export function focusVisibleTerminal(root: Document): boolean {
   );
   if (!input) return false;
   input.focus({ preventScroll: true });
-  return true;
+  return root.activeElement === input;
+}
+
+export function focusVisibleTerminalWhenReady(
+  root: Document,
+  { isCurrent, isReady, signal }: {
+    isCurrent(): boolean;
+    isReady(): boolean;
+    signal: AbortSignal;
+  },
+): () => void {
+  if (signal.aborted) return () => {};
+  let stopped = false;
+  let frame: number | undefined;
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    observer.disconnect();
+    if (frame !== undefined) cancelAnimationFrame(frame);
+    signal.removeEventListener("abort", stop);
+  };
+  const scheduleAttempt = () => {
+    if (stopped || frame !== undefined) return;
+    frame = requestAnimationFrame(() => {
+      frame = undefined;
+      if (!isCurrent() || (isReady() && focusVisibleTerminal(root))) stop();
+    });
+  };
+  const observer = new MutationObserver(scheduleAttempt);
+  observer.observe(root.documentElement, {
+    attributes: true,
+    childList: true,
+    subtree: true,
+  });
+  signal.addEventListener("abort", stop, { once: true });
+  scheduleAttempt();
+  return stop;
 }

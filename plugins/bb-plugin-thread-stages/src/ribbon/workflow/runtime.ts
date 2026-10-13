@@ -6,7 +6,7 @@ import {
   stepChild,
   type ChildRank,
 } from "../child-order";
-import type { PlacementStore } from "../placement-store";
+import type { PlacementStore, OrderGroupingKey } from "../placement-store";
 import { registerCompletedAutoArchive } from "./auto-archive";
 import { THREAD_STAGES_GROUPING_KEY } from "./catalog";
 import { workflowRpcMethods, type ChordDestination } from "./contract";
@@ -66,7 +66,7 @@ export function createWorkflowRuntime(
 
   async function ribbonAssignments(
     threadIds: readonly string[],
-    groupingKey: "builtin:sections" | "builtin:projects" = "builtin:sections",
+    groupingKey: OrderGroupingKey = "builtin:sections",
   ) {
     const placementState = await listPlacements({
       groupingKey: THREAD_STAGES_GROUPING_KEY,
@@ -78,9 +78,6 @@ export function createWorkflowRuntime(
     });
     const rank = new Map(
       groupOrder.items.map((item, index) => [item.threadId, index]),
-    );
-    const stageRanks = new Map(
-      placementState.items.map((item, index) => [item.threadId, index]),
     );
     placementState.items.sort(
       (a, b) => (rank.get(a.threadId) ?? 0) - (rank.get(b.threadId) ?? 0),
@@ -102,7 +99,6 @@ export function createWorkflowRuntime(
       }),
       placements: placementState.items,
       revision: placementState.revision,
-      stageRanks,
       orderRevision: groupOrder.revision,
       orderPlacements: groupOrder.items,
     };
@@ -252,17 +248,6 @@ export function createWorkflowRuntime(
         : placementState.assignments.filter((item) =>
             scopedIds.has(item.threadId),
           );
-      if (
-        scope !== "stage" &&
-        ["Deferred", "Completed"].includes(
-          assignments.find((item) => item.threadId === threadId)?.workflowStage ?? "Active",
-        )
-      ) {
-        assignments.sort((left, right) =>
-          (placementState.stageRanks.get(left.threadId) ?? Infinity) -
-          (placementState.stageRanks.get(right.threadId) ?? Infinity),
-        );
-      }
       const move = resolveWorkflowReorder({
         threads,
         assignments,
@@ -283,7 +268,7 @@ export function createWorkflowRuntime(
         return { assignments };
       }
       const stagePlacement =
-        move.kind === "stage" || ["Deferred", "Completed"].includes(move.workflowStage);
+        move.kind === "stage";
       await updatePlacement({
         groupingKey:
           stagePlacement ? THREAD_STAGES_GROUPING_KEY : groupingKey,

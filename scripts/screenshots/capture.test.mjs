@@ -29,10 +29,11 @@ test("every screenshot uses the sole thread-list replacement", () => {
   assert.equal(SIDEBAR_PROVIDER, "Thread stages");
 });
 
-test("the shortcut shot stops retrying when the late plugin handles the key", async () => {
+test("shortcut captures retry late plugins and reuse the side-chat exchange", async () => {
   const events = [];
   const replyWaits = [];
   let requestAttempts = 0;
+  let hasQuestion = false;
   const timeout = () => {
     const error = new Error("Timeout");
     error.name = "TimeoutError";
@@ -45,6 +46,7 @@ test("the shortcut shot stops retrying when the late plugin handles the key", as
     filter: () => locator(name),
     first: () => locator(name),
     getByRole: (role) => locator(role),
+    getByText: () => ({ count: async () => Number(hasQuestion), waitFor: async () => {} }),
     getAttribute: async () => "/projects/proj_atlas/threads/thr_featured",
     innerText: async () => SIDEBAR_PROVIDER,
     waitFor: async (options) => {
@@ -76,7 +78,10 @@ test("the shortcut shot stops retrying when the late plugin handles the key", as
     },
     getByText: () => locator("text"),
     keyboard: {
-      press: async (keys) => events.push(["keyboard.press", keys]),
+      press: async (keys) => {
+        events.push(["keyboard.press", keys]);
+        if (keys === "Enter") hasQuestion = true;
+      },
       type: async () => {},
     },
     locator: () => locator(),
@@ -125,6 +130,12 @@ test("the shortcut shot stops retrying when the late plugin handles the key", as
     { timeout: 10000 },
     { timeout: 120000 },
   ]);
+  await shot.prepare({ page });
+  assert.equal(
+    events.filter(([event, keys]) => event === "keyboard.press" && keys === "Enter").length,
+    1,
+    "theme recaptures reuse the existing side-chat exchange",
+  );
 });
 
 function aspectOf(rectangle) {

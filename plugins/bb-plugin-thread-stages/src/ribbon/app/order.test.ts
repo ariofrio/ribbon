@@ -37,6 +37,6 @@ describe("Ribbon order", () => {
   it("names the placement grouping each organization orders by", () => {
     expect(placementGroupingKey("chronological")).toBe("builtin:sections");
     expect(placementGroupingKey("project")).toBe("builtin:projects");
-    expect(placementGroupingKey("machine")).toBeNull();
+    expect(placementGroupingKey("machine")).toBe("builtin:machines");
   });
 });
