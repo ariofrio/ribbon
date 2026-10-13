@@ -137,3 +137,33 @@ it("keeps fields editable and serializes autosaves and removal while a save is p
   await act(async () => { await Promise.resolve(); });
   expect(calls).toBe(5);
 });
+
+it("runs a registered plugin choice in the compact menu without losing Ribbon's editor", async () => {
+  const run = vi.fn(async (_value?: string) => {});
+  renderSlot({ component: CompactMenu }, {}, {
+    rpc: ribbonRpcStubs(),
+    threadActions: () => [{
+      key: "notifications/level",
+      pluginId: "notifications",
+      group: "attention",
+      action: {
+        label: "Notifications",
+        icon: "Bell",
+        choices: {
+          heading: "Notification level",
+          items: [
+            { id: "all", label: "All activity", selected: true, disabled: true },
+            { id: "none", label: "Muted" },
+          ],
+        },
+        run,
+      },
+    }],
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Thread actions" }));
+  expect(await screen.findByRole("menuitem", { name: "Edit thread actions" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("menuitem", { name: "Notifications" }));
+  expect(await screen.findByRole("menuitem", { name: "All activity" })).toHaveProperty("ariaDisabled", "true");
+  fireEvent.click(screen.getByRole("menuitem", { name: "Muted" }));
+  await waitFor(() => expect(run).toHaveBeenCalledExactlyOnceWith("none"));
+});

@@ -58,12 +58,26 @@ export async function verifyThreadContextMenu({ stack, fixture }) {
         return result;
       });
       assert.deepEqual(groups.slice(-5), [
-        ["Copy thread link", "Mark unread"],
-        ["Pin", "Move to section", "Move to stage"],
+        ["Copy thread link", "Mark unread", "Pin", "Move to section", "Move to stage"],
         ["Rename", "Edit thread actions"],
+        ["NotificationsAll activity"],
         ["Customize row actions"],
         ["Archive", "Delete"],
       ]);
+      await menu.getByRole("menuitem", { name: /^Notifications/ }).hover();
+      const notificationChoices = page.getByRole("menuitem", { name: "Muted", exact: true });
+      await notificationChoices.waitFor();
+      const notificationSaved = page.waitForResponse(response =>
+        response.url().endsWith("/rpc/threadNotifications.set") && response.ok());
+      await notificationChoices.click();
+      await notificationSaved;
+      await row.click({ button: "right" });
+      await menu.getByRole("menuitem", { name: /^Notifications/ }).hover();
+      const notificationReset = page.waitForResponse(response =>
+        response.url().endsWith("/rpc/threadNotifications.set") && response.ok());
+      await page.getByRole("menuitem", { name: /^Default/ }).click();
+      await notificationReset;
+      await row.click({ button: "right" });
       // Keyboard navigation must not compete with the stationary opening pointer.
       await page.mouse.move(0, 0);
       const edit = menu.getByRole("menuitem", { name: "Edit thread actions" });

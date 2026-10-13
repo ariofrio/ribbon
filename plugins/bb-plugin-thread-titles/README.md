@@ -16,7 +16,7 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install thread-titles@ribbon
 ```
 
-Requires bb 0.45.0 or later. Newly created visible threads are eligible;
+Requires bb 0.46.0 or later. Newly created visible threads are eligible;
 installing the plugin does not rename existing threads. No sidebar plugin is
 required.
 

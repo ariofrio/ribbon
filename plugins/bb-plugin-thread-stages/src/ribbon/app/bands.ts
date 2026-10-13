@@ -31,7 +31,7 @@ export function bandOf(stage: WorkflowStage | undefined): StageBand {
 }
 
 /**
- * Partitions roots into the main list (Active, Waiting, and both Blocked stages),
+ * Partitions roots into the main list (In progress, Waiting, and all three Blocked stages),
  * Deferred, and Completed, preserving the containing group's order in every band.
  */
 export function stageBands(

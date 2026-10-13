@@ -17,7 +17,7 @@ import { TouchInteraction01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useRef, useState } from "react";
 import type { SidebarThread } from "../../app/model/sidebar-thread.js";
-import type { ActionMenuSurface } from "../../app/ui/action-menu-items.js";
+import type { ActionMenuSurface } from "@/components/ui/action-menu-items";
 import { STAGE_ICONS } from "../workflow/catalog";
 import { WORKFLOW_STAGES, WORKFLOW_STAGE_LABELS } from "../workflow/workflow-stage";
 import { useRibbonData } from "./data";

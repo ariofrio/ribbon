@@ -2,6 +2,7 @@ export const WORKFLOW_STAGES = [
   "Deferred",
   "Active",
   "Waiting",
+  "BlockedOnUser",
   "BlockedOnOtherAgent",
   "BlockedOnThirdParty",
   "Completed",
@@ -11,15 +12,16 @@ export type WorkflowStage = (typeof WORKFLOW_STAGES)[number];
 
 export const WORKFLOW_STAGE_LABELS: Record<WorkflowStage, string> = {
   Deferred: "Deferred",
-  Active: "Active",
+  Active: "In progress",
   Waiting: "Waiting",
+  BlockedOnUser: "Blocked on user",
   BlockedOnOtherAgent: "Blocked on another thread",
   BlockedOnThirdParty: "Blocked on external party",
   Completed: "Completed",
 };
 
 export function isBlockedStage(stage: string | undefined): boolean {
-  return stage === "BlockedOnOtherAgent" || stage === "BlockedOnThirdParty";
+  return stage === "BlockedOnUser" || stage === "BlockedOnOtherAgent" || stage === "BlockedOnThirdParty";
 }
 
 export interface WorkflowStageVisibilitySettings {
@@ -93,6 +95,7 @@ export function groupThreadsByStage<Thread extends SidebarThreadLike>(
     Deferred: [],
     Active: [],
     Waiting: [],
+    BlockedOnUser: [],
     BlockedOnOtherAgent: [],
     BlockedOnThirdParty: [],
     Completed: [],

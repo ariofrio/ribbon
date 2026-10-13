@@ -62,10 +62,10 @@ export async function verifyThreadIcons({ stack, fixture }) {
       }, { threadId: thread.id, selector, mask });
     }
 
-    await paintedIcon('[aria-label="Active stage"] svg', false);
+    await paintedIcon('[aria-label="In progress stage"] svg', false);
     await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
     await list.waitFor({ timeout: 120_000 });
-    await paintedIcon('[aria-label="Active stage"] svg', false);
+    await paintedIcon('[aria-label="In progress stage"] svg', false);
     const workingRow = row(list, workingThread.id);
     // Its turn never ends, so its stage ring turns in place of bb's spinner,
     // carried by the box around it so the compositor can turn it.
@@ -88,7 +88,7 @@ export async function verifyThreadIcons({ stack, fixture }) {
       const homeList = sidebar(home);
       await homeList.waitFor({ timeout: 120_000 });
       const idleRow = row(homeList, thread.id);
-      await idleRow.locator('[aria-label="Active stage"]').waitFor();
+      await idleRow.locator('[aria-label="In progress stage"]').waitFor();
       await home.mouse.move(1200, 780);
       assert.equal(await iconOpacity(idleRow), "0", "An unselected Active icon is hidden at rest");
       const titleLeft = await idleRow.getByText(thread.title, { exact: true }).evaluate((node) => node.getBoundingClientRect().left);
@@ -229,9 +229,12 @@ export async function verifyThreadIcons({ stack, fixture }) {
         const rowNode = document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${threadId}"]`);
         const badge = rowNode?.querySelector('[title="Sidebar pull request"]');
         const icon = badge?.querySelector("svg");
-        const statusTitle = `${state[0].toUpperCase()}${state.slice(1)}`;
+        const iconName = {
+          open: "GitPullRequestArrow", draft: "GitPullRequestDraft",
+          merged: "GitMerge", closed: "GitPullRequestClosed",
+        }[state];
         const reference = document.querySelector(
-          `[data-app-composer-role="primary"] a[href="https://github.com/example/project/pull/123"] [title="${statusTitle}"] svg`,
+          `[data-app-composer-role="primary"] a[href="https://github.com/example/project/pull/123"] svg[data-icon="${iconName}"]`,
         );
         if (!icon || !reference) return false;
         const range = document.createRange();

@@ -42,7 +42,15 @@ async function assign(page, title, keys) {
   await page.waitForFunction((node) => !node.matches(":disabled"), await recorder.elementHandle());
 }
 
-async function navigation(page, fixture, thread) {
+async function navigation(page, stack, fixture, project, thread) {
+  await settings(page, stack);
+  for (const [title, key] of [["Navigate backward", "BracketLeft"], ["Navigate forward", "BracketRight"]]) {
+    const recorder = page.getByRole("button", { name: new RegExp(`^Record shortcut for ${title},`) });
+    assert.ok((await recorder.getAttribute("aria-label")).endsWith("unassigned"), "Native history commands own the default bindings");
+    await assign(page, title, `${MODIFIER}+${key}`);
+  }
+  await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
+  await page.locator(READY).waitFor({ state: "attached" });
   const other = fixture.threads.get("Investigate webhook retries");
   const primary = page.locator(PRIMARY);
   await primary.click();
@@ -216,7 +224,7 @@ export async function verifyMissingShortcuts({ stack, fixture, cases }) {
         });
         await page.locator(READY).waitFor({ state: "attached", timeout: 120_000 });
         if (testCase === "side-chat") await sideChat(page, fixture, thread);
-        if (testCase === "navigation") await navigation(page, fixture, thread);
+        if (testCase === "navigation") await navigation(page, stack, fixture, project, thread);
         if (testCase === "thread-creation") await threadCreation(page, stack, project, thread);
         if (testCase === "composer-focus") await composerFocus(page, stack, project, thread);
         assert.deepEqual(errors, []);
@@ -227,7 +235,7 @@ export async function verifyMissingShortcuts({ stack, fixture, cases }) {
         await context.tracing.stop({ path: resolve(`.scratch/e2e/missing-shortcuts-${testCase}.trace.zip`) });
         throw error;
       } finally {
-        if (!failed && ["thread-creation", "composer-focus"].includes(testCase)) {
+        if (!failed && ["navigation", "thread-creation", "composer-focus"].includes(testCase)) {
           const settingsPage = await context.newPage();
           await settings(settingsPage, stack);
           const reset = settingsPage.getByRole("button", { name: "Reset all", exact: true });

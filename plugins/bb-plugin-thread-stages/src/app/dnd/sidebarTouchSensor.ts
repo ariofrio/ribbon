@@ -1,27 +1,10 @@
-import { useCallback, useEffect } from "react";
 import {
   TouchSensor,
-  type DragEndEvent,
-  type DragStartEvent,
   type SensorProps,
   type TouchSensorOptions,
 } from "@dnd-kit/core";
-import {
-  useReorderDnd,
-  type UseReorderDndArgs,
-  type UseReorderDndResult,
-} from "../ui/useReorderDnd.js";
 
-function setSidebarDraggingCursor(active: boolean): void {
-  if (active) {
-    document.body.dataset.sidebarDragging = "true";
-    return;
-  }
-  delete document.body.dataset.sidebarDragging;
-}
-
-type UseSidebarReorderDndArgs = Omit<UseReorderDndArgs, "touchSensor">;
-
+const TOUCH_HOLD_DELAY_MS = 500;
 const TOUCH_DRAG_DISTANCE_PX = 12;
 const TOUCH_HOLD_TOLERANCE_PX = 6;
 
@@ -56,8 +39,6 @@ export class SidebarTouchSensor {
     this.document.addEventListener("visibilitychange", this.handleCancel);
     this.document.defaultView?.addEventListener("blur", this.handleCancel);
     this.document.defaultView?.addEventListener("resize", this.handleCancel);
-    const constraint = props.options.activationConstraint;
-    const delay = constraint && "delay" in constraint ? constraint.delay : 500;
     this.timer = setTimeout(() => {
       this.timer = null;
       this.armed = true;
@@ -66,7 +47,7 @@ export class SidebarTouchSensor {
         const rect = this.armedChip.getBoundingClientRect();
         this.armedChip.style.transform = `translate(${this.initialCoordinates.x - rect.left - rect.width / 2}px, ${this.initialCoordinates.y - rect.top - rect.height / 2}px)`;
       }
-    }, delay);
+    }, TOUCH_HOLD_DELAY_MS);
   }
 
   private readonly handleMove = (event: TouchEvent): void => {
@@ -136,52 +117,4 @@ export class SidebarTouchSensor {
       window.removeEventListener("touchmove", noop);
     };
   }
-}
-
-export function useSidebarReorderDnd({
-  onDragEnd,
-  onDragStart,
-  onDragMove,
-  onDragOver,
-  onDragCancel,
-  collisionDetection,
-  axis,
-  measuring,
-}: UseSidebarReorderDndArgs): UseReorderDndResult {
-  const handleDragStart = useCallback(
-    (event: DragStartEvent) => {
-      setSidebarDraggingCursor(true);
-      onDragStart?.(event);
-    },
-    [onDragStart],
-  );
-  const handleDragCancel = useCallback(() => {
-    setSidebarDraggingCursor(false);
-    onDragCancel?.();
-  }, [onDragCancel]);
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      setSidebarDraggingCursor(false);
-      onDragEnd(event);
-    },
-    [onDragEnd],
-  );
-
-  useEffect(() => {
-    return () => {
-      setSidebarDraggingCursor(false);
-    };
-  }, []);
-
-  return useReorderDnd({
-    onDragEnd: handleDragEnd,
-    onDragStart: handleDragStart,
-    onDragMove,
-    onDragOver,
-    onDragCancel: handleDragCancel,
-    collisionDetection,
-    touchSensor: SidebarTouchSensor,
-    axis,
-    measuring,
-  });
 }
