@@ -182,12 +182,22 @@ window applies a change immediately. Sections themselves and a thread's
 section are bb core state: use `bb thread section` and `bb thread update`.
 
 `rowActions` picks up to three quick-action buttons a thread row shows on
-hover, left to right before its actions menu. Choose from `split`, `copyLink`, `read`,
-`pin`, `move` (opens a section menu), `rename`, and `archive`; the default is `'[]'`,
-which leaves only the menu. For example,
-`bb thread-stages prefs set rowActions '["pin","archive"]'`. In the app, a thread
-row's actions menu has Customize row actions, which previews the row's three
-action slots; each slot picks an action or Hide, and filled slots drag to reorder.
+hover, left to right before its actions menu. They use thread action keys:
+`bb--core/split`, `bb--core/copyLink`, `bb--core/read`, `bb--core/pin`,
+`bb--core/rename`, `bb--core/archive`, `bb--core/delete`, Ribbon's
+`thread-stages/move`, or another plugin's `<pluginId>/<actionId>`. Bare legacy
+ids such as `archive` still work. The default is `'[]'`, which leaves only the
+menu. For example,
+`bb thread-stages prefs set rowActions '["bb--core/pin","bb--core/archive"]'`.
+Customize row actions edits three slots on the row; each slot picks an action,
+filled slots can Hide or drag to reorder, and Done, Escape, or a click elsewhere
+finishes.
+
+Organize → Groups → By read status lists unread threads above the rest within
+each stage band, preserving the selected sort. `groupByReadStatus` defaults to
+`false`; use `bb thread-stages prefs set groupByReadStatus true` to enable it.
+Parents start collapsed without changing saved collapse state, environment
+grouping is suspended, and the open thread keeps its place until another opens.
 
 New threads inherit the sidebar group where creation was invoked. Pinned
 creates pinned threads; custom sections supply their section; project, machine,

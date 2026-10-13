@@ -1,57 +1,15 @@
 import { useEffect, useId, useRef } from "react";
-import { Icon } from "@/components/ui/icon";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@/components/ui/coarse-pointer-sizing";
-import { cn } from "@/lib/utils";
-import { SIDEBAR_CONTROL_BUTTON_CLASS } from "./sidebarRowClasses.js";
-import type { RenameSession, RenameController } from "./SidebarInlineRename.js";
+import { Icon } from "./icon";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "./coarse-pointer-sizing";
+import { cn } from "../../lib/utils";
+import { SIDEBAR_CONTROL_BUTTON_CLASS } from "./sidebar-row-classes";
+import type { InlineRenameEditorProps } from "./inline-rename";
 
-interface HttpErrorShape {
-  status: number | null;
-  code: string | null;
-}
-
-function readHttpError(error: unknown): HttpErrorShape | null {
-  if (typeof error !== "object" || error === null) return null;
-  const status =
-    "status" in error && typeof error.status === "number" ? error.status : null;
-  const code =
-    "code" in error && typeof error.code === "string" ? error.code : null;
-  if (status === null && code === null) return null;
-  return { status, code };
-}
-
-export function renameError(error: unknown, kind: RenameSession["kind"]) {
-  const http = readHttpError(error);
-  if (http !== null) {
-    if (
-      http.code === "section_name_conflict" ||
-      (kind === "section" && http.status === 409)
-    ) {
-      return {
-        error: "A section with this name already exists.",
-        cannotRetry: false,
-      };
-    }
-    if (http.status === 404 || http.status === 410) {
-      return { error: "This item no longer exists.", cannotRetry: true };
-    }
-    if (http.status === 401 || http.status === 403) {
-      return {
-        error: "You do not have permission to rename this item.",
-        cannotRetry: true,
-      };
-    }
-  }
-  return { error: "Could not save the name. Try again.", cannotRetry: false };
-}
-
-export function SidebarRenameEditor({
+export function InlineRenameEditor({
   session,
   controller,
-}: {
-  session: RenameSession;
-  controller: RenameController;
-}) {
+  fitContent = false,
+}: InlineRenameEditorProps) {
   const isPending = Boolean(session.pending);
   const inputRef = useRef<HTMLInputElement>(null);
   const groupRef = useRef<HTMLSpanElement>(null);
@@ -153,6 +111,7 @@ export function SidebarRenameEditor({
         autoCorrect="off"
         className={cn(
           "min-w-0 flex-1 appearance-none border-0 bg-transparent px-0 py-0 [font:inherit] outline-none",
+          fitContent && "field-sizing-content",
           isPending && "animate-shine motion-reduce:opacity-60",
         )}
         spellCheck={false}

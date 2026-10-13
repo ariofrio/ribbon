@@ -1,20 +1,15 @@
 import type { ReactNode } from "react";
-import { Icon, type IconName } from "@/components/ui/icon";
-import {
-  ContextMenuItem,
-  ContextMenuSeparator,
-} from "@/components/ui/context-menu";
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+import { Icon, type IconName } from "./icon";
+import { ContextMenuItem, ContextMenuSeparator } from "./context-menu";
+import { DropdownMenuItem, DropdownMenuSeparator } from "./dropdown-menu";
+import { cn } from "../../lib/utils";
 
 export type ActionMenuSurface = "context" | "dropdown";
 
 interface ActionMenuItemProps {
   children: ReactNode;
   variant?: "default" | "destructive";
+  disabled?: boolean;
   icon: IconName;
   href?: string;
   onSelect?: (event: Event) => void;
@@ -28,6 +23,7 @@ interface ActionMenuSeparatorProps {
 export function ActionMenuItem({
   children,
   variant,
+  disabled,
   icon,
   href,
   onSelect,
@@ -49,6 +45,7 @@ export function ActionMenuItem({
           variant === "destructive" &&
             "text-destructive focus:bg-destructive/15 focus:text-destructive data-[last-hovered]:bg-destructive/15 data-[last-hovered]:text-destructive",
         )}
+        disabled={disabled}
         onSelect={onSelect}
       >
         {body}
@@ -60,6 +57,7 @@ export function ActionMenuItem({
     <DropdownMenuItem
       asChild={href !== undefined}
       variant={variant}
+      disabled={disabled}
       onSelect={onSelect}
     >
       {body}

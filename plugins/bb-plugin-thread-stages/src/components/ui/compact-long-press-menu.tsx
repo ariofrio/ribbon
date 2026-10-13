@@ -9,10 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { Slot } from "@radix-ui/react-slot";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent } from "./dropdown-menu";
 
 const LONG_PRESS_MS = 700;
 const LONG_PRESS_MOVE_SLOP_PX = 10;
@@ -165,7 +162,7 @@ export function CompactLongPressMenu({
   );
 
   const handleClickCapture = useCallback(
-    (event: ReactMouseEvent<HTMLElement>) => {
+    (event: ReactMouseEvent<HTMLElement> | MouseEvent) => {
       if (!suppressClickRef.current) {
         return;
       }
@@ -175,6 +172,21 @@ export function CompactLongPressMenu({
     },
     [],
   );
+
+  useEffect(() => {
+    if (!open) return;
+    const clearSuppressedClick = () => {
+      suppressClickRef.current = false;
+    };
+    document.addEventListener("click", handleClickCapture, true);
+    document.addEventListener("pointerdown", clearSuppressedClick, true);
+    document.addEventListener("keydown", clearSuppressedClick, true);
+    return () => {
+      document.removeEventListener("click", handleClickCapture, true);
+      document.removeEventListener("pointerdown", clearSuppressedClick, true);
+      document.removeEventListener("keydown", clearSuppressedClick, true);
+    };
+  }, [handleClickCapture, open]);
 
   return (
     <>

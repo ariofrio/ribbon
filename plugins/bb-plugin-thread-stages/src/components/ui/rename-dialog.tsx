@@ -5,8 +5,8 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { usePointerCoarse } from "@/components/ui/hooks/use-pointer-coarse";
+import { Dialog, DialogContent } from "./dialog";
+import { usePointerCoarse } from "./hooks/use-pointer-coarse";
 
 interface NameMaxLengthRule {
   limit: number;
