@@ -191,7 +191,8 @@ menu. For example,
 `bb thread-stages prefs set rowActions '["bb--core/pin","bb--core/archive"]'`.
 Customize row actions edits three slots on the row; each slot picks an action,
 filled slots can Hide or drag to reorder, and Done, Escape, or a click elsewhere
-finishes.
+finishes. Narrow rows keep overflow actions in their menu so saved prompts and
+PR numbers stay in place.
 
 Organize → Groups → By read status lists unread threads above the rest within
 each stage band, preserving the selected sort. `groupByReadStatus` defaults to

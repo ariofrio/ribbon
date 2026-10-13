@@ -97,6 +97,7 @@ import type { SidebarSortableDragBindings } from "@/components/ui/sortable-motio
 import { SidebarThreadDragChip } from "../dnd/sidebarThreadDragChip.js";
 import { SplitPaneMiniMap } from "./SplitPaneMiniMap.js";
 import { ThreadRowQuickActions } from "./ThreadRowQuickActions.js";
+import { useRowActionCapacity } from "../../ribbon/app/use-row-action-capacity.js";
 import { useRibbonThreadActions } from "../../ribbon/app/row-actions.js";
 import { useOpenThreadInSplit } from "./threadRowNavigation.js";
 import { Button } from "@/components/ui/button";
@@ -468,7 +469,7 @@ function ThreadRowComponent({
     openThreadInSplit(thread.id);
   }, [openThreadInSplit, thread.id]);
   const rowActionKeys = useAtomValue(threadRowActionsAtom);
-  const quickActions = useRibbonThreadActions(thread, {
+  const registeredQuickActions = useRibbonThreadActions(thread, {
     keys: thread.archivedAt !== null ? ARCHIVED_ROW_ACTION_KEYS : rowActionKeys,
     requestRename: () => {
       startEditing();
@@ -526,6 +527,14 @@ function ThreadRowComponent({
   );
   const ribbon = useRibbonRow(thread, trailingIndicatorState, pluginThreadRowStatus);
   const ribbonSettings = useRibbonRowSettings();
+  const shineRowRef = useRef<HTMLDivElement | null>(null);
+  const actionCapacity = useRowActionCapacity(shineRowRef, {
+    count: registeredQuickActions.length, enabled: ribbon !== null,
+    hasChildren, hasPrompts: (ribbon?.actions.length ?? 0) > 0,
+    hasPullRequest: ribbon?.pullRequest?.position === "right",
+    isCompact: isCompactViewport, isEditing, providerId: provider?.id,
+  });
+  const quickActions = registeredQuickActions.slice(0, actionCapacity);
   const organizationMode = useAtomValue(sidebarOrganizationModeAtom);
   const ribbonActionColor = useOwnerColor(
     ribbon === null
@@ -560,7 +569,6 @@ function ThreadRowComponent({
     quickActions.length > 0 &&
     thread.archivedAt === null &&
     !shortcut;
-  const shineRowRef = useRef<HTMLDivElement | null>(null);
   useRowShine(shineRowRef, ribbonShines, ribbonWorking);
   const lineage = useRowLineage();
   const trailingIndicatorKind = trailingIndicatorResolution.indicatorKind;
@@ -754,6 +762,7 @@ function ThreadRowComponent({
               ? "max-md:pointer-coarse:pr-9"
               : "max-md:pointer-coarse:pr-2"),
         )}
+        data-ribbon-row-content={ribbon ? "" : undefined}
         style={getHoverActionsInsetStyle(
           thread.archivedAt !== null ? (ribbon ? 0 : 1) : quickActions.length,
           ribbon !== null,

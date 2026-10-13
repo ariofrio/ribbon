@@ -32,7 +32,7 @@ describe("thread-list preferences rpc", () => {
       preferences: defaultPreferences(),
     });
     await expect(harness.behavior.callRpc("listPreferences", null)).resolves.toMatchObject({
-      preferences: { showProviderIcons: true },
+      preferences: { showProviderIcons: false },
     });
     await harness.behavior.callRpc("setPreference", {
       key: "showProviderIcons",
@@ -255,7 +255,7 @@ describe("bb thread-list prefs", () => {
     ]);
     expect(JSON.parse(resetIcons.stdout)).toEqual({
       key: "showProviderIcons",
-      value: true,
+      value: false,
     });
 
     const bad = await harness.behavior.runCli(["prefs", "set", "organizationMode", "nope"]);

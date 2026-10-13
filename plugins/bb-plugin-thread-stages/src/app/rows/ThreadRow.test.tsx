@@ -336,7 +336,7 @@ afterEach(() => {
 });
 
 describe("ThreadRow", () => {
-  it("shows the registered provider icon by default and keeps it visible during inline rename", async () => {
+  it("hides provider icons by default and keeps an enabled icon visible during inline rename", async () => {
     const provider: PluginProvidersState["providers"][number] = {
       id: "provider-test",
       pluginId: "provider-test",
@@ -358,6 +358,8 @@ describe("ThreadRow", () => {
       completedTurnDisplay: "collapse",
     };
     const slot = renderThreadRow({ providers: [provider] });
+    expect(screen.queryByRole("img", { name: "Test Provider" })).toBeNull();
+    act(() => getDefaultStore().set(sidebarShowProviderIconsAtom, true));
     expect(screen.getByRole("img", { name: "Test Provider" })).toBeTruthy();
     expect(
       slot.container.querySelector('[data-provider-logo="/provider-test.svg"]'),
