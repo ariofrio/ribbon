@@ -24,9 +24,9 @@ composer has focus. The side chat and terminal commands are available only on
 a thread route.
 
 bb leaves a plugin default unbound when it conflicts with a built-in command.
-In bb 0.46.0, this affects ⌘[, ⌘], ⌘N, ⇧⌘N, and ⌘L. Native
-commands provide back/forward navigation with the default bindings. Keyboard settings identifies the
-conflict; clearing the built-in binding activates the plugin default, or you
+In bb 0.46.0, native commands own the default ⌘[ and ⌘] history bindings.
+Other conflicts depend on bb’s configured shortcuts. Keyboard settings identifies
+the conflict; clearing the built-in binding activates the plugin default, or you
 can assign the plugin command another shortcut.
 
 ## Details
