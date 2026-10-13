@@ -22,13 +22,19 @@ export const WORKFLOW_COMMANDS = [
     action: { kind: "stage", stage: "Active" },
     defaultShortcut: { key: ".", mod: true, shift: true },
     id: "idle-thread",
-    title: "Return thread to Active",
+    title: "Return thread to In progress",
   },
   {
     action: { kind: "stage", stage: "Waiting" },
     defaultShortcut: { key: ",", mod: true, shift: true },
     id: "wait-thread",
     title: "File thread as Waiting",
+  },
+  {
+    action: { kind: "stage", stage: "BlockedOnUser" },
+    defaultShortcut: { alt: true, key: "u", mod: true, shift: true },
+    id: "block-thread-on-user",
+    title: "File thread as Blocked on user",
   },
   {
     action: { kind: "stage", stage: "BlockedOnOtherAgent" },

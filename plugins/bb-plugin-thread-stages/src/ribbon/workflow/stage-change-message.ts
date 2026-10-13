@@ -42,7 +42,7 @@ function stageMention(stage: WorkflowStage, start: number): PromptMention {
 }
 
 /**
- * "Thread stage updated: @Active → @Blocked on external party", with each stage a Thread stages
+ * "Thread stage updated: @In progress → @Blocked on external party", with each stage a Thread stages
  * mention exactly as its composer menu would insert it, plus an agent-only note
  * that the move has already happened. Without Thread stages running, nothing
  * could resolve the mentions, so the stages are named in plain text.
@@ -93,7 +93,7 @@ export function createStageChangeMessages(
       if (!(await options.enabled())) return;
       await bb.sdk.threads.send({
         threadId,
-        mode: "queue-if-active",
+        mode: "steer-if-active",
         input: stageChangeInput(change, options.threadStagesRunning()),
       });
     } catch (error) {

@@ -47,7 +47,7 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
       }, { id: thread.id, sectionId: fixture.section.id });
     }
     place(returning, "Active");
-    await row(group, returning.id).getByLabel("Active stage", { exact: true }).waitFor();
+    await row(group, returning.id).getByLabel("In progress stage", { exact: true }).waitFor();
     await row(group, returning.id).hover();
     await row(group, returning.id).getByRole("button", { name: "Thread actions", exact: true }).click();
     await page.getByRole("menuitem", { name: /Move to stage/ }).hover();
