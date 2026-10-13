@@ -21,10 +21,11 @@ export async function verifyThreadMenuDismissal({ stack, fixture }) {
       await menu.waitFor();
       assert.equal(await composer.evaluate((node) => getComputedStyle(node).pointerEvents), "auto");
       await composer.click();
-      await menu.waitFor({ state: "hidden" });
       assert.equal(await composer.evaluate((node) => document.activeElement === node), true);
       await page.keyboard.type("x");
       assert.equal(await composer.textContent(), "x");
+      await menu.waitFor({ state: "hidden" });
+      assert.equal(await composer.evaluate((node) => document.activeElement === node), true);
       await page.keyboard.press("ControlOrMeta+a");
       await page.keyboard.press("Backspace");
       await row.focus();

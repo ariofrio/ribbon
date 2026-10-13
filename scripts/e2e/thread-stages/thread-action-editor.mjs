@@ -326,7 +326,11 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         await activate(steer(1));
         await savedSteer;
         if (compact) await activate(page.getByRole("menuitem", { name: "Back" }));
-        else await page.mouse.click(1000, 650);
+        else {
+          await page.mouse.click(1000, 650);
+          await page.getByRole("menu", { name: "Thread actions", exact: true }).waitFor({ state: "hidden" });
+          await form.waitFor({ state: "hidden" });
+        }
         await autosaved;
         const records = await page.request.post(rpc("listThreadActionsV1"), { data: "null", headers: { "content-type": "application/json" } });
         assert.equal(records.status(), 200);
@@ -337,7 +341,7 @@ export async function verifyThreadActionEditor({ stack, fixture, cases = ["deskt
         assert.equal(saved.threads.find((record) => record.threadId === thread.id).actions[0].steer, true);
         if (!compact) {
           await target.click({ button: "right" });
-          await page.getByRole("menu", { name: "Thread actions", exact: true }).getByRole("menuitem", { name: "Edit thread actions" }).hover();
+          await page.getByRole("menu", { name: "Thread actions", exact: true }).getByRole("menuitem", { name: "Edit thread actions", exact: true }).hover();
           assert.equal(await steer(1).isChecked(), true, "Reopening the editor preserves steered delivery");
           await label(1).click();
           await page.keyboard.press("ControlOrMeta+a");

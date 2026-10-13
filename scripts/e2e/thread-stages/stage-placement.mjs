@@ -96,6 +96,7 @@ export async function verifyStagePlacement({ stack, fixture }) {
           await row(group, returning.id).getByRole("button", { name: "Thread actions", exact: true }).click();
           await page.getByRole("menuitem", { name: /Move to stage/ }).hover();
           await page.getByRole("menuitemradio", { name: labels[stage], exact: true }).click();
+          await page.getByRole("menu", { name: "Thread actions", exact: true }).waitFor({ state: "hidden" });
         } else {
           await freshClient(new URL(`/projects/${projectId}/threads/${returning.id}`, stack.serverUrl).href);
           await page.locator('[data-app-composer-role="primary"] [contenteditable="true"]').click();
