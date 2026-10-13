@@ -5,6 +5,7 @@ import { launch, openContext, parentAnswered, row, sidebar, spawnChild } from ".
 export async function verifyStickyThreadSurfaces({ stack, fixture, cases }) {
   const parent = fixture.threads.get(FEATURED_THREAD);
   const project = fixture.projects.get(FEATURED_PROJECT);
+  fixture.run(["thread-stages", "stage", "Active", parent.id]);
   const children = [];
   const browser = await launch();
   try {
@@ -24,8 +25,12 @@ export async function verifyStickyThreadSurfaces({ stack, fixture, cases }) {
         const list = sidebar(page);
         await list.waitFor({ timeout: 120_000 });
         const target = row(list, parent.id);
-        const child = row(list, children[0].id);
-        await child.waitFor();
+        const childIds = children.map(child => child.id);
+        await page.waitForFunction(ids => ids.every(id =>
+          document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${id}"]`)), childIds);
+        const overlapChildId = await list.evaluate((node, ids) => ids
+          .map(id => ({id, top: node.querySelector(`[data-thread-id="${id}"]`).getBoundingClientRect().top}))
+          .sort((left, right) => left.top - right.top)[0].id, childIds);
         // A translucent accent, as in the reported theme, must tint the
         // sidebar rather than revealing the scrolling child's text.
         await list.evaluate((node) => {
@@ -36,13 +41,13 @@ export async function verifyStickyThreadSurfaces({ stack, fixture, cases }) {
           const child = scroller.querySelector(`[data-thread-id="${childId}"]`);
           const top = scroller.getBoundingClientRect().top + parseFloat(getComputedStyle(node).top);
           scroller.scrollTop += child.getBoundingClientRect().top - top - 4;
-        }, children[0].id);
+        }, overlapChildId);
         await page.waitForFunction(([parentId, childId]) => {
           const root = document.querySelector("[data-ribbon-sidebar-root]");
           const parent = root.querySelector(`[data-thread-id="${parentId}"]`).getBoundingClientRect();
           const child = root.querySelector(`[data-thread-id="${childId}"]`).getBoundingClientRect();
           return child.top > parent.top && child.top < parent.bottom;
-        }, [parent.id, children[0].id]);
+        }, [parent.id, overlapChildId]);
         const verifySurface = async (state) => {
           const surface = await target.evaluate((node) => {
             const style = getComputedStyle(node);

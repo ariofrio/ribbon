@@ -606,7 +606,8 @@ function ThreadRowComponent({
     !showActive &&
       "has-[[data-state=open]]:bg-sidebar-accent has-[[data-sidebar-rename-anchor]:focus-visible]:bg-sidebar-accent",
     !showActive && parentOptions?.stickyLevel !== undefined &&
-        rowDragBindings && !rowDragBindings.disabled && "select-none",
+      SIDEBAR_STICKY_ROW_INTERACTIVE_SURFACE_CLASS,
+    rowDragBindings && !rowDragBindings.disabled && "select-none",
     !isActionsOpen && "data-[sidebar-touch-armed=true]:!bg-transparent",
     nestTargetState && NEST_TARGET_STATE_CLASS[nestTargetState],
     reorderPlacement && REORDER_PLACEMENT_CLASS[reorderPlacement],
