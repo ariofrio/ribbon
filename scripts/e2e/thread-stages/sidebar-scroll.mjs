@@ -115,11 +115,13 @@ async function verifyList({ stack, fixture, nested, drag }) {
           content: `
           [data-sidebar="content"] { scrollbar-width: auto !important; scrollbar-gutter: stable !important; }
           [data-sidebar="content"]::-webkit-scrollbar { width: 12px !important; display: block !important; }
+          [data-sidebar="content"]::-webkit-scrollbar-button { display: none !important; }
           [data-sidebar="content"]::-webkit-scrollbar-thumb { background: #888; }
         `,
         });
         await scroller.evaluate((node) => {
           node.style.setProperty("scrollbar-width", "auto", "important");
+          node.style.setProperty("scrollbar-color", "auto", "important");
           node.style.setProperty("scrollbar-gutter", "stable", "important");
         });
         assert.ok(
