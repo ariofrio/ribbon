@@ -5,8 +5,11 @@ export const PROVIDER = "thread-stages/thread-stages";
 export const PREFERENCES_KEY = "bb.plugin.thread-stages.preferences.v1";
 export const READY = "[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]";
 
-export function launch() {
-  return chromium.launch({ args: ["--mute-audio"] });
+export function launch({ scrollbars = false } = {}) {
+  return chromium.launch({
+    args: ["--mute-audio"],
+    ignoreDefaultArgs: scrollbars ? ["--hide-scrollbars"] : undefined,
+  });
 }
 
 /**
