@@ -147,7 +147,7 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
           await pin.waitFor();
           await action.focus();
           await page.keyboard.press("Shift+Tab");
-          assert.equal(await target.getByRole("button", { name: "Archive thread", exact: true }).evaluate((node) => document.activeElement === node), true,
+          assert.equal(await target.getByRole("button", { name: "Archive", exact: true }).evaluate((node) => document.activeElement === node), true,
             "Keyboard order follows the row controls then saved prompts");
           await page.keyboard.press("Tab");
           await page.keyboard.press("Tab");
@@ -173,6 +173,34 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
           const hoveredPr = await metrics();
           assert.ok(hoveredPr.controls.right <= hoveredPr.prompt.left, "Row controls stay before both prompts and PR information");
           assert.equal(hoveredPr.pr.right, withPr.pr.right, "The PR number remains stationary on hover");
+          await target.getByRole("button", { name: "Thread actions", exact: true }).click();
+          await page.getByRole("menuitem", { name: "Archive", exact: true }).waitFor();
+          await page.getByRole("menuitem", { name: "Copy thread link", exact: true }).waitFor();
+          await page.keyboard.press("Escape");
+          if (testCase === "desktop-parent") {
+            const archive = target.getByRole("button", { name: "Archive", exact: true });
+            await archive.waitFor({ state: "hidden" });
+            const handle = page.getByTestId("app-sidebar-resize-handle");
+            const box = await handle.boundingBox();
+            const x = box.x + box.width / 2;
+            const y = box.y + box.height / 2;
+            await page.mouse.move(x, y);
+            await page.mouse.down();
+            await page.mouse.move(x + 200, y, { steps: 5 });
+            await page.mouse.up();
+            await target.hover();
+            await archive.waitFor();
+            const widened = await metrics();
+            assert.ok(Math.abs(widened.row.right - widened.pr.right - 36) < 1,
+              "Widening restores configured actions without moving the PR out of its trailing lane");
+            const moved = await handle.boundingBox();
+            await page.mouse.move(moved.x + moved.width / 2, y);
+            await page.mouse.down();
+            await page.mouse.move(x, y, { steps: 5 });
+            await page.mouse.up();
+            await target.hover();
+            await archive.waitFor({ state: "hidden" });
+          }
         }
         const sent = [];
         await page.route(`**/rpc/runThreadActionV1`, (route) => {

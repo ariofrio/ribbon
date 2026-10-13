@@ -27,8 +27,8 @@ import {
   SIDEBAR_HOVER_ACTIONS_GAP_CLASS,
   SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE,
   SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
-} from "../ui/sidebar-hover-actions.js";
-import type { ConsumeDragClickSuppression } from "../ui/use-drag-click-suppression.js";
+} from "@/components/ui/sidebar-hover-actions";
+import type { ConsumeDragClickSuppression } from "@/components/ui/use-drag-click-suppression";
 import {
   SIDEBAR_STANDARD_ROW_PADDING_CLASS,
   SIDEBAR_CONTROL_STATE_CLASS,
@@ -39,7 +39,7 @@ import {
   SectionDropTargetOverlay,
   useSectionDropTargetState,
 } from "../dnd/useSectionDropTargetState.js";
-import type { SidebarSortableDragBindings } from "../rows/sortableMotion.js";
+import type { SidebarSortableDragBindings } from "@/components/ui/sortable-motion";
 import {
   NO_COLLAPSED_CHILD_ACTIVITY,
   type CollapsedChildActivity,
@@ -411,7 +411,7 @@ export function TopLevelSidebarSection({
                   SIDEBAR_HOVER_ACTIONS_GAP_CLASS,
                   !actionsAlwaysVisible && SIDEBAR_HOVER_ACTIONS_CLASS,
                   collapseControl?.isCollapsed &&
-                    "max-md:pointer-coarse:hidden",
+                    "[@media(hover:none)]:hidden",
                 )}
               >
                 {actions}

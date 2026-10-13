@@ -1,7 +1,7 @@
 import type { rpcContract } from "./server";
 import {
   definePluginApp,
-  experimental_useSidebarThreadActions,
+  useBbNavigate,
   ThreadChat,
   useBbContext,
   useRpc,
@@ -29,6 +29,7 @@ import {
   hasPrimaryComposer,
   isSecondaryComposerFocused,
   registerPrimaryComposerFocus,
+  openPrimaryComposerTerminal,
   registerSecondaryComposer,
   selectPrimaryPanelTabWhenReady,
 } from "./composer-navigation-bridge";
@@ -162,6 +163,7 @@ function rpcErrorMessage(error: unknown, fallback: string): string {
 }
 
 function ComposerNavigationBridge() {
+  const navigate = useBbNavigate();
   const context = useBbContext();
   const composer = useComposer();
   const markerRef = useRef<HTMLSpanElement>(null);
@@ -228,6 +230,7 @@ function ComposerNavigationBridge() {
                     ),
                 },
               },
+          navigate.experimental_openTerminal,
         );
       }
       if (composer.scope.kind === "new-thread") {
@@ -283,7 +286,7 @@ function ComposerNavigationBridge() {
         return bounds.width > 0 && bounds.height > 0;
       },
     });
-  }, [composer.focus, composerThreadId, context.threadId, composer.scope.kind]);
+  }, [composer.focus, composerThreadId, context.threadId, composer.scope.kind, navigate.experimental_openTerminal]);
   return createElement("span", { hidden: true, ref: markerRef });
 }
 
@@ -466,21 +469,6 @@ function activateAndFocusTerminal(
   isCurrentThread: (threadId: string) => boolean,
 ): () => void {
   if (!isCurrentThread(threadId)) return () => {};
-  const panel = readTerminalPanelSnapshot(window.localStorage, threadId);
-  let stopSelectingTab = () => {};
-  if (!panel.isOpen || panel.activeTerminalId !== terminalId) {
-    stopSelectingTab = selectPrimaryPanelTabWhenReady(threadId, {
-      icon: "Terminal",
-      index: () =>
-        readTerminalPanelSnapshot(
-          window.localStorage,
-          threadId,
-        ).terminalIds.indexOf(terminalId),
-      isCurrent: () => isCurrentThread(threadId),
-      signal,
-    });
-  }
-
   const stopFocusingTerminal = focusVisibleTerminalWhenReady(document, {
     isCurrent: () => isCurrentThread(threadId),
     isReady: () => {
@@ -490,7 +478,6 @@ function activateAndFocusTerminal(
     signal,
   });
   return () => {
-    stopSelectingTab();
     stopFocusingTerminal();
   };
 }
@@ -554,12 +541,12 @@ function MissingKeyboardShortcuts() {
       threadId: context.threadId,
     };
   }, [context.projectId, context.threadId]);
-  const sidebarActions = experimental_useSidebarThreadActions();
-  // Thread-list updates replace these actions without cancelling in-flight shortcuts.
-  const sidebarActionsRef = useRef(sidebarActions);
+  const navigate = useBbNavigate();
+  // Navigation updates replace these actions without cancelling in-flight shortcuts.
+  const navigateRef = useRef(navigate);
   useLayoutEffect(() => {
-    sidebarActionsRef.current = sidebarActions;
-  }, [sidebarActions]);
+    navigateRef.current = navigate;
+  }, [navigate]);
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
@@ -684,7 +671,7 @@ function MissingKeyboardShortcuts() {
         };
 
         if (id === "new-personal-thread") {
-          sidebarActionsRef.current.openNewThread({
+          navigateRef.current.toCompose({
             focusPrompt: true,
             projectId: PERSONAL_PROJECT_ID,
           });
@@ -692,7 +679,7 @@ function MissingKeyboardShortcuts() {
         }
 
         if (id === "new-project-thread") {
-          sidebarActionsRef.current.openNewThread({
+          navigateRef.current.toCompose({
             focusPrompt: true,
             projectId: projectThreadTarget(
               commandContext,
@@ -817,7 +804,10 @@ function MissingKeyboardShortcuts() {
               : null);
           terminalInFlightThreads.add(threadId);
           void openTerminal(rpc, threadId, preferredTerminalId)
-            .then(({ terminalId }) => {
+            .then(async ({ terminalId }) => {
+              if (!isCurrentThread(threadId)) return;
+              const opened = await openPrimaryComposerTerminal(threadId, terminalId);
+              if (!opened || !isCurrentThread(threadId)) return;
               rememberRecentTerminalId(
                 window.localStorage,
                 threadId,
