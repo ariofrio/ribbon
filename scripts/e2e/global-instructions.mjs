@@ -94,7 +94,7 @@ export async function verifyGlobalInstructions({ stack, fixture }) {
     const large = "# Global rules\n\n" + ("Keep every detail. ".repeat(25) + "\n").repeat(1000) + "\n日本語 🎉\nGLOBAL_INSTRUCTIONS_END_MARKER";
     console.log("Global instructions: filling large source.");
     await source.fill(large);
-    const settingsSidebar = () => page.locator(':is([data-sidebar="sidebar"], [data-testid="settings-sidebar-body"])');
+    const settingsSidebar = () => page.locator('[data-testid="settings-sidebar-body"]');
     const settingsEntry = () => settingsSidebar().locator('a[href="/settings/plugins/global-instructions"]');
     const indicator = () => settingsEntry().getByRole("img", { name: "Unsaved changes" });
     await expect(indicator()).toBeVisible();

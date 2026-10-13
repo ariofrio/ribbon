@@ -10,7 +10,7 @@ bb marketplace add git:github.com/ariofrio/ribbon
 bb plugin install global-instructions@ribbon
 ```
 
-Requires bb 0.45.0 or later. Open **Settings → Global instructions**. The editor
+Requires bb 0.46.0 or later. Open **Settings → Global instructions**. The editor
 loads the server's existing `AGENTS.md`; installing the plugin never creates or
 replaces it. The editor opens in **Rich Markdown**, with headings, emphasis, lists,
 blockquotes, and code using the composer's Tiptap editing engine. Choose
@@ -40,16 +40,16 @@ including remote hosts. It does not edit a checkout's `AGENTS.md` or a
 provider's own global instructions. The file remains effective if the plugin
 is disabled or uninstalled.
 
-bb [reads the file when building each turn's instructions](https://github.com/get-bb/bb/blob/desktop-v0.45.0/apps/server/src/services/threads/thread-runtime-config.ts#L216),
-[trims outer whitespace and skips empty files](https://github.com/get-bb/bb/blob/desktop-v0.45.0/apps/server/src/services/threads/workspace-agent-instructions.ts#L16),
+bb [reads the file when building each turn's instructions](https://github.com/get-bb/bb/blob/desktop-v0.46.0/apps/server/src/services/threads/thread-runtime-config.ts#L209),
+[trims outer whitespace and skips empty files](https://github.com/get-bb/bb/blob/desktop-v0.46.0/apps/server/src/services/threads/workspace-agent-instructions.ts#L16),
 and appends it after plugin instructions and before workspace `.bb/AGENTS.md`.
 New agent sessions receive saved changes without a server restart. Existing
 sessions may keep their original instructions: the [ACP bridge injects instructions
-only on the first prompt](https://github.com/get-bb/bb/blob/desktop-v0.45.0/packages/provider-bridge-acp/src/bridge/bridge.ts#L1291),
+only on the first prompt](https://github.com/get-bb/bb/blob/desktop-v0.46.0/packages/provider-bridge-acp/src/bridge/bridge.ts#L1359),
 and the live test verifies this behavior. Start a new thread to ensure the new
 instructions are applied. A turn already running is unaffected.
 
-Unlike [Custom instructions](https://github.com/get-bb/bb/blob/desktop-v0.45.0/plugins/custom-instructions/server.ts),
+Unlike [Custom instructions](https://github.com/get-bb/bb/blob/desktop-v0.46.0/plugins/custom-instructions/server.ts),
 this plugin neither stores instructions in plugin settings nor contributes
 another copy to the prompt. Its editor, RPC schemas, and the server file reader
 have no character cap. Provider context windows and bb's normal transport and
@@ -69,5 +69,5 @@ npm run release:check
 From the repository root, `npm run test:e2e -- --case global-instructions:editor`
 checks the rendered editor and instruction delivery against an isolated bb
 server and host daemon, including draft recovery after restarting the browser.
-bb 0.45 has no settings-entry badge API; the indicator uses the supported
+bb 0.46 has no settings-entry badge API; the indicator uses the supported
 content-script API and removes its owned nodes when the plugin unloads.

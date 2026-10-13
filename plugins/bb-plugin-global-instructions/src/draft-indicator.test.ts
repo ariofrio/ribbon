@@ -12,7 +12,7 @@ it("follows the settings entry across navigation and removes its nodes on dispos
   const dispose = mountDraftIndicator({ pluginId: "global-instructions", generation: 1, signal: controller.signal });
   await draftStore.write({ version: 1, id: "draft", base: { path: "/server/AGENTS.md", instructions: "Base", revision: "base" }, instructions: "Changed", mode: "rich" });
   const sidebar = document.createElement("div");
-  sidebar.dataset.sidebar = "sidebar";
+  sidebar.dataset.testid = "settings-sidebar-body";
   document.body.append(sidebar);
   const installEntry = () => {
     const link = document.createElement("a");
@@ -24,8 +24,6 @@ it("follows the settings entry across navigation and removes its nodes on dispos
   const first = installEntry();
   await waitFor(() => expect(first.querySelector('[aria-label="Unsaved changes"]')).not.toBeNull());
   const replacement = installEntry();
-  delete sidebar.dataset.sidebar;
-  sidebar.dataset.testid = "settings-sidebar-body";
   await waitFor(() => expect(replacement.querySelector('[aria-label="Unsaved changes"]')).not.toBeNull());
   await draftStore.clear("/server/AGENTS.md", "draft");
   await waitFor(() => expect(replacement.querySelector('[aria-label="Unsaved changes"]')).toBeNull());

@@ -2,7 +2,7 @@ import type { PluginContentScriptContext } from "@get-bb/plugin-sdk/app";
 import { DRAFT_SIGNAL, draftStore } from "./draft-store";
 
 export function mountDraftIndicator({ signal }: PluginContentScriptContext) {
-  const selector = ':is([data-sidebar="sidebar"], [data-testid="settings-sidebar-body"]) a[href="/settings/plugins/global-instructions"]';
+  const selector = '[data-testid="settings-sidebar-body"] a[href="/settings/plugins/global-instructions"]';
   const markers = new Map<Element, HTMLSpanElement>();
   let dirty = false;
   let disposed = false;

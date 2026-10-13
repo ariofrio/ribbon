@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "./button";
 import {
   Dialog,
   DialogContent,
@@ -7,13 +7,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "./dialog";
 
 interface ConfirmDeleteDialogContentProps {
   title: string;
   description: ReactNode;
   confirmLabel: string;
   pending: boolean;
+  confirmDisabled?: boolean;
+  size?: ButtonProps["size"];
   onConfirm: () => void;
   onCancel?: () => void;
 }
@@ -23,6 +25,8 @@ export function ConfirmDeleteDialogContent({
   description,
   confirmLabel,
   pending,
+  confirmDisabled = false,
+  size,
   onConfirm,
   onCancel,
 }: ConfirmDeleteDialogContentProps) {
@@ -37,6 +41,7 @@ export function ConfirmDeleteDialogContent({
           <Button
             type="button"
             variant="outline"
+            size={size}
             disabled={pending}
             onClick={onCancel}
           >
@@ -46,7 +51,8 @@ export function ConfirmDeleteDialogContent({
         <Button
           type="button"
           variant="destructive"
-          disabled={pending}
+          size={size}
+          disabled={pending || confirmDisabled}
           onClick={onConfirm}
         >
           {confirmLabel}
@@ -57,6 +63,7 @@ export function ConfirmDeleteDialogContent({
 }
 
 interface ConfirmDeleteDialogProps {
+  className?: string;
   modal?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,6 +71,7 @@ interface ConfirmDeleteDialogProps {
 }
 
 export function ConfirmDeleteDialog({
+  className,
   modal = true,
   open,
   onOpenChange,
@@ -71,7 +79,9 @@ export function ConfirmDeleteDialog({
 }: ConfirmDeleteDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange} modal={modal}>
-      <DialogContent>{open ? children : null}</DialogContent>
+      <DialogContent className={className}>
+        {open ? children : null}
+      </DialogContent>
     </Dialog>
   );
 }
