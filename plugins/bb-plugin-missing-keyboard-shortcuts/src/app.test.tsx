@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import type { PluginCommandRegistration } from "@get-bb/plugin-sdk/app";
+import { registerPrimaryComposerFocus } from "./composer-navigation-bridge";
 import { useBbContext } from "@get-bb/plugin-sdk/app";
 import { act, cleanup } from "@testing-library/react";
 import { createElement } from "react";
@@ -88,8 +89,8 @@ describe("missing keyboard shortcuts app registration", () => {
       threadId: "thread-a",
     });
 
-    expect(slot.inspection.sidebarActionCalls).toContainEqual({
-      method: "openNewThread",
+    expect(slot.inspection.navigateCalls).toContainEqual({
+      method: "toCompose",
       options: { focusPrompt: true, projectId: "project-a" },
     });
     slot.lifecycle.unmount();
@@ -142,6 +143,24 @@ describe("missing keyboard shortcuts app registration", () => {
         title: "Side chat",
       }),
     );
+    slot.lifecycle.unmount();
+  });
+
+  it("opens the requested terminal through bb's panel navigator", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(app.appOverlays[0]!, {}, {
+      context: { projectId: "project-a", threadId: "thread-a" },
+      rpc: { openTerminal: () => ({ terminalId: "terminal-a", created: true }) },
+      openTerminal: () => false,
+    });
+    const scopedOpen = vi.fn(async (_options: { terminalId: string }) => true);
+    const unregister = registerPrimaryComposerFocus("thread-a", () => {}, undefined, scopedOpen);
+    await commands(app).find(({ id }) => id === "toggle-terminal")?.run({
+      openPanel: () => false, projectId: "project-a", threadId: "thread-a",
+    });
+    await vi.waitFor(() => expect(scopedOpen).toHaveBeenCalledExactlyOnceWith({ terminalId: "terminal-a" }));
+    expect(slot.inspection.navigateCalls).toEqual([]);
+    unregister();
     slot.lifecycle.unmount();
   });
 
