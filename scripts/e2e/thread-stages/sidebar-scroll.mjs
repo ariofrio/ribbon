@@ -220,11 +220,25 @@ async function verifyList({ stack, fixture, nested, drag }) {
         });
         const height = await scroller.evaluate((node) => node.scrollHeight);
         const thumb = (box.height * box.height) / height;
-        const x = box.x + box.width - 6;
+        const gutter = await scroller.evaluate(
+          (node) => node.offsetWidth - node.clientWidth,
+        );
+        // Classic scrollbars share the right edge with the sidebar's resize
+        // handle. Overlay scrollbars have no gutter and a narrower hit area.
+        const x = box.x + box.width - (gutter > 0 ? gutter * 0.75 : 6);
+        console.log("scrollbar geometry", { gutter, x, thumb, box });
         await page.mouse.move(x, box.y + thumb / 2);
         await page.mouse.down();
         await page.mouse.move(x, box.y + box.height - thumb / 2, { steps: 30 });
         await page.mouse.up();
+        console.log(
+          "scrollbar drag down",
+          await scroller.evaluate((node) => ({
+            scrollTop: node.scrollTop,
+            maximum: node.scrollHeight - node.clientHeight,
+            width: node.offsetWidth,
+          })),
+        );
         await page.waitForFunction(() => {
           const node = document
             .querySelector("[data-ribbon-sidebar-root]")
