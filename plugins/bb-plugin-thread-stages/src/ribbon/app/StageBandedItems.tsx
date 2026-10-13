@@ -14,8 +14,8 @@ import { stagePreviewRowsSetting } from "../stage-preview-rows";
 
 /**
  * A group's items in Ribbon's shape: the main list, then Deferred and
- * Completed as short previews that expand in place. The main list keeps the
- * windowed rendering bb gives every list; the previews keep the open thread
+ * Completed as short previews that expand in place. The main list keeps its
+ * rows mounted for scrolling; the previews keep the open thread
  * within their row budget when there is room for a thread.
  */
 export function StageBandedItems({
