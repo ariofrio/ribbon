@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import Database from "better-sqlite3";
 import { join } from "node:path";
 import { FEATURED_THREAD } from "../../screenshots/fixture.mjs";
 import { launch, openContext, sidebar } from "./sidebar.mjs";
@@ -11,6 +10,7 @@ export async function verifySidebarScroll({ stack, fixture, cases = ["long-list"
 }
 
 async function verifyList({ stack, fixture, nested, drag }) {
+  const { default: Database } = await import("better-sqlite3");
   // Real rows, all in one group, without starting hundreds of agent turns.
   const db = new Database(join(stack.dataDir, "bb.db"));
   const template = db.prepare("SELECT * FROM threads WHERE id = ?").get(fixture.threads.get(FEATURED_THREAD).id);
