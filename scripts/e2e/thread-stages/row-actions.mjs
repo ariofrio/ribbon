@@ -40,7 +40,15 @@ export async function verifyRowActions({ stack, fixture }) {
     await target.hover();
     await target.getByRole("button", { name: "Thread actions", exact: true }).click();
     await page.getByRole("menuitem", { name: "Customize row actions", exact: true }).click();
-    await list.getByText("Customize row actions", { exact: true }).waitFor();
+    await target.getByRole("button", { name: "Row action 1: Pin", exact: true }).waitFor();
+    assert.equal(await target.getByRole("button", { name: /^Row action [123]:/ }).count(), 3);
+    await target.getByRole("button", { name: "Row action 1: Pin", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Notifications", exact: true }).click();
+    await target.getByRole("button", { name: "Row action 1: Notifications", exact: true }).waitFor();
+    await target.getByRole("button", { name: "Done", exact: true }).click();
+    await target.hover();
+    await target.getByRole("button", { name: "Notifications", exact: true }).waitFor();
+    fixture.run(["thread-stages", "prefs", "set", "rowActions", '["pin","copyLink","rename"]']);
     await context.close();
 
     const mobile = await openContext(browser, {

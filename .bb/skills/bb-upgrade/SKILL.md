@@ -21,8 +21,10 @@ from the previous upgrade is still complete. Record the current bb and SDK
 versions and any inconsistent pins before changing them.
 
 Identify the requested target from upstream releases and its bundled SDK
-version. Inspect previous upgrade PRs and commits for repository-specific
-decisions and unresolved gaps; verify their conclusions against current source.
+version. For a forked runtime, resolve its upstream release from the fork’s
+build/versioning source before choosing pins; retain the full runtime version
+in prompts and verification. Inspect previous upgrade PRs and commits for
+repository-specific decisions and unresolved gaps; verify their conclusions against current source.
 
 Completion: the baseline, target, complete plugin inventory, and declared forks
 are accounted for, including packages with no frontend or behavioral migration.
