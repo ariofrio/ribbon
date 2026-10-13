@@ -300,7 +300,7 @@ async function verifyList({ stack, fixture, nested, drag }) {
         `sidebar scroll (${nested ? "nested" : drag ? "scrollbar" : "flat"}): ${JSON.stringify(samples)}`,
       );
       assert.ok(
-        samples.longestGap < 200,
+        samples.longestGap <= 200,
         `Scrolling must deliver frames within 200ms: ${JSON.stringify(samples)}`,
       );
       assert.ok(
