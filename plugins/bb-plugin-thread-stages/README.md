@@ -312,7 +312,8 @@ without writing.
 
 `npm run check:evals` validates the skill cases and tests their grader without
 calling a model; it also runs in the release gate. `npm run evals` executes all
-26 cases in fresh Claude Code sessions against a local BB CLI fixture. See
+22 work requests in fresh Claude Code sessions with isolated project tools.
+The grader checks executed commands and their effects. See
 [Skill evaluations](skills/thread-stages/evals/README.md) for filters,
 previous-version comparisons, artifacts, and the limits of this test.
 

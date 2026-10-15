@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the committed cases in fresh Claude Code sessions with a local BB fixture."""
+"""Run work requests in native Claude sessions with project-scoped MCP tools."""
 
 import argparse
 from datetime import datetime, timezone
@@ -8,213 +8,202 @@ import json
 import os
 from pathlib import Path
 import re
-import shlex
-import shutil
 import signal
 import subprocess
 import sys
-import time
 import uuid
 
+from fixture import ROOT
 from oracle import grade_run, validate
-
 
 HERE = Path(__file__).resolve().parent
 PLUGIN = HERE.parents[2]
 REPO = PLUGIN.parents[1]
-SOURCE_FILES = ["skills/thread-stages/SKILL.md", "skills/thread-actions/SKILL.md",
-                "src/ribbon/agent-instructions.ts", "src/ribbon/workflow/workflow-stage.ts"]
+SELF = "thr_m7k2p9v4ax"
+SOURCE_FILES = ["skills/thread-stages/SKILL.md", "skills/thread-actions/SKILL.md", "src/ribbon/agent-instructions.ts", "src/ribbon/workflow/workflow-stage.ts"]
+HARNESS_FILES = ("run.py", "oracle.py", "fixture.py", "bridge.py", "evals.json")
 
 
-def load_source(ref=None):
-    commit = None
-    if ref:
-        if ref.startswith("-"):
-            raise ValueError("A source ref cannot start with a dash")
-        commit = subprocess.check_output(["git", "rev-parse", "--verify", ref + "^{commit}"],
-                                         cwd=REPO, text=True).strip()
-    files = {}
-    for name in SOURCE_FILES:
-        files[name] = (subprocess.check_output(["git", "show", f"{commit}:plugins/{PLUGIN.name}/{name}"],
-                                              cwd=REPO, text=True) if commit else (PLUGIN / name).read_text())
+def harness_hashes():
+    return {name: hashlib.sha256((HERE / name).read_bytes()).hexdigest() for name in HARNESS_FILES}
+
+
+def load_source(ref=None, instructions_ref=None):
+    def read(name, revision):
+        if not revision:
+            return (PLUGIN / name).read_text()
+        if revision.startswith("-"):
+            raise ValueError("Invalid source ref")
+        sha = subprocess.check_output(["git", "rev-parse", "--verify", revision + "^{commit}"], cwd=REPO, text=True).strip()
+        return subprocess.check_output(["git", "show", f"{sha}:plugins/{PLUGIN.name}/{name}"], cwd=REPO, text=True)
+    files = {name: read(name, instructions_ref if name.endswith("agent-instructions.ts") and instructions_ref else ref) for name in SOURCE_FILES}
     literal = r'"(?:\\.|[^"\\])*"'
-    source = files["src/ribbon/agent-instructions.ts"]
-    match = re.search(r"instructions:\s*automaticStageUpdates\(\)\s*\?\s*(" + literal
-                      + r")\s*:\s*(" + literal + r")", source)
-    if not match:
-        raise ValueError("Agent instruction source changed; update its eval extraction")
-    stages = re.search(r"export const WORKFLOW_STAGES\s*=\s*\[([^]]+)\]",
-                       files["src/ribbon/workflow/workflow-stage.ts"])
-    if not stages:
-        raise ValueError("Workflow stage source changed; update its eval extraction")
-    return {"files": files, "ref": commit or "working-tree",
-            "instructions": {"on": json.loads(match[1]), "off": json.loads(match[2])},
-            "stages": [json.loads(x) for x in re.findall(literal, stages[1])],
-            "hashes": {name: hashlib.sha256(value.encode()).hexdigest() for name, value in files.items()}}
+    match = re.search(r"instructions:\s*automaticStageUpdates\(\)\s*\?\s*(" + literal + r")\s*:\s*(" + literal + r")", files["src/ribbon/agent-instructions.ts"])
+    stages = re.search(r"export const WORKFLOW_STAGES\s*=\s*\[([^]]+)\]", files["src/ribbon/workflow/workflow-stage.ts"])
+    if not match or not stages:
+        raise ValueError("Source shape changed; update extraction")
+    return {"files": files, "ref": ref or "working-tree", "instructionsRef": instructions_ref or ref or "working-tree", "instructions": {"on": json.loads(match[1]), "off": json.loads(match[2])}, "stages": [json.loads(x) for x in re.findall(literal, stages[1])], "hashes": {name: hashlib.sha256(value.encode()).hexdigest() for name, value in files.items()}}
 
 
-def prepare_case(workspace, case, source):
-    workspace = Path(workspace)
-    workspace.mkdir(parents=True, exist_ok=True)
-    if any(workspace.iterdir()):
-        raise ValueError("Each agent needs a new, empty workspace")
-    stage = case.get("scenario", {}).get("initial_stage", "Active")
-    if stage not in source["stages"]:
-        raise ValueError(f"The selected source has no stage {stage}")
+def prepare_case(artifacts, case, source):
+    artifacts = Path(artifacts)
+    artifacts.mkdir(parents=True, exist_ok=True)
+    if any(artifacts.iterdir()):
+        raise ValueError("Use a new artifacts directory")
+    initial = case["initial"]
+    if initial["stage"] not in source["stages"]:
+        raise ValueError("Unsupported initial stage: " + initial["stage"])
+    files = dict(initial["files"])
+    catalog = []
     for name, text in source["files"].items():
         if name.startswith("skills/"):
-            path = workspace / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text)
-    shutil.copyfile(HERE / "fixture.py", workspace / "fixture.py")
-    binary = workspace / "bin/bb"
-    binary.parent.mkdir()
-    binary.write_text("#!/bin/sh\nexec " + shlex.quote(sys.executable) + " "
-                      + shlex.quote(str(workspace / "fixture.py")) + ' "$@"\n')
-    binary.chmod(0o755)
-    (workspace / "state.json").write_text(json.dumps({"id": "thr_eval", "stage": stage,
-        "stages": source["stages"], "automaticStageUpdates": case["automatic_updates"]}))
-    if case["mode"] == "automatic":
-        (workspace / "work.json").write_text(json.dumps(case["scenario"]["work"], indent=2))
-    skill = workspace / "skills/thread-stages/SKILL.md"
-    description = re.search(r"^description: (.+)$", skill.read_text(), re.M)[1]
-    guidance = source["instructions"]["on" if case["automatic_updates"] else "off"]
-    system = f"""You are a coding agent working inside BB. Carry out the user's request with the available tools.
-This workspace is an evaluation fixture. Its BB CLI only simulates local thread state; never connect to live services, send messages, or start jobs. Do not fabricate evidence or arrangements.
-The BB CLI is on PATH, with absolute path {binary}. BB_THREAD_ID is thr_eval.
-Stage IDs available in this fixture: {', '.join(source['stages'])}.
-{'work.json contains the complete relevant conversation and verified workflow evidence.' if case['mode'] == 'automatic' else 'The user message supplies the relevant workflow context. Follow its limits on execution.'}
+            path = ".bb/" + name
+            files[path] = text
+            description = re.search(r"^description: (.+)$", text, re.M)[1]
+            catalog.append(f"- {name.split('/')[1]}: {description} (file: {ROOT}/{path})")
+    own = {"id": SELF, "title": case["title"], "stage": initial["stage"], "status": "active", "sectionId": "sec_maint9j2k4p", "projectId": "proj_7k2mn4ax9p", "parentThreadId": None, "archivedAt": None}
+    threads = {SELF: own}
+    for row in initial.get("threads", []):
+        threads[row["id"]] = {**own, **row}
+    for row in threads.values():
+        row["section"] = {"id": row["sectionId"], "name": "Operations" if row["sectionId"] == "sec_ops7k2m9p" else "Maintenance"}
+        row["project"] = {"id": row["projectId"], "name": "Service maintenance"}
+    state = {"selfId": SELF, "repository": "acme/browser-control", "threads": threads, "stages": source["stages"], "files": files, "preferences": {"automaticStageUpdates": initial["automaticStageUpdates"], "organizationMode": "section", "environmentGrouping": True}, "actions": {t: initial.get("actions", []) if t == SELF else [] for t in threads}, "issues": initial.get("issues", [])}
+    for name in ("state.json", "initial-state.json"):
+        (artifacts / name).write_text(json.dumps(state, indent=2))
+    guidance = source["instructions"]["on" if initial["automaticStageUpdates"] else "off"]
+    system = f"""You are a coding agent working inside BB. Carry out the user's request with the available tools. Do not fabricate evidence or arrangements.
+Project: Service maintenance. Repository: acme/browser-control. Working directory: {ROOT}
+Current time: 2026-10-14 08:00 UTC.
+Thread: {SELF} — {case['title']}
+BB_THREAD_ID={SELF}. The bb CLI is on PATH.
+Use gh for GitHub operations. Installed commands include bb, gh, git and basic file utilities.
 
 The following dynamic instructions come from the BB plugin thread-stages:
 {guidance}
 
 Available skills:
-- thread-stages: {description} (file: {skill})
+{chr(10).join(catalog)}
 When using a skill, open and read its SKILL.md. Apply relevant skills without requiring the user to invoke them.
 """
-    prompt = case["prompt"]
-    if case["mode"] == "recommendation":
-        # Field shapes only; expected values are never passed to the agent.
-        def shape(value, key):
-            if isinstance(value, dict):
-                return {name: shape(child, name) for name, child in value.items()}
-            return ("array of strings" if isinstance(value, list) else "boolean" if type(value) is bool
-                    else "string or null" if key == "command" else "string")
-        fields = {key: shape(value, key) for key, value in case["expected_answer"].items()}
-        prompt += ("\nReply with a JSON object using these fields and types: " + json.dumps(fields)
-                   + ". Include a nonempty reason. Use canonical stage IDs. Commands are proposed shell command strings.")
-    (workspace / "system.txt").write_text(system)
-    (workspace / "prompt.txt").write_text(prompt)
-    return system, prompt
+    history = "\n\n".join(m["role"].capitalize() + ": " + m["content"] for m in case["history"])
+    prompt = ("Earlier in this thread:\n" + history + "\n\nLatest user message:\n" if history else "") + case["request"]
+    sessions = REPO / ".scratch/work/sessions"
+    cwd = sessions / uuid.uuid4().hex
+    cwd.mkdir(parents=True)
+    bridge = artifacts.parent / "harness/bridge.py"
+    if not bridge.exists():
+        bridge = HERE / "bridge.py"
+    config = {"mcpServers": {"project_tools": {"command": sys.executable, "args": [str(bridge.resolve()), str(artifacts.resolve())], "env": {"ANTHROPIC_API_KEY": "", "ANTHROPIC_AUTH_TOKEN": "", "ANTHROPIC_CUSTOM_HEADERS": "", "BB_ACCOUNT_POOL_PARENT_TOKEN": "", "CODEX_POOL_AUTH_TOKEN": ""}}}}
+    config_path = artifacts / "mcp.json"
+    config_path.write_text(json.dumps(config))
+    prepared = {"system": system, "prompt": prompt, "cwd": str(cwd), "config": str(config_path.resolve())}
+    (artifacts / "input.json").write_text(json.dumps(prepared, indent=2))
+    return prepared
 
 
-def run_case(workspace, case, source, claude, timeout):
-    system, prompt = prepare_case(workspace, case, source)
-    env = {key: value for key, value in os.environ.items() if not key.startswith("BB_")}
-    env.update(PATH=str(workspace / "bin") + os.pathsep + env["PATH"], BB_THREAD_ID="thr_eval")
-    env.pop("CLAUDECODE", None)
-    args = [claude, "--safe-mode", "--system-prompt", system, "--print", "--no-session-persistence",
-            "--output-format", "stream-json", "--verbose", "--tools", "Bash,Read",
-            "--allowedTools", "Bash", "Read", "--permission-prompts", "none", prompt]
-    began = time.monotonic()
-    with (workspace / "transcript.jsonl").open("w") as stdout, (workspace / "stderr.txt").open("w") as stderr:
-        process = subprocess.Popen(args, cwd=workspace, env=env, stdout=stdout, stderr=stderr,
-                                   start_new_session=True)
+def claude_command(claude, prepared, model="claude-opus-5-5"):
+    return [claude, "--bare", "--system-prompt", prepared["system"], "--print", "--no-session-persistence", "--output-format", "stream-json", "--verbose", "--tools", "", "--strict-mcp-config", "--mcp-config", prepared["config"], "--allowedTools", "mcp__project_tools__Bash,mcp__project_tools__Read,mcp__project_tools__Write", "--permission-mode", "dontAsk", "--permission-prompts", "none", "--disable-slash-commands", "--model", model, prepared["prompt"]]
+
+
+def model_env():
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("BB_", "CODEX_")) and k not in ("CLAUDECODE", "CLAUDE_CODE_SAFE_MODE")}
+    if not env.get("ANTHROPIC_API_KEY") and os.environ.get("BB_ACCOUNT_POOL_PARENT_TOKEN"):
+        env["ANTHROPIC_API_KEY"] = "pooled-session"
+        env["ANTHROPIC_BASE_URL"] = os.environ["BB_ACCOUNT_POOL_PARENT_URL"].rstrip("/")
+        env["ANTHROPIC_CUSTOM_HEADERS"] = "Authorization: Bearer " + os.environ["BB_ACCOUNT_POOL_PARENT_TOKEN"]
+    return env
+
+
+def run_case(artifacts, case, source, claude, model, timeout):
+    prepared = prepare_case(artifacts, case, source)
+    with (artifacts / "transcript.jsonl").open("w") as out, (artifacts / "stderr.txt").open("w") as err:
+        process = subprocess.Popen(claude_command(claude, prepared, model), cwd=prepared["cwd"], env=model_env(), stdin=subprocess.DEVNULL, stdout=out, stderr=err, start_new_session=True)
         try:
-            exit_code = process.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
+            code = process.wait(timeout=timeout)
+        except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
             os.killpg(process.pid, signal.SIGTERM)
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
-            exit_code = "timeout"
-    events = [json.loads(line) for line in (workspace / "transcript.jsonl").read_text().splitlines()]
-    result = grade_run(case, workspace, events, exit_code)
+            if isinstance(error, KeyboardInterrupt):
+                raise
+            code = "timeout"
+    events = [json.loads(line) for line in (artifacts / "transcript.jsonl").read_text().splitlines()]
+    result = next((e for e in reversed(events) if e.get("type") == "result"), {})
     init = next((e for e in events if e.get("type") == "system" and e.get("subtype") == "init"), {})
-    result.update(model=init.get("model"), sessionId=init.get("session_id"),
-                  seconds=round(time.monotonic() - began, 2), sourceRef=source["ref"])
-    (workspace / "result.json").write_text(json.dumps(result, indent=2) + "\n")
-    return result
+    completion = {"exitCode": code, "answer": result.get("result"), "error": result.get("is_error", True), "model": init.get("model"), "durationMs": result.get("duration_ms"), "apiDurationMs": result.get("duration_api_ms"), "usage": result.get("usage"), "costUsd": result.get("total_cost_usd")}
+    expected_tools = {"mcp__project_tools__" + name for name in ("Bash", "Read", "Write")}
+    if set(init.get("tools", [])) != expected_tools or init.get("mcp_server_errors"):
+        completion.update(error=True, harnessError="The isolated project tool set did not load exactly as configured")
+    (artifacts / "completion.json").write_text(json.dumps(completion, indent=2))
+    grade = grade_run(case, artifacts)
+    (artifacts / "result.json").write_text(json.dumps(grade, indent=2))
+    return grade
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=("all", "recommendation", "automatic"), default="all")
-    parser.add_argument("--cases", type=int, nargs="+", help="Select committed case IDs")
-    parser.add_argument("--ref", help="Evaluate skill, instructions, and stages from a Git revision")
-    parser.add_argument("--output", type=Path, help="New output directory; existing directories are refused")
-    parser.add_argument("--prepare", action="store_true", help="Prepare fixtures without launching agents")
-    parser.add_argument("--grade", type=Path, help="Regrade a saved run without launching agents")
-    parser.add_argument("--claude", default="claude", help="Claude Code executable (uses its configured default model)")
-    parser.add_argument("--timeout", type=int, default=180, help="Seconds allowed per case")
+    parser.add_argument("--cases", type=int, nargs="+")
+    parser.add_argument("--ref")
+    parser.add_argument("--instructions-ref", help="Use only the injected instructions from this revision; keep the selected skill")
+    parser.add_argument("--output", type=Path)
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--prepare", action="store_true")
+    modes.add_argument("--grade", type=Path)
+    parser.add_argument("--claude", default="claude")
+    parser.add_argument("--model", default="claude-opus-5-5")
+    parser.add_argument("--timeout", type=int, default=180)
     args = parser.parse_args()
     cases = validate()
-    if args.grade:
-        if args.prepare or args.ref or args.output or args.cases or args.mode != "all":
-            parser.error("--grade uses the saved run's complete selection")
-        metadata = json.loads((args.grade / "run.json").read_text())
-        if metadata["preparedOnly"] or not metadata["caseIds"]:
-            parser.error("Prepared inputs are not evaluated results")
-        if metadata["suiteHash"] != hashlib.sha256((HERE / "evals.json").read_bytes()).hexdigest():
-            parser.error("The saved run used different cases; rerun against the current suite")
-        results = []
-        for case in cases:
-            if case["id"] not in metadata["caseIds"]:
-                continue
-            workspace = args.grade / f"case-{case['id']:02d}"
-            prior = json.loads((workspace / "result.json").read_text())
-            if prior.get("error"):
-                results.append(prior)
-                print(f"Case {case['id']}: FAIL ({prior['error']})", flush=True)
-                continue
-            events = [json.loads(line) for line in (workspace / "transcript.jsonl").read_text().splitlines()]
-            exit_code = next(c["evidence"]["exitCode"] for c in prior["checks"]
-                             if c["text"] == "Agent completed successfully")
-            result = grade_run(case, workspace, events, exit_code)
-            (workspace / "grade.json").write_text(json.dumps(result, indent=2) + "\n")
-            results.append(result)
-            print(f"Case {case['id']}: {'PASS' if result['passed'] else 'FAIL'}", flush=True)
-        (args.grade / "graded-results.json").write_text(json.dumps(results, indent=2) + "\n")
-        print(f"Passed {sum(r['passed'] for r in results)}/{len(results)} saved cases (no new agents)")
-        return 0 if all(r["passed"] for r in results) else 1
     if args.cases and set(args.cases) - {c["id"] for c in cases}:
         parser.error("Unknown case ID")
-    cases = [c for c in cases if (args.mode == "all" or c["mode"] == args.mode)
-             and (not args.cases or c["id"] in args.cases)]
-    if not cases or args.timeout <= 0:
-        parser.error("Select at least one case and a positive timeout")
-    source = load_source(args.ref)
-    name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
-    output = (args.output or REPO / ".scratch/work/thread-stage-evals" / name).resolve()
-    output.mkdir(parents=True, exist_ok=False)
-    version = None if args.prepare else subprocess.check_output([args.claude, "--version"], text=True).strip()
-    (output / "run.json").write_text(json.dumps({"sourceRef": source["ref"], "sourceHashes": source["hashes"],
-        "suiteHash": hashlib.sha256((HERE / "evals.json").read_bytes()).hexdigest(),
-        "claudeVersion": version, "caseIds": [c["id"] for c in cases], "preparedOnly": args.prepare}, indent=2))
-    print(f"Artifacts: {output}", flush=True)
-    results = []
-    for case in cases:
-        workspace = output / f"case-{case['id']:02d}"
-        if args.prepare:
-            prepare_case(workspace, case, source)
-            print(f"Prepared case {case['id']} (not evaluated)", flush=True)
-            continue
-        try:
-            result = run_case(workspace, case, source, args.claude, args.timeout)
-        except (OSError, ValueError) as error:
-            result = {"caseId": case["id"], "passed": False, "error": str(error)}
-            workspace.mkdir(parents=True, exist_ok=True)
-            (workspace / "result.json").write_text(json.dumps(result, indent=2))
-        results.append(result)
-        print(f"Case {case['id']}: {'PASS' if result['passed'] else 'FAIL'}", flush=True)
-    (output / "results.json").write_text(json.dumps(results, indent=2) + "\n")
+    if args.grade:
+        meta = json.loads((args.grade / "run.json").read_text())
+        if meta["preparedOnly"] or meta["suiteHash"] != hashlib.sha256((HERE / "evals.json").read_bytes()).hexdigest():
+            parser.error("Prepared-only inputs or changed cases cannot be regraded")
+        if meta.get("harnessHashes") != harness_hashes():
+            parser.error("Changed harness cannot regrade this run; use its saved harness snapshot")
+        grades = [grade_run(c, args.grade / f"case-{c['id']:02d}") for c in cases if c["id"] in meta["caseIds"]]
+        (args.grade / "graded-results.json").write_text(json.dumps(grades, indent=2))
+    else:
+        source = load_source(args.ref, args.instructions_ref)
+        cases = [c for c in cases if not args.cases or c["id"] in args.cases]
+        if args.timeout <= 0:
+            parser.error("Use a positive timeout")
+        name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
+        output = (args.output or REPO / ".scratch/work/thread-stage-evals" / name).resolve()
+        output.mkdir(parents=True, exist_ok=False)
+        metadata = {"sourceRef": source["ref"], "instructionsRef": source["instructionsRef"], "sourceHashes": source["hashes"], "suiteHash": hashlib.sha256((HERE / "evals.json").read_bytes()).hexdigest(), "caseIds": [c["id"] for c in cases], "preparedOnly": args.prepare, "modelRequested": args.model, "claudeVersion": None if args.prepare else subprocess.check_output([args.claude, "--version"], text=True, stdin=subprocess.DEVNULL).strip()}
+        snapshot = output / "harness"
+        snapshot.mkdir()
+        metadata["harnessHashes"] = harness_hashes()
+        for name in HARNESS_FILES:
+            data = (HERE / name).read_bytes()
+            (snapshot / name).write_bytes(data)
+        metadata["guidanceWords"] = {"skill": len(source["files"]["skills/thread-stages/SKILL.md"].split()), "injectedOn": len(source["instructions"]["on"].split()), "injectedOff": len(source["instructions"]["off"].split())}
+        (output / "run.json").write_text(json.dumps(metadata, indent=2))
+        print(f"Artifacts: {output}", flush=True)
+        grades = []
+        for case in cases:
+            artifacts = output / f"case-{case['id']:02d}"
+            if args.prepare:
+                prepare_case(artifacts, case, source)
+                continue
+            grade = run_case(artifacts, case, source, args.claude, args.model, args.timeout)
+            grades.append(grade)
+            print(f"{case['id']} {case['name']}: {'PASS' if grade['passed'] else 'FAIL'}", flush=True)
+            if json.loads((artifacts / "completion.json").read_text()).get("harnessError"):
+                raise RuntimeError("Project tools unavailable; see the saved transcript before running more cases")
+        if not args.prepare:
+            (output / "results.json").write_text(json.dumps(grades, indent=2))
     if args.prepare:
         return 0
-    print(f"Passed {sum(r['passed'] for r in results)}/{len(results)} cases", flush=True)
-    return 0 if all(r["passed"] for r in results) else 1
+    print(f"Passed {sum(g['passed'] for g in grades)}/{len(grades)} cases", flush=True)
+    return 0 if all(g["passed"] for g in grades) else 1
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

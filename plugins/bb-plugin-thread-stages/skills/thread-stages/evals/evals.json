@@ -3,1029 +3,848 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "I'm preparing a routine bulk status notification. The visible roots are Billing cleanup (In progress), Release checklist (Completed), Search indexing (In progress, currently working), and Vendor access (Blocked on external party). I did not ask to resume anything. Which roots are in scope by default? Do not send any messages.",
-      "expected_output": "The agent excludes the Completed root by default while retaining the other visible roots, and explains that Completed is treated like archived work unless explicitly included or resumed.",
-      "files": [],
-      "expectations": [
-        "The in-scope roots are Billing cleanup, Search indexing, and Vendor access.",
-        "Release checklist is excluded because Completed roots are out of scope by default.",
-        "The response does not claim that Blocked on external party or In progress roots are automatically excluded."
-      ],
-      "mode": "recommendation",
-      "expected_answer": {
-        "in_scope": [
-          "Billing cleanup",
-          "Search indexing",
-          "Vendor access"
+      "name": "defer_open_roots",
+      "title": "Organize Operations",
+      "history": [],
+      "request": "Set aside the threads in the Operations section; I'll pick them up myself on Monday.",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {},
+        "threads": [
+          {
+            "id": "thr_b4x7n2kc9p",
+            "title": "Billing cleanup",
+            "stage": "Active",
+            "sectionId": "sec_ops7k2m9p"
+          },
+          {
+            "id": "thr_s8j2m6vq4r",
+            "title": "Search indexing",
+            "stage": "Active",
+            "sectionId": "sec_ops7k2m9p"
+          },
+          {
+            "id": "thr_v3q9k7na2d",
+            "title": "Vendor access",
+            "stage": "BlockedOnThirdParty",
+            "sectionId": "sec_ops7k2m9p"
+          },
+          {
+            "id": "thr_r6n4t2pz8c",
+            "title": "Release checklist",
+            "stage": "Completed",
+            "sectionId": "sec_ops7k2m9p"
+          }
         ]
       },
       "required_reads": [
         "thread-stages"
       ],
-      "automatic_updates": true,
-      "allow_inspection": true
-    },
-    {
-      "id": 2,
-      "prompt": "You're the agent on a root bb thread. You just finished a draft migration plan and your last message asks me to pick between two rollout options before you continue. Before you end your turn, should this thread change stage? If so, give the exact bb thread-stages command you would run; if not, say why. Don't run anything.",
-      "expected_output": "Move to Blocked on user because the rollout decision is required and no independent work remains.",
-      "files": [],
-      "expectations": [
-        "Selects Blocked on user rather than Waiting or In progress.",
-        "Proposes `bb thread-stages stage BlockedOnUser --self`.",
-        "Does not load Thread actions for this stage-only request."
-      ],
-      "mode": "recommendation",
-      "expected_answer": {
-        "stage": "BlockedOnUser",
-        "command": "bb thread-stages stage BlockedOnUser --self"
-      },
-      "required_reads": [
-        "thread-stages"
-      ],
-      "automatic_updates": true,
-      "forbidden_reads": [
-        "thread-actions"
-      ],
-      "allow_inspection": false
-    },
-    {
-      "id": 3,
-      "prompt": "Two root bb threads I own are stuck. Thread A can't continue until another bb thread lands the auth refactor it depends on. Thread B is waiting for the vendor to approve our SSO app. Which stage should each go in, and what exact command would place each one? Use <thread-a> and <thread-b> as placeholders. Don't run anything.",
-      "expected_output": "Thread A goes to Blocked on another thread and thread B to Blocked on external party, each placed by stage ID.",
-      "files": [],
-      "expectations": [
-        "Thread A is placed in Blocked on another thread with `bb thread-stages stage BlockedOnOtherAgent <thread-a>`.",
-        "Thread B is placed in Blocked on external party with `bb thread-stages stage BlockedOnThirdParty <thread-b>`."
-      ],
-      "mode": "recommendation",
-      "expected_answer": {
+      "expected": {
         "stages": {
-          "thread_a": "BlockedOnOtherAgent",
-          "thread_b": "BlockedOnThirdParty"
+          "thr_m7k2p9v4ax": "Completed",
+          "thr_b4x7n2kc9p": "Deferred",
+          "thr_s8j2m6vq4r": "Deferred",
+          "thr_v3q9k7na2d": "Deferred",
+          "thr_r6n4t2pz8c": "Completed"
         },
-        "commands": [
-          "bb thread-stages stage BlockedOnOtherAgent <thread-a>",
-          "bb thread-stages stage BlockedOnThirdParty <thread-b>"
-        ]
-      },
-      "required_reads": [
-        "thread-stages"
-      ],
-      "automatic_updates": true,
-      "allow_inspection": false
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 1,
+          "thr_b4x7n2kc9p": 1,
+          "thr_s8j2m6vq4r": 1,
+          "thr_v3q9k7na2d": 1,
+          "thr_r6n4t2pz8c": 0
+        }
+      }
     },
     {
       "id": 4,
-      "prompt": "Make my sidebar group threads by project, and stop collapsing sibling threads that share a worktree into one row. Give the exact commands you would run. Don't run anything.",
-      "expected_output": "The agent sets organizationMode and environmentGrouping through `bb thread-stages prefs set`, not through bb's built-in `bb thread-list prefs`.",
-      "files": [],
-      "expectations": [
-        "The agent gives `bb thread-stages prefs set organizationMode project` or an equivalent JSON value.",
-        "The agent gives `bb thread-stages prefs set environmentGrouping false`.",
-        "The agent does not use `bb thread-list prefs` for either change."
+      "name": "project_grouping",
+      "title": "Feature implementation",
+      "history": [
+        {
+          "role": "user",
+          "content": "Implement the feature and verify it. Keep coordinating the workers until their implementation and verification jobs finish."
+        },
+        {
+          "role": "assistant",
+          "content": "The workers and verification job are still running under this thread. The feature is not delivered yet."
+        }
       ],
-      "mode": "recommendation",
-      "expected_answer": {
-        "commands": [
-          "bb thread-stages prefs set organizationMode project",
-          "bb thread-stages prefs set environmentGrouping false"
-        ]
+      "request": "Switch my sidebar to group threads by project, and give each thread its own row even when threads share a worktree.",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {}
       },
       "required_reads": [
         "thread-stages"
       ],
-      "automatic_updates": true,
-      "allow_inspection": false
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "Active"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 0
+        },
+        "preferences": {
+          "organizationMode": "project",
+          "environmentGrouping": false
+        },
+        "preference_writes": 2
+      }
     },
     {
       "id": 5,
-      "prompt": "Use $thread-stages to give me the exact shell commands to inspect the current thread's saved buttons, replace them with a Review button whose ID is review and prompt is Review this change., run that button, and later clear all buttons. Explain what happens to existing buttons when replacing them. Do not execute commands that change thread state or send messages.",
-      "expected_output": "Loads the linked Thread actions instructions from Thread stages without requiring a second skill invocation. Dedicated bb thread-stages actions commands using --self, a valid JSON array, the saved action ID, and an empty array to clear, with an explanation that set replaces the entire action list.",
-      "files": [],
-      "expectations": [
-        "Uses dedicated bb thread-stages actions list, set, and run commands with --self.",
-        "The replacement has ID review, label Review, prompt Review this change.",
-        "Runs by action ID and clears with an empty JSON array.",
-        "Explains that set replaces existing buttons and does not execute state-changing commands.",
-        "Reads the linked Thread actions skill without asking the user to invoke another skill."
+      "name": "save_prompt_action",
+      "title": "Feature implementation",
+      "history": [
+        {
+          "role": "user",
+          "content": "Implement the feature and verify it. Keep coordinating the workers until their implementation and verification jobs finish."
+        },
+        {
+          "role": "assistant",
+          "content": "The workers and verification job are still running under this thread. The feature is not delivered yet."
+        }
       ],
-      "mode": "recommendation",
-      "expected_answer": {
-        "commands": [
-          "bb thread-stages actions list --self",
-          "bb thread-stages actions set --self --actions '[{\"id\":\"review\",\"label\":\"Review\",\"prompt\":\"Review this change.\"}]'",
-          "bb thread-stages actions run review --self",
-          "bb thread-stages actions set --self --actions '[]'"
-        ],
-        "replaces_existing": true
+      "request": "Add a Review button to this thread that sends 'Review this change.' Keep the existing button, and just save the new one for later.",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {},
+        "actions": [
+          {
+            "id": "checkpoint",
+            "label": "Checkpoint",
+            "prompt": "Summarize progress."
+          }
+        ]
       },
       "required_reads": [
         "thread-stages",
         "thread-actions"
       ],
-      "automatic_updates": true,
-      "allow_inspection": true
-    },
-    {
-      "id": 6,
-      "prompt": "Use $thread-stages. My thread is In progress, and Automatic stage updates is switched off. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not requested a stage change. What should happen to this thread's stage before yielding? Explain without executing any commands.",
-      "expected_output": "The agent keeps In progress because automatic stage updates is off and no stage change was requested, while recognizing that the dependency would otherwise fit Blocked on another thread.",
-      "files": [],
-      "expectations": [
-        "The agent leaves the stage unchanged because automatic updates is off.",
-        "The agent does not instruct that a placement command should now be executed."
-      ],
-      "mode": "recommendation",
-      "expected_answer": {
-        "stage": "Active",
-        "command": null
-      },
-      "required_reads": [
-        "thread-stages"
-      ],
-      "automatic_updates": false,
-      "allow_inspection": false
-    },
-    {
-      "id": 7,
-      "prompt": "Use $thread-stages. My thread is In progress, and Automatic stage updates is switched on. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not mentioned a stage. What should happen to this thread's stage before yielding? Explain and give the exact command you would run, without executing any commands.",
-      "expected_output": "The agent selects Blocked on another thread without requiring a stage mention and gives the correct current-thread placement command.",
-      "files": [],
-      "expectations": [
-        "The agent selects Blocked on another thread without requiring a stage mention.",
-        "The proposed command is bb thread-stages stage BlockedOnOtherAgent --self."
-      ],
-      "mode": "recommendation",
-      "expected_answer": {
-        "stage": "BlockedOnOtherAgent",
-        "command": "bb thread-stages stage BlockedOnOtherAgent --self"
-      },
-      "required_reads": [
-        "thread-stages"
-      ],
-      "automatic_updates": true,
-      "allow_inspection": false
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "Active"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 0
+        },
+        "actions": [
+          {
+            "label": "Checkpoint",
+            "prompt": "Summarize progress."
+          },
+          {
+            "label": "Review",
+            "prompt": "Review this change."
+          }
+        ],
+        "action_writes": 1
+      }
     },
     {
       "id": 8,
-      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. Earlier in this thread I asked you to implement a database migration, validate it in a disposable environment, deploy it, and verify production. My latest request was 'finish validations and testing'. All disposable tests now pass and the test environment is stopped; production deployment and verification are still outstanding. You're ready to send me the validation results and end this turn. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
-      "expected_output": "Keep In progress because only validation is finished; the earlier implementation/deployment objective remains unfinished.",
-      "files": [],
-      "expectations": [
-        "The selected stage is In progress and command is null.",
-        "The reason identifies outstanding deployment or production verification in the earlier objective."
+      "name": "unfinished_deployment",
+      "title": "Database migration",
+      "history": [
+        {
+          "role": "user",
+          "content": "Implement the migration, validate it in a disposable database, deploy it and verify production. You have my authorization for the rollout."
+        },
+        {
+          "role": "assistant",
+          "content": "The migration is implemented. Disposable database tests passed and that environment is stopped. Production deployment and verification are still outstanding; reports/validation.md has the results."
+        }
       ],
-      "mode": "recommendation",
-      "expected_answer": {
-        "stage": "Active",
-        "command": null
-      },
-      "required_reads": [
-        "thread-stages"
-      ],
-      "automatic_updates": true,
-      "allow_inspection": false
-    },
-    {
-      "id": 9,
-      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. My entire request for this thread was to investigate whether a retry bug exists and report the finding with source references; I explicitly asked for no implementation or deployment. You finished the investigation, verified the source references, and delivered the requested answer. No requested work or user review is outstanding. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
-      "expected_output": "Completed with the current-thread stage command because the bounded investigation was the entire agreed objective and is fulfilled.",
-      "files": [],
-      "expectations": [
-        "The selected stage is Completed and command is bb thread-stages stage Completed --self.",
-        "The reason identifies the fulfilled investigation as the full agreed objective without inventing implementation or deployment requirements."
-      ],
-      "mode": "recommendation",
-      "expected_answer": {
-        "stage": "Completed",
-        "command": "bb thread-stages stage Completed --self"
-      },
-      "required_reads": [
-        "thread-stages"
-      ],
-      "automatic_updates": true,
-      "allow_inspection": false
-    },
-    {
-      "id": 10,
-      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. This is a resumed thread. The available handoff says the latest testing step passed and calls that step done, but it also says the original thread objective was omitted and unresolved earlier follow-ups may exist. You have not yet recovered that earlier context. What stage should this thread have now? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
-      "expected_output": "Keep In progress while resolving the unknown completion boundary; do not close the thread solely because the latest tests passed.",
-      "files": [],
-      "expectations": [
-        "The selected stage is In progress and command is null.",
-        "The reason identifies unavailable overall scope or earlier follow-ups as preventing a completion decision."
-      ],
-      "mode": "recommendation",
-      "expected_answer": {
-        "stage": "Active",
-        "command": null
-      },
-      "required_reads": [
-        "thread-stages"
-      ],
-      "automatic_updates": true,
-      "allow_inspection": false
-    },
-    {
-      "id": 11,
-      "prompt": "Use $thread-stages. This thread owns a week of network observation. Recorders are collecting and a scheduled collector reports incidents; there is no current incident, user decision, or action due. What stage fits between reports? Do not run commands.",
-      "expected_output": "Waiting: established passive observation with a reporting arrangement, even though recorders continue collecting.",
-      "files": [],
-      "expectations": [
-        "Selects Waiting rather than In progress or a Blocked stage.",
-        "Does not claim that a date is an external party."
-      ],
-      "mode": "recommendation",
-      "expected_answer": {
-        "stage": "Waiting"
-      },
-      "required_reads": [
-        "thread-stages"
-      ],
-      "automatic_updates": true,
-      "allow_inspection": false
-    },
-    {
-      "id": 12,
-      "prompt": "Use $thread-stages. This thread coordinates three workers actively implementing its task, including a managed job on another machine. A different thread also owns a separate refactor this task will need later. What stage fits now? Do not run commands.",
-      "expected_output": "In progress while owned workers progress and useful work remains; hierarchy and machine do not decide ownership.",
-      "files": [],
-      "expectations": [
-        "Selects In progress while work under this thread's coordination is progressing.",
-        "Does not block solely because an independent later dependency exists."
-      ],
-      "mode": "recommendation",
-      "expected_answer": {
-        "stage": "Active"
-      },
-      "required_reads": [
-        "thread-stages"
-      ],
-      "automatic_updates": true,
-      "allow_inspection": false
-    },
-    {
-      "id": 13,
-      "prompt": "Use $thread-stages. Classify these threads: A is waiting for a system to recover automatically, with an established health check; B needs the user to choose how to recover; C needs a vendor to restore its account; D has a managed external AI job accepted into a queue for a scheduled start. No other useful work remains. Do not run commands.",
-      "expected_output": "A and D are Waiting, B is Blocked on user, C is Blocked on external party.",
-      "files": [],
-      "expectations": [
-        "Distinguishes standby from a required external intervention.",
-        "Places required user direction in Blocked on user when no independent work remains."
-      ],
-      "mode": "recommendation",
-      "expected_answer": {
-        "stages": {
-          "a": "Waiting",
-          "b": "BlockedOnUser",
-          "c": "BlockedOnThirdParty",
-          "d": "Waiting"
+      "request": "Send me the validation results.",
+      "initial": {
+        "stage": "BlockedOnUser",
+        "automaticStageUpdates": true,
+        "files": {
+          "reports/validation.md": "All disposable-database checks passed. Production deployment and verification have not run."
         }
       },
       "required_reads": [
         "thread-stages"
       ],
-      "automatic_updates": true,
-      "allow_inspection": false
-    },
-    {
-      "id": 14,
-      "prompt": "Use $thread-stages. The thread's implementation PR is merged and the requested production check passed. Its result is saved where it belongs. The intended review was completed, and the only follow-up was handed to another tracked thread whose owner has been notified and accepted responsibility. We did not separately agree on a formal closing condition. What stage fits? Do not run commands.",
-      "expected_output": "Completed: the established objective is fulfilled and loose ends are settled or delegated, without requiring a separate closing agreement.",
-      "files": [],
-      "expectations": [
-        "Selects Completed without asking for ceremonial closing approval.",
-        "Recognizes tracked delegation with an accepting receiving owner as closure."
-      ],
-      "mode": "recommendation",
-      "expected_answer": {
-        "stage": "Completed"
-      },
-      "required_reads": [
-        "thread-stages"
-      ],
-      "automatic_updates": true,
-      "allow_inspection": false
-    },
-    {
-      "id": 15,
-      "prompt": "Use $thread-stages. I began this thread by asking how we might redesign a plugin. You just delivered a long research report with several unresolved design choices and want me to review it before we decide whether to implement. What stage fits? Do not run commands.",
-      "expected_output": "Blocked on user: design choices and intended user review remain, with no independent work left.",
-      "files": [],
-      "expectations": [
-        "Selects Blocked on user rather than Completed or Waiting.",
-        "Does not treat the size of the report or the end of the turn as completion."
-      ],
-      "mode": "recommendation",
-      "expected_answer": {
-        "stage": "BlockedOnUser"
-      },
-      "required_reads": [
-        "thread-stages"
-      ],
-      "automatic_updates": true,
-      "allow_inspection": false
-    },
-    {
-      "id": 16,
-      "prompt": "Use $thread-stages. An independent outside AI service owns a required deliverable for this thread and is currently running. Another thread is merely listening for optional unsolicited findings from an outside service using an established collector. Neither has other work or a user decision due. What stage fits each? Do not run commands.",
-      "expected_output": "The required independent deliverable is Blocked on external party; optional established listening is Waiting.",
-      "files": [],
-      "expectations": [
-        "Uses ownership of a required action rather than whether the outside counterpart is human or AI.",
-        "Does not confuse an independent counterpart with this thread's executing worker."
-      ],
-      "mode": "recommendation",
-      "expected_answer": {
+      "expected": {
         "stages": {
-          "required": "BlockedOnThirdParty",
-          "optional": "Waiting"
+          "thr_m7k2p9v4ax": "Active"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 1
         }
       },
-      "required_reads": [
-        "thread-stages"
-      ],
-      "automatic_updates": true,
-      "allow_inspection": false
+      "required_files": [
+        "reports/validation.md"
+      ]
     },
     {
       "id": 17,
       "name": "observation",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to Waiting; perform 1 stage writes.",
-      "files": [],
-      "expectations": [
-        "The final stage is Waiting.",
-        "There are exactly 1 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
+      "title": "Network reliability",
+      "history": [
+        {
+          "role": "user",
+          "content": "Watch reliability for eight days and investigate any incidents. Review and clean up at the end."
+        },
+        {
+          "role": "assistant",
+          "content": "The recorders are running on all three machines. The five-minute collector posts incidents and recoveries here. The deadline is six days away; no setup remains. reports/network-watch.json has the latest snapshot."
+        }
       ],
-      "automatic_updates": true,
+      "request": "How did last night's check look?",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {
+          "reports/network-watch.json": "{\n  \"incidents\": [],\n  \"collector\": \"healthy\",\n  \"daysRemaining\": 6,\n  \"checkedAt\": \"2026-10-14T08:00:00Z\",\n  \"checksSinceMidnight\": 96\n}\n"
+        }
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "Active",
-        "work": {
-          "objective": "Observe network reliability for eight days, report incidents, and review/clean up at the end.",
-          "conversation": [
-            "The user authorized ongoing observation and incident reports. No user input or review is currently due."
-          ],
-          "evidence": [
-            "Recorders are running on all three machines.",
-            "The five-minute collector delivers incidents and recoveries to this thread.",
-            "Latest snapshot: no incidents; observation deadline is six days away.",
-            "There is no evidence to investigate or configuration work remaining."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "Waiting"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 1
         }
       },
-      "expected_action": {
-        "stage": "Waiting",
-        "writes": 1
-      }
+      "required_files": [
+        "reports/network-watch.json"
+      ]
     },
     {
       "id": 18,
       "name": "user_review",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and move the current thread to Blocked on user; perform 1 stage write.",
-      "files": [],
-      "expectations": [
-        "The final stage is Blocked on user.",
-        "There are exactly 1 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
+      "title": "Migration design",
+      "history": [
+        {
+          "role": "user",
+          "content": "Compare the migration designs. I want to review the comparison before you implement one."
+        },
+        {
+          "role": "assistant",
+          "content": "Both designs and their tradeoffs are saved in reports/comparison.md. Prerequisite research is finished; implementation needs your choice."
+        }
       ],
-      "automatic_updates": true,
+      "request": "Send me the comparison so I can choose.",
+      "initial": {
+        "stage": "BlockedOnThirdParty",
+        "automaticStageUpdates": true,
+        "files": {
+          "reports/comparison.md": "Option A: phased migration, lower risk, longer rollout. Option B: single cutover, simpler, longer maintenance window. Both satisfy the requirements."
+        }
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "BlockedOnThirdParty",
-        "work": {
-          "objective": "Compare two migration designs, obtain the user’s review, then implement the selected approach.",
-          "conversation": [
-            "The user asked to review the comparison before implementation.",
-            "The comparison has been saved in comparison.md; no selection has been made."
-          ],
-          "evidence": [
-            "Both options are ready for review.",
-            "All prerequisite research is complete. No third party owes a response.",
-            "No useful independent work remains before the user’s decision or review."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "BlockedOnUser"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 1
         }
       },
-      "expected_action": {
-        "stage": "BlockedOnUser",
-        "writes": 1
-      }
+      "required_files": [
+        "reports/comparison.md"
+      ]
     },
     {
       "id": 19,
       "name": "own_workers",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to In progress; perform 1 stage writes.",
-      "files": [],
-      "expectations": [
-        "The final stage is In progress.",
-        "There are exactly 1 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
+      "title": "Feature implementation",
+      "history": [
+        {
+          "role": "user",
+          "content": "Coordinate the implementation and verification of the feature."
+        },
+        {
+          "role": "assistant",
+          "content": "The API worker is implementing endpoints, the UI worker is wiring the screen, and our verification job is executing on the test host. Both workers and the job are part of this implementation. reports/jobs.json has their latest status."
+        }
       ],
-      "automatic_updates": true,
+      "request": "Give me a quick progress update.",
+      "initial": {
+        "stage": "BlockedOnOtherAgent",
+        "automaticStageUpdates": true,
+        "files": {
+          "reports/jobs.json": "{\"implementation\": [\"running\", \"running\"], \"verification\": \"running\", \"owner\": \"this thread\"}"
+        }
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "BlockedOnOtherAgent",
-        "work": {
-          "objective": "Coordinate implementation and verification of a feature.",
-          "conversation": [
-            "This thread owns and coordinates the implementation, including its workers."
-          ],
-          "evidence": [
-            "Two workers managed by this thread are actively implementing components.",
-            "A managed remote verification job is actively executing.",
-            "There is no independent handoff or outside delivery dependency."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "Active"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 1
         }
       },
-      "expected_action": {
-        "stage": "Active",
-        "writes": 1
-      }
+      "required_files": [
+        "reports/jobs.json"
+      ]
     },
     {
       "id": 20,
       "name": "independent_thread",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to BlockedOnOtherAgent; perform 1 stage writes.",
-      "files": [],
-      "expectations": [
-        "The final stage is BlockedOnOtherAgent.",
-        "There are exactly 1 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
+      "title": "Contract integration",
+      "history": [
+        {
+          "role": "user",
+          "content": "Integrate the contract after the separate refactor workflow delivers it."
+        },
+        {
+          "role": "assistant",
+          "content": "@thread:thr_c8n2w6pa4j is delivering the contract as part of its refactor and accepted that delivery. The refactor is still running. Our adapter and tests are ready, but we need the final contract before integration."
+        }
       ],
-      "automatic_updates": true,
+      "request": "Where are we with the integration?",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {},
+        "threads": [
+          {
+            "id": "thr_c8n2w6pa4j",
+            "title": "Contract refactor",
+            "stage": "Active"
+          }
+        ]
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "Active",
-        "work": {
-          "objective": "Integrate the contract produced by a separately owned BB refactor workflow.",
-          "conversation": [
-            "@thread:thr_refactor owns the contract refactor and has accepted the required delivery.",
-            "This thread cannot integrate until that workflow supplies the contract."
-          ],
-          "evidence": [
-            "The independent refactor workflow is running.",
-            "All useful preparation and independent work here is finished.",
-            "The responsible workflow already knows about the dependency; no additional message is requested."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "BlockedOnOtherAgent"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 1
         }
-      },
-      "expected_action": {
-        "stage": "BlockedOnOtherAgent",
-        "writes": 1
       }
     },
     {
       "id": 21,
       "name": "external_ai",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to BlockedOnThirdParty; perform 1 stage writes.",
-      "files": [],
-      "expectations": [
-        "The final stage is BlockedOnThirdParty.",
-        "There are exactly 1 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
+      "title": "Dataset integration",
+      "history": [
+        {
+          "role": "user",
+          "content": "Integrate the dataset from the independently operated AI service."
+        },
+        {
+          "role": "assistant",
+          "content": "The dataset provider accepted our request and is generating it in its own service. Our import code and dry-run validation are ready; the dataset is the remaining input. Its completion webhook posts the delivery here."
+        }
       ],
-      "automatic_updates": true,
+      "request": "Any news on the dataset?",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {}
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "Active",
-        "work": {
-          "objective": "Integrate a required dataset from an independently operated outside AI service.",
-          "conversation": [
-            "The outside service owns and has accepted delivery of the dataset.",
-            "It is independently operated, outside BB, and not a worker or managed job of this thread."
-          ],
-          "evidence": [
-            "The outside AI is actively producing the required dataset.",
-            "No useful independent work remains here.",
-            "The user owes no input and reminders are not authorized."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "BlockedOnThirdParty"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 1
         }
-      },
-      "expected_action": {
-        "stage": "BlockedOnThirdParty",
-        "writes": 1
       }
     },
     {
       "id": 22,
       "name": "exploratory_report",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and move the current thread to Blocked on user; perform 1 stage write.",
-      "files": [],
-      "expectations": [
-        "The final stage is Blocked on user.",
-        "There are exactly 1 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
+      "title": "Architecture comparison",
+      "history": [
+        {
+          "role": "user",
+          "content": "Investigate the architecture options so we can discuss whether and how to implement a redesign."
+        },
+        {
+          "role": "assistant",
+          "content": "The comparison is saved in reports/comparison.md. The design questions remain open. All research is finished; I need your review and direction before implementation."
+        }
       ],
-      "automatic_updates": true,
+      "request": "Send me the report and the questions you need me to decide.",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {
+          "reports/comparison.md": "Design A is simpler; design B supports incremental adoption. The compatibility constraints are documented. We need your decision on the deployment strategy before implementation."
+        }
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "Active",
-        "work": {
-          "objective": "Investigate an architecture question in preparation for a potential implementation PR.",
-          "conversation": [
-            "The user opened with a research question and asked for a comparison to discuss.",
-            "The research report is saved. Design questions and the user’s intended review remain unsettled."
-          ],
-          "evidence": [
-            "A substantial report has been prepared.",
-            "No implementation direction has been chosen.",
-            "The report has not been reviewed by the user.",
-            "No useful independent work remains before the user’s decision or review."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "BlockedOnUser"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 1
         }
       },
-      "expected_action": {
-        "stage": "BlockedOnUser",
-        "writes": 1
-      }
+      "required_files": [
+        "reports/comparison.md"
+      ]
     },
     {
       "id": 23,
       "name": "durable_completion",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to Completed; perform 1 stage writes.",
-      "files": [],
-      "expectations": [
-        "The final stage is Completed.",
-        "There are exactly 1 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
+      "title": "Feature release",
+      "history": [
+        {
+          "role": "user",
+          "content": "Ship the feature and verify production."
+        },
+        {
+          "role": "assistant",
+          "content": "The feature was implemented, reviewed by you, merged and published. The production check passed and its result is saved in reports/production.json. The only nonblocking follow-up is tracked in another thread, whose owner accepted it. Nothing remains owned here."
+        }
       ],
-      "automatic_updates": true,
+      "request": "How did the production check go?",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {
+          "reports/production.json": "{\"check\": \"passed\", \"version\": \"2.4.1\", \"saved\": true}"
+        }
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "Active",
-        "work": {
-          "objective": "Ship the agreed feature and verify production behavior.",
-          "conversation": [
-            "The agreed feature was implemented, reviewed by the user, merged, and published.",
-            "The requested production check has passed.",
-            "A separate nonblocking follow-up is tracked in another thread; its receiving owner was notified and accepted responsibility.",
-            "No separate explicit closing agreement was discussed."
-          ],
-          "evidence": [
-            "The durable result is published.",
-            "There are no remaining open questions, intended reviews, deliveries, or follow-ups owned or coordinated by this thread."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "Completed"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 1
         }
       },
-      "expected_action": {
-        "stage": "Completed",
-        "writes": 1
-      }
+      "required_files": [
+        "reports/production.json"
+      ]
     },
     {
       "id": 24,
       "name": "routine_observation",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to Waiting; perform 0 stage writes.",
-      "files": [],
-      "expectations": [
-        "The final stage is Waiting.",
-        "There are exactly 0 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
+      "title": "Network reliability",
+      "history": [
+        {
+          "role": "user",
+          "content": "Keep watching reliability and investigate any incidents during the observation window."
+        },
+        {
+          "role": "assistant",
+          "content": "The recorders and collector are healthy. Incidents and the end-of-window deadline will post here. The latest snapshot is in reports/network-watch.json; the deadline has not arrived."
+        }
       ],
-      "automatic_updates": true,
+      "request": "Morning check\u2014anything happen overnight?",
+      "initial": {
+        "stage": "Waiting",
+        "automaticStageUpdates": true,
+        "files": {
+          "reports/network-watch.json": "{\n  \"incidents\": [],\n  \"collector\": \"healthy\",\n  \"daysRemaining\": 4,\n  \"checkedAt\": \"2026-10-14T08:00:00Z\",\n  \"checksSinceMidnight\": 96\n}\n"
+        }
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "Waiting",
-        "work": {
-          "objective": "Continue an established observation window and report incidents.",
-          "conversation": [
-            "The collectors and incident delivery are established.",
-            "The user requested only a routine snapshot check."
-          ],
-          "evidence": [
-            "Latest snapshot: normal operation, no incidents.",
-            "No user decision or investigation is due.",
-            "The end of the observation window is not due; collector delivery remains healthy."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "Waiting"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 0
         }
       },
-      "expected_action": {
-        "stage": "Waiting",
-        "writes": 0
-      }
+      "required_files": [
+        "reports/network-watch.json"
+      ]
     },
     {
       "id": 25,
       "name": "missing_resume_path",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to In progress; perform 0 stage writes.",
-      "files": [],
-      "expectations": [
-        "The final stage is In progress.",
-        "There are exactly 0 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
+      "title": "Reliability observation",
+      "history": [
+        {
+          "role": "user",
+          "content": "Observe reliability for a week and follow up automatically on incidents. Use the approved monitoring plan in reports/observation-plan.md."
+        },
+        {
+          "role": "assistant",
+          "content": "The recorders have started. No collector, scheduled check, incident notification or end-of-window wakeup has been configured yet."
+        }
       ],
-      "automatic_updates": true,
+      "request": "What still needs setting up for the week of observation?",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {
+          "reports/observation-plan.md": "Approved: check every five minutes for packet loss over 2% or requests slower than ten seconds. Deliver incidents to this thread. Start today and review and clean up after seven days. No further choices are outstanding."
+        }
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "Active",
-        "work": {
-          "objective": "Observe reliability for a week and follow up on incidents.",
-          "conversation": [
-            "The user wants automatic incident reporting.",
-            "The recorders have been started, but no collector, scheduled check, notification, or other resumption arrangement has been set up."
-          ],
-          "evidence": [
-            "There is no mechanism for this thread to receive incidents or notice the end of the window.",
-            "Establishing that mechanism remains work owned by this thread.",
-            "The user owes no input."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "Active"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 0
         }
       },
-      "expected_action": {
-        "stage": "Active",
-        "writes": 0
-      }
+      "required_files": [
+        "reports/observation-plan.md"
+      ]
     },
     {
       "id": 26,
       "name": "automatic_off",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to In progress; perform 0 stage writes.",
-      "files": [],
-      "expectations": [
-        "The final stage is In progress.",
-        "There are exactly 0 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
-      ],
-      "automatic_updates": false,
-      "required_reads": [],
-      "scenario": {
-        "initial_stage": "Active",
-        "work": {
-          "objective": "Integrate a contract from the independent BB refactor thread.",
-          "conversation": [
-            "Automatic stage updates are disabled. The user has not requested a stage change.",
-            "@thread:thr_refactor owns the required contract and has accepted delivery."
-          ],
-          "evidence": [
-            "All useful independent work here is finished.",
-            "The separate refactor workflow is still running."
-          ]
+      "title": "Contract integration",
+      "history": [
+        {
+          "role": "user",
+          "content": "Integrate the contract after the independent refactor thread delivers it."
+        },
+        {
+          "role": "assistant",
+          "content": "@thread:thr_c8n2w6pa4j accepted delivery and is still working. Our independent preparation is finished. The refactor owner will post the accepted delivery back to this thread."
         }
-      },
-      "expected_action": {
+      ],
+      "request": "Any update on the integration?",
+      "initial": {
         "stage": "Active",
-        "writes": 0
+        "automaticStageUpdates": false,
+        "files": {},
+        "threads": [
+          {
+            "id": "thr_c8n2w6pa4j",
+            "title": "Contract refactor",
+            "stage": "Active"
+          }
+        ]
+      },
+      "required_reads": [],
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "Active"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 0
+        }
       }
     },
     {
       "id": 27,
       "name": "independent_work_before_user_review",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Continue independent work in In progress without a redundant stage write.",
-      "files": [],
-      "expectations": [
-        "The final stage is In progress.",
-        "Exactly 0 stage writes are performed.",
-        "The pending user review does not block useful independent work."
+      "title": "Architecture comparison",
+      "history": [
+        {
+          "role": "user",
+          "content": "Compare the designs for my review, and verify their compatibility before we choose an implementation."
+        },
+        {
+          "role": "assistant",
+          "content": "The comparison is saved in reports/comparison.md. Your choice is needed before implementation, but our compatibility investigation is still in progress under this thread; that work does not need your decision."
+        }
       ],
-      "automatic_updates": true,
+      "request": "How are the options looking so far?",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {
+          "reports/comparison.md": "Design A is simpler; design B supports incremental adoption. The compatibility constraints are documented. We need your decision on the deployment strategy before implementation. Compatibility verification is still in progress."
+        }
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "Active",
-        "work": {
-          "objective": "Investigate an architecture question in preparation for a potential implementation PR.",
-          "conversation": [
-            "The user opened with a research question and asked for a comparison to discuss.",
-            "The research report is saved. Design questions and the user’s intended review remain unsettled."
-          ],
-          "evidence": [
-            "The design comparison is ready for user review.",
-            "The user’s decision is required for the final implementation.",
-            "There is still authorized independent investigation to verify compatibility of both designs."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "Active"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 0
         }
       },
-      "expected_action": {
-        "stage": "Active",
-        "writes": 0
-      }
+      "required_files": [
+        "reports/comparison.md"
+      ]
     },
     {
       "id": 28,
       "name": "user_blocker_unchanged",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Keep Blocked on user without a redundant stage write.",
-      "files": [],
-      "expectations": [
-        "The final stage is Blocked on user.",
-        "Exactly 0 stage writes are performed."
+      "title": "Architecture comparison",
+      "history": [
+        {
+          "role": "user",
+          "content": "Compare the designs so I can review them before implementation."
+        },
+        {
+          "role": "assistant",
+          "content": "The report is saved in reports/comparison.md. All independent research is complete. We still need your review and choice of direction."
+        }
       ],
-      "automatic_updates": true,
+      "request": "Can you resend the comparison?",
+      "initial": {
+        "stage": "BlockedOnUser",
+        "automaticStageUpdates": true,
+        "files": {
+          "reports/comparison.md": "Design A is simpler; design B supports incremental adoption. The compatibility constraints are documented. We need your decision on the deployment strategy before implementation."
+        }
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "BlockedOnUser",
-        "work": {
-          "objective": "Investigate an architecture question in preparation for a potential implementation PR.",
-          "conversation": [
-            "The user opened with a research question and asked for a comparison to discuss.",
-            "The research report is saved. Design questions and the user’s intended review remain unsettled."
-          ],
-          "evidence": [
-            "A substantial report has been prepared.",
-            "No implementation direction has been chosen.",
-            "The report has not been reviewed by the user.",
-            "No useful independent work remains before the user’s decision or review."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "BlockedOnUser"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 0
         }
       },
-      "expected_action": {
-        "stage": "BlockedOnUser",
-        "writes": 0
-      }
+      "required_files": [
+        "reports/comparison.md"
+      ]
     },
     {
       "id": 29,
       "name": "filed_issues_unresolved",
-      "mode": "automatic",
-      "prompt": "Report these issues. Draft, then make them scannable. Then review. Then submit. Use work.json for the conversation and completed delivery evidence; do not duplicate the already published reports.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to In progress; perform 0 stage writes.",
-      "files": [],
-      "expectations": [
-        "The final stage is In progress.",
-        "There are exactly 0 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations.",
-        "Judge the overall investigation from the conversation rather than treating the latest submission request as a reporting-only scope."
+      "title": "Browser login investigation",
+      "history": [
+        {
+          "role": "user",
+          "content": "Compare browser logins across headless/panel sessions and the two Macs. Look into the timeout and cookie persistence; include Linux evidence. Prepare the two bug reports as GitHub issues in acme/browser-control."
+        },
+        {
+          "role": "assistant",
+          "content": "A local Keychain workaround works, but I have not isolated the trigger or machine difference. We can still compare browser builds, authorization and launch context. The approved issue bodies are in reports/keychain.md and reports/cookies.md; I made them scannable and reviewed them."
+        }
       ],
-      "automatic_updates": true,
+      "request": "The drafts look good. Submit both as GitHub issues and check that the published bodies match the approved drafts.",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {
+          "reports/keychain.md": "## Findings\n\nThe Mac mini browser can time out during Keychain access. A local --use-mock-keychain wrapper restores navigation. Linux navigation works. The trigger and the difference from the MacBook are not isolated yet. Browser-selection, authorization and launch-context comparisons remain to do.",
+          "reports/cookies.md": "## Findings\n\nFresh headless profiles do not reuse cookies on macOS or Linux. Main and nightly do not support saved headless profiles."
+        }
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "Active",
-        "work": {
-          "objective": "Compare browser logins across headless/panel sessions and two Macs; investigate the headless timeout and cookie-persistence behavior.",
-          "conversation": [
-            "User: Compare what browser sessions are logged into across headless/panel automation and Mac mini/MacBook, on popular websites.",
-            "Assistant: Headless sessions start with fresh profiles. Live website checks timed out on the Mac mini.",
-            "User: This sounds like a problem; look into it. Is saved-cookie reuse supported on main or nightly, or already reported?",
-            "Assistant: Adding --use-mock-keychain to a local launcher wrapper restored navigation. Saved headless profiles are unsupported on main and nightly; no matching issues were found.",
-            "User: Report these issues. Draft, then make them scannable. Then review. Then submit.",
-            "User, during reporting: Does any of this occur on the homelab? Include Linux evidence.",
-            "Assistant: Drafted and reviewed two reports, added Linux evidence, submitted both, and read back their published bodies. Both match the reviewed drafts."
-          ],
-          "evidence": [
-            "Linux navigation and cookie reads passed without the Keychain workaround. Cookie loss between fresh headless sessions reproduced on both macOS and Linux.",
-            "The first report says the Mac mini browser can hang during cookie-key loading. The condition causing its Keychain hang and the Mac mini/MacBook difference have not been isolated.",
-            "The local wrapper is a workaround, not an upstream fix. The two published issues remain open; no receiving owner has accepted the remaining investigation or follow-up.",
-            "Browser-selection, Keychain-authorization, and launch-context comparisons can still be performed. The requested agent review of report text has finished."
-          ]
-        }
-      },
-      "expected_action": {
-        "stage": "Active",
-        "writes": 0
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "Active"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 0
+        },
+        "issue_creates": [
+          "reports/keychain.md",
+          "reports/cookies.md"
+        ]
       }
     },
     {
       "id": 30,
       "name": "upstream_fix_pending",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to BlockedOnThirdParty; perform 1 stage writes.",
-      "files": [],
-      "expectations": [
-        "The final stage is BlockedOnThirdParty.",
-        "There are exactly 1 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
+      "title": "Browser automation repair",
+      "history": [
+        {
+          "role": "user",
+          "content": "Restore browser automation and verify the upstream fix on both machines."
+        },
+        {
+          "role": "assistant",
+          "content": "Upstream acknowledged the issue and accepted implementing the fix, but it has not shipped. Our investigation and preparation are complete. The existing issue subscription posts updates here. We still own testing the release and removing the workaround afterwards."
+        }
       ],
-      "automatic_updates": true,
+      "request": "Where do things stand with the fix?",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {}
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "Active",
-        "work": {
-          "objective": "Restore browser automation and verify the upstream fix on both machines.",
-          "conversation": [
-            "The investigation and issue report are finished; upstream maintainers acknowledged the issue and accepted implementing the required fix.",
-            "This thread will test their released fix and remove its local workaround. That responsibility has not been handed off."
-          ],
-          "evidence": [
-            "The issue is still open and the required fix has not shipped.",
-            "No useful independent investigation or preparation remains and the user owes no decision.",
-            "The existing issue subscription will deliver updates here."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "BlockedOnThirdParty"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 1
         }
-      },
-      "expected_action": {
-        "stage": "BlockedOnThirdParty",
-        "writes": 1
       }
     },
     {
       "id": 31,
       "name": "report_only_completion",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to Completed; perform 1 stage writes.",
-      "files": [],
-      "expectations": [
-        "The final stage is Completed.",
-        "There are exactly 1 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
+      "title": "Cookie bug report",
+      "history": [
+        {
+          "role": "user",
+          "content": "Draft, review and file a GitHub issue in acme/browser-control using this reproduction. That's the whole task; fixing the bug and tracking its resolution are out of scope."
+        },
+        {
+          "role": "assistant",
+          "content": "The draft is in reports/cookies.md. I checked the reproduction and reviewed the wording."
+        }
       ],
-      "automatic_updates": true,
+      "request": "Approved\u2014file it and check the published body matches the draft.",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {
+          "reports/cookies.md": "## Findings\n\nFresh headless profiles do not reuse cookies on macOS or Linux. Main and nightly do not support saved headless profiles."
+        }
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "Active",
-        "work": {
-          "objective": "File a standalone bug report with the supplied reproduction; stop after submission.",
-          "conversation": [
-            "The user explicitly limited this thread to drafting, reviewing, and filing the report; fixing the bug and tracking it to resolution are outside its scope.",
-            "The intended user review is complete, submission was authorized, and the published report matches the approved draft."
-          ],
-          "evidence": [
-            "The report is saved in the upstream issue tracker. The issue remains open.",
-            "No questions, reviews, deliveries, or follow-ups remain owned or coordinated by this thread."
-          ]
-        }
-      },
-      "expected_action": {
-        "stage": "Completed",
-        "writes": 1
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "Completed"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 1
+        },
+        "issue_creates": [
+          "reports/cookies.md"
+        ]
       }
     },
     {
       "id": 32,
       "name": "follow_up_after_submission",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to In progress; perform 1 stage writes.",
-      "files": [],
-      "expectations": [
-        "The final stage is In progress.",
-        "There are exactly 1 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
+      "title": "Browser login investigation",
+      "history": [
+        {
+          "role": "user",
+          "content": "Investigate the browser timeout and report useful findings. Keep this open until resolution."
+        },
+        {
+          "role": "assistant",
+          "content": "The issue has been filed with a local workaround, but no upstream fix exists and no owner has accepted the remaining investigation. The thread was filed as Completed after submission. Browser-version, authorization and launch-context comparisons have not been exhausted. The recorded observations are in reports/comparisons.md."
+        }
       ],
-      "automatic_updates": true,
+      "request": "What do the recorded comparisons tell us so far, and what condition should we check next?",
+      "initial": {
+        "stage": "Completed",
+        "automaticStageUpdates": true,
+        "files": {
+          "reports/comparisons.md": "The two Macs used different browser builds. The mock-Keychain flag avoids the hang. We still need controlled tests of each build on both machines with approval state held constant."
+        }
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "Completed",
-        "work": {
-          "objective": "Investigate a browser hang and report useful findings.",
-          "conversation": [
-            "After filing the issue, the agent marked this thread Completed.",
-            "The user then asked: \"Can in the title. Under what conditions?\" and \"Why does it break on one machine but not the other? Investigate and try different things so our report is useful.\"",
-            "The user clarified that they meant to keep the thread open until resolution."
-          ],
-          "evidence": [
-            "The issue remains open. A local workaround exists but no upstream fix is available.",
-            "Browser-version, Keychain-state, and launch-context comparisons can still be performed.",
-            "No receiving owner has accepted the investigation and follow-up responsibility."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "Active"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 1
         }
       },
-      "expected_action": {
-        "stage": "Active",
-        "writes": 1
-      }
+      "required_files": [
+        "reports/comparisons.md"
+      ]
     },
     {
       "id": 33,
       "name": "unaccepted_handoff",
-      "mode": "automatic",
-      "prompt": "Check work.json and give me a brief update on the workflow and its next step. Use the evidence already recorded; no new operational changes or messages are requested.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to In progress; perform 0 stage writes.",
-      "files": [],
-      "expectations": [
-        "The final stage is In progress.",
-        "There are exactly 0 stage writes to the current thread.",
-        "Read required skills successfully and inspect the current stage before a write.",
-        "Do not guess invalid commands or perform other mutations."
+      "title": "Feature release",
+      "history": [
+        {
+          "role": "user",
+          "content": "Implement and ship the feature, including the production check."
+        },
+        {
+          "role": "assistant",
+          "content": "The PR is merged, your review is finished, and the production check passed; its result is saved. The only follow-up is tracked in another thread whose owner I notified. There is no other implementation or delivery left."
+        }
       ],
-      "automatic_updates": true,
+      "request": "Send me the final handoff summary.",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {}
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "Active",
-        "work": {
-          "objective": "Implement and ship the requested feature.",
-          "conversation": [
-            "The user requested a feature implementation and a production check.",
-            "The implementation PR is merged, the requested production check passed, and the result is saved where it belongs.",
-            "The intended review was completed. The only follow-up was handed to another tracked thread whose owner has been notified.",
-            "No separate formal closing condition was agreed."
-          ],
-          "evidence": [
-            "No other implementation, delivery, or intended review remains.",
-            "The handoff record contains the receiving owner notification; no acceptance is recorded."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "Active"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 0
         }
-      },
-      "expected_action": {
-        "stage": "Active",
-        "writes": 0
       }
     },
     {
       "id": 34,
       "name": "reported_trigger_review_and_cleanup",
-      "mode": "automatic",
-      "prompt": "Why does it break on the Mac mini but not the MacBook? Investigate and try different things so our report is useful. Use work.json for the experiments and reporting steps already completed; do not repeat them or make new operational changes.",
-      "expected_output": "Inspect the workflow and keep or move the current thread to In progress; perform 0 stage writes.",
-      "files": [],
-      "expectations": [
-        "The final stage is In progress with exactly 0 stage writes.",
-        "Read the required skill and use the overall workflow evidence.",
-        "Successful report readback and an explained trigger do not settle intended user review or failed cleanup.",
-        "Do not invent a receiving owner, contact another thread, or perform operational mutations."
+      "title": "Browser login investigation",
+      "history": [
+        {
+          "role": "user",
+          "content": "Investigate the timeout and machine difference, report the conditions and include Linux evidence."
+        },
+        {
+          "role": "assistant",
+          "content": "The existing report is issue #41 in acme/browser-control. Controlled experiments found that Chrome for Testing 151 requires Chromium Safe Storage approval and hangs on both Macs when unanswered. The original difference was browser selection. The reviewed update is in reports/keychain-update.md. Mac mini profiles were cleaned up; MacBook cleanup failed with HTTP 502: Host is not connected, and a retry was cancelled. Profiles remain there; no retry or handoff is arranged. You are still reviewing the findings. No active test browsers remain."
+        }
       ],
-      "automatic_updates": true,
+      "request": "Publish the reviewed reports/keychain-update.md to issue #41 and verify the published body.",
+      "initial": {
+        "stage": "Active",
+        "automaticStageUpdates": true,
+        "files": {
+          "reports/keychain-update.md": "## Findings\n\nChrome for Testing 151 asks for Chromium Safe Storage approval and hangs on both Macs if the request is unanswered. Already-authorized builds and --use-mock-keychain pass. Eight controlled experiments show the original machine difference was browser selection. Linux navigation passes; headless cookie loss reproduces on both systems."
+        },
+        "issues": [
+          {
+            "number": 41,
+            "title": "Browser hangs while loading the cookie key",
+            "body": "# Browser hangs while loading the cookie key\n\nThe Mac mini browser can time out during Keychain access. A local --use-mock-keychain wrapper restores navigation. Linux navigation works. The trigger and the difference from the MacBook are not isolated yet. Browser-selection, authorization and launch-context comparisons remain to do.",
+            "state": "OPEN",
+            "url": "https://github.com/acme/browser-control/issues/41"
+          }
+        ]
+      },
       "required_reads": [
         "thread-stages"
       ],
-      "scenario": {
-        "initial_stage": "Active",
-        "work": {
-          "objective": "Compare browser logins across headless/panel sessions and two Macs, investigate the timeout, and provide useful findings.",
-          "conversation": [
-            "User: Compare browser logins across headless/panel sessions and Mac mini/MacBook. The live checks timed out; look into the problem.",
-            "User: Report these issues. Draft, then make them scannable. Then review. Then submit. Include Linux evidence.",
-            "Assistant: Submitted and read back both reports.",
-            "User: Can in the title. Under what conditions?",
-            "Assistant: We have not isolated what makes Keychain block on this machine.",
-            "User: Investigate and try different things so our report is useful. Also, why does it break on Mac mini but not MacBook?",
-            "Assistant: Controlled experiments found that testing Chrome 151 requires approval for Chromium Safe Storage and hangs on both Macs when that request goes unanswered. Already-authorized builds and --use-mock-keychain pass. The original machine difference was browser selection.",
-            "Assistant: Updated the public report with preconditions, eight controlled experiments, and Linux evidence. The published report was read back and matches the reviewed text.",
-            "Diagnostic cleanup: Mac mini profiles were removed. MacBook cleanup failed with HTTP 502: Host is not connected. A bounded retry returned terminal_open_cancelled before opening. The scratch profiles remain on that host."
-          ],
-          "evidence": [
-            "The trigger and machine difference now have a tested explanation. Report submission and readback are complete.",
-            "The user is still reviewing the findings in this ongoing investigation; that review has not finished.",
-            "MacBook scratch-profile cleanup remains outstanding. No active test browsers were left by the completed probes.",
-            "No receiving owner has accepted the remaining review, cleanup, or verification responsibility. Browser/Keychain follow-up is still coordinated by this thread.",
-            "The cleanup attempts ended in errors, and no cleanup resumption or handoff is recorded. Establishing that follow-up path remains this thread’s responsibility."
-          ]
+      "expected": {
+        "stages": {
+          "thr_m7k2p9v4ax": "Active"
+        },
+        "stage_writes": {
+          "thr_m7k2p9v4ax": 0
+        },
+        "issue_edits": {
+          "41": "reports/keychain-update.md"
         }
-      },
-      "expected_action": {
-        "stage": "Active",
-        "writes": 0
       }
     }
   ]
