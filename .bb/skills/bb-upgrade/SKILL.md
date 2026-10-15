@@ -104,6 +104,11 @@ Do not silently replace another checkout's installed plugin source. Follow the
 repository's commit/push workflow and inspect all PR checks, not only the checks
 GitHub currently marks required.
 
+After the migration PR merges, fetch the repository's default branch and, with
+a clean checkout, switch this worktree to a fresh `$USER/` branch based on that
+fetched tip. Complete this handoff before starting subsequent work, including
+when resuming a thread whose migration PR has already merged.
+
 Return a concise result with the PR and coverage report links, per-plugin
 outcomes, validation and installation status, remaining SDK gaps, and proposed
 next work. Distinguish completed local checks from pending CI; do not claim an

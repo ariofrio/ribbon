@@ -12,7 +12,8 @@ test("row actions finish owned pin mutations before using the moved row", async 
     async newContext(options) {
       const mobile = options.hasTouch;
       const locator = {
-        async waitFor() {}, async hover() {}, async tap() {}, async count() { return 3; },
+        async waitFor() {}, async hover() {}, async tap() {},
+        async count() { return 3; },
         locator() { return this; }, first() { return this; },
         getByText() { return this; },
         getByRole(_role, { name } = {}) {
