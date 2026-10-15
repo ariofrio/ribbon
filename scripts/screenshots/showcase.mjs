@@ -4,13 +4,19 @@
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AGENT, FEATURED_THREAD } from "./fixture.mjs";
+import { AGENT, FEATURED_THREAD, PERSONAL_PROJECT_ID } from "./fixture.mjs";
 import { fetchFromStack } from "./fetch.mjs";
 
 export const TITLE_SHOWCASE = {
   title: "Repair webhook retry backoff",
   prompt: "Investigate https://github.com/atlas/atlas-api/issues/214",
   reply: "The third retry stalls because the backoff timer is never reset.\n\nI reset the timer after each delivery attempt and added a regression test for recovery after the third failure. All 12 webhook tests pass.",
+};
+
+export const REVIEW_SHOWCASE = {
+  title: "Atlas review queue",
+  prompt: "Use this thread for code reviews across atlas-web and atlas-api. Review pull requests with passing checks that still need feedback.",
+  reply: "Ready for a review pass when a pull request has passing checks and still needs feedback. Use Review to check both Atlas repositories.",
 };
 
 export const INSTRUCTIONS_SHOWCASE = `# Working together
@@ -85,9 +91,25 @@ export async function prepareShowcase({ fixture, stack }) {
     fixture.run(["plugin", "install", directory, "--yes"]);
   }
 
+  const transcriptsPath = join(stack.dataDir, "transcripts.json");
+  const transcripts = JSON.parse(readFileSync(transcriptsPath, "utf8"));
+  transcripts.unshift({ prompt: REVIEW_SHOWCASE.prompt, updates: [chunk(REVIEW_SHOWCASE.reply)] });
+  writeFileSync(transcriptsPath, JSON.stringify(transcripts));
+  const review = fixture.runJson([
+    "thread", "spawn", "--project", PERSONAL_PROJECT_ID,
+    "--provider", `acp-${AGENT.id}`, "--model", AGENT.modelId,
+    "--title", REVIEW_SHOWCASE.title, "--permission-mode", "accept-edits",
+    "--prompt", REVIEW_SHOWCASE.prompt,
+  ]);
+  fixture.run(["thread", "wait", review.id, "--status", "idle"]);
+  fixture.run(["thread", "update", review.id, "--section", fixture.section.id]);
+  fixture.run(["thread-stages", "stage", "Waiting", review.id]);
+  fixture.run(["thread", "read", review.id]);
+  // Replace the unrelated comparison so the sidebar keeps the same density.
+  fixture.run(["thread", "archive", fixture.threads.get("Compare managed Postgres plans").id]);
   await rpc(stack, "thread-stages", "saveThreadActionsV1", {
-    threadId: fixture.threads.get(FEATURED_THREAD).id,
-    actions: [{ id: "review", label: "Review", prompt: "Review the dashboard changes and address any findings.", steer: false }],
+    threadId: review.id,
+    actions: [{ id: "review", label: "Review", prompt: REVIEW_SHOWCASE.prompt, steer: false }],
     hideTitle: false,
   });
   const project = fixture.projects.get("atlas-api");
@@ -104,6 +126,7 @@ export async function prepareShowcase({ fixture, stack }) {
   // Keep the working threads first, with quieter blocked work underneath.
   fixture.run(["thread-stages", "order", fixture.threads.get(FEATURED_THREAD).id, "--by", "section", "--first"]);
   fixture.run(["thread-stages", "order", fixture.threads.get("Investigate webhook retries").id, "--by", "section", "--after", fixture.threads.get(FEATURED_THREAD).id]);
+  fixture.run(["thread-stages", "order", review.id, "--by", "section", "--after", fixture.threads.get("Investigate webhook retries").id]);
 }
 
 export async function seedTitleShowcase({ fixture, stack }) {

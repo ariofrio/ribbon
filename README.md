@@ -12,7 +12,7 @@
 
 <br>
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/hero-dark.png"><img src="assets/hero-light.png" alt="An Atlas workflow with a Review action, a child investigation, and model mentions in the ChatGPT theme"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/hero-dark.png"><img src="assets/hero-light.png" alt="An Atlas workflow with a dedicated review queue and a child investigation in the ChatGPT theme"></picture></p>
 
 <br>
 

@@ -4,7 +4,7 @@ import {
   SIDE_CHAT_QUESTION,
 } from "./fixture.mjs";
 import { settleAnimations } from "./settle.mjs";
-import { restoreInstructionsShowcase, seedInstructionsShowcase, seedTitleShowcase, TITLE_SHOWCASE } from "./showcase.mjs";
+import { restoreInstructionsShowcase, REVIEW_SHOWCASE, seedInstructionsShowcase, seedTitleShowcase, TITLE_SHOWCASE } from "./showcase.mjs";
 
 export const MODIFIER = process.platform === "darwin" ? "Meta" : "Control";
 
@@ -246,8 +246,8 @@ export function setupScreenshots({ fixture }) {
 
 export const SHOTS = [
   {
-    // One everyday workflow: a review action, a delegated investigation, and
-    // a model choice in the composer. Nothing is shaded here,
+    // One everyday workflow: dashboard work, a separate review queue, and
+    // a delegated investigation. Nothing is shaded here,
     // because nothing is being pointed at.
     id: "collection",
     plugin: null,
@@ -259,7 +259,7 @@ export const SHOTS = [
     viewport: { width: 1080, height: 620 },
     async prepare({ page }) {
       await openFeaturedThread(page);
-      await prepareModelMentions(page);
+      await page.locator("[data-ribbon-sidebar-root]").getByRole("button", { name: `Review in ${REVIEW_SHOWCASE.title}`, exact: true }).waitFor();
     },
     highlights: () => [],
   },
@@ -435,7 +435,7 @@ export const SHOTS = [
         )
         .waitFor({ timeout: 120000 });
       await settleAnimations(page);
-      await page.locator("[data-ribbon-sidebar-root]").getByRole("button", { name: `Review in ${FEATURED_THREAD}`, exact: true }).waitFor();
+      await page.locator("[data-ribbon-sidebar-root]").getByRole("button", { name: `Review in ${REVIEW_SHOWCASE.title}`, exact: true }).waitFor();
       await page.locator("[data-ribbon-sidebar-root]").getByRole("link", { name: /^Open Trace the backoff timer/ }).waitFor();
     },
     // The plugin owns every stage band, ring, and heading icon in the list,
