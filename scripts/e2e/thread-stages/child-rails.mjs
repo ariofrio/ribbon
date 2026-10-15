@@ -39,12 +39,112 @@ export async function verifyChildRails({ stack, fixture, cases }) {
     const threads = { page, list, fixture, parent, first, last, setLines };
     if (cases.includes("bar")) await verifyBar(threads);
     if (cases.includes("tree")) await verifyTree(threads);
+    if (cases.includes("stage-bands")) await verifyStageBands(threads);
     await context.close();
   } finally {
     await browser.close();
     for (const child of children) fixture.run(["thread", "archive", child.id]);
     fixture.run(["thread-stages", "stage", "Deferred", parent.id]);
     setLines("Tree");
+  }
+}
+
+async function verifyStageBands({ page, list, fixture, parent, first, last, setLines }) {
+  const project = fixture.projects.get("atlas-web");
+  const grandchildren = ["Active", "Deferred", "Deferred", "Completed", "Completed"].map((stage, index) => {
+    const child = spawnChild(fixture, { parent: first, project, title: `Mixed-stage branch ${index}`, AGENT });
+    fixture.run(["thread-stages", "stage", stage, child.id]);
+    return child;
+  });
+  fixture.run(["thread-stages", "stage", "Completed", last.id]);
+  const group = list.locator(`[data-sidebar-parent-thread-id="${first.id}"]`);
+  try {
+    for (const mode of ["Tree", "Bar"]) {
+      setLines(mode);
+      await group.getByRole("button", { name: "Show 1 more deferred" }).waitFor();
+      await group.getByRole("button", { name: "Show 1 more completed" }).waitFor();
+      await page.waitForFunction(({ id, mode }) =>
+        document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${id}"] ${mode === "Tree" ? "[data-ribbon-sidebar-tree]" : "[data-ribbon-sidebar-rail]"}`),
+      { id: last.id, mode });
+      await page.mouse.move(1200, 780);
+      await verifyContinuity(mode);
+      for (const stage of ["deferred", "completed"]) {
+        await group.getByRole("button", { name: `Show 1 more ${stage}` }).click();
+        await group.getByRole("button", { name: `Show fewer ${stage}` }).waitFor();
+        await page.mouse.move(1200, 780);
+        await verifyContinuity(mode);
+      }
+      for (const stage of ["deferred", "completed"]) {
+        await group.getByRole("button", { name: `Show fewer ${stage}` }).click();
+        await group.getByRole("button", { name: `Show 1 more ${stage}` }).waitFor();
+      }
+      await page.mouse.move(1200, 780);
+      await verifyContinuity(mode);
+    }
+  } finally {
+    for (const child of grandchildren) fixture.run(["thread", "archive", child.id]);
+    fixture.run(["thread-stages", "stage", "Active", last.id]);
+  }
+
+  async function verifyContinuity(mode) {
+    const result = await page.evaluate(({ parentId, firstId, lastId, mode }) => {
+      const root = document.querySelector("[data-ribbon-sidebar-root]");
+      const row = (id) => root.querySelector(`[data-thread-id="${id}"]`);
+      const centre = (id) => {
+        const rect = row(id).querySelector("[data-ribbon-sidebar-icon-slot] svg").getBoundingClientRect();
+        return { x: (rect.left + rect.right) / 2 + 0.5, y: (rect.top + rect.bottom) / 2 };
+      };
+      const visible = (node) => {
+        for (let current = node; current !== root; current = current.parentElement) {
+          if (Number(getComputedStyle(current).opacity) === 0) return false;
+        }
+        return true;
+      };
+      const shapes = [...root.querySelectorAll("[data-ribbon-sidebar-tree] path")].filter(visible);
+      const bars = [...root.querySelectorAll("[data-ribbon-sidebar-rail], [data-ribbon-sidebar-continuation]")]
+        .filter(visible).map((node) => node.getBoundingClientRect());
+      const drawn = (x, y) => bars.some((box) => x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) ||
+        shapes.some((shape) => {
+          // SVG paths extend far beyond their row; only the clipped part is drawn.
+          const clip = shape.closest("svg").getBoundingClientRect();
+          return x >= clip.left && x <= clip.right && y >= clip.top && y <= clip.bottom + 2 &&
+            shape.isPointInStroke(new DOMPoint(x, y).matrixTransform(shape.getScreenCTM().inverse()));
+        });
+      const missing = [];
+      const parent = centre(parentId);
+      const first = centre(firstId);
+      const last = centre(lastId);
+      const subtree = root.querySelector(`[data-sidebar-parent-thread-id="${firstId}"]`);
+      const controls = [...subtree.querySelectorAll("button")].filter((node) => /^Show (?:\d+ more|fewer)/.test(node.textContent));
+      if (mode === "Tree") {
+        for (let y = parent.y + 10; y < last.y - 6; y += 1) {
+          if (!drawn(parent.x, y)) missing.push({ x: parent.x, y });
+        }
+      }
+      // Both line styles must carry the ancestor through every preview control.
+      for (const button of controls) {
+        const box = button.getBoundingClientRect();
+        const x = mode === "Tree" ? parent.x : first.x;
+        for (let y = box.top; y < box.bottom; y += 1) {
+          if (!drawn(x, y)) missing.push({ x, y, control: button.textContent });
+        }
+      }
+      // The child group's own line must survive the deferred overflow control
+      // because completed siblings follow it, and stop at the last visible child.
+      const deferred = controls.find((node) => /deferred$/.test(node.textContent));
+      const grandchild = subtree.querySelector("[data-thread-id]:not([data-thread-id='" + firstId + "'])");
+      const icon = grandchild.querySelector("[data-ribbon-sidebar-icon-slot] svg").getBoundingClientRect();
+      const childX = mode === "Tree" ? first.x : (icon.left + icon.right) / 2 + 0.5;
+      const box = deferred.getBoundingClientRect();
+      for (let y = box.top; y < box.bottom; y += 1) {
+        if (!drawn(childX, y)) missing.push({ x: childX, y, control: deferred.textContent });
+      }
+      const completed = controls.find((node) => /completed$/.test(node.textContent)).getBoundingClientRect();
+      const dangling = drawn(childX, (completed.top + completed.bottom) / 2);
+      return { missing, dangling };
+    }, { parentId: parent.id, firstId: first.id, lastId: last.id, mode });
+    assert.deepEqual(result.missing, [], `${mode} lines remain continuous across stage bands and preview controls`);
+    assert.equal(result.dangling, false, `${mode} lines end at the last visible child without dangling into its final control`);
   }
 }
 

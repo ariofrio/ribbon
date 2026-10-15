@@ -204,6 +204,10 @@ export async function startStack({ dataDir, logStream, prepare }) {
     dataDir,
     env,
     async restartServer() {
+      const contributionsUrl = new URL("/api/v1/plugins/contributions", serverUrl);
+      const before = await fetchFromStack(contributionsUrl);
+      if (!before.ok) throw new Error(`Could not read plugin commands before restart: HTTP ${before.status}`);
+      const { cliCommands: expectedCommands } = await before.json();
       await new Promise((resolve) => {
         server.once("exit", resolve);
         server.kill("SIGTERM");
@@ -221,6 +225,19 @@ export async function startStack({ dataDir, logStream, prepare }) {
           );
         },
         { label: "the restarted server and host daemon" },
+      );
+      // Host reconnection precedes plugin loading. Wait for the CLI surface
+      // available before the restart so subsequent suites can use it.
+      await waitFor(
+        async () => {
+          const response = await fetchFromStack(contributionsUrl).catch(() => null);
+          if (!response?.ok) return false;
+          const { cliCommands } = await response.json();
+          return expectedCommands.every((expected) => cliCommands.some(
+            (command) => command.pluginId === expected.pluginId && command.name === expected.name,
+          ));
+        },
+        { label: "plugin CLI commands to reload after restart" },
       );
     },
     async stop() {

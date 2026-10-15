@@ -3,7 +3,7 @@ import { verifyChildRails } from "../thread-stages/child-rails.mjs";
 
 export default {
   id: "child-rails",
-  cases: ["bar", "tree"],
+  cases: ["bar", "tree", "stage-bands"],
   plugins: ["bb-plugin-thread-stages"],
   async prepare({ bb, cliEnv }) {
     await waitForThreadStages({ bb, cliEnv });

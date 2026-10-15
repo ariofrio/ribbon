@@ -35,6 +35,22 @@ bb plugin install thread-stages@ribbon
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
+### <img src="assets/icons/global-instructions.svg" alt="" width="26" align="absmiddle"> &nbsp;Global instructions
+
+Edit bb’s global AGENTS.md without a length limit.
+
+Open **Settings → Global instructions**. Saved instructions apply to new agent
+sessions across every project and machine connected to the server.
+
+```sh
+bb marketplace add git:github.com/ariofrio/ribbon
+bb plugin install global-instructions@ribbon
+```
+
+<a href="plugins/bb-plugin-global-instructions#readme">Read docs &rarr;</a>
+
+<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
+
 ### <img src="assets/icons/model-mentions.svg" alt="" width="26" align="absmiddle"> &nbsp;Model mentions
 
 Mention models and providers in task instructions using live provider catalogs.

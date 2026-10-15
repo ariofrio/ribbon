@@ -93,3 +93,68 @@ export async function verifyThreadTitles({ stack, fixture }) {
     assert.equal((await workers()).length, 3);
   }
 }
+
+export async function verifyDeletedThreadTitles({ stack, fixture }) {
+  const { default: Database } = await import("better-sqlite3");
+  const { run, runJson } = fixture;
+  const transcriptsPath = join(stack.dataDir, "transcripts.json");
+  const originalTranscripts = readFileSync(transcriptsPath, "utf8");
+  const transcripts = JSON.parse(originalTranscripts);
+  transcripts.unshift(
+    { prompt: "Generate a concise sentence-case title*", hang: true, updates: [] },
+    { prompt: "Calendar", hang: true, updates: [] },
+  );
+  writeFileSync(transcriptsPath, JSON.stringify(transcripts));
+  run(["settings", "ai-services", "set", "thread-title", "off"]);
+  const selected = await fetchFromStack(
+    new URL("/api/v1/plugins/thread-titles/rpc/selection.set", stack.serverUrl),
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        selection: { providerId: "acp-screenshots", model: "fixture", reasoningLevel: "low" },
+      }),
+    },
+  );
+  assert.ok(selected.ok, await selected.text());
+  const db = new Database(join(stack.dataDir, "plugins/thread-titles/data.db"), { readonly: true });
+  const job = (id) => {
+    const row = db.prepare("SELECT data FROM title_jobs WHERE thread_id = ?").get(id);
+    return row ? JSON.parse(row.data) : null;
+  };
+  try {
+    for (const missedEvent of [false, true]) {
+      const source = runJson([
+        "thread", "spawn", "--project", "proj_personal", "--provider", "acp-screenshots",
+        "--model", "fixture", "--permission-mode", "accept-edits", "--prompt", "Calendar",
+      ]);
+      await until(() => job(source.id)?.state === "running", "title worker creation");
+      const workerId = job(source.id).workerId;
+      if (missedEvent) run(["plugin", "disable", "thread-titles"]);
+      run(["thread", "delete", source.id, "--yes"]);
+      if (missedEvent) {
+        assert.equal(job(source.id).state, "running");
+        run(["plugin", "enable", "thread-titles"]);
+      }
+      await until(() => {
+        const current = job(source.id);
+        return current.state === "skipped" && current.sourceDeleted && current.cleaned;
+      }, "permanent cancellation and worker cleanup");
+      for (const id of [source.id, workerId]) {
+        const response = await fetchFromStack(new URL(`/api/v1/threads/${id}`, stack.serverUrl));
+        assert.equal(response.status, 404);
+      }
+      run(["plugin", "reload", "thread-titles"]);
+      await stack.restartServer();
+      assert.equal(job(source.id).state, "skipped");
+      assert.equal(job(source.id).sourceDeleted, true);
+      assert.equal(job(source.id).cleaned, true);
+      const logs = readFileSync(join(stack.dataDir, "plugins/thread-titles/logs/plugin.log"), "utf8");
+      assert.ok(!logs.split("\n").some((line) => line.includes(source.id) && line.includes("could not refine title")));
+    }
+  } finally {
+    db.close();
+    writeFileSync(transcriptsPath, originalTranscripts);
+    run(["settings", "ai-services", "set", "thread-title", "automatic"]);
+  }
+}
