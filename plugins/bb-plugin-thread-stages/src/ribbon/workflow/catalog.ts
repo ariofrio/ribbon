@@ -77,36 +77,9 @@ const STAGE_MARKS: Record<WorkflowStage, IconDataV1[]> = {
     },
   ],
 };
-/**
- * The ring a working thread's stage draws instead, open at the top right like
- * Lucide's LoaderCircle so that it reads as turning. Deferred keeps its dashes
- * and drops the one that falls in the opening.
- */
-const workingArc: IconDataV1 = {
-  tag: "path",
-  attrs: {
-    d: "M20.75 12a8.75 8.75 0 1 1-6.046-8.322",
-    stroke: "currentColor",
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-    strokeWidth: RING_STROKE_WIDTH,
-  },
-};
-const WORKING_RINGS = byStage((stage) =>
-  stage === "Deferred"
-    ? dashedRing(`${`${DASH} ${GAP} `.repeat(4)}${DASH} ${GAP + RING_SIXTH}`)
-    : workingArc,
-);
-
 export const STAGE_ICONS = byStage((stage) =>
   stageIcon([STAGE_RINGS[stage], ...STAGE_MARKS[stage]]),
 );
-/** A working stage in two layers, so that only its ring turns. */
-export const WORKING_STAGE_ICONS = byStage((stage) => ({
-  ring: stageIcon([WORKING_RINGS[stage]]),
-  marks: stageIcon(STAGE_MARKS[stage]),
-}));
-
 export function createGroupingCatalog(settings: {
   showDeferredStage?: boolean | string;
   showBlockedStage?: boolean | string;

@@ -845,7 +845,6 @@ function ThreadRowComponent({
               {ribbon ? (
                 <RibbonStageGlyph
                   stage={ribbon.stage}
-                  working={ribbon.working}
                   hiddenAtRest={
                     ribbon.stage === "Active" && !ribbon.working && !showActive
                   }

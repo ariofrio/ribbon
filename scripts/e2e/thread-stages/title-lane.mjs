@@ -12,8 +12,7 @@ export async function verifyTitleLane({ stack, fixture }) {
   const project = fixture.projects.get(FEATURED_PROJECT);
   const child = fixture.threads.get(FEATURED_THREAD);
   const parent = fixture.threads.get(THREADS.find((spec) => spec.title === "Replace the legacy filter drawer").title);
-  // Unread since the fixture made it: its lane holds bb's unread mark. (A
-  // working row turns its stage ring instead and keeps no lane.)
+  // Unread since the fixture made it: its lane holds bb's unread mark.
   const unread = fixture.threads.get(THREADS.find((spec) => spec.title === "Compare managed Postgres plans").title);
   // A read, childless row with nothing to show in its lane.
   const plain = fixture.runJson([

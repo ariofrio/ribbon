@@ -149,10 +149,10 @@ Completed; Completed threads archive on their own after the configured retention
 (seven days by default).
 
 Stages change only when someone sets them; thread activity alone never changes a
-stage. A working thread keeps its stage, and the list shows the work by
-turning the stage icon's ring on that row. A collapsed root's ring also turns
-for work in its hidden descendants. A pending question or approval stops the
-ring, because the thread is waiting on the user rather than working.
+stage. A working thread keeps its stationary stage icon on the left, and the
+list shows activity on the right, as bb's thread list does. A collapsed root's
+activity indicator also reflects work in its hidden descendants. A pending
+question or approval takes precedence over activity.
 
 ## Stage mentions
 

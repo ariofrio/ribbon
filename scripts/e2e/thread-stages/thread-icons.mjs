@@ -2,28 +2,6 @@ import assert from "node:assert/strict";
 import { applyPluginState, FEATURED_PROJECT, FEATURED_THREAD, SECTION } from "../../screenshots/fixture.mjs";
 import { heading, launch, link, openContext, row, section, sidebar, sidebarRoot } from "./sidebar.mjs";
 
-// A working thread shows its turn on the stage ring, not in the trailing lane.
-// Reporting a background command gives it a trailing indicator to lay out.
-export async function reportBackgroundCommand(page, threadId) {
-  function update(value) {
-    if (!value || typeof value !== "object") return;
-    if (value.id === threadId && value.activity) {
-      value.activity.activeBackgroundCommandCount = 1;
-    }
-    for (const child of Object.values(value)) update(child);
-  }
-  await page.route(/\/api\/v1\/(sidebar-bootstrap|threads(?:\/[^/?]+)?)(\?|$)/, async (route) => {
-    const response = await route.fetch({ maxRetries: route.request().method() === "GET" ? 2 : 0 });
-    if (!response.headers()["content-type"]?.includes("application/json")) {
-      await route.fulfill({ response });
-      return;
-    }
-    const body = await response.json();
-    update(body);
-    await route.fulfill({ response, json: body });
-  });
-}
-
 export async function verifyThreadIcons({ stack, fixture }) {
   const thread = fixture.threads.get(FEATURED_THREAD);
   // Earlier filing and placement cases can move this shared thread out of Active.
@@ -34,7 +12,6 @@ export async function verifyThreadIcons({ stack, fixture }) {
     const context = await openContext(browser, { viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     const workingThread = fixture.threads.get("Investigate webhook retries");
-    await reportBackgroundCommand(page, workingThread.id);
     const project = fixture.projects.get(FEATURED_PROJECT);
     await page.goto(new URL(`/projects/${project.id}/threads/${thread.id}`, stack.serverUrl).href);
     const list = sidebar(page);
@@ -67,14 +44,27 @@ export async function verifyThreadIcons({ stack, fixture }) {
     await list.waitFor({ timeout: 120_000 });
     await paintedIcon('[aria-label="In progress stage"] svg', false);
     const workingRow = row(list, workingThread.id);
-    // Its turn never ends, so its stage ring turns in place of bb's spinner,
-    // carried by the box around it so the compositor can turn it.
-    const ring = await workingRow.locator('[aria-label$=" stage, working"] svg').first().evaluate((node) => ({
-      animation: getComputedStyle(node.parentElement).animationName,
-      width: getComputedStyle(node).width,
-    }));
-    assert.deepEqual(ring, { animation: "spin", width: "16px" });
-    await workingRow.locator("[data-sidebar-thread-trailing-indicator]").getByLabel("Background command running").waitFor();
+    // Runtime activity occupies the trailing lane; the stage stays still.
+    const geometry = await workingRow.evaluate((node) => {
+      const stage = node.querySelector('[data-ribbon-sidebar-icon-slot] svg');
+      const indicator = node.querySelector('[data-sidebar-thread-trailing-indicator] svg');
+      const title = node.querySelector('.bb-thread-title');
+      const turns = (element) => element.getAnimations({ subtree: true })
+        .some((animation) => animation.animationName === "spin");
+      return {
+        stageTurns: turns(node.querySelector('[data-ribbon-sidebar-icon-slot]')),
+        indicatorTurns: turns(node.querySelector('[data-sidebar-thread-trailing-indicator]')),
+        stageWidth: getComputedStyle(stage).width,
+        indicatorWidth: getComputedStyle(indicator).width,
+        left: stage.getBoundingClientRect().right <= title.getBoundingClientRect().left,
+        right: indicator.getBoundingClientRect().left >= title.getBoundingClientRect().right,
+      };
+    });
+    assert.deepEqual(geometry, {
+      stageTurns: false, indicatorTurns: true, stageWidth: "16px", indicatorWidth: "16px",
+      left: true, right: true,
+    });
+    await workingRow.locator("[data-sidebar-thread-trailing-indicator]").getByLabel("Thread working", { exact: true }).waitFor();
 
     const iconOpacity = (scope) =>
       scope.locator("[data-ribbon-sidebar-icon-slot]").evaluate((node) => getComputedStyle(node).opacity);

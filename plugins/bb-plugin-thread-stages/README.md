@@ -128,13 +128,14 @@ name renames it.
 
 ## Rows
 
-Thread activity alone never changes a stage. A working thread's stage icon turns its
-ring in place of bb's spinner, a collapsed root's ring also turns for work in
-its hidden descendants, and a pending question or approval stops the ring. A
-working row shimmers across its icon, title, and indicator; turn off
+Thread activity alone never changes a stage. Stage icons stay still on the left.
+bb's activity indicator appears on the right, including work in a collapsed
+root's hidden descendants. A pending question or approval takes precedence over
+the activity indicator. A working row shimmers across its icon, title, and
+indicator; turn off
 **Shimmer working rows** to keep bb's shimmer on the indicator alone. A
 workflow, background agent, or background command left running by an idle
-agent shimmers only its indicator, and the ring holds still.
+agent shimmers only its indicator, and the stage icon stays still.
 
 A title runs to the row's edge unless something stands in the trailing
 lane: a status indicator, a PR number, or saved prompts. A toggle for hidden

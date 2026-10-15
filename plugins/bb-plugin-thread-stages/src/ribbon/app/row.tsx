@@ -63,7 +63,7 @@ export function useRibbonRow(
   stage: WorkflowStage;
   muted: boolean;
   status: ThreadStatus;
-  /** The stage ring turns: an agent is at work and nothing waits on the user. */
+  /** An agent is at work and nothing waits on the user. */
   working: boolean;
   /** The row shimmers: as above, or a plugin reports the thread running. */
   shines: boolean;
@@ -105,7 +105,7 @@ export function useRibbonRow(
     stage,
     muted: stage !== "Active",
     status,
-    working: status.spinsStageRing,
+    working: status.isAgentWorking,
     shines: status.isWorking && status.indicator !== "waiting-for-input",
     pullRequest:
       visiblePullRequest && signal && lifecycle && position !== "hidden"
@@ -141,14 +141,12 @@ export function useRibbonRow(
   };
 }
 
-/** The ring beside a title: hidden at rest while Active and still, as Ribbon draws it. */
+/** The stage beside a title, hidden at rest when the row allows it. */
 export function RibbonStageGlyph({
   stage,
-  working,
   hiddenAtRest,
 }: {
   stage: WorkflowStage;
-  working: boolean;
   hiddenAtRest: boolean;
 }) {
   return (
@@ -163,7 +161,7 @@ export function RibbonStageGlyph({
       {...{ [SHINE_ATTRIBUTE]: "" }}
     >
       <ShineContent className="flex">
-        <StageIcon stage={stage} working={working} />
+        <StageIcon stage={stage} />
       </ShineContent>
     </span>
   );
