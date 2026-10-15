@@ -1,7 +1,7 @@
 import { verifyCustomSort } from "../thread-stages/custom-sort.mjs";
 
 export default {
-  group: "placement",
+  group: "ordering",
   order: 19,
   id: "custom-sort",
   cases: ["desktop", "compact"],

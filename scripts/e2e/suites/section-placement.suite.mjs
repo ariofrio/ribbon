@@ -1,7 +1,7 @@
 import { verifySectionPlacement } from "../thread-stages/section-placement.mjs";
 
 export default {
-  group: "placement",
+  group: "ordering",
   order: 11,
   id: "section-placement",
   cases: ["menu"],

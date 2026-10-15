@@ -4,6 +4,7 @@ import {
 } from "../thread-stages/new-thread-routing.mjs";
 
 export default {
+  group: "placement",
   order: 100,
   id: "new-thread-routing",
   cases: ["stage"],
