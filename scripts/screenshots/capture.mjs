@@ -285,10 +285,12 @@ function padBox(box, padding) {
  * plugins, so the chips stay out of them. The header's preferred workspace
  * app also comes from host discovery and can arrive after the thread renders;
  * keep its whole control, including its shortcut hint, out of the frame.
+ * The instructions editor's server path also comes from the host's checkout.
  */
 const HOST_STATE_STYLE = [
   '[data-sidebar="footer"] a[href="/settings/updates"] { display: none !important; }',
   'span:has(> div button[aria-label="Choose another app to open workspace"]) { display: none !important; }',
+  '.bb-global-instructions > div:first-child > p + p { display: none !important; }',
 ].join("\n");
 
 export async function openApp({ browser, stack, fixture, theme, viewport, style }) {

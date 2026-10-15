@@ -2,6 +2,12 @@
   "registry": "https://raw.githubusercontent.com/get-bb/bb/desktop-v0.46.0/packages/plugin-registry/r/{name}.json",
   "literals": {},
   "files": {
+    "plugins/bb-plugin-global-instructions/src/vendor/components/ui/button.tsx": "sha256-0NKnWzoi0kR8yGQbp06XoqHiHzHr26AEQ/50+aXChRs=",
+    "plugins/bb-plugin-global-instructions/src/vendor/components/ui/coarse-pointer-sizing.ts": "sha256-MfINQsiLUrvv6qMvI1i46zodWFFAfjK6gKCfCwwNQ4Q=",
+    "plugins/bb-plugin-global-instructions/src/vendor/components/ui/motion.ts": "sha256-yWZQ5ENqVPIoDv74qVOxYL6uMARPNvevShRiltWFn4I=",
+    "plugins/bb-plugin-global-instructions/src/vendor/components/ui/tabs.tsx": "sha256-mhoXwpRzwxXjEPaSXE/MVkZYiB6FBDdBnDTDSyNRNrE=",
+    "plugins/bb-plugin-global-instructions/src/vendor/components/ui/textarea.tsx": "sha256-BsCosTcRIWyyTvSPJwBgkSwqED3VMifve6UR6V2Q+B8=",
+    "plugins/bb-plugin-global-instructions/src/vendor/lib/utils.ts": "sha256-vr6aUNRqtgngie1XhQc2MRDM7ImQ1z+puGxY8iH1cKw=",
     "plugins/bb-plugin-thread-stages/src/components/ui/action-menu-items.tsx": "sha256-QSMJKK+dFVZmbVQjkj4qiAuIDFZO9UfE2XEDP1M1MWE=",
     "plugins/bb-plugin-thread-stages/src/components/ui/button.tsx": "sha256-0NKnWzoi0kR8yGQbp06XoqHiHzHr26AEQ/50+aXChRs=",
     "plugins/bb-plugin-thread-stages/src/components/ui/checkbox.tsx": "sha256-LglH9t261YwCriqdfM1hGt8Bp4GLPNjE6W8ShWKp+kU=",

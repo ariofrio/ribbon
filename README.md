@@ -35,6 +35,24 @@ bb plugin install thread-stages@ribbon
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
+<a href="plugins/bb-plugin-global-instructions#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-global-instructions/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-global-instructions/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-global-instructions/assets/card-beside-dark.png"><img src="plugins/bb-plugin-global-instructions/assets/card-beside-light.png" alt="Shared agent instructions in the rich Markdown editor" align="right" width="45%"></picture></a>
+
+### <img src="assets/icons/global-instructions.svg" alt="" width="26" align="absmiddle"> &nbsp;Global instructions
+
+Edit bb’s global AGENTS.md without a length limit.
+
+Open **Settings → Global instructions**. Saved instructions apply to new agent
+sessions across every project and machine connected to the server.
+
+```sh
+bb marketplace add git:github.com/ariofrio/ribbon
+bb plugin install global-instructions@ribbon
+```
+
+<a href="plugins/bb-plugin-global-instructions#readme">Read docs &rarr;</a>
+
+<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
+
 <a href="plugins/bb-plugin-model-mentions#readme"><picture><source media="(max-width: 880px) and (prefers-color-scheme: dark)" srcset="plugins/bb-plugin-model-mentions/assets/card-dark.png" width="1120"><source media="(max-width: 880px)" srcset="plugins/bb-plugin-model-mentions/assets/card-light.png" width="1120"><source media="(prefers-color-scheme: dark)" srcset="plugins/bb-plugin-model-mentions/assets/card-beside-dark.png"><img src="plugins/bb-plugin-model-mentions/assets/card-beside-light.png" alt="A Sonnet mention and Opus choices from Claude Code and Pi" align="right" width="45%"></picture></a>
 
 ### <img src="assets/icons/model-mentions.svg" alt="" width="26" align="absmiddle"> &nbsp;Model mentions

@@ -4,7 +4,7 @@ import {
   SIDE_CHAT_QUESTION,
 } from "./fixture.mjs";
 import { settleAnimations } from "./settle.mjs";
-import { seedTitleShowcase, TITLE_SHOWCASE } from "./showcase.mjs";
+import { restoreInstructionsShowcase, seedInstructionsShowcase, seedTitleShowcase, TITLE_SHOWCASE } from "./showcase.mjs";
 
 export const MODIFIER = process.platform === "darwin" ? "Meta" : "Control";
 
@@ -355,6 +355,31 @@ export const SHOTS = [
       viewport: { width: 900, height: 400 },
       style: '[data-sidebar="panel"], [data-sidebar="gap"] { --sidebar-width: 220px !important; }',
     },
+  },
+  {
+    id: "global-instructions",
+    plugin: "bb-plugin-global-instructions",
+    outputs: THEME_FILES,
+    setup: seedInstructionsShowcase,
+    async prepare({ page, stack }) {
+      await page.goto(new URL("/settings/plugins/global-instructions", stack.serverUrl).href);
+      const panel = page.getByRole("region", { name: "Global instructions editor" });
+      const editor = panel.getByRole("textbox", { name: "Global instructions" });
+      await editor.getByRole("heading", { name: "Working together" }).waitFor({ timeout: 120000 });
+      await editor.getByText("Follow existing components and patterns.", { exact: true }).waitFor();
+      await panel.getByRole("status").filter({ hasText: "No character limit" }).waitFor();
+      await settleAnimations(page);
+    },
+    highlights: (page) => [
+      { locator: page.getByRole("region", { name: "Global instructions editor" }), padding: 4 },
+    ],
+    focus: (page) => [
+      page.getByRole("region", { name: "Global instructions editor" }).getByRole("toolbar"),
+    ],
+    focusAlign: "start",
+    focusPadding: 0,
+    card: { viewport: { width: 900, height: 700 } },
+    teardown: restoreInstructionsShowcase,
   },
   {
     id: "thread-titles",

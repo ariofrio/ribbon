@@ -13,6 +13,31 @@ export const TITLE_SHOWCASE = {
   reply: "The third retry stalls because the backoff timer is never reset.\n\nI reset the timer after each delivery attempt and added a regression test for recovery after the third failure. All 12 webhook tests pass.",
 };
 
+export const INSTRUCTIONS_SHOWCASE = `# Working together
+
+Keep changes focused and verify the result.
+
+## Before changing code
+
+- Read the project's instructions first.
+- Follow existing components and patterns.
+`;
+
+export async function seedInstructionsShowcase({ fixture, stack }) {
+  const previous = await rpc(stack, "global-instructions", "instructions.read", null);
+  fixture.previousInstructions = previous.instructions;
+  await rpc(stack, "global-instructions", "instructions.save", {
+    instructions: INSTRUCTIONS_SHOWCASE, revision: previous.revision,
+  });
+}
+
+export async function restoreInstructionsShowcase({ fixture, stack }) {
+  const current = await rpc(stack, "global-instructions", "instructions.read", null);
+  await rpc(stack, "global-instructions", "instructions.save", {
+    instructions: fixture.previousInstructions, revision: current.revision,
+  });
+}
+
 async function rpc(stack, plugin, method, data) {
   const response = await fetchFromStack(new URL(`/api/v1/plugins/${plugin}/rpc/${method}`, stack.serverUrl), {
     method: "POST",
