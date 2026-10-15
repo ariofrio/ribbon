@@ -64,9 +64,10 @@ Every group must pass before the required `plugins` gate passes. One group's
 failure does not cancel another group's coverage or diagnostics.
 
 New suites default to `sidebar`. Set `group: "placement"`, `group: "ordering"`,
-or `group: "features"` in a descriptor when it belongs with that sequence. Keep suites that depend on
-each other's state in the same group, and verify a group's full sequence from a
-fresh fixture after changing membership. `--list --group <name>` lists its cases without starting bb;
+or `group: "features"` in a descriptor when it belongs with that sequence. Keep
+suites that depend on each other's state in the same group, and verify a group's
+full sequence from a fresh fixture after changing membership.
+`--list --group <name>` lists its cases without starting bb;
 invalid groups and selections with no cases fail before setup.
 
 The runner prints elapsed times for stack startup, plugin installation, suite

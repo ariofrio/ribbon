@@ -125,7 +125,7 @@ jobs:
           name: end-to-end-diagnostics-${{ matrix.group }}
           path: |
             .scratch/e2e/**/bb.log
-            .scratch/e2e/*.trace.zip
+            .scratch/e2e/**/*.trace.zip
           if-no-files-found: ignore
           include-hidden-files: true
           retention-days: 7
