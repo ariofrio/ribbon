@@ -138,7 +138,7 @@ test("the end-to-end matrix runs every isolated group and keeps separate diagnos
   assert.match(endToEnd, /run: npm run test:e2e -- --group \$\{\{ matrix\.group \}\}/u);
   assert.match(endToEnd, /name: end-to-end-diagnostics-\$\{\{ matrix\.group \}\}/u);
   assert.match(endToEnd, /\.scratch\/e2e\/\*\*\/bb\.log/u);
-  assert.match(endToEnd, /\.scratch\/e2e\/\*\.trace\.zip/u);
+  assert.match(endToEnd, /\.scratch\/e2e\/\*\*\/\*\.trace\.zip/u);
 });
 
 test("automation that updates pull requests uses the CI GitHub App", () => {

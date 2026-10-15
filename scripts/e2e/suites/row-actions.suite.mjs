@@ -1,6 +1,7 @@
 import { verifyRowActions } from "../thread-stages/row-actions.mjs";
 
 export default {
+  group: "features",
   order: 56,
   id: "row-actions",
   cases: ["configured"],

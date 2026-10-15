@@ -9,6 +9,7 @@ npm run test:e2e -- --case thread-titles:once
 npm run test:e2e -- --group placement
 npm run test:e2e -- --group ordering
 npm run test:e2e -- --group sidebar
+npm run test:e2e -- --group features
 ```
 
 Add a file under `suites/` named `<name>.suite.mjs`. The runner discovers these
@@ -36,7 +37,7 @@ Use an explicit order only when a suite requires it; ties use filename order.
 Suite IDs and case names must be nonempty and contain no colon. Duplicate IDs,
 duplicate cases, and malformed descriptors fail before bb starts.
 
-CI runs three groups on separate runners, each with its own isolated server, host
+CI runs four groups on separate runners, each with its own isolated server, host
 daemon, data directory, and full seeded fixture. Every group installs the same
 union of plugins and runs the same preparation hooks as the full run, preserving
 plugin coexistence. Suites still run sequentially in their original order inside
@@ -44,24 +45,29 @@ each group. Without `--group`, the runner retains the full sequential run.
 
 The groups divide the measured work while preserving each suite's original order:
 
-- `placement`: composer and shortcut readiness, indicators, completed placement,
-  the full chronological/project stage-placement interaction matrix, plus
-  self-contained PR, routing, title-color, and model-mention suites.
-- `ordering`: thread titles, section/machine placement, sorting and reordering,
-  plus the platform-shortcut and stage-preview suites. These suites establish
-  the state they test or read the current order, so they need no mutations from
+- `placement`: composer and terminal readiness, completed placement, the full
+  chronological/project stage-placement interaction matrix, routing, and title color.
+- `ordering`: indicators, thread titles, section/machine placement, sorting and
+  reordering, PR status, and platform shortcuts. These suites establish the
+  state they test or read the current order, so they need no mutations from
   the placement or sidebar groups.
 - `sidebar`: the remaining suites, including the grouping, child-collapse,
   child-stage, and later layout sequence. These stay together because they leave
   child threads and list state for later suites.
+- `features`: missing shortcuts, title navigation/context menus/panning, PR
+  numbers, row actions, global instructions, model mentions, row shimmer, and
+  stage previews. These suites establish their
+  own state and restore modified preferences. Keep every preview case together:
+  they change shared preferences and placements inside this group's stack.
 
 Every group must pass before the required `plugins` gate passes. One group's
 failure does not cancel another group's coverage or diagnostics.
 
-New suites default to `sidebar`. Set `group: "placement"` or `group: "ordering"`
-in a descriptor when it belongs with that sequence. Keep suites that depend on
-each other's state in the same group, and verify a group's full sequence from a
-fresh fixture after changing membership. `--list --group <name>` lists its cases without starting bb;
+New suites default to `sidebar`. Set `group: "placement"`, `group: "ordering"`,
+or `group: "features"` in a descriptor when it belongs with that sequence. Keep
+suites that depend on each other's state in the same group, and verify a group's
+full sequence from a fresh fixture after changing membership.
+`--list --group <name>` lists its cases without starting bb;
 invalid groups and selections with no cases fail before setup.
 
 The runner prints elapsed times for stack startup, plugin installation, suite
