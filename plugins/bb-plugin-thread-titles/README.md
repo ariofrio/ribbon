@@ -130,10 +130,29 @@ one correction attempt on the same model per phase;
 it does not reset the fallback budget. Once the final phase exhausts its budget,
 the job stops and records its reason in plugin logs.
 
+Unexpected API failures and unavailable model catalogs share a budget of five
+failed reconciliation attempts per thread, across all title passes. Successful
+work does not reset that count. The four retries wait 15–30 seconds, 30–60
+seconds, 1–2 minutes, and 2–4 minutes respectively, chosen randomly within each
+range. The count and next-attempt time survive reloads and restarts, and incoming
+events cannot bypass the delay. There is no elapsed-time limit; normal waiting
+for user messages, worker execution, and provider cooldowns uses no attempts.
+
+The fifth failure permanently stops titling and writes one terminal entry with
+the thread ID, failure count, and last error. View it with
+`bb plugin logs thread-titles`, for example:
+
+```text
+Thread thr_example: title refinement skipped (Stopped after 5 failed attempts; last error: Error: Title model catalog unavailable)
+```
+
 Workers are stopped and archived before replacement. bb's provider-retry plugin
 may have queued a retry for the failed worker, but bb excludes archived threads
 from automatic queue dispatch. Ribbon persists retirement before cleanup so a
 restart completes cleanup before creating another worker.
+Cleanup failures use an independent exponential backoff with jitter, capped at
+15 minutes between attempts. Cleanup remains queued after titling stops,
+including discovery of a worker whose creation response was lost.
 
 Inspect outcomes with `bb plugin logs thread-titles`.
 

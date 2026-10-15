@@ -9,9 +9,18 @@ import {
   userActivity,
   type Thread,
 } from "./history";
-import { createStore, legacyFailure, type Job } from "./store";
+import {
+  createStore,
+  isPending,
+  legacyFailure,
+  type Job,
+  type RetryState,
+} from "./store";
 
 const EXECUTION_TIMEOUT = 2 * 60_000;
+const MAX_FAILURES = 5;
+const RETRY_BASE = 30_000;
+const RETRY_CAP = 15 * 60_000;
 // A first turn this far into the transcript size limit is titled without
 // waiting for it to end.
 const EARLY_FRACTION = 0.25;
@@ -261,20 +270,53 @@ export default function plugin(bb: BbPluginApi) {
     return thread;
   }
 
-  async function retireWorker(workerId: string) {
-    await allowMissing(() => sdk.threads.stop({ threadId: workerId }));
-    await allowMissing(() => sdk.threads.archive({ threadId: workerId }));
+  function failed(previous: RetryState | undefined, error: unknown): RetryState {
+    const failures = (previous?.failures ?? 0) + 1;
+    const ceiling = Math.min(
+      RETRY_CAP,
+      RETRY_BASE * 2 ** Math.min(failures - 1, 5),
+    );
+    return {
+      failures,
+      retryAt: Date.now() + Math.floor(ceiling * (0.5 + Math.random() / 2)),
+      lastError: String(error).slice(0, 2_000),
+    };
+  }
+
+  async function retireWorker(job: Job) {
+    if ((job.cleanupRetry?.retryAt ?? 0) > Date.now()) return false;
+    try {
+      if (job.cleanupDiscovery) {
+        job.workerId = (await findWorker(job))?.id ?? null;
+        job.cleanupDiscovery = false;
+        store.save(job);
+      }
+      const workerId = job.workerId;
+      if (workerId) {
+        await allowMissing(() => sdk.threads.stop({ threadId: workerId }));
+        await allowMissing(() => sdk.threads.archive({ threadId: workerId }));
+      }
+      job.cleanupRetry = undefined;
+      return true;
+    } catch (error) {
+      job.cleanupRetry = failed(job.cleanupRetry, error);
+      store.save(job);
+      bb.log.warn(
+        `Thread ${job.threadId}: worker cleanup failed (attempt ${job.cleanupRetry.failures}); retry at ${new Date(job.cleanupRetry.retryAt).toISOString()}: ${job.cleanupRetry.lastError}`,
+      );
+      return false;
+    }
   }
 
   async function cleanup(job: Job) {
-    if (job.workerId && !job.cleaned) {
-      await retireWorker(job.workerId);
+    if (job.cleanupDiscovery || (job.workerId && !job.cleaned)) {
+      if (!(await retireWorker(job))) return;
       job.cleaned = true;
     }
     // The first-message pass always hands off to the first-turn pass, which
     // rechecks the title itself. Temporary first-turn failures also hand off.
     const next =
-      job.sourceDeleted
+      job.sourceDeleted || (job.retry?.failures ?? 0) >= MAX_FAILURES
         ? null
         : job.phase === "message"
           ? "initial"
@@ -349,11 +391,12 @@ export default function plugin(bb: BbPluginApi) {
   }
 
   async function retireRetryWorker(job: Job) {
-    if (!job.workerId) return;
+    if (!job.workerId) return true;
     // Archive also prevents bb's provider-retry queue from dispatching this worker.
-    await retireWorker(job.workerId);
+    if (!(await retireWorker(job))) return false;
     job.workerId = null;
     store.save(job);
+    return true;
   }
 
   function failurePolicy(events: Awaited<ReturnType<typeof readEvents>>) {
@@ -530,7 +573,7 @@ export default function plugin(bb: BbPluginApi) {
     finish(job, "done", "Updated title");
   }
 
-  async function recoverWorker(job: Job) {
+  async function findWorker(job: Job) {
     for (let offset = 0; ;) {
       const workers = await sdk.threads.list({
         originPluginId: bb.pluginId,
@@ -545,14 +588,20 @@ export default function plugin(bb: BbPluginApi) {
           !job.pastWorkerIds?.includes(worker.id) &&
           !job.failedWorkerIds?.includes(worker.id),
       );
-      if (worker) {
-        job.workerId = worker.id;
-        job.state = "running";
-        store.save(job);
-        return;
-      }
+      if (worker) return worker;
       if (!workers.length) break;
       offset += workers.length;
+    }
+    return undefined;
+  }
+
+  async function recoverWorker(job: Job) {
+    const worker = await findWorker(job);
+    if (worker) {
+      job.workerId = worker.id;
+      job.state = "running";
+      store.save(job);
+      return;
     }
     finish(
       job,
@@ -563,18 +612,46 @@ export default function plugin(bb: BbPluginApi) {
 
   async function refresh(id: string, sourceDeleted = false) {
     const job = store.get(id);
-    if (!job) return;
+    if (!job || !isPending(job)) return;
     if (sourceDeleted) deleted(job);
+    if ((job.cleanupRetry?.retryAt ?? 0) > Date.now()) return;
+    if (!sourceDeleted && (job.retry?.retryAt ?? 0) > Date.now()) return;
     try {
       await advance(job);
+      if (job.retry?.retryAt) {
+        job.retry.retryAt = 0;
+        store.save(job);
+      }
     } catch (error) {
       // Deletion can race any history read, worker call, or title write after
       // the source lookup. Only a missing source cancels the whole job.
-      if (record(error).status === 404 && !(await sourceThread(job))) {
-        await cleanup(job);
-        return;
+      if (record(error).status === 404) {
+        try {
+          if (!(await sourceThread(job))) {
+            await cleanup(job);
+            return;
+          }
+        } catch (lookupError) {
+          error = lookupError;
+        }
       }
-      throw error;
+      job.retry = failed(job.retry, error);
+      if (job.retry.failures >= MAX_FAILURES) {
+        job.cleanupDiscovery = job.state === "claimed" && !job.workerId;
+        job.retry.retryAt = 0;
+        job.legacyRecoveryChecked = true;
+        finish(
+          job,
+          "skipped",
+          `Stopped after ${job.retry.failures} failed attempts; last error: ${job.retry.lastError}`,
+        );
+        await cleanup(job);
+      } else {
+        store.save(job);
+        bb.log.warn(
+          `Thread ${id}: could not refine title (failed attempt ${job.retry.failures}/${MAX_FAILURES}); retry at ${new Date(job.retry.retryAt).toISOString()}: ${job.retry.lastError}`,
+        );
+      }
     }
   }
 
@@ -634,8 +711,10 @@ export default function plugin(bb: BbPluginApi) {
   }
 
   async function prepare(job: Job, thread: Thread) {
-    if (job.workerId && job.failedWorkerIds?.includes(job.workerId))
-      await retireRetryWorker(job);
+    if (
+      job.workerId && job.failedWorkerIds?.includes(job.workerId) &&
+      !(await retireRetryWorker(job))
+    ) return;
     if (unavailable(thread)) {
       finish(job, "skipped", "Thread archived, deleted, or hidden");
       return;
@@ -702,7 +781,8 @@ export default function plugin(bb: BbPluginApi) {
       const model = selected
         ? await selectedModel(selected, environment.hostId)
         : null;
-      if (model === "unknown" || (!model && automatic === "unknown")) return;
+      if (model === "unknown" || (!model && automatic === "unknown"))
+        throw new Error("Title model catalog unavailable");
       if (selected && !model)
         bb.log.info(
           `Thread ${job.threadId}: selected model ${selected.model} unavailable; using automatic fallback`,
@@ -838,10 +918,11 @@ export default function plugin(bb: BbPluginApi) {
     if (stopped) return Promise.resolve();
     const job = store.get(id);
     if (
-      !job ||
-      (["done", "skipped"].includes(job.state) &&
-        (!job.workerId || job.cleaned) &&
-        !legacyFailure(job))
+      !job || !isPending(job) ||
+      (!sourceDeleted && Math.max(
+        job.retry?.retryAt ?? 0,
+        job.cleanupRetry?.retryAt ?? 0,
+      ) > Date.now())
     )
       return Promise.resolve();
     const previous = busy.get(id) ?? Promise.resolve();

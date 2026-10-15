@@ -1,6 +1,12 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { Thread } from "./history";
 
+export interface RetryState {
+  failures: number;
+  retryAt: number;
+  lastError: string;
+}
+
 export interface Job {
   threadId: string;
   // "message" titles the first message once bb's own title has landed;
@@ -33,6 +39,11 @@ export interface Job {
   recoverableFailure?: boolean;
   // Deletion cancels every remaining phase, including first-message handoff.
   sourceDeleted?: boolean;
+  // Unexpected reconciliation failures share one budget across all phases.
+  retry?: RetryState;
+  // Retirement remains durable even after the titling budget is exhausted.
+  cleanupRetry?: RetryState;
+  cleanupDiscovery?: boolean;
   legacyRecoveryChecked?: boolean;
   // Legacy jobs used this flag for their sole fallback/length retry.
   onFallback?: boolean;
@@ -54,6 +65,14 @@ export function legacyFailure(job: Job): boolean {
     job.baseline === null &&
     job.proposed === null &&
     job.reason === "Title worker failed"
+  );
+}
+
+export function isPending(job: Job): boolean {
+  return (
+    !["done", "skipped"].includes(job.state) ||
+    Boolean(job.workerId && !job.cleaned) ||
+    Boolean(job.cleanupDiscovery) || legacyFailure(job)
   );
 }
 
@@ -109,17 +128,12 @@ export function createStore(bb: BbPluginApi) {
       return (
         db()
           .prepare(
-            "SELECT data FROM title_jobs WHERE state NOT IN ('done','skipped') OR (json_extract(data, '$.workerId') IS NOT NULL AND json_extract(data, '$.cleaned') = 0) OR (state = 'skipped' AND json_extract(data, '$.automatic') = 0 AND json_extract(data, '$.choices') IS NULL AND json_extract(data, '$.legacyRecoveryChecked') IS NULL)",
+            "SELECT data FROM title_jobs WHERE state NOT IN ('done','skipped') OR (json_extract(data, '$.workerId') IS NOT NULL AND json_extract(data, '$.cleaned') = 0) OR json_extract(data, '$.cleanupDiscovery') = 1 OR (state = 'skipped' AND json_extract(data, '$.automatic') = 0 AND json_extract(data, '$.choices') IS NULL AND json_extract(data, '$.legacyRecoveryChecked') IS NULL)",
           )
           .all() as Array<{ data: string }>
       )
         .map((row) => JSON.parse(row.data) as Job)
-        .filter(
-          (job) =>
-            !["done", "skipped"].includes(job.state) ||
-            (job.workerId && !job.cleaned) ||
-            legacyFailure(job),
-        );
+        .filter(isPending);
     },
     claim(job: Job): boolean {
       job.state = "claimed";
