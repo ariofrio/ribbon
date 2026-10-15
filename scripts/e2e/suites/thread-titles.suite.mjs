@@ -1,7 +1,7 @@
 import { verifyDeletedThreadTitles, verifyThreadTitles } from "../thread-titles.mjs";
 
 export default {
-  group: "placement",
+  group: "ordering",
   order: 10,
   id: "thread-titles",
   cases: ["once", "deleted"],

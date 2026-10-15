@@ -2,7 +2,7 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-export const E2E_GROUPS = ["placement", "sidebar"];
+export const E2E_GROUPS = ["placement", "ordering", "sidebar"];
 
 export function groupSuites(suites, group) {
   if (group === undefined) return suites;
