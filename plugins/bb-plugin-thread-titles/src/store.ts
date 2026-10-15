@@ -39,7 +39,9 @@ export interface Job {
   recoverableFailure?: boolean;
   // Deletion cancels every remaining phase, including first-message handoff.
   sourceDeleted?: boolean;
-  // Unexpected reconciliation failures share one budget across all phases.
+  // Each pass starts its window with its first attempt, not while awaiting a trigger.
+  attemptedAt?: number;
+  retryExpired?: boolean;
   retry?: RetryState;
   // Retirement remains durable even after the titling budget is exhausted.
   cleanupRetry?: RetryState;

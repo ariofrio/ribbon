@@ -130,20 +130,34 @@ one correction attempt on the same model per phase;
 it does not reset the fallback budget. Once the final phase exhausts its budget,
 the job stops and records its reason in plugin logs.
 
-Unexpected API failures and unavailable model catalogs share a budget of five
-failed reconciliation attempts per thread, across all title passes. Successful
-work does not reset that count. The four retries wait 15–30 seconds, 30–60
-seconds, 1–2 minutes, and 2–4 minutes respectively, chosen randomly within each
-range. The count and next-attempt time survive reloads and restarts, and incoming
-events cannot bypass the delay. There is no elapsed-time limit; normal waiting
-for user messages, worker execution, and provider cooldowns uses no attempts.
+Unexpected API failures and unavailable model catalogs retry with exponential
+backoff and jitter. Delays start at 15–30 seconds, double after each failure,
+and cap at 7.5–15 minutes. There is no attempt-count limit. The first-attempt
+time, failure count, and next-attempt time survive reloads and restarts; incoming
+events cannot bypass the delay.
 
-The fifth failure permanently stops titling and writes one terminal entry with
-the thread ID, failure count, and last error. View it with
-`bb plugin logs thread-titles`, for example:
+**Retry window (hours)** defaults to 24 hours, measured from each title pass's
+initial attempt, including time spent offline and provider cooldowns after that
+attempt. Waiting for the first turn or third message does not start the window.
+A reconciliation failure before the trigger also starts it, so an unreadable
+source cannot retry forever. A completed pass gives the next pass a fresh window.
+Configure the duration on the plugin's settings page or with:
+
+```sh
+bb plugin config thread-titles set retryWindowHours 24
+```
+
+Fractional hours are supported, with a minimum of one minute. Changes apply to
+pending passes using their original first-attempt time; increasing the setting
+does not revive a job that has already expired.
+
+Expiry permanently stops the thread's remaining titling passes and writes one
+terminal entry with the thread ID, failure count, and last error, if any. The
+next reconciliation notices expiry even if the next retry is still delayed.
+View the entry with `bb plugin logs thread-titles`, for example:
 
 ```text
-Thread thr_example: title refinement skipped (Stopped after 5 failed attempts; last error: Error: Title model catalog unavailable)
+Thread thr_example: title refinement skipped (Retry window expired (24 hours since initial attempt; 12 failed attempts); last error: Error: Title model catalog unavailable)
 ```
 
 Workers are stopped and archived before replacement. bb's provider-retry plugin

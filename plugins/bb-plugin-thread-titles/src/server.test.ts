@@ -202,12 +202,12 @@ it.each([0, 0.5, 0.999])("backs off exponentially with jitter %s and blocks even
     attempts++;
     throw httpError(503);
   });
-  for (let failure = 1; failure < 5; failure++) {
+  for (let failure = 1; failure <= 8; failure++) {
     const now = Date.now();
     await Promise.all([h.emit(), h.emit(), h.harness.behavior.runSchedule("title-reconciliation")]);
     expect(attempts).toBe(failure);
     const retry = savedJob(h).retry!;
-    const ceiling = 30_000 * 2 ** (failure - 1);
+    const ceiling = Math.min(15 * 60_000, 30_000 * 2 ** (failure - 1));
     expect(retry.failures).toBe(failure);
     expect(retry.retryAt - now).toBe(Math.floor(ceiling * (0.5 + random / 2)));
     vi.setSystemTime(retry.retryAt - 1);
@@ -217,32 +217,34 @@ it.each([0, 0.5, 0.999])("backs off exponentially with jitter %s and blocks even
   }
 });
 
-it("stops after five failed attempts across reloads, without an elapsed-time limit", async () => {
+it.each([24, 48, 1 / 60])("expires after the configured %s hours across reloads, even during backoff", async (hours) => {
   const h = await setup();
+  await h.harness.behavior.setSettings({ retryWindowHours: hours });
   await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
   let attempts = 0;
+  const began = Date.now();
   const fail = async () => {
     attempts++;
     throw httpError(503);
   };
   h.harness.inspection.sdk.stub("threads.get", fail);
   await h.harness.behavior.runSchedule("title-reconciliation");
-  vi.setSystemTime(Date.now() + 30 * 86_400_000);
-  await h.harness.behavior.runSchedule("title-reconciliation");
-  expect(attempts).toBe(2);
-  expect(savedJob(h).state).toBe("waiting");
+  expect(savedJob(h).attemptedAt).toBe(began);
   const next = await h.harness.lifecycle.reload(plugin);
   cleanups.push(() => next.harness.lifecycle.dispose());
   next.harness.inspection.sdk.stub("threads.get", fail);
+  const deadline = began + hours * 3_600_000;
+  // The next retry is later than expiry: events must still expire the job.
+  const paused = savedJob(next);
+  paused.retry!.retryAt = deadline + 60_000;
+  next.bb.storage.database().prepare("UPDATE title_jobs SET data = ? WHERE thread_id = ?").run(JSON.stringify(paused), "real");
+  vi.setSystemTime(deadline - 1);
   await next.harness.behavior.runSchedule("title-reconciliation");
-  expect(attempts).toBe(2);
-  for (let failure = 3; failure <= 5; failure++) {
-    retryDue(next);
-    await next.harness.behavior.runSchedule("title-reconciliation");
-    expect(attempts).toBe(failure);
-  }
-  expect(savedJob(next)).toMatchObject({ state: "skipped", retry: { failures: 5, lastError: "BbHttpError: HTTP 503: Server unavailable" } });
-  const terminal = next.harness.inspection.logEntries.filter((entry) => entry.message.includes("Stopped after 5 failed attempts"));
+  expect(savedJob(next).state).toBe("waiting");
+  vi.setSystemTime(deadline);
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(savedJob(next)).toMatchObject({ state: "skipped", retryExpired: true, retry: { failures: 1, lastError: "BbHttpError: HTTP 503: Server unavailable" } });
+  const terminal = next.harness.inspection.logEntries.filter((entry) => entry.message.includes("Retry window expired"));
   expect(terminal).toHaveLength(1);
   expect(terminal[0].message).toContain("Thread real");
   expect(terminal[0].message).toContain("HTTP 503: Server unavailable");
@@ -252,12 +254,69 @@ it("stops after five failed attempts across reloads, without an elapsed-time lim
   restarted.harness.inspection.sdk.stub("threads.get", fail);
   vi.setSystemTime(Date.now() + 365 * 86_400_000);
   await restarted.harness.behavior.runSchedule("title-reconciliation");
-  expect(attempts).toBe(5);
+  expect(attempts).toBe(1);
   expect(h.spawned).toHaveLength(0);
   expect(restarted.harness.inspection.logEntries).toEqual([]);
 });
 
-it("preserves the failure budget through successful work and retires the worker at exhaustion", async () => {
+it("measures from the initial attempt rather than the first failure", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  const began = Date.now();
+  h.harness.inspection.sdk.stub("threads.get", async () => {
+    vi.setSystemTime(began + 24 * 3_600_000);
+    throw httpError(503);
+  });
+  await h.emit();
+  expect(savedJob(h)).toMatchObject({ attemptedAt: began, state: "skipped", retryExpired: true, retry: { failures: 1 } });
+});
+
+it("starts the window with successful work and expires without requiring an API failure", async () => {
+  const h = await setup();
+  await h.harness.behavior.setSettings({ retryWindowHours: 1 / 60 });
+  const began = Date.now();
+  await firstTurn(h);
+  expect(savedJob(h)).toMatchObject({ attemptedAt: began, state: "running" });
+  expect(savedJob(h).retry).toBeUndefined();
+  vi.setSystemTime(began + 60_000);
+  await h.emit();
+  expect(savedJob(h)).toMatchObject({ state: "skipped", retryExpired: true, cleaned: true });
+  expect(h.harness.inspection.sdk.callsTo("threads.stop")).toHaveLength(1);
+  expect(h.updates).toHaveLength(0);
+});
+
+it("bounds an older running job using its known worker start time", async () => {
+  const h = await setup();
+  await firstTurn(h);
+  const old = savedJob(h);
+  old.startedAt = Date.now();
+  delete old.attemptedAt;
+  h.bb.storage.database().prepare("UPDATE title_jobs SET data = ? WHERE thread_id = ?").run(JSON.stringify(old), "real");
+  vi.setSystemTime(old.startedAt + 24 * 3_600_000);
+  await h.emit();
+  expect(savedJob(h)).toMatchObject({ state: "skipped", retryExpired: true, cleaned: true, attemptedAt: old.startedAt });
+});
+
+it("applies setting changes to the original attempt time without reviving expired jobs", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.harness.inspection.sdk.stub("threads.get", async () => { throw httpError(503); });
+  await h.emit();
+  const began = Date.now();
+  await h.harness.behavior.setSettings({ retryWindowHours: 48 });
+  vi.setSystemTime(began + 24 * 3_600_000);
+  await h.emit();
+  expect(savedJob(h)).toMatchObject({ state: "waiting", attemptedAt: began, retry: { failures: 2 } });
+  await h.harness.behavior.setSettings({ retryWindowHours: 12 });
+  await h.emit();
+  expect(savedJob(h)).toMatchObject({ state: "skipped", retryExpired: true });
+  await h.harness.behavior.setSettings({ retryWindowHours: 72 });
+  await h.emit();
+  expect(savedJob(h).state).toBe("skipped");
+  expect(h.harness.inspection.sdk.callsTo("threads.get")).toHaveLength(3);
+});
+
+it("preserves the initial attempt time through successful work and retires the worker at expiry", async () => {
   const h = await setup();
   await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
   h.harness.inspection.sdk.stub("threads.get", async () => { throw httpError(503); });
@@ -276,8 +335,9 @@ it("preserves the failure budget through successful work and retires the worker 
     if (threadId === "worker") throw httpError(503);
     return h.thread;
   });
+  vi.setSystemTime(savedJob(h).attemptedAt! + 24 * 3_600_000);
   await h.emit();
-  expect(savedJob(h)).toMatchObject({ state: "skipped", phase: "initial", cleaned: true, retry: { failures: 5 } });
+  expect(savedJob(h)).toMatchObject({ state: "skipped", phase: "initial", cleaned: true, retryExpired: true, retry: { failures: 4 } });
   expect(h.harness.inspection.sdk.callsTo("threads.stop")).toHaveLength(1);
   expect(h.harness.inspection.sdk.callsTo("threads.archive")).toHaveLength(1);
   h.user("Second");
@@ -291,11 +351,10 @@ it("keeps cleanup tracked with independent backoff after the title budget is exh
   await firstTurn(h);
   h.harness.inspection.sdk.stub("threads.get", async () => { throw httpError(503); });
   h.harness.inspection.sdk.stub("threads.archive", async () => { throw new Error("cleanup offline"); });
-  for (let i = 0; i < 5; i++) {
-    retryDue(h);
-    await h.harness.behavior.runSchedule("title-reconciliation");
-  }
-  expect(savedJob(h)).toMatchObject({ state: "skipped", cleaned: false, retry: { failures: 5 }, cleanupRetry: { failures: 1 } });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  vi.setSystemTime(savedJob(h).attemptedAt! + 24 * 3_600_000);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(savedJob(h)).toMatchObject({ state: "skipped", cleaned: false, retry: { failures: 1 }, cleanupRetry: { failures: 1 } });
   const lookups = h.harness.inspection.sdk.callsTo("threads.get").length;
   const next = await h.harness.lifecycle.reload(plugin);
   cleanups.push(() => next.harness.lifecycle.dispose());
@@ -311,7 +370,7 @@ it("keeps cleanup tracked with independent backoff after the title budget is exh
   next.harness.inspection.sdk.stub("threads.archive", async () => ({ count: 1 }) as never);
   retryDue(next);
   await next.harness.behavior.runSchedule("title-reconciliation");
-  expect(savedJob(next)).toMatchObject({ state: "skipped", cleaned: true, retry: { failures: 5 } });
+  expect(savedJob(next)).toMatchObject({ state: "skipped", cleaned: true, retry: { failures: 1 } });
   expect(h.harness.inspection.sdk.callsTo("threads.get")).toHaveLength(lookups);
   expect(next.harness.inspection.sdk.callsTo("threads.get")).toHaveLength(0);
   expect(h.spawned).toHaveLength(1);
@@ -335,11 +394,9 @@ it.each([true, false])("keeps discovering an ambiguous worker for cleanup after 
   });
   await firstTurn(h);
   h.harness.inspection.sdk.stub("threads.list", async () => { throw httpError(503); });
-  for (let i = 1; i < 5; i++) {
-    retryDue(h);
-    await h.harness.behavior.runSchedule("title-reconciliation");
-  }
-  expect(savedJob(h)).toMatchObject({ state: "skipped", cleanupDiscovery: true, retry: { failures: 5 }, cleanupRetry: { failures: 1 } });
+  vi.setSystemTime(savedJob(h).attemptedAt! + 24 * 3_600_000);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(savedJob(h)).toMatchObject({ state: "skipped", cleanupDiscovery: true, retry: { failures: 1 }, cleanupRetry: { failures: 1 } });
   const next = await h.harness.lifecycle.reload(plugin);
   cleanups.push(() => next.harness.lifecycle.dispose());
   next.harness.inspection.sdk.stub("threads.list", async ({ offset }) => offset === 0 && exists ? [h.worker] : []);
@@ -362,7 +419,10 @@ it.each(["throw", "error"] as const)("bounds unavailable model catalogs reported
     retryDue(h);
     await h.harness.behavior.runSchedule("title-reconciliation");
   }
-  expect(savedJob(h)).toMatchObject({ state: "skipped", retry: { failures: 5 } });
+  expect(savedJob(h)).toMatchObject({ state: "waiting", retry: { failures: 5 } });
+  vi.setSystemTime(savedJob(h).attemptedAt! + 24 * 3_600_000);
+  await h.emit();
+  expect(savedJob(h)).toMatchObject({ state: "skipped", retryExpired: true });
   expect(savedJob(h).reason).toContain("catalog unavailable");
   expect(h.spawned).toHaveLength(0);
 });
@@ -374,6 +434,7 @@ it("does not charge healthy waiting or provider cooldowns to the failure budget"
     await waiting.harness.behavior.runSchedule("title-reconciliation");
   }
   expect(savedJob(waiting).retry).toBeUndefined();
+  expect(savedJob(waiting).attemptedAt).toBeUndefined();
   waiting.user("Second message");
   waiting.user("Third message");
   await waiting.emit();

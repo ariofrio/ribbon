@@ -18,7 +18,6 @@ import {
 } from "./store";
 
 const EXECUTION_TIMEOUT = 2 * 60_000;
-const MAX_FAILURES = 5;
 const RETRY_BASE = 30_000;
 const RETRY_CAP = 15 * 60_000;
 // A first turn this far into the transcript size limit is titled without
@@ -139,6 +138,13 @@ export default function plugin(bb: BbPluginApi) {
       description:
         "Longer transcripts are cut off at this size. A running first turn is titled once its transcript reaches a quarter of it. Long tool output is always trimmed.",
       default: 200_000,
+    },
+    retryWindowHours: {
+      type: "number",
+      label: "Retry window (hours)",
+      description:
+        "Stop a title pass this many hours after its first attempt. Waiting for its trigger is excluded. Minimum one minute; changes apply to pending passes.",
+      default: 24,
     },
     maxTitleLength: {
       type: "number",
@@ -316,7 +322,7 @@ export default function plugin(bb: BbPluginApi) {
     // The first-message pass always hands off to the first-turn pass, which
     // rechecks the title itself. Temporary first-turn failures also hand off.
     const next =
-      job.sourceDeleted || (job.retry?.failures ?? 0) >= MAX_FAILURES
+      job.sourceDeleted || job.retryExpired
         ? null
         : job.phase === "message"
           ? "initial"
@@ -328,6 +334,8 @@ export default function plugin(bb: BbPluginApi) {
       // Save cleanup and the next phase together so restart cannot lose the handoff.
       Object.assign(job, {
         phase: next,
+        attemptedAt: undefined,
+        retry: undefined,
         baseline:
           job.state === "done" ? (job.proposed ?? job.baseline) : job.baseline,
         captured: true,
@@ -610,13 +618,49 @@ export default function plugin(bb: BbPluginApi) {
     );
   }
 
+  function beginAttempt(job: Job, at = Date.now()) {
+    if (job.attemptedAt !== undefined) return;
+    job.attemptedAt = job.startedAt ?? at;
+    store.save(job);
+  }
+
+  function expire(job: Job, hours: number) {
+    if (
+      job.state === "done" || job.state === "skipped" ||
+      job.attemptedAt === undefined ||
+      Date.now() - job.attemptedAt < hours * 3_600_000
+    ) return false;
+    job.retryExpired = true;
+    job.cleanupDiscovery = job.state === "claimed" && !job.workerId;
+    if (job.retry) job.retry.retryAt = 0;
+    job.legacyRecoveryChecked = true;
+    const failures = job.retry?.failures ?? 0;
+    finish(
+      job,
+      "skipped",
+      `Retry window expired (${hours} hours since initial attempt; ${failures} failed attempt${failures === 1 ? "" : "s"})${job.retry ? `; last error: ${job.retry.lastError}` : ""}`,
+    );
+    return true;
+  }
+
   async function refresh(id: string, sourceDeleted = false) {
     const job = store.get(id);
     if (!job || !isPending(job)) return;
     if (sourceDeleted) deleted(job);
-    if ((job.cleanupRetry?.retryAt ?? 0) > Date.now()) return;
-    if (!sourceDeleted && (job.retry?.retryAt ?? 0) > Date.now()) return;
+    const began = Date.now();
+    let hours = 24;
     try {
+      const configured = (await settings.get()).retryWindowHours;
+      hours = Number.isFinite(configured) ? Math.max(1 / 60, configured) : 24;
+      // Older active jobs use their known worker start, or first observation.
+      if (job.retry || ["claimed", "running", "applying"].includes(job.state))
+        beginAttempt(job, began);
+      if (expire(job, hours)) {
+        await cleanup(job);
+        return;
+      }
+      if ((job.cleanupRetry?.retryAt ?? 0) > Date.now()) return;
+      if (!sourceDeleted && (job.retry?.retryAt ?? 0) > Date.now()) return;
       await advance(job);
       if (job.retry?.retryAt) {
         job.retry.retryAt = 0;
@@ -635,21 +679,14 @@ export default function plugin(bb: BbPluginApi) {
           error = lookupError;
         }
       }
+      beginAttempt(job, began);
       job.retry = failed(job.retry, error);
-      if (job.retry.failures >= MAX_FAILURES) {
-        job.cleanupDiscovery = job.state === "claimed" && !job.workerId;
-        job.retry.retryAt = 0;
-        job.legacyRecoveryChecked = true;
-        finish(
-          job,
-          "skipped",
-          `Stopped after ${job.retry.failures} failed attempts; last error: ${job.retry.lastError}`,
-        );
+      if (expire(job, hours)) {
         await cleanup(job);
       } else {
         store.save(job);
         bb.log.warn(
-          `Thread ${id}: could not refine title (failed attempt ${job.retry.failures}/${MAX_FAILURES}); retry at ${new Date(job.retry.retryAt).toISOString()}: ${job.retry.lastError}`,
+          `Thread ${id}: could not refine title (failed attempt ${job.retry.failures}); retry at ${new Date(job.retry.retryAt).toISOString()}: ${job.retry.lastError}`,
         );
       }
     }
@@ -772,6 +809,7 @@ export default function plugin(bb: BbPluginApi) {
     )
       return;
     if (!thread.environmentId) return;
+    beginAttempt(job);
     const environment = await sdk.environments.get({
       environmentId: thread.environmentId,
     });
@@ -917,14 +955,7 @@ export default function plugin(bb: BbPluginApi) {
   function enqueue(id: string, sourceDeleted = false): Promise<void> {
     if (stopped) return Promise.resolve();
     const job = store.get(id);
-    if (
-      !job || !isPending(job) ||
-      (!sourceDeleted && Math.max(
-        job.retry?.retryAt ?? 0,
-        job.cleanupRetry?.retryAt ?? 0,
-      ) > Date.now())
-    )
-      return Promise.resolve();
+    if (!job || !isPending(job)) return Promise.resolve();
     const previous = busy.get(id) ?? Promise.resolve();
     const task = previous
       .then(() => refresh(id, sourceDeleted))

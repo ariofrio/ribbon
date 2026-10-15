@@ -229,6 +229,7 @@ export const experimental_providerBridge = experimental_defineProviderBridge({
   const save = (current) => db.prepare("UPDATE title_jobs SET state = ?, data = ? WHERE thread_id = ?")
     .run(current.state, JSON.stringify(current), current.threadId);
   try {
+    run(["plugin", "config", "thread-titles", "set", "retryWindowHours", "48"]);
     const source = runJson([
       "thread", "spawn", "--project", "proj_personal", "--provider", "acp-screenshots",
       "--model", "fixture", "--permission-mode", "accept-edits", "--prompt", "Calendar",
@@ -242,24 +243,26 @@ export const experimental_providerBridge = experimental_defineProviderBridge({
     run(["plugin", "reload", "thread-titles"]);
     await stack.restartServer();
     assert.deepEqual(job(source.id).retry, paused.retry);
-    // Seed the preceding failures so the live case verifies the final attempt
-    // without waiting through backoff; unit tests drive every retry deadline.
+    assert.equal(job(source.id).attemptedAt, paused.attemptedAt);
+    // Seed elapsed time instead of waiting two days. A pending backoff must
+    // not delay expiry, and the custom setting must survive restart.
     const finalAttempt = job(source.id);
-    finalAttempt.retry.failures = 4;
-    finalAttempt.retry.retryAt = 0;
+    finalAttempt.attemptedAt = Date.now() - 48 * 3_600_000;
     save(finalAttempt);
     await until(() => job(source.id)?.state === "skipped", "retry budget exhaustion");
-    assert.equal(job(source.id).retry.failures, 5);
-    assert.match(job(source.id).reason, /Stopped after 5 failed attempts.*catalog unavailable/u);
+    assert.equal(job(source.id).retry.failures, 1);
+    assert.equal(job(source.id).retryExpired, true);
+    assert.match(job(source.id).reason, /Retry window expired \(48 hours.*1 failed attempt.*catalog unavailable/u);
     run(["plugin", "reload", "thread-titles"]);
     await stack.restartServer();
     assert.equal(job(source.id).state, "skipped");
     const terminal = run(["plugin", "logs", "thread-titles", "-n", "1000"]).split("\n")
-      .filter((line) => line.includes(source.id) && line.includes("Stopped after 5 failed attempts"));
+      .filter((line) => line.includes(source.id) && line.includes("Retry window expired"));
     assert.equal(terminal.length, 1);
     run(["thread", "delete", source.id, "--yes"]);
   } finally {
     db.close();
+    run(["plugin", "config", "thread-titles", "set", "retryWindowHours", "24"]);
     const restored = await select({ providerId: "acp-screenshots", model: "fixture", reasoningLevel: "low" });
     assert.ok(restored.ok, await restored.text());
     run(["settings", "ai-services", "set", "thread-title", "automatic"]);
