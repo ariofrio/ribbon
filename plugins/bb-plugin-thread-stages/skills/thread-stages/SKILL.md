@@ -91,8 +91,21 @@ intended review, open questions, delivery, and follow-ups must be **settled or
 delegated**. Results belong in their lasting destination, such as a merged PR
 or code saved or published where the work requires it. Delegation means the
 remaining responsibility is tracked elsewhere and its receiving owner has
-been notified; simply mentioning future work does not close it. Work this
-thread still coordinates remains its responsibility.
+accepted it; notification alone is insufficient. Until acceptance is established,
+arranging the handoff remains In progress; a proposed recipient does not yet own a
+blocker. Work this thread still coordinates remains its responsibility,
+including verification after a handoff.
+
+Filing an issue, submitting a PR, or sending a report finishes a delivery step;
+it does not by itself resolve the problem or delegate follow-up. Infer the
+objective from the full conversation, not just the latest request to submit
+findings. Keep unresolved findings open through resolution and verification
+unless the agreed scope explicitly ends at reporting or the remaining
+responsibility has been handed off. Useful investigation or an unestablished
+follow-up path keeps In progress. Once no independent work remains, required
+user input or intended review uses Blocked on user; a required fix owned by
+another thread or an external party uses the corresponding Blocked stage.
+A bounded reporting task can finish even while its filed issue remains open.
 
 Initial questions, exploratory research, and proposals may be preparation for
 broader work. Continue useful investigation in In progress; use Blocked on user

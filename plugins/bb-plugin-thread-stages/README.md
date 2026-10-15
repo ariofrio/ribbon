@@ -53,8 +53,13 @@ a required action; the outside party may be a person, agent, or organization.
 Each Blocked stage applies only when no useful independent work remains here;
 continue that work in In progress first. **Deferred** is deliberately set aside.
 **Completed** means an established objective has reached a durable result,
-with intended review and loose ends settled or delegated. A report or proposal
-awaiting required user review is Blocked on user once independent work is done.
+with intended review and loose ends settled or delegated. Initial answers,
+research, and proposals keep In progress while useful independent work remains.
+Required user review uses Blocked on user once that independent work is done.
+Filing an issue or submitting a report does not close unresolved
+findings unless the agreed scope ends at reporting or another owner accepts
+the remaining responsibility. Verification this thread still coordinates
+keeps it open.
 
 Inside each group, In progress, Waiting, and all three Blocked stages share one
 manually ordered list, followed by Deferred and then Completed. New roots enter at the top, and
