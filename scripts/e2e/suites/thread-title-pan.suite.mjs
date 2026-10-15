@@ -1,6 +1,7 @@
 import { verifyThreadTitlePan } from "../thread-stages/thread-title-pan.mjs";
 
 export default {
+  group: "features",
   order: 35,
   id: "thread-title-pan",
   cases: ["hover", "reduced-motion", "fade", "ellipsis"],

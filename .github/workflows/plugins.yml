@@ -102,7 +102,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [placement, ordering, sidebar]
+        group: [placement, ordering, sidebar, features]
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
     steps:
