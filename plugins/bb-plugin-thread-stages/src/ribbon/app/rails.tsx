@@ -20,6 +20,26 @@ export interface RowLineage {
 const ROOT_LINEAGE: RowLineage = { firstChild: false, lastAtDepth: [] };
 const LineageContext = createContext<RowLineage>(ROOT_LINEAGE);
 
+const NO_ADJACENT_BANDS = { hasPrevious: false, hasFollowing: false };
+const SiblingBandContext = createContext(NO_ADJACENT_BANDS);
+
+/** Stage bands are consecutive runs of the same sibling list. */
+export function SiblingBand({
+  hasPrevious = false,
+  hasFollowing = false,
+  children,
+}: {
+  hasPrevious?: boolean;
+  hasFollowing?: boolean;
+  children: ReactNode;
+}) {
+  const value = useMemo(
+    () => ({ hasPrevious, hasFollowing }),
+    [hasPrevious, hasFollowing],
+  );
+  return <SiblingBandContext.Provider value={value}>{children}</SiblingBandContext.Provider>;
+}
+
 export function useRowLineage(): RowLineage {
   return useContext(LineageContext);
 }
@@ -35,14 +55,53 @@ export function SiblingLineage({
   children: ReactNode;
 }) {
   const parent = useContext(LineageContext);
+  const { hasPrevious, hasFollowing } = useContext(SiblingBandContext);
   const value = useMemo<RowLineage>(
     () => ({
-      firstChild: index === 0,
-      lastAtDepth: [...parent.lastAtDepth, index === count - 1],
+      firstChild: index === 0 && !hasPrevious,
+      lastAtDepth: [...parent.lastAtDepth, index === count - 1 && !hasFollowing],
     }),
-    [count, index, parent.lastAtDepth],
+    [count, hasFollowing, hasPrevious, index, parent.lastAtDepth],
   );
-  return <LineageContext.Provider value={value}>{children}</LineageContext.Provider>;
+  return (
+    <LineageContext.Provider value={value}>
+      <SiblingBandContext.Provider value={NO_ADJACENT_BANDS}>
+        {children}
+      </SiblingBandContext.Provider>
+    </LineageContext.Provider>
+  );
+}
+
+/** Carries continuing groups through a preview control without adding a node. */
+export function RailContinuation({
+  depth,
+  tree,
+  continuesGroup,
+}: {
+  depth: number;
+  tree: boolean;
+  continuesGroup: boolean;
+}) {
+  const lineage = useRowLineage();
+  return (
+    <>
+      {Array.from({ length: depth }, (_, index) => index + 1)
+        .filter((level) => level === depth
+          ? continuesGroup
+          : tree
+            ? !lineage.lastAtDepth[level - 1]
+            : !lineage.lastAtDepth.slice(level - 1).every(Boolean))
+        .map((level) => (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-0.5 top-0 z-[1] w-px bg-border-hairline opacity-70"
+            data-ribbon-sidebar-continuation=""
+            key={level}
+            style={{ left: 16 + (tree ? level - 1 : level) * 24 }}
+          />
+        ))}
+    </>
+  );
 }
 
 export type RingState = "shown" | "hidden-at-rest" | "absent";
