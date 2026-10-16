@@ -105,3 +105,41 @@ describe("sidebar migrations", () => {
     }
   });
 });
+
+
+it("folds Waiting into Active without losing orders, history, or unrelated group IDs", () => {
+  const { bb } = createFakePluginHost();
+  const database = bb.storage.database();
+  const migrations = pluginMigrations(database);
+  // Simulate the last seven-stage release, before the appended migration.
+  bb.storage.migrate(database, migrations.slice(0, -1));
+  database.exec(`
+    INSERT INTO group_assignment VALUES
+      ('plugin:thread-stages:stages', 'waiting', 'Waiting', 123, 'Waiting', 'ui'),
+      ('plugin:thread-stages:stages', 'active', 'Active', 456, NULL, 'cli');
+    INSERT INTO group_order VALUES
+      ('plugin:thread-stages:stages', 'Active', 'active', 'a0', 1),
+      ('plugin:thread-stages:stages', 'Waiting', 'active', 'Zz', 0),
+      ('plugin:thread-stages:stages', 'Waiting', 'waiting', 'a0', 2),
+      ('plugin:thread-stages:stages', 'Active', 'waiting', 'Zz', 0),
+      ('builtin:sections', 'Waiting', 'unrelated', 'a0', 3);
+    INSERT INTO main_stage_order VALUES
+      ('builtin:sections', 'section', 'active', 'Active', 'a0'),
+      ('builtin:sections', 'section', 'active', 'Waiting', 'Zz'),
+      ('builtin:sections', 'section', 'waiting', 'Active', 'Zz'),
+      ('builtin:sections', 'section', 'waiting', 'Waiting', 'a0');
+  `);
+  bb.storage.migrate(database, pluginMigrations(database));
+  bb.storage.migrate(database, pluginMigrations(database));
+  expect(database.prepare("SELECT thread_id, group_id, previous_group_id, entered_at_ms, origin FROM group_assignment ORDER BY thread_id").all()).toEqual([
+    { thread_id: "active", group_id: "Active", previous_group_id: null, entered_at_ms: 456, origin: "cli" },
+    { thread_id: "waiting", group_id: "Active", previous_group_id: "Active", entered_at_ms: 123, origin: "ui" },
+  ]);
+  expect(database.prepare("SELECT thread_id FROM group_order WHERE grouping_key = 'plugin:thread-stages:stages' AND group_id = 'Active' ORDER BY sort_key, thread_id").all()).toEqual([
+    { thread_id: "active" }, { thread_id: "waiting" },
+  ]);
+  expect(database.prepare("SELECT thread_id, stage_id FROM main_stage_order ORDER BY sort_key, thread_id").all()).toEqual([
+    { thread_id: "active", stage_id: "Active" }, { thread_id: "waiting", stage_id: "Active" },
+  ]);
+  expect(database.prepare("SELECT group_id FROM group_order WHERE thread_id = 'unrelated'").get()).toEqual({ group_id: "Waiting" });
+});

@@ -11,7 +11,7 @@ function harness(t, { failAt, navigateAway = false } = {}) {
   const resetLabels = [];
   const returns = [];
   let closed = false;
-  const stages = ["Completed", "Active", "Waiting", "BlockedOnUser", "Deferred", "BlockedOnOtherAgent", "BlockedOnThirdParty", "Completed"];
+  const stages = ["Completed", "Active", "Active", "BlockedOnUser", "Deferred", "BlockedOnOtherAgent", "BlockedOnThirdParty", "Completed"];
   const keys = {
     "Control+.": 0, "Meta+.": 0,
     "Control+Shift+.": 1, "Meta+Shift+.": 1,
@@ -115,6 +115,6 @@ test("shortcut setup restores selection after thread and compose navigation with
   const h = harness(t, { navigateAway: true });
   await verifyStageShortcuts(h);
   assert.equal(h.sent.length, 24);
-  assert.equal(h.returns.length, 18);
+  assert.equal(h.returns.length, 15);
   assert.ok(h.returns.every((url) => url.endsWith("/threads/owned")));
 });

@@ -35,24 +35,26 @@ a stage. Setting changes apply at the next provider session.
 Use the full conversation to identify the objective and remaining responsibility.
 Inspect `bb thread-stages show --self --json`; write only when the stage no
 longer fits. Turns ending, side requests, and runtime idleness do not change
-the workflow. Continue useful independent work before marking it Blocked.
+the workflow. Continue useful independent work before selecting Needs user,
+Dependent, or Blocked.
 Preserve existing authorization; an unsuccessful attempt alone does not establish
 a user decision.
 
 | Stage | ID | Meaning |
 | --- | --- | --- |
 | **Deferred** | `Deferred` | Intentionally set aside for later. |
-| **In progress** | `Active` | Useful work remains or is executing here, including coordinated workers and jobs. |
-| **Waiting** | `Waiting` | Passive observation, elapsed time, accepted queued work, or self-recovery, with an established notification or check to resume when due. |
-| **Blocked on user** | `BlockedOnUser` | Required user input, decision, approval, or intended review is the only next step. |
-| **Blocked on another thread** | `BlockedOnOtherAgent` | An independent bb workflow owns a required delivery. |
-| **Blocked on external party** | `BlockedOnThirdParty` | An independent outside owner owes a required action, whether human, AI, or organization. |
+| **In progress** | `Active` | Work is available, progressing, or awaiting computation or an established condition under this thread's coordination. |
+| **Needs user** | `BlockedOnUser` | Required user input, decision, approval, or intended review is the only next step. |
+| **Dependent** | `BlockedOnOtherAgent` | An independent bb workflow owns a required delivery. |
+| **Blocked** | `BlockedOnThirdParty` | An independent outside owner owes a required action, whether human, AI, or organization. |
 | **Completed** | `Completed` | The objective is durably delivered; intended review and follow-ups are settled or delegated. |
 
 Ownership, not hierarchy or runtime status, distinguishes independent workflows
-from coordinated workers. Required counterpart delivery is Blocked, not Waiting;
-stages do not authorize reminders. Keep In progress while establishing a
-resumption path. Routine observation checks do not toggle Waiting.
+from coordinated workers. Required counterpart delivery uses
+Dependent or Blocked; stages do not authorize reminders. Computation, observation,
+scheduled starts, and system recovery remain In progress. Establish what resumes
+the work and how it will be noticed or checked; do not promise automatic
+follow-up without an actual arrangement. Regular checks do not toggle the stage.
 
 ### Completion
 
@@ -76,7 +78,7 @@ Each child has its own stage and remains nested beneath its parent. A child
 can be reordered among its siblings, while its stage remains independent.
 
 New root threads enter at the top of their section, project, and machine.
-In progress, Waiting, and all three Blocked stages share the main band; changing
+In progress, Needs user, Dependent, and Blocked share the main band; changing
 between those stages keeps a root's position. Deferred and Completed are subgroups of the
 current organization and use its saved order. Section, project, and machine
 orders are independent. Moving a root into another band defaults to the top
@@ -100,23 +102,26 @@ Completed; Completed threads archive on their own after the configured retention
 (seven days by default).
 
 Stages change only when someone sets them; thread activity alone never changes a
-stage. A working thread keeps its stage, and the list shows the work by
-turning the stage icon's ring on that row. A collapsed root's ring also turns
-for work in its hidden descendants. A pending question or approval stops the
-ring, because the thread is waiting on the user rather than working.
+stage. Needs user uses a filled unread marker; Dependent an hourglass; Blocked a people
+icon. Deferred and Completed retain their rings. In progress is always blank at
+rest; **In progress icon on hover** chooses no icon or a hollow unread marker
+on hover or keyboard focus. Needs user uses primary ink for its icon and title;
+other stages use secondary ink, and the selected row uses primary ink. Activity
+appears on the right. **Unread indicator on the right** defaults off. A collapsed root's
+activity indicator also reflects work in its hidden descendants. A pending
+question or approval takes precedence over activity.
 
 ## Stage mentions
 
-A mention of a stage, such as `@In progress` or `@Blocked on external party`, names
-that stage. A placement request, such as "do this, then @Blocked on another
-thread" or a stage mention on its own, asks for the thread to be placed in
+A mention of a stage, such as `@In progress` or `@Blocked`, names
+that stage. A placement request, such as "do this, then @Dependent" or a stage mention on its own, asks for the thread to be placed in
 that stage once the rest of the message is done. The plugin also tells a
 thread when someone else changes its stage, as "Thread stage updated: @In progress
-→ @Blocked on external party"; that move has already happened. Older messages
-may mention `@Idle` or `@Active`, now In progress, or `@Blocked`,
-now split into Blocked on another thread and Blocked on external party. Earlier
-names still resolve; In progress keeps the stored `Active` ID, and Blocked on
-user uses `BlockedOnUser`. Discussing a stage without requesting placement does not
+→ @Blocked"; that move has already happened. Older messages
+may mention `@Idle`, `@Active`, or `@Waiting`, now In progress. Earlier blocker
+names still resolve. The stored IDs stay `Active`, `BlockedOnUser`,
+`BlockedOnOtherAgent`, and `BlockedOnThirdParty`; Waiting assignments migrate to
+In progress without changing the containing group's order. Discussing a stage without requesting placement does not
 ask for a stage change.
 
 ## Layout preferences

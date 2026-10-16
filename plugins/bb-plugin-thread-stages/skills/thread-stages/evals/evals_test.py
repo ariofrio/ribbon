@@ -20,11 +20,11 @@ class EvalTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(dir=WORK)
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        self.case = next(c for c in load_cases() if c["id"] == 17)
+        self.case = next(c for c in load_cases() if c["id"] == 18)
         self.source = load_source()
         self.prepared = prepare_case(self.root / "artifacts", self.case, self.source)
         self.workspace = Workspace(self.root / "artifacts")
-        self.command("cat reports/network-watch.json")
+        self.command("cat reports/comparison.md")
 
     def read_skill(self, workspace=None, name="thread-stages"):
         return (workspace or self.workspace).tool("Read", {"file_path": f"/workspace/project/.bb/skills/{name}/SKILL.md"})
@@ -32,7 +32,7 @@ class EvalTests(unittest.TestCase):
     def command(self, command, workspace=None):
         return (workspace or self.workspace).tool("Bash", {"command": command})
 
-    def finish(self, root=None, text="No incidents; incident delivery is active.", code=0):
+    def finish(self, root=None, text="Both designs are ready for your review.", code=0):
         (root or self.root / "artifacts").joinpath("completion.json").write_text(json.dumps({"exitCode": code, "answer": text}))
 
     def grade(self):
@@ -41,13 +41,16 @@ class EvalTests(unittest.TestCase):
     def transition(self):
         self.read_skill()
         self.command("bb thread-stages show --self --json")
-        self.command("bb thread-stages stage Waiting --self --json")
+        self.command("bb thread-stages stage BlockedOnUser --self --json")
         self.finish()
 
     def test_manifest_contains_only_work_requests(self):
         cases = validate()
         self.assertEqual(len(cases), 22)
+        self.assertNotIn("Waiting", self.source["stages"])
         for case in cases:
+            self.assertIn(case["initial"]["stage"], self.source["stages"])
+            self.assertTrue(set(case["expected"]["stages"].values()) <= set(self.source["stages"]))
             self.assertNotIn("expected_answer", case)
             self.assertNotIn("What stage", case["request"])
             self.assertNotIn("Reply with JSON", case["request"])
@@ -105,7 +108,7 @@ else:
     def test_proposed_command_does_not_pass(self):
         self.read_skill()
         self.command("bb thread-stages show --self")
-        self.finish(text="I would run bb thread-stages stage Waiting --self.")
+        self.finish(text="I would run bb thread-stages stage BlockedOnUser --self.")
         self.assertFalse(self.grade()["passed"])
 
     def test_success_requires_recorded_command_and_effect(self):
@@ -114,17 +117,17 @@ else:
 
     def test_missing_inspection_fails(self):
         self.read_skill()
-        self.command("bb thread-stages stage Waiting --self")
+        self.command("bb thread-stages stage BlockedOnUser --self")
         self.finish()
         self.assertFalse(self.grade()["passed"])
 
     def test_redundant_write_fails(self):
         self.transition()
-        self.command("bb thread-stages stage Waiting --self")
+        self.command("bb thread-stages stage BlockedOnUser --self")
         self.assertFalse(self.grade()["passed"])
 
     def test_wrong_thread_or_invalid_call_is_not_hidden_by_recovery(self):
-        self.command("bb thread-stages stage Waiting thr_other")
+        self.command("bb thread-stages stage BlockedOnUser thr_other")
         self.transition()
         self.assertFalse(self.grade()["passed"])
 
@@ -135,14 +138,14 @@ else:
 
     def test_skill_read_after_mutation_is_too_late(self):
         self.command("bb thread-stages show --self")
-        self.command("bb thread-stages stage Waiting --self")
+        self.command("bb thread-stages stage BlockedOnUser --self")
         self.read_skill()
         self.finish()
         self.assertFalse(self.grade()["passed"])
 
     def test_missing_completion_and_failed_skill_read_fail(self):
         self.command("bb thread-stages show --self")
-        self.command("bb thread-stages stage Waiting --self")
+        self.command("bb thread-stages stage BlockedOnUser --self")
         self.finish()
         self.assertFalse(self.grade()["passed"])
         self.read_skill()
@@ -288,7 +291,7 @@ else:
     def test_literal_shell_loops_execute_recorded_commands(self):
         self.read_skill()
         self.command("bb thread-stages show --self")
-        self.assertFalse(self.command("for target in " + self.workspace.state["selfId"] + '; do bb thread-stages stage Waiting "$target"; done')["isError"])
+        self.assertFalse(self.command("for target in " + self.workspace.state["selfId"] + '; do bb thread-stages stage BlockedOnUser "$target"; done')["isError"])
         self.finish()
         self.assertTrue(self.grade()["passed"])
 
@@ -309,10 +312,10 @@ else:
         ws = Workspace(root)
         self.read_skill(ws)
         self.command("bb thread-stages show --self", ws)
-        self.command("bb thread-stages stage Waiting --self", ws)
+        self.command("bb thread-stages stage BlockedOnUser --self", ws)
         self.finish(root)
         self.assertFalse(grade_run(self.case, root)["passed"])
-        self.command("cat reports/network-watch.json", ws)
+        self.command("cat reports/comparison.md", ws)
         self.assertTrue(grade_run(self.case, root)["passed"])
 
     def test_bridge_protocol_exposes_only_project_tools(self):

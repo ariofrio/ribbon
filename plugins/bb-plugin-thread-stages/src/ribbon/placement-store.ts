@@ -603,7 +603,7 @@ export function createPlacementStore(
     if (!hasMainStageOrder || !getEligibleRoot.get(threadId)) return;
     const preserve = anchor?.kind === "preserve";
     const isMain = (stage: string | null) =>
-      stage === "Active" || stage === "Waiting" || isBlockedStage(stage ?? undefined);
+      stage === "Active" || isBlockedStage(stage ?? undefined);
     for (const groupingKey of ORDER_GROUPING_KEYS) {
       const descriptor = options.grouping(groupingKey);
       if (!descriptor) continue;

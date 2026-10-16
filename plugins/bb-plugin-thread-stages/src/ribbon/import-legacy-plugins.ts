@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type BetterSqlite3 from "better-sqlite3";
+import { MERGE_WAITING_ASSIGNMENTS } from "./sidebar-migrations";
 import { RETIRED_STAGE_RENAME } from "./placement-store";
 
 /**
@@ -100,7 +101,7 @@ export function importRibbonSidebar(
     tables: RIBBON_SIDEBAR_TABLES,
   });
   // A Ribbon sidebar from before the rename still says Idle and Blocked.
-  if (copied !== null) database.exec(RETIRED_STAGE_RENAME);
+  if (copied !== null) database.exec(RETIRED_STAGE_RENAME + MERGE_WAITING_ASSIGNMENTS);
   return copied;
 }
 

@@ -43,6 +43,7 @@ export function useRibbonRowSettings() {
   return {
     childThreadLines:
       settings.values?.childThreadLines === "Tree" ? ("Tree" as const) : ("Bar" as const),
+    inProgressHoverIcon: settings.values?.inProgressHoverIcon !== "None",
     shimmerWorkingRows: settings.values?.shimmerWorkingRows !== false,
     tabularPullRequestDigits: settings.values?.tabularPullRequestDigits !== false,
     pullRequestMarks: settings.values?.pullRequestMarks !== false,
@@ -63,7 +64,7 @@ export function useRibbonRow(
   stage: WorkflowStage;
   muted: boolean;
   status: ThreadStatus;
-  /** The stage ring turns: an agent is at work and nothing waits on the user. */
+  /** An agent is at work and nothing waits on the user. */
   working: boolean;
   /** The row shimmers: as above, or a plugin reports the thread running. */
   shines: boolean;
@@ -77,6 +78,7 @@ export function useRibbonRow(
 } | null {
   // The row's own slice of Ribbon's data, so a change elsewhere in the list
   // leaves this row alone.
+  const settings = useSettings();
   const ribbon = useRibbonThread(thread.id);
   const runThreadAction = useSetAtom(runRibbonThreadActionAtom);
   const { tabularPullRequestDigits, pullRequestMarks } = useRibbonRowSettings();
@@ -96,6 +98,7 @@ export function useRibbonRow(
     indicatorState,
     pluginStatus,
     pullRequestMarks ? signal : null,
+    settings.values?.showUnreadIndicator === true,
   );
   const stage = ribbon.stage;
   const lifecycle = signal ? PR_LIFECYCLE_ICONS[signal.lifecycle] : null;
@@ -103,9 +106,9 @@ export function useRibbonRow(
   const actions = thread.archivedAt === null ? (record?.actions ?? []) : [];
   return {
     stage,
-    muted: stage !== "Active",
+    muted: stage !== "BlockedOnUser",
     status,
-    working: status.spinsStageRing,
+    working: status.isAgentWorking,
     shines: status.isWorking && status.indicator !== "waiting-for-input",
     pullRequest:
       visiblePullRequest && signal && lifecycle && position !== "hidden"
@@ -141,29 +144,31 @@ export function useRibbonRow(
   };
 }
 
-/** The ring beside a title: hidden at rest while Active and still, as Ribbon draws it. */
+/** The stage beside a title, hidden at rest when the row allows it. */
 export function RibbonStageGlyph({
   stage,
-  working,
   hiddenAtRest,
+  showOnHover = true,
 }: {
   stage: WorkflowStage;
-  working: boolean;
   hiddenAtRest: boolean;
+  showOnHover?: boolean;
 }) {
   return (
     <span
       // 8px to the title, as bb's top sidebar items keep between icon and label.
       className={`mr-2 flex shrink-0 self-center ${
         hiddenAtRest
-          ? "opacity-0 group-hover/thread-row:opacity-100 group-has-[:focus-visible]/thread-row:opacity-100 pointer-coarse:opacity-100"
+          ? showOnHover
+            ? "opacity-0 group-hover/thread-row:opacity-100 group-has-[:focus-visible]/thread-row:opacity-100"
+            : "opacity-0"
           : ""
       }`}
       data-ribbon-sidebar-icon-slot=""
       {...{ [SHINE_ATTRIBUTE]: "" }}
     >
       <ShineContent className="flex">
-        <StageIcon stage={stage} working={working} />
+        <StageIcon stage={stage} />
       </ShineContent>
     </span>
   );

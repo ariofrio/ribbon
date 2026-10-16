@@ -49,7 +49,7 @@ checks, not the model sessions.
 | 1 | Defer Operations threads while preserving completed work. |
 | 4–5 | Apply sidebar preferences and save a prompt button without losing existing buttons or running it. |
 | 8 | Report validation results while an earlier authorized rollout remains unfinished. |
-| 17–28 | Observation, incident delivery, user review, independent work, coordinated workers, independent owners, durable completion, and disabled automatic updates. |
+| 17–28 | Observation without leaving In progress, incident delivery, user review, independent work, coordinated workers, independent owners, durable completion, and disabled automatic updates. |
 | 29 | Actually submit two approved reports during an unresolved investigation. |
 | 30 | Report a pending upstream fix while retaining local verification responsibility. |
 | 31 | Actually submit a report whose explicitly bounded scope ends at filing. |

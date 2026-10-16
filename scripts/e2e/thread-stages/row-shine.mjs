@@ -90,14 +90,14 @@ export async function verifyRowShine({ stack, fixture }) {
     ));
     const verifyPhases = async () => {
       const observations = await phases();
-      const rings = observations.filter(({ name }) => name === "spin");
-      assert.ok(rings.length >= 3, "several working rings are rendered");
+      const spinners = observations.filter(({ name }) => name === "spin");
+      assert.ok(spinners.length >= 3, "several working spinners are rendered");
       const progress = observations.map(({ progress }) => progress);
       assert.ok(progress.every((value) => value !== null), "every working animation has a phase");
       assert.ok(Math.max(...progress) - Math.min(...progress) < 0.001,
-        `all row shimmers and rings share a phase: ${JSON.stringify(observations)}`);
-      assert.ok(rings.every(({ transform }) => transform === rings[0].transform),
-        "rings in different rows render the same rotation");
+        `all row shimmers and spinners share a phase: ${JSON.stringify(observations)}`);
+      assert.ok(spinners.every(({ transform }) => transform === spinners[0].transform),
+        "spinners in different rows render the same rotation");
     };
     await verifyPhases();
 
@@ -116,7 +116,7 @@ export async function verifyRowShine({ stack, fixture }) {
     await verifyPhases();
 
     await page.emulateMedia({ reducedMotion: "reduce" });
-    assert.equal((await phases()).length, 0, "reduced motion stops all row shimmers and rings");
+    assert.equal((await phases()).length, 0, "reduced motion stops all row shimmers and spinners");
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.waitForFunction(() => {
       const animations = [...document.querySelectorAll("[data-ribbon-sidebar-root] [data-ribbon-active-row]")]

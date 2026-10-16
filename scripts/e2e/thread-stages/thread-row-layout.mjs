@@ -7,6 +7,9 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
   const thread = fixture.threads.get(FEATURED_THREAD);
   const project = fixture.projects.get(FEATURED_PROJECT);
   const previous = fixture.runJson(["thread-stages", "prefs", "get", "rowActions"]);
+  const previousUnread = fixture.runJson(["plugin", "config", "thread-stages"]).values.showUnreadIndicator;
+  const showUnread = (value) => fixture.run(["plugin", "config", "thread-stages", "set", "showUnreadIndicator", JSON.stringify(value)]);
+  showUnread(false);
   fixture.run(["thread-stages", "prefs", "set", "rowActions", '["pin","copyLink","archive"]']);
   fixture.run(["thread", "read", thread.id]);
   const browser = await launch();
@@ -246,11 +249,17 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
             "Configured row controls take title space only when revealed");
           await target.getByRole("button", { name: "Thread actions", exact: true }).click();
           await page.getByRole("menuitem", { name: "Mark unread", exact: true }).click();
-          await target.locator("[data-sidebar-thread-trailing-indicator]").waitFor();
+          showUnread(true);
           await page.mouse.move(1000, 700);
+          await target.locator("[data-sidebar-thread-trailing-indicator]").waitFor();
           const unread = await metrics();
           assert.ok(Math.abs(unread.row.right - unread.title.right - 36) < 1,
             "An indicator reserves only its own slot, without reserving row controls");
+          showUnread(false);
+          await target.locator("[data-sidebar-thread-trailing-indicator]").waitFor({ state: "detached" });
+          const hiddenUnread = await metrics();
+          assert.ok(Math.abs(hiddenUnread.row.right - hiddenUnread.title.right - 8 - hiddenUnread.chevronSlotWidth) < 1,
+            "Hiding the unread indicator returns its space to the title");
           fixture.run(["thread", "read", thread.id]);
         }
         console.log(`${testCase}: shared row controls and per-thread prompts compose correctly`);
@@ -262,6 +271,7 @@ export async function verifyThreadRowLayout({ stack, fixture, cases }) {
     }
   } finally {
     await browser.close();
+    showUnread(previousUnread);
     fixture.run(["thread-stages", "prefs", "set", "rowActions", JSON.stringify(previous.value)]);
   }
 }

@@ -222,10 +222,8 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
     }
     if (!reconnectPending.current) return;
     reconnectPending.current = false;
-    void synchronize().catch(fail("Thread stages unavailable"));
-    void loadPlacements().catch(fail("Could not load placements"));
-    void loadStages().catch(fail("Could not load stages"));
-  }, [connection, fail, loadPlacements, loadStages, synchronize]);
+    loadAll();
+  }, [connection, loadAll]);
 
   useRealtime("placements-changed", () => {
     void loadPlacements().catch(fail("Could not load placements"));

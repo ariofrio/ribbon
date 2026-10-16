@@ -18,6 +18,38 @@ export const OBSERVED_MEMBERSHIP_MIGRATION = `
   );
 `;
 
+/** Keep existing ranks and history when the former Waiting stage joins Active. */
+export const MERGE_WAITING_ASSIGNMENTS = `
+  INSERT INTO group_order (grouping_key, group_id, thread_id, sort_key, updated_at_ms)
+    SELECT grouping_key, 'Active', thread_id, sort_key, updated_at_ms FROM group_order
+    WHERE grouping_key = 'plugin:thread-stages:stages' AND group_id = 'Waiting'
+    ON CONFLICT (grouping_key, group_id, thread_id) DO UPDATE
+      SET sort_key = excluded.sort_key, updated_at_ms = excluded.updated_at_ms
+      WHERE EXISTS (SELECT 1 FROM group_assignment
+        WHERE grouping_key = 'plugin:thread-stages:stages'
+          AND thread_id = excluded.thread_id AND group_id = 'Waiting');
+  DELETE FROM group_order
+    WHERE grouping_key = 'plugin:thread-stages:stages' AND group_id = 'Waiting';
+  UPDATE group_assignment SET group_id = 'Active'
+    WHERE grouping_key = 'plugin:thread-stages:stages' AND group_id = 'Waiting';
+  UPDATE group_assignment SET previous_group_id = 'Active'
+    WHERE grouping_key = 'plugin:thread-stages:stages' AND previous_group_id = 'Waiting';
+  UPDATE grouping_revision SET revision = revision + 1
+    WHERE grouping_key = 'plugin:thread-stages:stages';
+`;
+
+export const MERGE_WAITING_STAGE = `
+  INSERT INTO main_stage_order (grouping_key, group_id, thread_id, stage_id, sort_key)
+    SELECT grouping_key, group_id, thread_id, 'Active', sort_key FROM main_stage_order
+    WHERE stage_id = 'Waiting'
+    ON CONFLICT (grouping_key, group_id, thread_id, stage_id) DO UPDATE
+      SET sort_key = excluded.sort_key
+      WHERE EXISTS (SELECT 1 FROM group_assignment
+        WHERE grouping_key = 'plugin:thread-stages:stages'
+          AND thread_id = excluded.thread_id AND group_id = 'Waiting');
+  DELETE FROM main_stage_order WHERE stage_id = 'Waiting';
+` + MERGE_WAITING_ASSIGNMENTS;
+
 export function sidebarMigrations(database: BetterSqlite3.Database): string[] {
   const migrationTable = database
     .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_bb_migrations'")
@@ -71,9 +103,9 @@ export function pluginMigrations(database: BetterSqlite3.Database): string[] {
       .update(OBSERVED_MEMBERSHIP_MIGRATION)
       .digest("hex");
     if (tenthMigration?.statement_hash === membershipHash) {
-      return [...sidebar, MAIN_STAGE_ORDER_MIGRATION, OBSERVED_MEMBERSHIP_MIGRATION, ...ICON_MIGRATIONS, THREAD_ACTIONS_STEER_MIGRATION];
+      return [...sidebar, MAIN_STAGE_ORDER_MIGRATION, OBSERVED_MEMBERSHIP_MIGRATION, ...ICON_MIGRATIONS, THREAD_ACTIONS_STEER_MIGRATION, MERGE_WAITING_STAGE];
     }
-    return [...sidebar, MAIN_STAGE_ORDER_MIGRATION, ...ICON_MIGRATIONS, OBSERVED_MEMBERSHIP_MIGRATION, THREAD_ACTIONS_STEER_MIGRATION];
+    return [...sidebar, MAIN_STAGE_ORDER_MIGRATION, ...ICON_MIGRATIONS, OBSERVED_MEMBERSHIP_MIGRATION, THREAD_ACTIONS_STEER_MIGRATION, MERGE_WAITING_STAGE];
   }
-  return [...sidebar, ...ICON_MIGRATIONS, MAIN_STAGE_ORDER_MIGRATION, OBSERVED_MEMBERSHIP_MIGRATION, THREAD_ACTIONS_STEER_MIGRATION];
+  return [...sidebar, ...ICON_MIGRATIONS, MAIN_STAGE_ORDER_MIGRATION, OBSERVED_MEMBERSHIP_MIGRATION, THREAD_ACTIONS_STEER_MIGRATION, MERGE_WAITING_STAGE];
 }

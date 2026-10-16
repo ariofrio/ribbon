@@ -95,7 +95,7 @@ test("an empty suite directory fails instead of reporting an empty run as passed
 });
 
 test("isolated groups partition every discovered case once, preserving suite order", async () => {
-  assert.deepEqual(E2E_GROUPS, ["placement", "ordering", "sidebar"]);
+  assert.deepEqual(E2E_GROUPS, ["placement", "ordering", "sidebar", "features"]);
   const suites = selectSuites(await discoverSuites(), []);
   const cases = (selected) => selected.flatMap((suite) =>
     suite.selectedCases.map((name) => `${suite.id}:${name}`));
@@ -107,13 +107,16 @@ test("isolated groups partition every discovered case once, preserving suite ord
     assert.deepEqual(group, suites.filter((suite) => group.includes(suite)));
   }
   assert.deepEqual(grouped[0].map((suite) => suite.id), [
-    "composer-readiness", "missing-shortcuts", "terminal-shortcut", "thread-indicators",
-    "completed-placement", "stage-placement",
-    "pr-number", "pr-status", "new-thread-routing", "selected-title-color", "model-mentions",
+    "composer-readiness", "terminal-shortcut", "completed-placement", "stage-placement",
+    "new-thread-routing", "selected-title-color",
   ]);
   assert.deepEqual(grouped[1].map((suite) => suite.id), [
-    "thread-titles", "section-placement", "machine-order", "custom-sort",
-    "thread-reordering", "drag-regressions", "stage-shortcuts", "stage-previews",
+    "thread-indicators", "thread-titles", "section-placement", "machine-order", "custom-sort",
+    "thread-reordering", "drag-regressions", "pr-status", "stage-shortcuts",
+  ]);
+  assert.deepEqual(grouped[3].map((suite) => suite.id), [
+    "missing-shortcuts", "thread-title-clicks", "thread-context-menu", "thread-title-pan",
+    "pr-number", "row-actions", "global-instructions", "model-mentions", "row-shine", "stage-previews",
   ]);
   const sidebarIds = new Set(grouped[2].map((suite) => suite.id));
   for (const id of ["grouping", "child-collapse", "child-stages", "child-rails", "child-reordering",
@@ -138,6 +141,8 @@ test("group selectors list cases without starting bb and reject empty selections
     ["scripts/e2e/run.mjs", "--list", ...args], { encoding: "utf8", stdio: "pipe" });
   assert.equal(run("--group", "placement", "--case", "stage-placement:default-order"),
     "stage-placement:default-order\n");
+  assert.equal(run("--group", "features", "--case", "global-instructions:editor"),
+    "global-instructions:editor\n");
   assert.throws(() => run("--group", "missing"), /Unknown E2E group missing/);
   assert.throws(() => run("--group", "sidebar", "--case", "stage-placement:default-order"),
     /No E2E cases selected/);

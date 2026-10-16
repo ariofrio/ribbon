@@ -1,7 +1,6 @@
 export const WORKFLOW_STAGES = [
   "Deferred",
   "Active",
-  "Waiting",
   "BlockedOnUser",
   "BlockedOnOtherAgent",
   "BlockedOnThirdParty",
@@ -13,10 +12,9 @@ export type WorkflowStage = (typeof WORKFLOW_STAGES)[number];
 export const WORKFLOW_STAGE_LABELS: Record<WorkflowStage, string> = {
   Deferred: "Deferred",
   Active: "In progress",
-  Waiting: "Waiting",
-  BlockedOnUser: "Blocked on user",
-  BlockedOnOtherAgent: "Blocked on another thread",
-  BlockedOnThirdParty: "Blocked on external party",
+  BlockedOnUser: "Needs user",
+  BlockedOnOtherAgent: "Dependent",
+  BlockedOnThirdParty: "Blocked",
   Completed: "Completed",
 };
 
@@ -66,9 +64,11 @@ const STAGE_BY_KEY = new Map<string, WorkflowStage>(
     ];
     if (stage === "Deferred") entries.push(["backlog", stage]);
     // Idle and Blocked are earlier names that saved data and old messages use.
-    if (stage === "Active") entries.push(["idle", stage], ["todo", stage]);
+    if (stage === "Active") entries.push(["idle", stage], ["todo", stage], ["waiting", stage]);
+    if (stage === "BlockedOnUser") entries.push(["blockedonuser", stage]);
+    if (stage === "BlockedOnOtherAgent") entries.push(["blockedonanotherthread", stage]);
     if (stage === "BlockedOnThirdParty") {
-      entries.push(["blocked", stage]);
+      entries.push(["blocked", stage], ["blockedonexternalparty", stage]);
     }
     if (stage === "Completed") {
       entries.push(["done", stage], ["canceled", stage], ["cancelled", stage]);
@@ -94,7 +94,6 @@ export function groupThreadsByStage<Thread extends SidebarThreadLike>(
   const groups: Record<WorkflowStage, Thread[]> = {
     Deferred: [],
     Active: [],
-    Waiting: [],
     BlockedOnUser: [],
     BlockedOnOtherAgent: [],
     BlockedOnThirdParty: [],

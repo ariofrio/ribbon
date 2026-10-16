@@ -44,24 +44,23 @@ headings.
 
 The stage describes the thread's overall workflow. **In progress** covers
 available or progressing work under this thread's coordination, including its
-own executing workers and managed jobs. **Waiting** covers standby for an
+own executing workers and managed jobs, computation, and standby for an
 established condition, such as observation, a scheduled start, or recovery.
-**Blocked on user** means the user owes input, a decision, approval, direction,
-or intended review. **Blocked on another thread** and **Blocked on external
-party** mean a separate bb workflow or an independent outside counterpart owns
+**Needs user** means the user owes input, a decision, approval, direction,
+or intended review. **Dependent** and **Blocked** mean a separate bb workflow or an independent outside counterpart owns
 a required action; the outside party may be a person, agent, or organization.
-Each Blocked stage applies only when no useful independent work remains here;
+Each dependency stage applies only when no useful independent work remains here;
 continue that work in In progress first. **Deferred** is deliberately set aside.
 **Completed** means an established objective has reached a durable result,
 with intended review and loose ends settled or delegated. Initial answers,
 research, and proposals keep In progress while useful independent work remains.
-Required user review uses Blocked on user once that independent work is done.
+Required user review uses Needs user once that independent work is done.
 Filing an issue or submitting a report does not close unresolved
 findings unless the agreed scope ends at reporting or another owner accepts
 the remaining responsibility. Verification this thread still coordinates
 keeps it open.
 
-Inside each group, In progress, Waiting, and all three Blocked stages share one
+Inside each group, In progress, Needs user, Dependent, and Blocked share one
 manually ordered list, followed by Deferred and then Completed. New roots enter at the top, and
 activity leaves positions unchanged.
 
@@ -86,7 +85,7 @@ stays in the main list, with its threads partitioned inside it.
 Drag a root to reorder it within its list, onto its section's heading to put
 it first, or onto another section to move it there. Drag a child to reorder
 it among its siblings; it stays under its parent and keeps its stage.
-In progress, Waiting, and all three Blocked stages share the main list; changing
+In progress, Needs user, Dependent, and Blocked share the main list; changing
 between those stages keeps a root's position. Every band follows its section,
 project, or machine order;
 reordering in one organization leaves the other organization’s order unchanged.
@@ -128,13 +127,22 @@ name renames it.
 
 ## Rows
 
-Thread activity alone never changes a stage. A working thread's stage icon turns its
-ring in place of bb's spinner, a collapsed root's ring also turns for work in
-its hidden descendants, and a pending question or approval stops the ring. A
-working row shimmers across its icon, title, and indicator; turn off
+In progress is always blank at rest. **In progress icon on hover** chooses
+nothing or a hollow unread marker on hover and keyboard focus. Needs user has a
+filled unread marker, Dependent an hourglass, and Blocked the UserMultiple02 people
+icon, fitted to the existing 13px stage sizing. Deferred and Completed retain
+main's rings. Needs user uses primary ink for both icon and title; other stages
+use secondary ink. A selected row uses primary ink in every stage.
+**Unread indicator on the right** defaults off; enable it to restore bb's unread dot.
+
+Thread activity alone never changes a stage. Stage icons stay still on the left.
+bb's activity indicator appears on the right, including work in a collapsed
+root's hidden descendants. A pending question or approval takes precedence over
+the activity indicator. A working row shimmers across its icon, title, and
+indicator; turn off
 **Shimmer working rows** to keep bb's shimmer on the indicator alone. A
 workflow, background agent, or background command left running by an idle
-agent shimmers only its indicator, and the ring holds still.
+agent shimmers only its indicator, and the stage icon stays still.
 
 A title runs to the row's edge unless something stands in the trailing
 lane: a status indicator, a PR number, or saved prompts. A toggle for hidden
@@ -193,17 +201,17 @@ when bb next constructs the agent's provider session; the stage skill stays
 available in both modes.
 
 Type `@` and a stage name in the composer to mention a stage, such as
-`@Blocked on another thread`. A placement request using a stage mention tells
-the agent to place the thread there, so a message can end with "then @Blocked on another thread", and a
+`@Dependent`. A placement request using a stage mention tells
+the agent to place the thread there, so a message can end with "then @Dependent", and a
 queued message can be just the mention. Mentions of `@Idle`, `@Active`, and
 `@Blocked` in older messages still resolve:
-Idle and Active are now In progress, and Blocked is split into Blocked on
-another thread and Blocked on external party. In progress keeps the stored
-`Active` ID and existing shortcut bindings. Blocked on user has its own
-`BlockedOnUser` ID; existing assignments are unchanged.
+Idle, Active, and Waiting now resolve to In progress. Existing Waiting
+assignments migrate to In progress. The stored IDs remain `Active`,
+`BlockedOnUser` (Needs user), `BlockedOnOtherAgent` (Dependent), and
+`BlockedOnThirdParty` (Blocked); existing shortcut bindings stay valid.
 
 When you or another thread move a thread to a different stage, the plugin
-sends that thread "Thread stage updated: @In progress → @Blocked on external party",
+sends that thread "Thread stage updated: @In progress → @Blocked",
 with agent-only
 context that tells the agent who moved it. The message steers the active turn
 or starts one on an idle thread. Automatic placement and a thread
@@ -221,10 +229,10 @@ thread as Completed is how it leaves the list.
 | --- | --- | --- |
 | ⌘. / ⌥⌘. | Ctrl+. / Ctrl+Alt+. | Complete and select the next main-list thread in this section or project |
 | ⇧⌘. | Ctrl+Shift+. | Return to In progress, or undo the latest filing in this section or project |
-| ⇧⌘, | Ctrl+Shift+, | Mark Waiting |
-| ⌥⇧⌘U | Ctrl+Alt+Shift+U | Mark Blocked on user |
-| ⌃⌥⌘. | Ctrl+Alt+Shift+. | Mark Blocked on another thread |
-| ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked on external party |
+| ⇧⌘, | Ctrl+Shift+, | Return to In progress (alternate) |
+| ⌥⇧⌘U | Ctrl+Alt+Shift+U | Mark Needs user |
+| ⌃⌥⌘. | Ctrl+Alt+Shift+. | Mark Dependent |
+| ⌃⇧⌘. | Ctrl+Alt+Shift+, | Mark Blocked |
 | ⌃⌘. | Ctrl+Alt+, | Defer |
 | ⌥⌘↑ / ⌥⌘↓ | Ctrl+Alt+↑ / Ctrl+Alt+↓ | Move within the main, Deferred, or Completed list, or a child among its siblings |
 | ⌥⇧⌘↑ / ⌥⇧⌘↓ | Ctrl+Alt+Shift+↑ / Ctrl+Alt+Shift+↓ | Move to that list's edge |
@@ -251,7 +259,7 @@ Section membership is BB core state; change it with `bb thread update`.
 ```sh
 bb thread-stages list --section <section-id> --stage BlockedOnThirdParty
 bb thread-stages show --self
-bb thread-stages stage Waiting --self
+bb thread-stages stage Active --self
 bb thread-stages stage BlockedOnUser --self
 bb thread-stages stage Completed --self
 bb thread-stages list --include-children --stage BlockedOnThirdParty
@@ -275,8 +283,7 @@ sibling position.
 Section, project, and machine orders are independent. `--by` selects which
 saved order `list` reads or `order` changes; it defaults to `section`.
 Deferred and Completed are bands within that organization and use its order.
-Order anchors must be in the same group and band; In progress, Waiting, and all
-three Blocked stages share the main band. Children have one sibling order across all views.
+Order anchors must be in the same group and band; In progress, Needs user, Dependent, and Blocked share the main band. Children have one sibling order across all views.
 With Custom sorting, a move to another section starts at the top, including
 when returning to a section visited before. The thread menu, CLI, and core BB
 membership updates use the same placement policy as a drop on the group

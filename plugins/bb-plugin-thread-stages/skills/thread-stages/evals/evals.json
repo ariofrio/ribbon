@@ -210,10 +210,10 @@
       ],
       "expected": {
         "stages": {
-          "thr_m7k2p9v4ax": "Waiting"
+          "thr_m7k2p9v4ax": "Active"
         },
         "stage_writes": {
-          "thr_m7k2p9v4ax": 1
+          "thr_m7k2p9v4ax": 0
         }
       },
       "required_files": [
@@ -455,7 +455,7 @@
       ],
       "request": "Morning check\u2014anything happen overnight?",
       "initial": {
-        "stage": "Waiting",
+        "stage": "Active",
         "automaticStageUpdates": true,
         "files": {
           "reports/network-watch.json": "{\n  \"incidents\": [],\n  \"collector\": \"healthy\",\n  \"daysRemaining\": 4,\n  \"checkedAt\": \"2026-10-14T08:00:00Z\",\n  \"checksSinceMidnight\": 96\n}\n"
@@ -466,7 +466,7 @@
       ],
       "expected": {
         "stages": {
-          "thr_m7k2p9v4ax": "Waiting"
+          "thr_m7k2p9v4ax": "Active"
         },
         "stage_writes": {
           "thr_m7k2p9v4ax": 0
@@ -709,7 +709,7 @@
           "content": "The draft is in reports/cookies.md. I checked the reproduction and reviewed the wording."
         }
       ],
-      "request": "Approved\u2014file it and check the published body matches the draft.",
+      "request": "Approved—file it and check the published body matches the draft.",
       "initial": {
         "stage": "Active",
         "automaticStageUpdates": true,
