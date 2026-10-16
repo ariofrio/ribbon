@@ -8,6 +8,7 @@ import { THREAD_STAGES_GROUPING_KEY } from "../workflow/catalog";
 
 const realtime = new Map<string, () => void>();
 let stubs: Record<string, (input: unknown) => unknown> = {};
+let connection = "connected";
 
 vi.mock("@get-bb/plugin-sdk/app", () => ({
   useRpc: () => ({
@@ -16,12 +17,13 @@ vi.mock("@get-bb/plugin-sdk/app", () => ({
   useRealtime: (event: string, handler: () => void) => {
     realtime.set(event, handler);
   },
-  useRealtimeConnectionState: () => "connected",
+  useRealtimeConnectionState: () => connection,
 }));
 
 afterEach(() => {
   cleanup();
   realtime.clear();
+  connection = "connected";
 });
 
 const renders = new Map<string, number>();
@@ -53,6 +55,43 @@ function stages(stageOfA: string) {
 }
 
 describe("RibbonDataProvider rows", () => {
+  it("recovers actions and child order changed while disconnected on every reconnect", async () => {
+    stubs = ribbonRpcStubs() as typeof stubs;
+    function ReconnectedRow() {
+      const ribbon = useRibbonData();
+      const row = useRibbonThread("thr_a");
+      return <>
+        <output>{ribbon?.ready ? "ready" : "loading"}</output>
+        {row?.actions?.actions.map((action) => <button key={action.id}>{action.label}</button>)}
+        <ol>{ribbon?.childRanks.map((child) => <li key={child.threadId}>{child.threadId}</li>)}</ol>
+      </>;
+    }
+    const client = () => <RibbonDataProvider><ReconnectedRow /></RibbonDataProvider>;
+    const { rerender } = render(client());
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("ready"));
+
+    for (const labels of [["Release", "Update to 0.46.1"], ["Review"]]) {
+      connection = "reconnecting";
+      rerender(client());
+      const previous = screen.queryAllByRole("button").map((button) => button.textContent);
+      // The server changes while its realtime notifications cannot reach this client.
+      stubs = ribbonRpcStubs({
+        threadActions: [{ threadId: "thr_a", actions: labels.map((label) => ({ id: label, label, prompt: label })) }],
+        childRanks: labels.map((_, index) => ({ parentThreadId: "thr_a", threadId: `thr_child_${labels.length - index}` })),
+      }) as typeof stubs;
+      expect(screen.queryAllByRole("button").map((button) => button.textContent)).toEqual(previous);
+
+      connection = "connected";
+      rerender(client());
+      await waitFor(() => {
+        expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(labels);
+        expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual(
+          labels.map((_, index) => `thr_child_${labels.length - index}`),
+        );
+      });
+    }
+  });
+
   it("shows a Completed reorder before the placement save answers", async () => {
     const initial = [
       { threadId: "thr_a", groupId: "Completed", enteredAtMs: 2 },
