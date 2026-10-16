@@ -900,7 +900,10 @@ function ThreadRowComponent({
                 {...(ribbon ? { [SHINE_ATTRIBUTE]: "" } : {})}
               >
                 {ribbon ? (
-                  <ShineContent className="flex items-center gap-2">
+                  <ShineContent className={cn(
+                    "flex items-center gap-2",
+                    ribbon.stage === "Completed" && "line-through [&_span]:line-through",
+                  )}>
                     {ribbonMarquee ? (
                       <MarqueeText
                         text={labelTitle}
