@@ -3,6 +3,7 @@ import { useAtomValue, useStore } from "jotai";
 import {
   experimental_usePluginId,
   useRealtime,
+  useRealtimeConnectionState,
   useRpc,
 } from "@get-bb/plugin-sdk/app";
 import type { threadListRpcContract } from "../../server.js";
@@ -25,23 +26,26 @@ export function usePreferencesSync(): void {
   const rpc = useRpc<typeof threadListRpcContract>();
   const store = useStore();
   const pluginId = experimental_usePluginId();
+  const connection = useRealtimeConnectionState();
   useEffect(() => {
     attachPreferencesStore(store, pluginId);
     syncOwnerCount += 1;
     if (syncOwnerCount === 1) {
       hydratePreferencesFromMirror();
-      void hydratePreferences(rpc).catch((error: unknown) => {
-        console.warn(
-          `${pluginId}: loading preferences failed: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      });
+      if (connection === "connected") {
+        void hydratePreferences(rpc).catch((error: unknown) => {
+          console.warn(
+            `${pluginId}: loading preferences failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
+      }
     }
     return () => {
       syncOwnerCount -= 1;
     };
-  }, [pluginId, rpc, store]);
+  }, [connection, pluginId, rpc, store]);
   useRealtime(PREFERENCES_CHANGED_CHANNEL, applyRemotePreferenceSignal);
 }
 
