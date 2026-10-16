@@ -10,10 +10,12 @@ const LANE_PX = 36;
 
 export async function verifyTitleLane({ stack, fixture }) {
   const project = fixture.projects.get(FEATURED_PROJECT);
+  const previousUnread = fixture.runJson(["plugin", "config", "thread-stages"]).values.showUnreadIndicator;
+  // This suite exercises the lane kept by an explicitly enabled unread marker.
+  fixture.run(["plugin", "config", "thread-stages", "set", "showUnreadIndicator", "true"]);
   const child = fixture.threads.get(FEATURED_THREAD);
   const parent = fixture.threads.get(THREADS.find((spec) => spec.title === "Replace the legacy filter drawer").title);
-  // Unread since the fixture made it: its lane holds bb's unread mark. (A
-  // working row turns its stage ring instead and keeps no lane.)
+  // Unread since the fixture made it: its lane holds bb's unread mark.
   const unread = fixture.threads.get(THREADS.find((spec) => spec.title === "Compare managed Postgres plans").title);
   // A read, childless row with nothing to show in its lane.
   const plain = fixture.runJson([
@@ -99,6 +101,7 @@ export async function verifyTitleLane({ stack, fixture }) {
     await context.close();
   } finally {
     await browser.close();
+    fixture.run(["plugin", "config", "thread-stages", "set", "showUnreadIndicator", JSON.stringify(previousUnread)]);
     fixture.run(["thread", "archive", plain.id]);
     fixture.run(["thread", "archive", shown.id]);
   }

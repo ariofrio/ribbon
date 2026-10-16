@@ -26,27 +26,25 @@ const LABELS: Record<ThreadStatus["indicator"], string | null> = {
 
 /**
  * Ribbon's row status from the indicator state bb's list already resolves
- * for a row, hidden children included. A running agent turns the stage ring
- * rather than showing bb's spinner, so runtime alone is no indicator here; a
- * pull request's mark then slots in by how urgently it needs the user.
- * Background work shows its icon but moves nothing else while the agent idles.
+ * for a row, hidden children included. A pull request's mark slots in by
+ * how urgently it needs the user. Background work shows its icon but moves
+ * nothing else while the agent idles.
  */
 export function ribbonThreadStatus(
   state: ThreadListIndicatorState,
   pluginStatus: PluginSidebarThreadRowStatus | null,
   pullRequest: PullRequestSignal | null,
+  showUnreadIndicator = false,
 ): ThreadStatus {
-  const resolved = resolveThreadListIndicator(state);
+  const indicator = resolveThreadListIndicator(
+    showUnreadIndicator ? state : { ...state, hasUnreadSuccess: false },
+  );
   const hasWork = hasThreadListWorkingActivity({
     ...state,
     isWorkflowActive: false,
     isBackgroundAgentActive: false,
     isBackgroundCommandActive: false,
   });
-  const indicator =
-    resolved === "runtime"
-      ? resolveThreadListIndicator({ ...state, isRuntimeActive: false })
-      : resolved;
   const visiblePluginStatus = ["runtime", "unread-error", "waiting-for-input"].includes(
     indicator,
   )
@@ -56,7 +54,7 @@ export function ribbonThreadStatus(
     indicator,
     indicatorLabel: visiblePluginStatus?.label ?? LABELS[indicator],
     isWorking: hasWork || pluginStatus?.tone === "running",
-    spinsStageRing: hasWork && indicator !== "waiting-for-input",
+    isAgentWorking: hasWork && indicator !== "waiting-for-input",
     pluginStatus: visiblePluginStatus,
     pullRequestMark: null,
   };

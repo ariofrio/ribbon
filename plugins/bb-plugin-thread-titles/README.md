@@ -135,10 +135,43 @@ one correction attempt on the same model per phase;
 it does not reset the fallback budget. Once the final phase exhausts its budget,
 the job stops and records its reason in plugin logs.
 
+Unexpected API failures and unavailable model catalogs retry with exponential
+backoff and jitter. Delays start at 15–30 seconds, double after each failure,
+and cap at 7.5–15 minutes. There is no attempt-count limit. The first-attempt
+time, failure count, and next-attempt time survive reloads and restarts; incoming
+events cannot bypass the delay.
+
+**Retry window (hours)** defaults to 24 hours, measured from each title pass's
+initial attempt, including time spent offline and provider cooldowns after that
+attempt. Waiting for the first turn or third message does not start the window.
+A reconciliation failure before the trigger also starts it, so an unreadable
+source cannot retry forever. A completed pass gives the next pass a fresh window.
+Configure the duration on the plugin's settings page or with:
+
+```sh
+bb plugin config thread-titles set retryWindowHours 24
+```
+
+Fractional hours are supported, with a minimum of one minute. Changes apply to
+pending passes using their original first-attempt time; increasing the setting
+does not revive a job that has already expired.
+
+Expiry permanently stops the thread's remaining titling passes and writes one
+terminal entry with the thread ID, failure count, and last error, if any. The
+next reconciliation notices expiry even if the next retry is still delayed.
+View the entry with `bb plugin logs thread-titles`, for example:
+
+```text
+Thread thr_example: title refinement skipped (Retry window expired (24 hours since initial attempt; 12 failed attempts); last error: Error: Title model catalog unavailable)
+```
+
 Workers are stopped and archived before replacement. bb's provider-retry plugin
 may have queued a retry for the failed worker, but bb excludes archived threads
 from automatic queue dispatch. Ribbon persists retirement before cleanup so a
 restart completes cleanup before creating another worker.
+Cleanup failures use an independent exponential backoff with jitter, capped at
+15 minutes between attempts. Cleanup remains queued after titling stops,
+including discovery of a worker whose creation response was lost.
 
 Inspect outcomes with `bb plugin logs thread-titles`.
 

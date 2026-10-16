@@ -419,6 +419,19 @@ export default async function ribbonServer(
         "Show an icon beside each heading: the group's own where one is chosen, otherwise a book for a section or a folder for a project that opens and shuts with it.",
       default: true,
     },
+    inProgressHoverIcon: {
+      type: "select",
+      label: "In progress icon on hover",
+      description: "In progress stays blank at rest. Choose what appears when its row is hovered or focused.",
+      options: ["None", "Hollow unread indicator"],
+      default: "Hollow unread indicator",
+    },
+    showUnreadIndicator: {
+      type: "boolean",
+      label: "Unread indicator on the right",
+      description: "Show the unread dot beside a thread's activity indicators.",
+      default: false,
+    },
     shimmerWorkingRows: {
       type: "boolean",
       label: "Shimmer working rows",

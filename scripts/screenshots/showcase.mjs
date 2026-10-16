@@ -103,7 +103,7 @@ export async function prepareShowcase({ fixture, stack }) {
   ]);
   fixture.run(["thread", "wait", review.id, "--status", "idle"]);
   fixture.run(["thread", "update", review.id, "--section", fixture.section.id]);
-  fixture.run(["thread-stages", "stage", "Waiting", review.id]);
+  fixture.run(["thread-stages", "stage", "Active", review.id]);
   fixture.run(["thread", "read", review.id]);
   // Replace the unrelated comparison so the sidebar keeps the same density.
   fixture.run(["thread", "archive", fixture.threads.get("Compare managed Postgres plans").id]);

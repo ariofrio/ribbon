@@ -29,8 +29,9 @@ export async function verifyChildRails({ stack, fixture, cases }) {
     const [first, last] = await page.evaluate((ids) => ids
       .map((id) => ({ id, top: document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${id}"]`).getBoundingClientRect().top }))
       .sort((a, b) => a.top - b.top), children.map((child) => child.id));
-    // Selecting the last child shows its Active ring, while the first child's
-    // stays hidden at rest.
+    // Keep a full-size ring on the selected last child; the first child is
+    // In progress and its marker stays hidden at rest.
+    fixture.run(["thread-stages", "stage", "Deferred", last.id]);
     await link(list, last.id).click();
     await page.mouse.move(1200, 780);
     await page.waitForFunction((id) => getComputedStyle(
