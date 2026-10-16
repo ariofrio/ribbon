@@ -43,22 +43,29 @@ export async function verifyThreadIcons({ stack, fixture }) {
     await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
     await list.waitFor({ timeout: 120_000 });
     await paintedIcon('[aria-label="In progress stage"] svg', false);
-    for (const [title, label] of [
-      ["Replace the legacy filter drawer", "Dependent"],
-      ["Compare managed Postgres plans", "Blocked"],
-    ]) {
-      const glyph = row(list, fixture.threads.get(title).id).getByLabel(`${label} stage`, { exact: true }).locator("svg");
-      const size = await glyph.evaluate((svg) => {
-        const path = svg.querySelector("path");
-        const matrix = path.getScreenCTM();
-        const stroke = parseFloat(getComputedStyle(path).strokeWidth) * Math.hypot(matrix.a, matrix.b);
-        const bounds = svg.getBBox();
-        return { slot: getComputedStyle(svg).width, stroke, painted: Math.max(bounds.width, bounds.height) * 16 / 24 + stroke };
-      });
-      assert.equal(size.slot, "16px", `${label}: same slot as main`);
-      assert.ok(Math.abs(size.stroke - 4 / 3) < 0.01, `${label}: same stroke as main's rings`);
-      assert.ok(Math.abs(size.painted - 13) < 0.02, `${label}: glyph fits main's 13px painted bounds`);
+    // Measure on our visible target, independent of stages earlier suites left.
+    try {
+      for (const [stage, label] of [
+        ["BlockedOnOtherAgent", "Dependent"],
+        ["BlockedOnThirdParty", "Blocked"],
+      ]) {
+        fixture.run(["thread-stages", "stage", stage, thread.id]);
+        const glyph = target.getByLabel(`${label} stage`, { exact: true }).locator("svg");
+        const size = await glyph.evaluate((svg) => {
+          const path = svg.querySelector("path");
+          const matrix = path.getScreenCTM();
+          const stroke = parseFloat(getComputedStyle(path).strokeWidth) * Math.hypot(matrix.a, matrix.b);
+          const bounds = svg.getBBox();
+          return { slot: getComputedStyle(svg).width, stroke, painted: Math.max(bounds.width, bounds.height) * 16 / 24 + stroke };
+        });
+        assert.equal(size.slot, "16px", `${label}: same slot as main`);
+        assert.ok(Math.abs(size.stroke - 4 / 3) < 0.01, `${label}: same stroke as main's rings`);
+        assert.ok(Math.abs(size.painted - 13) < 0.02, `${label}: glyph fits main's 13px painted bounds`);
+      }
+    } finally {
+      fixture.run(["thread-stages", "stage", "Active", thread.id]);
     }
+    await paintedIcon('[aria-label="In progress stage"] svg', false);
     const workingRow = row(list, workingThread.id);
     // Runtime activity occupies the trailing lane; the stage stays still.
     const geometry = await workingRow.evaluate((node) => {
