@@ -44,6 +44,11 @@
     },
     "plugins/bb-plugin-thread-titles": [
       "button"
+    ],
+    "plugins/bb-plugin-global-instructions": [
+      "button",
+      "textarea",
+      "tabs"
     ]
   },
   "literals": []

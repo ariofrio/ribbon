@@ -32,7 +32,7 @@ class EvalTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.workspace = Path(self.temporary.name)
         self.source = load_source()
-        self.case = next(x for x in load_cases() if x["id"] == 17)
+        self.case = next(x for x in load_cases() if x["id"] == 18)
         prepare_case(self.workspace, self.case, self.source)
         self.skill = self.workspace / "skills/thread-stages/SKILL.md"
 
@@ -42,12 +42,12 @@ class EvalTests(unittest.TestCase):
 
     def transition(self):
         invoke(self.workspace, ["thread-stages", "show", "--self", "--json"])
-        invoke(self.workspace, ["thread-stages", "stage", "Waiting", "--self"])
+        invoke(self.workspace, ["thread-stages", "stage", "BlockedOnUser", "--self"])
 
     def test_manifest_and_source_contract(self):
         validate()
-        self.assertEqual(len(load_cases()), 28)
-        self.assertIn("Waiting", self.source["stages"])
+        self.assertEqual(len(load_cases()), 34)
+        self.assertNotIn("Waiting", self.source["stages"])
         self.assertIn("BlockedOnUser", self.source["stages"])
         self.assertIn("Inspect the current stage", self.source["instructions"]["on"])
         self.assertIn("only when the user explicitly", self.source["instructions"]["off"])
@@ -60,18 +60,18 @@ class EvalTests(unittest.TestCase):
         self.assertFalse(self.grade()["passed"])
 
     def test_correct_stage_without_prior_inspection_fails(self):
-        invoke(self.workspace, ["thread-stages", "stage", "Waiting", "--self"])
+        invoke(self.workspace, ["thread-stages", "stage", "BlockedOnUser", "--self"])
         self.assertFalse(self.grade()["passed"])
 
     def test_redundant_write_fails_even_with_correct_final_stage(self):
         self.transition()
-        invoke(self.workspace, ["thread-stages", "stage", "Waiting", "--self"])
+        invoke(self.workspace, ["thread-stages", "stage", "BlockedOnUser", "--self"])
         self.assertFalse(self.grade()["passed"])
 
     def test_wrong_thread_does_not_mutate_and_fails_grading(self):
-        code, _ = invoke(self.workspace, ["thread-stages", "stage", "Waiting", "thr_other"])
+        code, _ = invoke(self.workspace, ["thread-stages", "stage", "BlockedOnUser", "thr_other"])
         self.assertNotEqual(code, 0)
-        self.assertEqual(json.loads((self.workspace / "state.json").read_text())["stage"], "Active")
+        self.assertEqual(json.loads((self.workspace / "state.json").read_text())["stage"], "BlockedOnThirdParty")
         self.transition()
         self.assertFalse(self.grade()["passed"])
 

@@ -1,7 +1,7 @@
 import { verifyThreadReordering } from "../thread-stages/thread-reordering.mjs";
 
 export default {
-  group: "placement",
+  group: "ordering",
   order: 20,
   id: "thread-reordering",
   cases: ["interaction", "from-automatic"],

@@ -9,6 +9,7 @@ const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0)) await cleanup();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 async function setup() {
@@ -176,6 +177,423 @@ async function setup() {
     notify: (event: unknown) => notify?.(event),
   };
 }
+
+const httpError = (status: number) => Object.assign(
+  new Error(`HTTP ${status}: ${status === 404 ? "Thread not found" : "Server unavailable"}`),
+  { name: "BbHttpError", status },
+);
+
+function savedJob(h: Pick<Awaited<ReturnType<typeof setup>>, "bb">) {
+  const row = h.bb.storage.database().prepare("SELECT data FROM title_jobs WHERE thread_id = ?").get("real") as { data: string };
+  return JSON.parse(row.data) as import("./store").Job;
+}
+
+function retryDue(h: Pick<Awaited<ReturnType<typeof setup>>, "bb">) {
+  const job = savedJob(h);
+  vi.setSystemTime(Math.max(Date.now(), job.retry?.retryAt ?? 0, job.cleanupRetry?.retryAt ?? 0));
+}
+
+it.each([0, 0.5, 0.999])("backs off exponentially with jitter %s and blocks event bursts", async (random) => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  vi.spyOn(Math, "random").mockReturnValue(random);
+  let attempts = 0;
+  h.harness.inspection.sdk.stub("threads.get", async () => {
+    attempts++;
+    throw httpError(503);
+  });
+  for (let failure = 1; failure <= 8; failure++) {
+    const now = Date.now();
+    await Promise.all([h.emit(), h.emit(), h.harness.behavior.runSchedule("title-reconciliation")]);
+    expect(attempts).toBe(failure);
+    const retry = savedJob(h).retry!;
+    const ceiling = Math.min(15 * 60_000, 30_000 * 2 ** (failure - 1));
+    expect(retry.failures).toBe(failure);
+    expect(retry.retryAt - now).toBe(Math.floor(ceiling * (0.5 + random / 2)));
+    vi.setSystemTime(retry.retryAt - 1);
+    await h.harness.behavior.runSchedule("title-reconciliation");
+    expect(attempts).toBe(failure);
+    vi.setSystemTime(retry.retryAt);
+  }
+});
+
+it.each([24, 48, 1 / 60])("expires after the configured %s hours across reloads, even during backoff", async (hours) => {
+  const h = await setup();
+  await h.harness.behavior.setSettings({ retryWindowHours: hours });
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  let attempts = 0;
+  const began = Date.now();
+  const fail = async () => {
+    attempts++;
+    throw httpError(503);
+  };
+  h.harness.inspection.sdk.stub("threads.get", fail);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(savedJob(h).attemptedAt).toBe(began);
+  const next = await h.harness.lifecycle.reload(plugin);
+  cleanups.push(() => next.harness.lifecycle.dispose());
+  next.harness.inspection.sdk.stub("threads.get", fail);
+  const deadline = began + hours * 3_600_000;
+  // The next retry is later than expiry: events must still expire the job.
+  const paused = savedJob(next);
+  paused.retry!.retryAt = deadline + 60_000;
+  next.bb.storage.database().prepare("UPDATE title_jobs SET data = ? WHERE thread_id = ?").run(JSON.stringify(paused), "real");
+  vi.setSystemTime(deadline - 1);
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(savedJob(next).state).toBe("waiting");
+  vi.setSystemTime(deadline);
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(savedJob(next)).toMatchObject({ state: "skipped", retryExpired: true, retry: { failures: 1, lastError: "BbHttpError: HTTP 503: Server unavailable" } });
+  const terminal = next.harness.inspection.logEntries.filter((entry) => entry.message.includes("Retry window expired"));
+  expect(terminal).toHaveLength(1);
+  expect(terminal[0].message).toContain("Thread real");
+  expect(terminal[0].message).toContain("HTTP 503: Server unavailable");
+  await next.harness.behavior.emitThreadEvent("experimental_thread.events", { thread: h.thread, sequence: 0 });
+  const restarted = await next.harness.lifecycle.reload(plugin);
+  cleanups.push(() => restarted.harness.lifecycle.dispose());
+  restarted.harness.inspection.sdk.stub("threads.get", fail);
+  vi.setSystemTime(Date.now() + 365 * 86_400_000);
+  await restarted.harness.behavior.runSchedule("title-reconciliation");
+  expect(attempts).toBe(1);
+  expect(h.spawned).toHaveLength(0);
+  expect(restarted.harness.inspection.logEntries).toEqual([]);
+});
+
+it("measures from the initial attempt rather than the first failure", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  const began = Date.now();
+  h.harness.inspection.sdk.stub("threads.get", async () => {
+    vi.setSystemTime(began + 24 * 3_600_000);
+    throw httpError(503);
+  });
+  await h.emit();
+  expect(savedJob(h)).toMatchObject({ attemptedAt: began, state: "skipped", retryExpired: true, retry: { failures: 1 } });
+});
+
+it("starts the window with successful work and expires without requiring an API failure", async () => {
+  const h = await setup();
+  await h.harness.behavior.setSettings({ retryWindowHours: 1 / 60 });
+  const began = Date.now();
+  await firstTurn(h);
+  expect(savedJob(h)).toMatchObject({ attemptedAt: began, state: "running" });
+  expect(savedJob(h).retry).toBeUndefined();
+  vi.setSystemTime(began + 60_000);
+  await h.emit();
+  expect(savedJob(h)).toMatchObject({ state: "skipped", retryExpired: true, cleaned: true });
+  expect(h.harness.inspection.sdk.callsTo("threads.stop")).toHaveLength(1);
+  expect(h.updates).toHaveLength(0);
+});
+
+it("bounds an older running job using its known worker start time", async () => {
+  const h = await setup();
+  await firstTurn(h);
+  const old = savedJob(h);
+  old.startedAt = Date.now();
+  delete old.attemptedAt;
+  h.bb.storage.database().prepare("UPDATE title_jobs SET data = ? WHERE thread_id = ?").run(JSON.stringify(old), "real");
+  vi.setSystemTime(old.startedAt + 24 * 3_600_000);
+  await h.emit();
+  expect(savedJob(h)).toMatchObject({ state: "skipped", retryExpired: true, cleaned: true, attemptedAt: old.startedAt });
+});
+
+it("applies setting changes to the original attempt time without reviving expired jobs", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.harness.inspection.sdk.stub("threads.get", async () => { throw httpError(503); });
+  await h.emit();
+  const began = Date.now();
+  await h.harness.behavior.setSettings({ retryWindowHours: 48 });
+  vi.setSystemTime(began + 24 * 3_600_000);
+  await h.emit();
+  expect(savedJob(h)).toMatchObject({ state: "waiting", attemptedAt: began, retry: { failures: 2 } });
+  await h.harness.behavior.setSettings({ retryWindowHours: 12 });
+  await h.emit();
+  expect(savedJob(h)).toMatchObject({ state: "skipped", retryExpired: true });
+  await h.harness.behavior.setSettings({ retryWindowHours: 72 });
+  await h.emit();
+  expect(savedJob(h).state).toBe("skipped");
+  expect(h.harness.inspection.sdk.callsTo("threads.get")).toHaveLength(3);
+});
+
+it("preserves the initial attempt time through successful work and retires the worker at expiry", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.harness.inspection.sdk.stub("threads.get", async () => { throw httpError(503); });
+  for (let i = 0; i < 4; i++) {
+    retryDue(h);
+    await h.harness.behavior.runSchedule("title-reconciliation");
+  }
+  h.harness.inspection.sdk.stub("threads.get", async ({ threadId }) => threadId === "real" ? h.thread : h.worker);
+  h.user("Calendar");
+  h.endTurn();
+  retryDue(h);
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  expect(savedJob(h).retry?.failures).toBe(4);
+  h.harness.inspection.sdk.stub("threads.get", async ({ threadId }) => {
+    if (threadId === "worker") throw httpError(503);
+    return h.thread;
+  });
+  vi.setSystemTime(savedJob(h).attemptedAt! + 24 * 3_600_000);
+  await h.emit();
+  expect(savedJob(h)).toMatchObject({ state: "skipped", phase: "initial", cleaned: true, retryExpired: true, retry: { failures: 4 } });
+  expect(h.harness.inspection.sdk.callsTo("threads.stop")).toHaveLength(1);
+  expect(h.harness.inspection.sdk.callsTo("threads.archive")).toHaveLength(1);
+  h.user("Second");
+  h.user("Third");
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+});
+
+it("keeps cleanup tracked with independent backoff after the title budget is exhausted", async () => {
+  const h = await setup();
+  await firstTurn(h);
+  h.harness.inspection.sdk.stub("threads.get", async () => { throw httpError(503); });
+  h.harness.inspection.sdk.stub("threads.archive", async () => { throw new Error("cleanup offline"); });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  vi.setSystemTime(savedJob(h).attemptedAt! + 24 * 3_600_000);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(savedJob(h)).toMatchObject({ state: "skipped", cleaned: false, retry: { failures: 1 }, cleanupRetry: { failures: 1 } });
+  const lookups = h.harness.inspection.sdk.callsTo("threads.get").length;
+  const next = await h.harness.lifecycle.reload(plugin);
+  cleanups.push(() => next.harness.lifecycle.dispose());
+  next.harness.inspection.sdk.stub("threads.archive", async () => { throw new Error("cleanup offline"); });
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(next.harness.inspection.sdk.callsTo("threads.archive")).toHaveLength(0);
+  for (let failure = 2; failure <= 6; failure++) {
+    retryDue(next);
+    await next.harness.behavior.runSchedule("title-reconciliation");
+    expect(savedJob(next).cleanupRetry?.failures).toBe(failure);
+    expect(savedJob(next).cleanupRetry!.retryAt - Date.now()).toBeLessThanOrEqual(15 * 60_000);
+  }
+  next.harness.inspection.sdk.stub("threads.archive", async () => ({ count: 1 }) as never);
+  retryDue(next);
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(savedJob(next)).toMatchObject({ state: "skipped", cleaned: true, retry: { failures: 1 } });
+  expect(h.harness.inspection.sdk.callsTo("threads.get")).toHaveLength(lookups);
+  expect(next.harness.inspection.sdk.callsTo("threads.get")).toHaveLength(0);
+  expect(h.spawned).toHaveLength(1);
+});
+
+it("cancels deletion immediately while an API retry is delayed", async () => {
+  const h = await setup();
+  await firstTurn(h);
+  h.harness.inspection.sdk.stub("threads.get", async () => { throw httpError(503); });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  await h.harness.behavior.emitThreadEvent("thread.deleted", { thread: { ...h.thread, deletedAt: Date.now() } });
+  expect(savedJob(h)).toMatchObject({ state: "skipped", sourceDeleted: true, cleaned: true, retry: { failures: 1 } });
+  expect(h.harness.inspection.sdk.callsTo("threads.stop")).toHaveLength(1);
+});
+
+it.each([true, false])("keeps discovering an ambiguous worker for cleanup after exhaustion (worker exists: %s)", async (exists) => {
+  const h = await setup();
+  h.harness.inspection.sdk.stub("threads.spawn", async () => {
+    h.spawned.push({});
+    throw new Error("lost worker acknowledgement");
+  });
+  await firstTurn(h);
+  h.harness.inspection.sdk.stub("threads.list", async () => { throw httpError(503); });
+  vi.setSystemTime(savedJob(h).attemptedAt! + 24 * 3_600_000);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(savedJob(h)).toMatchObject({ state: "skipped", cleanupDiscovery: true, retry: { failures: 1 }, cleanupRetry: { failures: 1 } });
+  const next = await h.harness.lifecycle.reload(plugin);
+  cleanups.push(() => next.harness.lifecycle.dispose());
+  next.harness.inspection.sdk.stub("threads.list", async ({ offset }) => offset === 0 && exists ? [h.worker] : []);
+  retryDue(next);
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(savedJob(next)).toMatchObject({ state: "skipped", cleanupDiscovery: false, cleaned: true });
+  expect(next.harness.inspection.sdk.callsTo("threads.stop")).toHaveLength(exists ? 1 : 0);
+  expect(next.harness.inspection.sdk.callsTo("threads.archive")).toHaveLength(exists ? 1 : 0);
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(1);
+});
+
+it.each(["throw", "error"] as const)("bounds unavailable model catalogs reported as %s", async (failure) => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.catalogFailures.codex = failure;
+  h.user("Calendar");
+  h.endTurn();
+  for (let i = 0; i < 5; i++) {
+    retryDue(h);
+    await h.harness.behavior.runSchedule("title-reconciliation");
+  }
+  expect(savedJob(h)).toMatchObject({ state: "waiting", retry: { failures: 5 } });
+  vi.setSystemTime(savedJob(h).attemptedAt! + 24 * 3_600_000);
+  await h.emit();
+  expect(savedJob(h)).toMatchObject({ state: "skipped", retryExpired: true });
+  expect(savedJob(h).reason).toContain("catalog unavailable");
+  expect(h.spawned).toHaveLength(0);
+});
+
+it("does not charge healthy waiting or provider cooldowns to the failure budget", async () => {
+  const waiting = await firstTitle("Build a shared calendar");
+  for (let i = 0; i < 6; i++) {
+    vi.setSystemTime(Date.now() + 30 * 86_400_000);
+    await waiting.harness.behavior.runSchedule("title-reconciliation");
+  }
+  expect(savedJob(waiting).retry).toBeUndefined();
+  expect(savedJob(waiting).attemptedAt).toBeUndefined();
+  waiting.user("Second message");
+  waiting.user("Third message");
+  await waiting.emit();
+  expect(waiting.spawned).toHaveLength(2);
+
+  const cooldown = await setup();
+  await firstTurn(cooldown);
+  await failWorker(cooldown, "rate-limit");
+  for (let i = 0; i < 6; i++) await cooldown.harness.behavior.runSchedule("title-reconciliation");
+  expect(savedJob(cooldown).retry).toBeUndefined();
+  expect(cooldown.spawned).toHaveLength(1);
+  vi.setSystemTime(Date.now() + 900_000);
+  await cooldown.harness.behavior.runSchedule("title-reconciliation");
+  expect(cooldown.spawned).toHaveLength(2);
+});
+
+it.each([
+  ["message", "waiting"],
+  ["message", "running"],
+  ["initial", "claimed"],
+  ["initial", "running"],
+  ["initial", "applying"],
+  ["refinement", "waiting"],
+  ["refinement", "running"],
+  ["initial", "skipped"],
+] as const)("retires a missing source during %s/%s across reconciliation and reload", async (phase, state) => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  const db = h.bb.storage.database();
+  const row = db.prepare("SELECT data FROM title_jobs WHERE thread_id = ?").get("real") as { data: string };
+  const job = JSON.parse(row.data);
+  Object.assign(job, {
+    phase, state, workerId: state === "waiting" ? null : "worker",
+    automatic: false, reason: state === "skipped" ? "Title worker failed" : null,
+  });
+  db.prepare("UPDATE title_jobs SET state = ?, data = ? WHERE thread_id = ?").run(state, JSON.stringify(job), "real");
+  const lookups: string[] = [];
+  h.harness.inspection.sdk.stub("threads.get", async ({ threadId }) => {
+    lookups.push(threadId);
+    throw httpError(404);
+  });
+  h.harness.inspection.sdk.stub("threads.stop", async () => { throw httpError(404); });
+  h.harness.inspection.sdk.stub("threads.archive", async () => { throw httpError(404); });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(lookups).toEqual(["real"]);
+  for (let i = 0; i < 3; i++) await h.harness.behavior.runSchedule("title-reconciliation");
+  const next = await h.harness.lifecycle.reload(plugin);
+  cleanups.push(() => next.harness.lifecycle.dispose());
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  await next.harness.behavior.emitThreadEvent("thread.idle", { thread: h.worker, lastAssistantText: null });
+  expect(lookups).toEqual(["real"]);
+  expect(h.spawned).toHaveLength(0);
+  expect(h.updates).toHaveLength(0);
+  expect(h.harness.inspection.logEntries.filter((entry) => entry.level === "warn")).toEqual([]);
+});
+
+it("uses the source deletion event without fetching the removed thread", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  const lookups: string[] = [];
+  h.harness.inspection.sdk.stub("threads.get", async ({ threadId }) => {
+    lookups.push(threadId);
+    throw httpError(503);
+  });
+  await h.harness.behavior.emitThreadEvent("thread.deleted", { thread: { ...h.thread, deletedAt: Date.now() } });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(lookups).toEqual([]);
+  expect(h.spawned).toHaveLength(0);
+});
+
+it("retires a deleted worker without retrying its lookup or cleanup", async () => {
+  const h = await setup();
+  await firstTurn(h);
+  const lookups: string[] = [];
+  h.harness.inspection.sdk.stub("threads.get", async ({ threadId }) => {
+    lookups.push(threadId);
+    if (threadId === "worker") throw httpError(404);
+    return h.thread;
+  });
+  h.harness.inspection.sdk.stub("threads.stop", async () => { throw httpError(404); });
+  h.harness.inspection.sdk.stub("threads.archive", async () => { throw httpError(404); });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(lookups).toEqual(["real", "worker"]);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(lookups).toEqual(["real", "worker"]);
+  expect(h.spawned).toHaveLength(1);
+  expect(h.updates).toHaveLength(0);
+  expect(h.harness.inspection.logEntries.filter((entry) => entry.level === "warn")).toEqual([]);
+});
+
+it("keeps retrying temporary lookup failures", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.harness.inspection.sdk.stub("threads.get", async () => { throw httpError(503); });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  h.harness.inspection.sdk.stub("threads.get", async ({ threadId }) => threadId === "real" ? h.thread : h.worker);
+  h.user("Calendar");
+  h.endTurn();
+  retryDue(h);
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(h.spawned).toHaveLength(1);
+});
+
+it.each(["history", "environment"] as const)("rechecks the source after a %s 404 during reconciliation", async (operation) => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Calendar");
+  h.endTurn();
+  let missing = false;
+  const lookups: string[] = [];
+  h.harness.inspection.sdk.stub("threads.get", async ({ threadId }) => {
+    lookups.push(threadId);
+    if (missing) throw httpError(404);
+    return h.thread;
+  });
+  if (operation === "history") h.harness.inspection.sdk.stub("threads.events.list", async () => {
+    missing = true;
+    throw httpError(404);
+  });
+  else h.harness.inspection.sdk.stub("environments.get", async () => { throw httpError(404); });
+  await h.harness.behavior.runSchedule("title-reconciliation");
+  expect(lookups).toEqual(["real", "real"]);
+  if (operation === "history") {
+    await h.harness.behavior.runSchedule("title-reconciliation");
+    expect(lookups).toEqual(["real", "real"]);
+    expect(h.harness.inspection.logEntries.filter((entry) => entry.level === "warn")).toEqual([]);
+  } else {
+    h.harness.inspection.sdk.stub("environments.get", async () => ({ hostId: "host" }) as never);
+    retryDue(h);
+    await h.harness.behavior.runSchedule("title-reconciliation");
+    expect(h.spawned).toHaveLength(1);
+  }
+});
+
+it("retries temporary cleanup failures after reload without reviving a deleted source", async () => {
+  const h = await setup();
+  await h.harness.behavior.emitThreadEvent("thread.created", { thread: h.thread });
+  h.user("Calendar");
+  h.thread.title = "Calendar";
+  await h.emit();
+  expect(h.spawned).toHaveLength(1);
+  h.harness.inspection.sdk.stub("threads.archive", async () => { throw httpError(503); });
+  await h.harness.behavior.emitThreadEvent("thread.deleted", { thread: { ...h.thread, deletedAt: Date.now() } });
+  expect(h.harness.inspection.logEntries.filter((entry) => entry.level === "warn")).toHaveLength(1);
+  retryDue(h);
+  const next = await h.harness.lifecycle.reload(plugin);
+  cleanups.push(() => next.harness.lifecycle.dispose());
+  const lookups: string[] = [];
+  next.harness.inspection.sdk.stub("threads.get", async ({ threadId }) => {
+    lookups.push(threadId);
+    throw httpError(404);
+  });
+  next.harness.inspection.sdk.stub("threads.archive", async () => ({ count: 1 }) as never);
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  await next.harness.behavior.runSchedule("title-reconciliation");
+  expect(next.harness.inspection.sdk.callsTo("threads.archive")).toHaveLength(1);
+  expect(lookups).toEqual([]);
+  expect(h.spawned).toHaveLength(1);
+});
 
 it("refines once after the first turn ends, including assistant and tool content", async () => {
   const h = await setup();
@@ -987,6 +1405,7 @@ it("recovers the second worker without mistaking the archived first worker for i
   h.user("Add sharing");
   h.user("Include invitations");
   await h.emit();
+  retryDue(h);
   await h.harness.behavior.runSchedule("title-reconciliation");
   await decide(h, { action: "rename", reason: "generic", title: "Build a shared calendar" });
   expect(h.spawned).toHaveLength(2);
@@ -1201,6 +1620,7 @@ it("recovers a lost fallback spawn without adopting the failed worker", async ()
     throw new Error("connection reset");
   });
   await h.harness.behavior.runSchedule("title-reconciliation");
+  retryDue(h);
   const next = await h.harness.lifecycle.reload(plugin);
   cleanups.push(() => next.harness.lifecycle.dispose());
   next.harness.inspection.sdk.stub("threads.list", async ({ offset }) =>
@@ -1364,6 +1784,7 @@ it("finishes interrupted worker retirement before spawning fallback after reload
   h.harness.inspection.sdk.stub("threads.archive", async () => { throw new Error("offline"); });
   await failWorker(h, "rate-limit");
   expect(h.spawned).toHaveLength(1);
+  retryDue(h);
   const next = await h.harness.lifecycle.reload(plugin);
   cleanups.push(() => next.harness.lifecycle.dispose());
   const retired: string[] = [];

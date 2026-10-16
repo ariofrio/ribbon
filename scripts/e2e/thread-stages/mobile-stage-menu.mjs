@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { FEATURED_PROJECT, FEATURED_THREAD } from "../../screenshots/fixture.mjs";
 import { stageFor } from "./child-stages.mjs";
 import { launch, openContext, row, sidebar } from "./sidebar.mjs";
@@ -16,6 +18,7 @@ export async function verifyMobileStageMenu({ stack, fixture, cases }) {
         viewport: { width: 390, height: 844 }, hasTouch: touch, isMobile: touch,
       });
       try {
+        await context.tracing.start({ snapshots: true, sources: true });
         const page = await context.newPage();
         const activate = (target) => touch ? target.tap() : target.click();
         const errors = [];
@@ -32,16 +35,19 @@ export async function verifyMobileStageMenu({ stack, fixture, cases }) {
           if (testCase === "long-press") {
             const box = await target.boundingBox();
             const input = await context.newCDPSession(page);
-            await input.send("Input.dispatchTouchEvent", {
-              type: "touchStart", touchPoints: [{ x: box.x + 48, y: box.y + box.height / 2 }],
-            });
-            await menu.waitFor();
-            // Release the held touch once the drawer reaches its final position.
-            await menu.evaluate(async (node) => {
-              await Promise.all(node.getAnimations({ subtree: true }).map((animation) => animation.finished));
-            });
-            await input.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-            await input.detach();
+            try {
+              await input.send("Input.dispatchTouchEvent", {
+                type: "touchStart", touchPoints: [{ x: box.x + 48, y: box.y + box.height / 2 }],
+              });
+              await menu.waitFor();
+              // Release the held touch once the drawer reaches its final position.
+              await menu.evaluate(async (node) => {
+                await Promise.all(node.getAnimations({ subtree: true }).map((animation) => animation.finished));
+              });
+              await input.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+            } finally {
+              await input.detach();
+            }
           } else {
             await target.hover();
             await target.getByRole("button", { name: "Thread actions" }).click();
@@ -57,7 +63,7 @@ export async function verifyMobileStageMenu({ stack, fixture, cases }) {
         await activate(move);
         await back.waitFor();
         assert.deepEqual(await menu.getByRole("menuitemradio").allTextContents(), [
-          "Deferred", "In progress", "Waiting", "Blocked on user", "Blocked on another thread", "Blocked on external party", "Completed",
+          "Deferred", "In progress", "Needs user", "Dependent", "Blocked", "Completed",
         ]);
         assert.equal(await menu.getByRole("menuitem", { name: "Rename", exact: true }).count(), 0);
         assert.equal(await menu.getByRole("menuitemradio", { name: "In progress", exact: true }).getAttribute("aria-checked"), "true");
@@ -74,16 +80,16 @@ export async function verifyMobileStageMenu({ stack, fixture, cases }) {
         assert.equal(await menu.getByRole("menuitemradio").count(), 0, "Reopening resets the drawer to its action page");
         await activate(move);
         await back.waitFor();
-        await activate(menu.getByRole("menuitemradio", { name: "Waiting", exact: true }));
+        await activate(menu.getByRole("menuitemradio", { name: "Dependent", exact: true }));
         await menu.waitFor({ state: "hidden" });
-        await target.locator('[aria-label="Waiting stage"]').waitFor();
-        assert.equal(stageFor(fixture, thread.id), "Waiting");
+        await target.locator('[aria-label="Dependent stage"]').waitFor();
+        assert.equal(stageFor(fixture, thread.id), "BlockedOnOtherAgent");
         await open();
         await activate(move);
         await back.waitFor();
-        await activate(menu.getByRole("menuitemradio", { name: "Blocked on user", exact: true }));
+        await activate(menu.getByRole("menuitemradio", { name: "Needs user", exact: true }));
         await menu.waitFor({ state: "hidden" });
-        const userIcon = target.locator('[aria-label="Blocked on user stage"] svg');
+        const userIcon = target.locator('[aria-label="Needs user stage"] svg');
         await userIcon.waitFor();
         const painted = await userIcon.evaluate((icon) => ({
           width: icon.getBoundingClientRect().width,
@@ -96,12 +102,18 @@ export async function verifyMobileStageMenu({ stack, fixture, cases }) {
         await open();
         await activate(move);
         await back.waitFor();
-        await activate(menu.getByRole("menuitemradio", { name: "Blocked on external party", exact: true }));
+        await activate(menu.getByRole("menuitemradio", { name: "Blocked", exact: true }));
         await menu.waitFor({ state: "hidden" });
-        await target.locator('[aria-label="Blocked on external party stage"]').waitFor();
+        await target.locator('[aria-label="Blocked stage"]').waitFor();
         assert.equal(stageFor(fixture, thread.id), "BlockedOnThirdParty");
         assert.deepEqual(errors, []);
         console.log(`Mobile stage menu (${testCase}): navigation, Back, reset, and stage selection passed`);
+      } catch (error) {
+        const directory = resolve(".scratch/e2e");
+        await mkdir(directory, { recursive: true })
+          .then(() => context.tracing.stop({ path: resolve(directory, `mobile-stage-menu-${testCase}.trace.zip`) }))
+          .catch((diagnosticError) => console.error("Could not save the mobile stage menu trace:", diagnosticError));
+        throw error;
       } finally {
         await context.close();
       }

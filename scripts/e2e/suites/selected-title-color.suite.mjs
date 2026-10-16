@@ -1,6 +1,7 @@
 import { verifySelectedTitleColor } from "../thread-stages/selected-title-color.mjs";
 
 export default {
+  group: "placement",
   order: 120,
   id: "selected-title-color",
   cases: ["chatgpt-theme"],

@@ -9,7 +9,7 @@ export interface ThreadStatus {
   indicatorLabel: string | null;
   isWorking: boolean;
   /** An agent is working and nothing it asked for outranks that. */
-  spinsStageRing: boolean;
+  isAgentWorking: boolean;
   pluginStatus: PluginSidebarThreadRowStatus | null;
   /** Set when the row's pull request outranks the thread's own indicator. */
   pullRequestMark: PullRequestMark | null;

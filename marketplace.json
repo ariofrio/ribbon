@@ -35,6 +35,34 @@
       }
     },
     {
+      "id": "global-instructions",
+      "displayName": "Global instructions",
+      "description": "Edit bb’s global AGENTS.md without a length limit.",
+      "icon": {
+        "url": "./plugins/bb-plugin-global-instructions/assets/icon.svg"
+      },
+      "tags": [
+        "instructions",
+        "agents",
+        "markdown",
+        "settings",
+        "productivity"
+      ],
+      "author": {
+        "name": "Andres Riofrio",
+        "github": "ariofrio",
+        "url": "https://github.com/ariofrio"
+      },
+      "source": {
+        "git": {
+          "url": "https://github.com/ariofrio/ribbon.git",
+          "subdir": "plugins/bb-plugin-global-instructions",
+          "range": "*",
+          "tagPrefix": "global-instructions/"
+        }
+      }
+    },
+    {
       "id": "missing-keyboard-shortcuts",
       "displayName": "Missing keyboard shortcuts",
       "description": "Add shortcuts to start personal or project threads, navigate history, and reach the composer or panel tabs.",

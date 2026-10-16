@@ -2,6 +2,7 @@ import { verifyStageShortcuts } from "../stage-shortcuts.mjs";
 import { waitForThreadStages } from "../thread-stages/new-thread-routing.mjs";
 
 export default {
+  group: "ordering",
   order: 130,
   id: "stage-shortcuts",
   cases: ["platforms"],

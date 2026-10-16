@@ -21,6 +21,8 @@ describe("automatic stage guidance", () => {
       expect(resolved.instructions).toContain("Read the thread-stages skill");
       expect(resolved.instructions).toContain("overall workflow state");
       expect(resolved.instructions).toContain("only when it no longer fits");
+      expect(resolved.instructions).toContain("unresolved findings and follow-up responsibility");
+      expect(resolved.instructions).toContain("submission alone does not establish closure");
       expect(resolved.instructions).not.toContain("BlockedOnOtherAgent");
       expect(resolved.tools).toEqual([]);
       expect(resolved.skills).toEqual(["thread-stages"]);
@@ -47,6 +49,7 @@ describe("automatic stage guidance", () => {
       makePluginAgentConfigurationContext(),
     );
     expect(resolved.instructions).toContain("only when the user explicitly requests");
+    expect(resolved.instructions).not.toContain("Before marking Completed");
     expect(resolved.instructions).not.toContain("when work starts");
     expect(resolved.skills).toEqual(["thread-stages"]);
     await harness.lifecycle.dispose();
@@ -96,7 +99,7 @@ const threadStagesCatalog = {
         },
         {
           id: "BlockedOnThirdParty",
-          label: "Blocked on external party",
+          label: "Blocked",
           visibleWhenEmpty: true,
           acceptsAssignments: true,
           defaultCollapsed: false,
@@ -828,8 +831,8 @@ describe("Ribbon sidebar server", () => {
       };
       try {
         for (const stage of [
-          "Waiting", "BlockedOnUser", "BlockedOnOtherAgent", "BlockedOnThirdParty", "Active",
-          "BlockedOnOtherAgent", "Waiting", "Active", "BlockedOnUser", "BlockedOnThirdParty",
+          "Active", "BlockedOnUser", "BlockedOnOtherAgent", "BlockedOnThirdParty", "Active",
+          "BlockedOnOtherAgent", "Active", "Active", "BlockedOnUser", "BlockedOnThirdParty",
           "BlockedOnOtherAgent", "Active",
         ]) {
           await place("c", stage);
@@ -1012,6 +1015,8 @@ describe("Ribbon sidebar server", () => {
       "stagePreviewRows",
       "childThreadLines",
       "groupHeaderIcons",
+      "inProgressHoverIcon",
+      "showUnreadIndicator",
       "shimmerWorkingRows",
       "longTitles",
       "tabularPullRequestDigits",
@@ -1024,6 +1029,8 @@ describe("Ribbon sidebar server", () => {
       stagePreviewRows: { type: "select", options: ["1", "2", "3", "4", "5"], default: "2" },
       childThreadLines: { type: "select", options: ["Bar", "Tree"], default: "Bar" },
       groupHeaderIcons: { type: "boolean", default: true },
+      inProgressHoverIcon: { type: "select", options: ["None", "Hollow unread indicator"], default: "Hollow unread indicator" },
+      showUnreadIndicator: { type: "boolean", default: false },
       shimmerWorkingRows: { type: "boolean", default: true },
       longTitles: {
         type: "select",
@@ -1575,7 +1582,7 @@ describe("Ribbon sidebar server", () => {
     expect(await harness.behavior.callRpc("getPlacementV1", {
       groupingKey: "plugin:thread-stages:stages",
       threadId: "thread-child",
-    })).toMatchObject({ ok: true, value: { placement: { groupId: "Waiting" } } });
+    })).toMatchObject({ ok: true, value: { placement: { groupId: "BlockedOnUser" } } });
   });
 
   it("serves canonical built-in names in the standard grouping order", async () => {
@@ -1885,7 +1892,7 @@ describe("Ribbon sidebar server", () => {
       }),
     ).resolves.toMatchObject({
       ok: true,
-      value: { placement: { groupId: "Waiting" } },
+      value: { placement: { groupId: "BlockedOnUser" } },
     });
     expect(await order()).toEqual(["older", "middle", "newer"]);
   });
@@ -2109,7 +2116,7 @@ describe("Ribbon sidebar server", () => {
         threadId: "first",
         mode: "steer-if-active",
       });
-      const text = "Thread stage updated: @In progress → @Blocked on external party";
+      const text = "Thread stage updated: @In progress → @Blocked";
       const mention = (label: string, itemId: string) => ({
         start: text.indexOf(`@${label}`),
         end: text.indexOf(`@${label}`) + label.length + 1,
@@ -2126,12 +2133,12 @@ describe("Ribbon sidebar server", () => {
           text,
           mentions: [
             mention("In progress", "stage:active"),
-            mention("Blocked on external party", "stage:blockedonthirdparty"),
+            mention("Blocked", "stage:blockedonthirdparty"),
           ],
         },
         {
           type: "text",
-          text: expect.stringContaining("from In progress to Blocked on external party"),
+          text: expect.stringContaining("from In progress to Blocked"),
           mentions: [],
           visibility: "agent-only",
         },
