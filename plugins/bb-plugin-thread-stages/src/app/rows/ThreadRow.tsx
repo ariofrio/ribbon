@@ -99,7 +99,7 @@ import { SplitPaneMiniMap } from "./SplitPaneMiniMap.js";
 import { useDeferredSidebarThreadSplit } from "./useDeferredSidebarThreadSplit.js";
 import { ThreadRowQuickActions } from "./ThreadRowQuickActions.js";
 import { useRowActionCapacity } from "../../ribbon/app/use-row-action-capacity.js";
-import { useRibbonThreadActions } from "../../ribbon/app/row-actions.js";
+import { useRowQuickActions } from "../../ribbon/app/use-row-quick-actions.js";
 import { useOpenThreadInSplit } from "./threadRowNavigation.js";
 import { Button } from "@/components/ui/button";
 import { COARSE_POINTER_ICON_SIZE_CLASS } from "@/components/ui/coarse-pointer-sizing";
@@ -501,12 +501,12 @@ function ThreadRowComponent({
     openThreadInSplit(thread.id);
   }, [openThreadInSplit, thread.id]);
   const rowActionKeys = useAtomValue(threadRowActionsAtom);
-  const registeredQuickActions = useRibbonThreadActions(thread, {
-    keys: thread.archivedAt !== null ? ARCHIVED_ROW_ACTION_KEYS : rowActionKeys,
-    requestRename: () => {
-      startEditing();
-    },
-  });
+  const quickActionState = useRowQuickActions(
+    thread,
+    thread.archivedAt !== null ? ARCHIVED_ROW_ACTION_KEYS : rowActionKeys,
+    startEditing,
+  );
+  const registeredQuickActions = quickActionState.entries;
   const customizeRowActions = useCustomizeThreadRowActions();
   const isCompactViewport = useIsCompactViewport();
   const parentOptions = options.kind === "parent" ? options : null;
@@ -762,6 +762,7 @@ function ThreadRowComponent({
   const rowContent = (
     <>
       {split.behavior}
+      {quickActionState.registration}
       {ribbonRails}
       {parentOptions?.stickyLevel !== undefined && parentGuideLeft !== null && ribbon === null ? (
         <span

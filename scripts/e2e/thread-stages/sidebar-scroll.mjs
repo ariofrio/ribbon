@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { FEATURED_THREAD } from "../../screenshots/fixture.mjs";
 import { launch, openContext, sidebar } from "./sidebar.mjs";
+import {
+  startSidebarScrollSampling,
+  stopSidebarScrollSampling,
+} from "./sidebar-scroll-samples.mjs";
 
 export async function verifySidebarScroll({
   stack,
@@ -16,6 +20,8 @@ export async function verifySidebarScroll({
         fixture,
         nested: testCase === "nested-list",
         drag: testCase === "scrollbar-drag",
+        size: testCase.includes("scalability") ? 9600 : 600,
+        completed: testCase === "completed-scalability",
       });
     } catch (error) {
       errors.push(error);
@@ -26,7 +32,7 @@ export async function verifySidebarScroll({
     throw new AggregateError(errors, "Scrolling regression failed");
 }
 
-async function verifyList({ stack, fixture, nested, drag }) {
+async function verifyList({ stack, fixture, nested, drag, size, completed }) {
   const { default: Database } = await import("better-sqlite3");
   // Real rows, all in one group, without starting hundreds of agent turns.
   const db = new Database(join(stack.dataDir, "bb.db"));
@@ -38,7 +44,7 @@ async function verifyList({ stack, fixture, nested, drag }) {
     `INSERT INTO threads (${columns.map((key) => `"${key}"`).join(",")}) VALUES (${columns.map(() => "?").join(",")})`,
   );
   db.transaction(() => {
-    for (let index = 0; index < 600; index++) {
+    for (let index = 0; index < size; index++) {
       const thread = {
         ...template,
         id: `thr_scroll_${index}`,
@@ -52,6 +58,24 @@ async function verifyList({ stack, fixture, nested, drag }) {
     }
   })();
   db.close();
+  if (completed) {
+    const placement = new Database(
+      join(stack.dataDir, "plugins/thread-stages/data.db"),
+    );
+    placement.transaction(() => {
+      const assign = placement.prepare(
+        "INSERT OR REPLACE INTO group_assignment(grouping_key,thread_id,group_id,entered_at_ms,previous_group_id,origin) VALUES('plugin:thread-stages:stages',?,'Completed',?,NULL,'cli')",
+      );
+      for (let index = 0; index < size; index++)
+        assign.run(`thr_scroll_${index}`, Date.now());
+      placement
+        .prepare(
+          "UPDATE grouping_revision SET revision=revision+1 WHERE grouping_key='plugin:thread-stages:stages'",
+        )
+        .run();
+    })();
+    placement.close();
+  }
   await stack.restartServer();
   const browser = await launch({ scrollbars: drag });
   try {
@@ -85,14 +109,33 @@ async function verifyList({ stack, fixture, nested, drag }) {
           nested,
         ),
       );
-      await page.waitForFunction(
-        (nested) =>
-          document
-            .querySelector("[data-ribbon-sidebar-root]")
-            ?.querySelectorAll("[data-sidebar-windowed-item]").length >
-          (nested ? 140 : 500),
-        nested,
-      );
+      if (completed) {
+        const reveal = list.getByRole("button", {
+          name: /Show \d+ more completed/,
+        });
+        await reveal.focus();
+        await page.keyboard.press("Enter");
+        await list
+          .getByRole("button", { name: "Show fewer completed" })
+          .waitFor();
+        assert.ok(
+          await list.evaluate(
+            (root) =>
+              root.contains(document.activeElement) &&
+              document.activeElement.matches("a[data-sidebar-thread-id]"),
+          ),
+          "Keyboard expansion focuses a newly revealed row",
+        );
+      }
+      // Parent slots can represent many children, so mounted wrapper counts
+      // cannot establish that the long fixture is ready. Wait for its rendered
+      // scroll extent, then check the actual visible content below.
+      await page.waitForFunction((size) => {
+        const root = document.querySelector("[data-ribbon-sidebar-root]");
+        return (
+          root.closest('[data-sidebar="content"]').scrollHeight >= size * 20
+        );
+      }, size);
       await page.evaluate(() => document.fonts.ready);
       await page.waitForFunction(() => {
         const root = document.querySelector("[data-ribbon-sidebar-root]");
@@ -100,7 +143,9 @@ async function verifyList({ stack, fixture, nested, drag }) {
           .closest('[data-sidebar="content"]')
           .getBoundingClientRect();
         return ![
-          ...root.querySelectorAll("[data-sidebar-windowed-item]:empty"),
+          ...root.querySelectorAll(
+            "[data-sidebar-windowed-item]:empty, [data-sidebar-windowed-chunk-empty]",
+          ),
         ].some((node) => {
           const box = node.getBoundingClientRect();
           return (
@@ -134,81 +179,14 @@ async function verifyList({ stack, fixture, nested, drag }) {
           "The native scrollbar must be visible for pointer dragging",
         );
       }
-      await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
-      await list.evaluate((root) => {
-        const scroller = root.closest('[data-sidebar="content"]');
-        window.scrollSamples = {
-          longestGap: 0,
-          blankFrames: 0,
-          frames: 0,
-          running: true,
-        };
-        window.scrollLongTasks = [];
-        window.scrollTaskObserver = new PerformanceObserver((list) => {
-          window.scrollLongTasks.push(
-            ...list.getEntries().map((entry) => entry.duration),
-          );
-        });
-        window.scrollTaskObserver.observe({ type: "longtask" });
-        let previous;
-        function sampleBlankRows() {
-          if (!window.scrollSamples.running) return;
-          const viewport = scroller.getBoundingClientRect();
-          const top = Math.max(0, viewport.top);
-          const bottom = Math.min(innerHeight, viewport.bottom);
-          const wrappers = root.querySelectorAll(
-            "[data-sidebar-windowed-item]",
-          );
-          // Wrappers follow the list's vertical document order. Probe the
-          // visible run instead of forcing layout for every offscreen row.
-          let low = 0,
-            high = wrappers.length;
-          while (low < high) {
-            const middle = (low + high) >>> 1;
-            if (wrappers[middle].getBoundingClientRect().top < top)
-              low = middle + 1;
-            else high = middle;
-          }
-          let blank = false;
-          for (
-            let index = Math.max(0, low - 1);
-            index < wrappers.length;
-            index++
-          ) {
-            const node = wrappers[index];
-            const box = node.getBoundingClientRect();
-            if (box.top >= bottom) break;
-            if (box.height <= 0 || box.bottom <= top) continue;
-            const child = node.firstElementChild;
-            if (
-              !child ||
-              !child.checkVisibility({
-                contentVisibilityAuto: true,
-                visibilityProperty: true,
-              })
-            ) {
-              blank = true;
-              break;
-            }
-          }
-          if (blank) window.scrollSamples.blankFrames++;
-        }
-        function sampleFrame(now) {
-          if (!window.scrollSamples.running) return;
-          if (previous !== undefined)
-            window.scrollSamples.longestGap = Math.max(
-              window.scrollSamples.longestGap,
-              now - previous,
-            );
-          previous = now;
-          window.scrollSamples.frames++;
-          // A post-paint timer can be deprioritized during wheel input.
-          // It must not gate the next animation frame's measurement.
-          requestAnimationFrame(sampleFrame);
-          setTimeout(sampleBlankRows, 0);
-        }
-        requestAnimationFrame(sampleFrame);
-      });
+      const large = size > 600;
+      const heap = async () => {
+        await cdp.send("HeapProfiler.collectGarbage");
+        return (await cdp.send("Runtime.getHeapUsage")).usedSize / 1048576;
+      };
+      const beforeHeap = large ? await heap() : undefined;
+      await cdp.send("Emulation.setCPUThrottlingRate", { rate: large ? 1 : 4 });
+      await list.evaluate(startSidebarScrollSampling);
       const box = await scroller.boundingBox();
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       for (const direction of [1, -1, 1, -1]) {
@@ -217,6 +195,7 @@ async function verifyList({ stack, fixture, nested, drag }) {
         }
       }
       if (drag) {
+        await page.evaluate(() => (window.scrollSamples.phase = "scrollbar"));
         await scroller.evaluate((node) => {
           node.scrollTop = 0;
         });
@@ -229,9 +208,9 @@ async function verifyList({ stack, fixture, nested, drag }) {
         // handle. Overlay scrollbars have no gutter and a narrower hit area.
         const x = box.x + box.width - (gutter > 0 ? gutter * 0.75 : 6);
         console.log("scrollbar geometry", { gutter, x, thumb, box });
-        await page.mouse.move(x, box.y + thumb / 2);
+        await page.mouse.move(x, box.y + Math.min(8, thumb / 2));
         await page.mouse.down();
-        await page.mouse.move(x, box.y + box.height - thumb / 2, { steps: 30 });
+        await page.mouse.move(x, box.y + box.height - 1, { steps: 30 });
         await page.mouse.up();
         console.log(
           "scrollbar drag down",
@@ -245,11 +224,28 @@ async function verifyList({ stack, fixture, nested, drag }) {
           const node = document
             .querySelector("[data-ribbon-sidebar-root]")
             .closest('[data-sidebar="content"]');
-          return node.scrollTop > (node.scrollHeight - node.clientHeight) * 0.9;
+          return node.scrollHeight - node.clientHeight - node.scrollTop < 2;
         });
+        const returnGrip = await scroller.evaluate((node) => {
+          const height =
+            (node.clientHeight * node.clientHeight) / node.scrollHeight;
+          return (
+            (node.scrollTop / (node.scrollHeight - node.clientHeight)) *
+              (node.clientHeight - height) +
+            height / 2
+          );
+        });
+        await page.mouse.move(x, box.y + returnGrip);
         await page.mouse.down();
-        await page.mouse.move(x, box.y + thumb / 2, { steps: 30 });
+        await page.mouse.move(x, box.y + 1, { steps: 30 });
         await page.mouse.up();
+        console.log(
+          "scrollbar drag up",
+          await scroller.evaluate((node) => ({
+            scrollTop: node.scrollTop,
+            maximum: node.scrollHeight - node.clientHeight,
+          })),
+        );
         await page.waitForFunction(
           () =>
             document
@@ -257,16 +253,18 @@ async function verifyList({ stack, fixture, nested, drag }) {
               .closest('[data-sidebar="content"]').scrollTop < 10,
         );
       }
+      await page.evaluate(() => (window.scrollSamples.phase = "native"));
       const distance = await scroller.evaluate((node) => node.scrollHeight);
       for (const direction of [-1, 1, -1, 1]) {
         await cdp.send("Input.synthesizeScrollGesture", {
           x: box.x + box.width / 2,
           y: box.y + box.height / 2,
           yDistance: direction * distance,
-          speed: 24_000,
+          speed: Math.max(24_000, Math.ceil(distance / 2)),
           gestureSourceType: "mouse",
         });
       }
+      await page.evaluate(() => (window.scrollSamples.phase = "jumps"));
       for (let pass = 0; pass < 4; pass++) {
         await scroller.evaluate((node) => {
           node.scrollTop = node.scrollHeight;
@@ -287,18 +285,11 @@ async function verifyList({ stack, fixture, nested, drag }) {
             requestAnimationFrame(() => requestAnimationFrame(resolve)),
           ),
       );
-      const samples = await page.evaluate(() => {
-        window.scrollSamples.running = false;
-        window.scrollSamples.longestTask = Math.max(
-          0,
-          ...window.scrollLongTasks,
-        );
-        window.scrollTaskObserver.disconnect();
-        return window.scrollSamples;
-      });
+      const samples = await page.evaluate(stopSidebarScrollSampling);
       console.log(
-        `sidebar scroll (${nested ? "nested" : drag ? "scrollbar" : "flat"}): ${JSON.stringify(samples)}`,
+        `sidebar scroll (${completed ? "completed-9600" : large ? "flat-9600" : nested ? "nested" : drag ? "scrollbar" : "flat"}): ${JSON.stringify(samples)}`,
       );
+      assert.ok(samples.frames >= 10, "Scrolling must sample actual frames");
       assert.ok(
         samples.longestGap <= 200,
         `Scrolling must deliver frames within 200ms: ${JSON.stringify(samples)}`,
@@ -312,6 +303,142 @@ async function verifyList({ stack, fixture, nested, drag }) {
         0,
         `Visible rows must stay populated during scrolling: ${JSON.stringify(samples)}`,
       );
+      if (large) {
+        const afterHeap = await heap();
+        const mounted = await list
+          .locator("[data-sidebar-windowed-item]")
+          .count();
+        console.log("sidebar scalability", {
+          size,
+          completed,
+          beforeHeap,
+          afterHeap,
+          mounted,
+        });
+        assert.ok(
+          afterHeap < 160,
+          `9,600 rows must fit in 160MiB JS heap: ${afterHeap}`,
+        );
+        assert.ok(
+          afterHeap - beforeHeap < 32,
+          `Traversal must retain less than 32MiB extra heap: ${afterHeap - beforeHeap}`,
+        );
+        assert.ok(
+          mounted < 200,
+          `Mounted row count must stay bounded: ${mounted}`,
+        );
+        // Sample ordinary updates too: scroll-only checks missed the mounted
+        // renderer's global subscription work on every title change.
+        await list.evaluate(startSidebarScrollSampling);
+        try {
+          const title = `${template.title} (scroll regression)`;
+          fixture.run(["thread", "update", template.id, "--title", title]);
+          await page.waitForFunction(
+            ({ id, title }) =>
+              document
+                .querySelector(
+                  `[data-ribbon-sidebar-root] [data-thread-id="${id}"]`,
+                )
+                ?.textContent.includes(title),
+            { id: template.id, title },
+          );
+          await page.evaluate(
+            () =>
+              new Promise((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(resolve)),
+              ),
+          );
+          const update = await page.evaluate(stopSidebarScrollSampling);
+          console.log("sidebar large title update", {
+            size,
+            completed,
+            ...update,
+          });
+          assert.ok(
+            update.frames >= 2,
+            "The title update must sample actual frames",
+          );
+          assert.equal(
+            update.blankFrames,
+            0,
+            "Title updates must preserve visible rows",
+          );
+          assert.ok(
+            update.longestTask < 200,
+            `A title update must not block the client for 200ms: ${update.longestTask}`,
+          );
+        } finally {
+          fixture.run([
+            "thread",
+            "update",
+            template.id,
+            "--title",
+            template.title,
+          ]);
+        }
+        // A fold used to disable windowing and mount the entire list mid-animation.
+        await scroller.evaluate((node) => {
+          node.scrollTop = 0;
+        });
+        const selected = list.locator(
+          `a[data-sidebar-thread-id="${template.id}"]`,
+        );
+        const sectionId = await selected.evaluate(
+          (node) =>
+            node.closest("[data-sidebar-section-id]").dataset.sidebarSectionId,
+        );
+        const group = list.locator(`[data-sidebar-section-id="${sectionId}"]`);
+        await group.evaluate((root) => {
+          window.foldPeak = 0;
+          window.foldObserver = new MutationObserver(() => {
+            window.foldPeak = Math.max(
+              window.foldPeak,
+              root.querySelectorAll("[data-sidebar-windowed-item]").length,
+            );
+          });
+          window.foldObserver.observe(root, { childList: true, subtree: true });
+        });
+        await group
+          .getByRole("button", { name: /^Collapse .* section$/ })
+          .click();
+        await page.waitForFunction(
+          (id) => {
+            const root = document.querySelector(
+              `[data-ribbon-sidebar-root] [data-sidebar-section-id="${id}"]`,
+            );
+            return (
+              root.querySelectorAll("a[data-sidebar-thread-id]").length === 1 &&
+              root
+                .getAnimations({ subtree: true })
+                .every(
+                  (a) =>
+                    a.effect.getTiming().iterations === Infinity ||
+                    a.playState === "finished",
+                )
+            );
+          },
+          sectionId,
+          { timeout: 10_000 },
+        );
+        const peak = await page.evaluate(() => {
+          window.foldObserver.disconnect();
+          return window.foldPeak;
+        });
+        console.log("sidebar large fold", { size, completed, peak });
+        assert.ok(
+          peak < 200,
+          `Folding must preserve the bounded window: ${peak}`,
+        );
+        assert.equal(
+          await selected.count(),
+          1,
+          "The selected row survives folding exactly once",
+        );
+        await group
+          .getByRole("button", { name: /^Expand .* section$/ })
+          .click();
+        await selected.waitFor({ state: "visible" });
+      }
     } finally {
       await context.close();
     }
@@ -320,6 +447,17 @@ async function verifyList({ stack, fixture, nested, drag }) {
     const cleanup = new Database(join(stack.dataDir, "bb.db"));
     cleanup.prepare("DELETE FROM threads WHERE id GLOB 'thr_scroll_*'").run();
     cleanup.close();
+    if (completed) {
+      const placement = new Database(
+        join(stack.dataDir, "plugins/thread-stages/data.db"),
+      );
+      placement
+        .prepare(
+          "DELETE FROM group_assignment WHERE thread_id GLOB 'thr_scroll_*'",
+        )
+        .run();
+      placement.close();
+    }
     await stack.restartServer();
   }
 }

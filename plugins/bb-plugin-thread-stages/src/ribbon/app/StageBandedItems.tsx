@@ -14,8 +14,8 @@ import { stagePreviewRowsSetting } from "../stage-preview-rows";
 
 /**
  * A group's items in Ribbon's shape: the main list, then Deferred and
- * Completed as short previews that expand in place. The main list keeps its
- * rows mounted for scrolling; the previews keep the open thread
+ * Completed as short previews that expand in place. Expanded previews use
+ * the same windowed renderer as the main list. Previews keep the open thread
  * within their row budget when there is room for a thread.
  */
 export function StageBandedItems({
@@ -29,7 +29,7 @@ export function StageBandedItems({
   items: readonly ProjectThreadItem[];
   selectedThreadId?: string;
   /** Renders the main band the way the list renders any run of items. */
-  renderMain: (items: readonly ProjectThreadItem[]) => ReactNode;
+  renderMain: (items: readonly ProjectThreadItem[], focusThreadId?: string) => ReactNode;
   renderItem: (item: ProjectThreadItem, index: number, count: number) => ReactNode;
   revealAll?: boolean;
   depth?: number;
@@ -65,6 +65,7 @@ export function StageBandedItems({
         rows={rows(bands.deferred)}
         selectedRootId={selectedRootId}
         renderRow={({ id, item }, index, count) => <Fragment key={id}>{renderItem(item, index, count)}</Fragment>}
+        renderRows={(rows, focusThreadId) => renderMain(rows.map(({ item }) => item), focusThreadId)}
         revealAll={revealAll || searchReveals}
       />
       <StagePreview
@@ -74,6 +75,7 @@ export function StageBandedItems({
         rows={rows(bands.completed)}
         selectedRootId={selectedRootId}
         renderRow={({ id, item }, index, count) => <Fragment key={id}>{renderItem(item, index, count)}</Fragment>}
+        renderRows={(rows, focusThreadId) => renderMain(rows.map(({ item }) => item), focusThreadId)}
         revealAll={revealAll || searchReveals}
       />
     </>

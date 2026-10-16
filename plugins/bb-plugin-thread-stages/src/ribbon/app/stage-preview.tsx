@@ -16,6 +16,7 @@ export function StagePreview<T extends { id: string }>({
   rows,
   selectedRootId,
   renderRow,
+  renderRows,
   revealAll = false,
   rowLimit = DEFAULT_STAGE_PREVIEW_ROWS,
   depth = 0,
@@ -24,6 +25,7 @@ export function StagePreview<T extends { id: string }>({
   rows: readonly T[];
   selectedRootId: string | null;
   renderRow(row: T, index: number, count: number): ReactNode;
+  renderRows?: (rows: readonly T[], focusThreadId?: string) => ReactNode;
   revealAll?: boolean;
   rowLimit?: number;
   depth?: number;
@@ -64,7 +66,9 @@ export function StagePreview<T extends { id: string }>({
   return (
     <>
       <ul className="space-y-px" id={id} ref={list}>
-        {visible.map((row, index) => renderRow(row, index, visible.length))}
+        {renderRows
+          ? renderRows(visible, focusAfter.current && focusAfter.current !== "button" ? focusAfter.current : undefined)
+          : visible.map((row, index) => renderRow(row, index, visible.length))}
       </ul>
       {!revealAll &&
       (hidden > 0 || (expanded && rows.length > previewLimit)) ? (
