@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import CheckIcon from "@hugeicons/core-free-icons/CheckIcon";
 import { applyPluginState, FEATURED_PROJECT, FEATURED_THREAD, SECTION } from "../../screenshots/fixture.mjs";
 import { heading, launch, link, openContext, row, section, sidebar, sidebarRoot } from "./sidebar.mjs";
 
 export async function verifyThreadIcons({ stack, fixture }) {
+  const { default: CheckIcon } = await import("@hugeicons/core-free-icons/CheckIcon");
   const thread = fixture.threads.get(FEATURED_THREAD);
   // Earlier filing and placement cases can move this shared thread out of Active.
   fixture.run(["thread-stages", "stage", "Active", thread.id]);
