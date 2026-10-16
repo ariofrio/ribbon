@@ -43,6 +43,7 @@ export function useRibbonRowSettings() {
   return {
     childThreadLines:
       settings.values?.childThreadLines === "Tree" ? ("Tree" as const) : ("Bar" as const),
+    inProgressHoverIcon: settings.values?.inProgressHoverIcon !== "None",
     shimmerWorkingRows: settings.values?.shimmerWorkingRows !== false,
     tabularPullRequestDigits: settings.values?.tabularPullRequestDigits !== false,
     pullRequestMarks: settings.values?.pullRequestMarks !== false,
@@ -77,6 +78,7 @@ export function useRibbonRow(
 } | null {
   // The row's own slice of Ribbon's data, so a change elsewhere in the list
   // leaves this row alone.
+  const settings = useSettings();
   const ribbon = useRibbonThread(thread.id);
   const runThreadAction = useSetAtom(runRibbonThreadActionAtom);
   const { tabularPullRequestDigits, pullRequestMarks } = useRibbonRowSettings();
@@ -96,6 +98,7 @@ export function useRibbonRow(
     indicatorState,
     pluginStatus,
     pullRequestMarks ? signal : null,
+    settings.values?.showUnreadIndicator === true,
   );
   const stage = ribbon.stage;
   const lifecycle = signal ? PR_LIFECYCLE_ICONS[signal.lifecycle] : null;
@@ -103,7 +106,7 @@ export function useRibbonRow(
   const actions = thread.archivedAt === null ? (record?.actions ?? []) : [];
   return {
     stage,
-    muted: stage !== "Active",
+    muted: stage !== "BlockedOnUser",
     status,
     working: status.isAgentWorking,
     shines: status.isWorking && status.indicator !== "waiting-for-input",
@@ -145,16 +148,20 @@ export function useRibbonRow(
 export function RibbonStageGlyph({
   stage,
   hiddenAtRest,
+  showOnHover = true,
 }: {
   stage: WorkflowStage;
   hiddenAtRest: boolean;
+  showOnHover?: boolean;
 }) {
   return (
     <span
       // 8px to the title, as bb's top sidebar items keep between icon and label.
       className={`mr-2 flex shrink-0 self-center ${
         hiddenAtRest
-          ? "opacity-0 group-hover/thread-row:opacity-100 group-has-[:focus-visible]/thread-row:opacity-100 pointer-coarse:opacity-100"
+          ? showOnHover
+            ? "opacity-0 group-hover/thread-row:opacity-100 group-has-[:focus-visible]/thread-row:opacity-100"
+            : "opacity-0"
           : ""
       }`}
       data-ribbon-sidebar-icon-slot=""

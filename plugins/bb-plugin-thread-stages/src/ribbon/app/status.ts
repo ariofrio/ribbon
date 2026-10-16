@@ -34,8 +34,11 @@ export function ribbonThreadStatus(
   state: ThreadListIndicatorState,
   pluginStatus: PluginSidebarThreadRowStatus | null,
   pullRequest: PullRequestSignal | null,
+  showUnreadIndicator = false,
 ): ThreadStatus {
-  const indicator = resolveThreadListIndicator(state);
+  const indicator = resolveThreadListIndicator(
+    showUnreadIndicator ? state : { ...state, hasUnreadSuccess: false },
+  );
   const hasWork = hasThreadListWorkingActivity({
     ...state,
     isWorkflowActive: false,

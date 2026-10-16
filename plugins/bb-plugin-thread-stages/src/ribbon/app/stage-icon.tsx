@@ -8,7 +8,6 @@ export function StageIcon({ stage }: { stage: WorkflowStage }) {
     <ProviderIcon
       icon={STAGE_ICONS[stage]}
       label={`${WORKFLOW_STAGE_LABELS[stage]} stage`}
-      className="text-subtle-foreground/75"
     />
   );
 }

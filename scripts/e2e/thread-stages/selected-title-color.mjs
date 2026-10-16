@@ -35,12 +35,13 @@ export async function verifySelectedTitleColor({ stack, fixture }) {
             const reference = document.createElement("span");
             reference.style.color = selected
               ? "var(--sidebar-foreground)"
-              : "color-mix(in srgb, var(--sidebar-foreground) 85%, transparent)";
+              : "var(--subtle-foreground)";
             row.append(reference);
-            const colors = { actual: getComputedStyle(label).color, expected: getComputedStyle(reference).color };
+            const colors = { actual: getComputedStyle(label).color, icon: getComputedStyle(row.querySelector("[data-ribbon-sidebar-icon-slot] svg")).color, expected: getComputedStyle(reference).color };
             reference.remove();
             return colors;
           }, { selected, title });
+          assert.equal(colors.icon, colors.actual, `${theme}: icon and title share their attention color`);
           assert.equal(colors.actual, colors.expected, `${theme}: ${selected ? "selected" : "unselected"} thread title color`);
         }
 
@@ -50,6 +51,16 @@ export async function verifySelectedTitleColor({ stack, fixture }) {
         await assertTitleColor(active, true, thread.title);
         await inactive.hover();
         await assertTitleColor(inactive, false, inactiveThread.title);
+        for (const [stage, label] of [["BlockedOnUser", "Needs user"], ["BlockedOnOtherAgent", "Dependent"], ["BlockedOnThirdParty", "Blocked"]]) {
+          fixture.run(["thread-stages", "stage", stage, thread.id]);
+          await list.locator(`[data-thread-id="${thread.id}"]`).first().getByLabel(`${label} stage`, { exact: true }).waitFor();
+          await assertTitleColor(active, true, thread.title);
+          fixture.run(["thread-stages", "stage", stage, inactiveThread.id]);
+          await list.locator(`[data-thread-id="${inactiveThread.id}"]`).first().getByLabel(`${label} stage`, { exact: true }).waitFor();
+          await assertTitleColor(inactive, stage === "BlockedOnUser", inactiveThread.title);
+        }
+        fixture.run(["thread-stages", "stage", "Active", inactiveThread.id]);
+        fixture.run(["thread-stages", "stage", "Active", thread.id]);
       } finally {
         await context.close();
       }

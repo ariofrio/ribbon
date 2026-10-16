@@ -71,13 +71,21 @@ describe("Ribbon row status", () => {
   it("lets a failing pull request outrank an unread completion, and a ready one wait", () => {
     const unread = { ...idle, hasUnreadSuccess: true };
     expect(
-      ribbonThreadStatus(unread, null, { lifecycle: "open", mark: "failing", label: "CI failing" }),
+      ribbonThreadStatus(unread, null, { lifecycle: "open", mark: "failing", label: "CI failing" }, true),
     ).toMatchObject({ pullRequestMark: "failing", indicatorLabel: "CI failing" });
     expect(
-      ribbonThreadStatus(unread, null, { lifecycle: "open", mark: "ready", label: "Ready" }),
+      ribbonThreadStatus(unread, null, { lifecycle: "open", mark: "ready", label: "Ready" }, true),
     ).toMatchObject({ pullRequestMark: null, indicator: "unread-success" });
     expect(
-      ribbonThreadStatus(idle, null, { lifecycle: "open", mark: "ready", label: "Ready" }),
+      ribbonThreadStatus(idle, null, { lifecycle: "open", mark: "ready", label: "Ready" }, true),
     ).toMatchObject({ pullRequestMark: "ready" });
   });
+});
+
+it("hides only the unread success marker by default and can restore it", () => {
+  const unread = { ...idle, hasUnreadSuccess: true };
+  expect(ribbonThreadStatus(unread, null, null).indicator).toBe("none");
+  expect(ribbonThreadStatus(unread, null, null, true).indicator).toBe("unread-success");
+  expect(ribbonThreadStatus({ ...unread, hasUnreadError: true }, null, null).indicator).toBe("unread-error");
+  expect(ribbonThreadStatus({ ...unread, isRuntimeActive: true }, null, null).indicator).toBe("runtime");
 });

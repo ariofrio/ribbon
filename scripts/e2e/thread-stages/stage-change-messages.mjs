@@ -58,7 +58,7 @@ export async function verifyStageChangeMessages({ stack, fixture }) {
     // Only Thread stages' provider supplies this subtitle to the menu.
     await page.getByText("Stage · the user owes input, a decision, approval, direction, or intended review, and no useful independent work remains here", { exact: true }).waitFor();
     await page.keyboard.press("Enter");
-    const inserted = page.locator('[data-app-composer-role="primary"] [data-prompt-mention]').filter({ hasText: "Blocked on user" });
+    const inserted = page.locator('[data-app-composer-role="primary"] [data-prompt-mention]').filter({ hasText: "Needs user" });
     await inserted.waitFor();
     assert.equal((await composer.innerText()).includes("@user"), false, "Picking the stage must replace the typed query with its pill");
     await composer.press(process.platform === "darwin" ? "Meta+a" : "Control+a");

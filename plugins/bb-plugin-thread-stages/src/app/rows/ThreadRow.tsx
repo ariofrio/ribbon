@@ -607,9 +607,6 @@ function ThreadRowComponent({
         ? `${RIBBON_SELECTED_ROW_SURFACE_CLASS} bb-sidebar-selected-row ${SIDEBAR_ROW_TEXT_CLASS}`
         : SIDEBAR_ROW_SELECTED_STATE_CLASS
       : SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,
-    // A row outside Active stays dim while hovered and while open.
-    ribbon?.muted &&
-      "text-subtle-foreground/75 hover:text-subtle-foreground/75",
     !showActive && isOpenInSplit && SIDEBAR_ROW_OPEN_IN_SPLIT_STATE_CLASS,
     !showActive &&
       "has-[[data-state=open]]:bg-sidebar-accent has-[[data-sidebar-rename-anchor]:focus-visible]:bg-sidebar-accent",
@@ -624,7 +621,14 @@ function ThreadRowComponent({
   const rowStyle = {
     ...getThreadRowStyle(options.depth),
     // Where the stage ring's centre sits, for the rails to meet it.
-    ...(ribbon ? { ["--ribbon-ring-y" as string]: "50%" } : {}),
+    ...(ribbon ? {
+      ["--ribbon-ring-y" as string]: "50%",
+      // The sidebar provider renders outside the plugin stylesheet's scope.
+      // Set the shared title/icon ink here so host hover colors cannot replace it.
+      color: showActive || !ribbon.muted
+        ? "var(--sidebar-foreground)"
+        : "var(--subtle-foreground)",
+    } : {}),
   };
   const parentGuideLeft =
     options.depth > 0 ? getSidebarThreadGroupLineLeft(options.depth - 1) : null;
@@ -661,8 +665,8 @@ function ThreadRowComponent({
   const ribbonRing: "shown" | "hidden-at-rest" | "absent" =
     ribbon === null
       ? "absent"
-      : ribbon.stage === "Active" && !ribbon.working && !showActive
-        ? "hidden-at-rest"
+      : ribbon.stage === "Active"
+        ? ribbonSettings.inProgressHoverIcon ? "hidden-at-rest" : "absent"
         : "shown";
   // A parent's own line drops from its ring, so roots with children draw too.
   const ribbonRails =
@@ -845,8 +849,9 @@ function ThreadRowComponent({
               {ribbon ? (
                 <RibbonStageGlyph
                   stage={ribbon.stage}
+                  showOnHover={ribbonSettings.inProgressHoverIcon}
                   hiddenAtRest={
-                    ribbon.stage === "Active" && !ribbon.working && !showActive
+                    ribbon.stage === "Active"
                   }
                 />
               ) : null}

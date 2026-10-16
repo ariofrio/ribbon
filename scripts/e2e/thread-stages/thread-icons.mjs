@@ -43,6 +43,22 @@ export async function verifyThreadIcons({ stack, fixture }) {
     await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
     await list.waitFor({ timeout: 120_000 });
     await paintedIcon('[aria-label="In progress stage"] svg', false);
+    for (const [title, label] of [
+      ["Replace the legacy filter drawer", "Dependent"],
+      ["Compare managed Postgres plans", "Blocked"],
+    ]) {
+      const glyph = row(list, fixture.threads.get(title).id).getByLabel(`${label} stage`, { exact: true }).locator("svg");
+      const size = await glyph.evaluate((svg) => {
+        const path = svg.querySelector("path");
+        const matrix = path.getScreenCTM();
+        const stroke = parseFloat(getComputedStyle(path).strokeWidth) * Math.hypot(matrix.a, matrix.b);
+        const bounds = svg.getBBox();
+        return { slot: getComputedStyle(svg).width, stroke, painted: Math.max(bounds.width, bounds.height) * 16 / 24 + stroke };
+      });
+      assert.equal(size.slot, "16px", `${label}: same slot as main`);
+      assert.ok(Math.abs(size.stroke - 4 / 3) < 0.01, `${label}: same stroke as main's rings`);
+      assert.ok(Math.abs(size.painted - 13) < 0.02, `${label}: glyph fits main's 13px painted bounds`);
+    }
     const workingRow = row(list, workingThread.id);
     // Runtime activity occupies the trailing lane; the stage stays still.
     const geometry = await workingRow.evaluate((node) => {
@@ -69,8 +85,10 @@ export async function verifyThreadIcons({ stack, fixture }) {
     const iconOpacity = (scope) =>
       scope.locator("[data-ribbon-sidebar-icon-slot]").evaluate((node) => getComputedStyle(node).opacity);
     await page.mouse.move(1200, 780);
-    assert.equal(await iconOpacity(target), "1", "The selected Active thread keeps its stage icon");
-    assert.equal(await iconOpacity(workingRow), "1", "A working thread keeps its stage icon");
+    assert.equal(await iconOpacity(target), "0", "The selected In progress thread is blank at rest");
+    assert.equal(await iconOpacity(workingRow), "0", "A working In progress thread is blank at rest");
+    await target.hover();
+    assert.equal(await iconOpacity(target), "1", "Hover reveals the marker on the selected row too");
 
     const home = await context.newPage();
     try {
@@ -98,6 +116,24 @@ export async function verifyThreadIcons({ stack, fixture }) {
       }
       assert.ok(focused, "Keyboard navigation reaches the Active thread");
       assert.equal(await iconOpacity(idleRow), "1", "Keyboard focus reveals the Active icon");
+      try {
+        fixture.run(["plugin", "config", "thread-stages", "set", "inProgressHoverIcon", "None"]);
+        await idleRow.hover();
+        await home.waitForFunction((id) => {
+          const slot = document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${id}"] [data-ribbon-sidebar-icon-slot]`);
+          return slot && getComputedStyle(slot).opacity === "0";
+        }, thread.id);
+        await home.mouse.move(1200, 780);
+        assert.equal(await iconOpacity(idleRow), "0", "None stays blank at rest");
+      } finally {
+        fixture.run(["plugin", "config", "thread-stages", "set", "inProgressHoverIcon", "Hollow unread indicator"]);
+      }
+      await idleRow.hover();
+      await home.waitForFunction((id) => {
+        const slot = document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${id}"] [data-ribbon-sidebar-icon-slot]`);
+        return slot && getComputedStyle(slot).opacity === "1";
+      }, thread.id);
+
     } finally {
       await home.close();
     }
