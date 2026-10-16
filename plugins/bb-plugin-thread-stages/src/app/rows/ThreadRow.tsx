@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type FocusEventHandler,
   type MouseEventHandler,
   type PointerEventHandler,
   type ReactNode,
@@ -38,7 +39,6 @@ import {
 import {
   experimental_ThreadStatusGlyph as ThreadStatusGlyph,
   experimental_THREAD_ACTION_GROUPS,
-  experimental_useSidebarThreadSplit,
   experimental_useProviders,
   experimental_ProviderIcon as ProviderIcon,
   ThreadTitle,
@@ -96,6 +96,7 @@ import type {
 import type { SidebarSortableDragBindings } from "@/components/ui/sortable-motion";
 import { SidebarThreadDragChip } from "../dnd/sidebarThreadDragChip.js";
 import { SplitPaneMiniMap } from "./SplitPaneMiniMap.js";
+import { useDeferredSidebarThreadSplit } from "./useDeferredSidebarThreadSplit.js";
 import { ThreadRowQuickActions } from "./ThreadRowQuickActions.js";
 import { useRowActionCapacity } from "../../ribbon/app/use-row-action-capacity.js";
 import { useRibbonThreadActions } from "../../ribbon/app/row-actions.js";
@@ -236,6 +237,9 @@ interface ThreadRowContainerArgs {
   onClick?: MouseEventHandler<HTMLDivElement>;
   onClickCapture?: ThreadRowClickCaptureHandler;
   onSplitDragPointerDown?: PointerEventHandler<HTMLElement>;
+  onFocusCapture?: FocusEventHandler<HTMLElement>;
+  onBlurCapture?: FocusEventHandler<HTMLElement>;
+  onContextMenuCapture?: MouseEventHandler<HTMLElement>;
   stickyLevel?: number;
   style: CSSProperties;
 }
@@ -283,6 +287,9 @@ function renderThreadRowContainer({
   onClick,
   onClickCapture,
   onSplitDragPointerDown,
+  onFocusCapture,
+  onBlurCapture,
+  onContextMenuCapture,
   reorderPlacement,
   stickyLevel,
   style,
@@ -299,6 +306,9 @@ function renderThreadRowContainer({
     onClick,
     onClickCapture,
     onPointerDown: onSplitDragPointerDown,
+    onFocusCapture,
+    onBlurCapture,
+    onContextMenuCapture,
   };
   if (stickyLevel !== undefined) {
     return (
@@ -484,8 +494,8 @@ function ThreadRowComponent({
   );
   const miniMap = useThreadSplitMiniMap(thread.id);
   const isOpenInSplit = miniMap !== null;
-  const split = experimental_useSidebarThreadSplit(thread.id);
-  const onSplitDragPointerDown = split.splitProps.onPointerDown;
+  const split = useDeferredSidebarThreadSplit(thread.id);
+  const onSplitDragPointerDown = split.onPointerDown;
   const splitAvailable = split.isAvailable;
   const openInSplit = useCallback(() => {
     openThreadInSplit(thread.id);
@@ -751,6 +761,7 @@ function ThreadRowComponent({
   ) : null;
   const rowContent = (
     <>
+      {split.behavior}
       {ribbonRails}
       {parentOptions?.stickyLevel !== undefined && parentGuideLeft !== null && ribbon === null ? (
         <span
@@ -1107,10 +1118,13 @@ function ThreadRowComponent({
     nestTargetState,
     reorderPlacement,
     onClick: isEditing ? undefined : handleRowClick,
-    onClickCapture:
-      !isEditing && options.consumeClickSuppression
-        ? handleRowClickCapture
-        : undefined,
+    onClickCapture: isEditing ? undefined : (event) => {
+      split.activate();
+      if (options.consumeClickSuppression) handleRowClickCapture(event);
+    },
+    onFocusCapture: split.onFocusCapture,
+    onBlurCapture: split.onBlurCapture,
+    onContextMenuCapture: isEditing ? undefined : split.activate,
     onSplitDragPointerDown: isEditing ? undefined : onSplitDragPointerDown,
     stickyLevel: parentOptions?.stickyLevel,
     style: rowStyle,
