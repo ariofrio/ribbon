@@ -37,12 +37,14 @@ const SidebarWindowedItem = memo(function SidebarWindowedItem({
   index,
   itemKey,
   contained,
+  isLast,
   renderItem,
   registerWrapper,
 }: {
   index: number;
   itemKey: string;
   contained: boolean;
+  isLast: boolean;
   renderItem: SidebarWindowedItemsProps["renderItem"];
   registerWrapper: (key: string, node: HTMLDivElement | null) => void;
 }) {
@@ -55,7 +57,7 @@ const SidebarWindowedItem = memo(function SidebarWindowedItem({
       ref={ref}
       data-sidebar-windowed-item=""
       style={{
-        paddingBottom: 1,
+        paddingBottom: isLast ? 0 : 1,
         ...(contained
           ? { contain: "layout style paint", overflowClipMargin: "4px" }
           : {}),
@@ -88,7 +90,7 @@ export function SidebarWindowedItems({
     containerRef = useRef<HTMLDivElement>(null),
     wrapperByKeyRef = useRef(new Map<string, HTMLDivElement>()),
     measuredHeightsRef = useRef(
-      new Map<string, { rows: number; height: number }>(),
+      new Map<string, { rows: number; height: number; isLast: boolean }>(),
     ),
     rowHeightRef = useRef(DEFAULT_ROW_HEIGHT_PX);
   // A new opening list must populate before the animation can reveal it.
@@ -118,9 +120,12 @@ export function SidebarWindowedItems({
       counts = itemKeys.map((_, i) => Math.max(1, estimateRows(i)));
     for (let i = 0; i < itemKeys.length; i++) {
       const m = measuredHeightsRef.current.get(itemKeys[i]!);
+      const isLast = i === itemKeys.length - 1;
       offsets[i + 1] =
         offsets[i]! +
-        (m?.rows === counts[i] ? m.height : counts[i]! * rowHeightRef.current);
+        (m?.rows === counts[i] && m.isLast === isLast
+          ? m.height
+          : counts[i]! * rowHeightRef.current - Number(isLast));
     }
     return { offsets, counts };
   }, [itemKeys, estimateRows, measurementVersion]);
@@ -242,17 +247,26 @@ export function SidebarWindowedItems({
       if (i < 0 || h <= 1) continue;
       const count = model.counts[i]!;
       const old = measuredHeightsRef.current.get(key);
-      if (!old || Math.abs(old.height - h) > 0.5 || old.rows !== count) {
-        measuredHeightsRef.current.set(key, { height: h, rows: count });
+      const isLast = i === itemKeys.length - 1;
+      if (
+        !old ||
+        Math.abs(old.height - h) > 0.5 ||
+        old.rows !== count ||
+        old.isLast !== isLast
+      ) {
+        measuredHeightsRef.current.set(key, { height: h, rows: count, isLast });
         changed = true;
       }
+      // Calibrate the ordinary row stride, including its inter-row gap.
+      // The last wrapper omits that gap; it must not shrink every estimate.
+      const stride = h + Number(isLast);
       if (
         count === 1 &&
-        h >= 20 &&
-        h <= 80 &&
-        Math.abs(rowHeightRef.current - h) > 0.5
+        stride >= 20 &&
+        stride <= 80 &&
+        Math.abs(rowHeightRef.current - stride) > 0.5
       ) {
-        rowHeightRef.current = h;
+        rowHeightRef.current = stride;
         changed = true;
       }
     }
@@ -340,6 +354,7 @@ export function SidebarWindowedItems({
         key={key}
         index={i}
         itemKey={key}
+        isLast={i === itemKeys.length - 1}
         contained={
           !freeze &&
           scrollRef !== null &&

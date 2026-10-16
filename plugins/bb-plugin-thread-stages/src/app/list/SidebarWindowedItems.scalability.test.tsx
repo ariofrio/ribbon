@@ -67,7 +67,12 @@ function setup({
   focus,
   items = keys,
   subtreeRows = 1,
-}: { selected?: string; focus?: string; items?: string[]; subtreeRows?: number } = {}) {
+}: {
+  selected?: string;
+  focus?: string;
+  items?: string[];
+  subtreeRows?: number;
+} = {}) {
   const viewport = createRef<HTMLDivElement>();
   const tree = (next = items, freeze = false) => (
     <div ref={viewport} data-sidebar="content" data-test-viewport="">
@@ -211,8 +216,24 @@ it("updates heights when a mounted subtree grows before the next traverse", () =
 });
 
 it("counts retained parent subtrees against the cache budget", () => {
-  const h=setup({subtreeRows:4});
-  for(let i=1;i<=12;i++)h.jump(i*15000);
-  expect(screen.getAllByRole('link').length*4).toBeLessThanOrEqual(96);
+  const h = setup({ subtreeRows: 4 });
+  for (let i = 1; i <= 12; i++) h.jump(i * 15000);
+  expect(screen.getAllByRole("link").length * 4).toBeLessThanOrEqual(96);
+  expect(h.holes()).toHaveLength(0);
+});
+
+it("keeps one pixel between rows and no extra gap after a run, including reorders", () => {
+  const h = setup({ items: keys.slice(0, 3) });
+  const run = () =>
+    h.viewport.current!.querySelector<HTMLElement>(
+      "[data-sidebar-windowed-count]",
+    )!;
+  expect(run().getBoundingClientRect().height).toBe(3 * 28 + 2);
+  h.rerender([keys[2]!, keys[0]!, keys[1]!]);
+  expect(run().getBoundingClientRect().height).toBe(3 * 28 + 2);
+  h.rerender(keys);
+  h.jump(270000);
+  expect(h.holes()).toHaveLength(0);
+  h.jump(0);
   expect(h.holes()).toHaveLength(0);
 });
