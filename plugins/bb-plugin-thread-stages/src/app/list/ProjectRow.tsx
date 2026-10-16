@@ -1558,10 +1558,12 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
     depthOffset,
     nodeDepth: node.depth,
   });
+  const childActivity = hasChildren ? node.stats.childActivity : NO_COLLAPSED_CHILD_ACTIVITY;
+  const stickyLevel = hasChildren ? getThreadNodeStickyLevel({ depthOffset, node }) : undefined;
   const options = useMemo<ThreadRowOptions>(
     () =>
       getThreadRowOptions({
-        childActivity: node.stats.childActivity,
+        childActivity,
         childCount: node.stats.childCount,
         consumeClickSuppression,
         dragBindings,
@@ -1572,9 +1574,7 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
         nestDrop,
         nodeDepth: node.depth,
         onToggleThreadCollapsed,
-        stickyLevel: hasChildren
-          ? getThreadNodeStickyLevel({ depthOffset, node })
-          : undefined,
+        stickyLevel,
       }),
     [
       consumeClickSuppression,
@@ -1585,7 +1585,10 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
       isParent,
       hasChildren,
       nestDrop,
-      node,
+      node.depth,
+      node.stats.childCount,
+      childActivity,
+      stickyLevel,
       onToggleThreadCollapsed,
     ],
   );

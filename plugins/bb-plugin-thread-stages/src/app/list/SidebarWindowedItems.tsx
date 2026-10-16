@@ -2,99 +2,380 @@ import {
   memo,
   useCallback,
   useLayoutEffect,
+  useMemo,
   useRef,
+  useState,
   type ReactNode,
 } from "react";
+import { flushSync } from "react-dom";
 import { useSidebarContentElementRef } from "../ui/sidebar.js";
-import type { SidebarWindowedNavigationEntry } from "./sidebarThreadShortcuts.js";
+import {
+  refreshSidebarScrollWindows,
+  subscribeSidebarScroll,
+} from "./sidebarScrollUpdates.js";
+import {
+  encodeSidebarWindowedNavigationEntries,
+  SIDEBAR_WINDOWED_NAV_ATTRIBUTE,
+  type SidebarWindowedNavigationEntry,
+} from "./sidebarThreadShortcuts.js";
+const DEFAULT_ROW_HEIGHT_PX = 30;
+const OVERSCAN_PX = 96;
+const ROW_CACHE_LIMIT = 48;
 
 interface SidebarWindowedItemsProps {
+  freeze?: boolean;
   itemKeys: readonly string[];
   focusItemKey?: string;
-  estimateRows: (index: number) => number;
+  estimateRows: (i: number) => number;
   alwaysMountedKeys?: ReadonlySet<string>;
   getNavigationEntries?: (
-    index: number,
+    i: number,
   ) => readonly SidebarWindowedNavigationEntry[];
-  renderItem: (index: number) => ReactNode;
+  renderItem: (i: number) => ReactNode;
 }
-
-// Keep rows and their drag registrations mounted while the browser isolates
-// their layout and paint. Scrolling must not wait for React to fill placeholders.
 const SidebarWindowedItem = memo(function SidebarWindowedItem({
-  itemKey,
   index,
+  itemKey,
   contained,
-  registerWrapper,
   renderItem,
+  registerWrapper,
 }: {
-  itemKey: string;
   index: number;
+  itemKey: string;
   contained: boolean;
-  registerWrapper: (key: string, node: HTMLDivElement | null) => void;
   renderItem: SidebarWindowedItemsProps["renderItem"];
+  registerWrapper: (key: string, node: HTMLDivElement | null) => void;
 }) {
-  const wrapperRef = useCallback(
-    (node: HTMLDivElement | null) => registerWrapper(itemKey, node),
+  const ref = useCallback(
+    (n: HTMLDivElement | null) => registerWrapper(itemKey, n),
     [itemKey, registerWrapper],
   );
   return (
     <div
-      ref={wrapperRef}
+      ref={ref}
       data-sidebar-windowed-item=""
-      style={
-        contained
-          ? {
-              contain: "layout style paint",
-              overflowClipMargin: "4px",
-            }
-          : undefined
-      }
+      style={{
+        paddingBottom: 1,
+        ...(contained
+          ? { contain: "layout style paint", overflowClipMargin: "4px" }
+          : {}),
+      }}
     >
       {renderItem(index)}
     </div>
   );
 });
-
+function lowerBound(a: Float64Array, x: number) {
+  let l = 0,
+    h = a.length - 1;
+  while (l < h) {
+    const m = (l + h) >>> 1;
+    if (a[m + 1]! <= x) l = m + 1;
+    else h = m;
+  }
+  return l;
+}
 export function SidebarWindowedItems({
   itemKeys,
-  focusItemKey,
+  estimateRows,
   alwaysMountedKeys,
+  focusItemKey,
+  getNavigationEntries,
   renderItem,
+  freeze = false,
 }: SidebarWindowedItemsProps) {
-  const scrollElementRef = useSidebarContentElementRef();
-  const wrapperByKeyRef = useRef(new Map<string, HTMLDivElement>());
+  const scrollRef = useSidebarContentElementRef(),
+    containerRef = useRef<HTMLDivElement>(null),
+    wrapperByKeyRef = useRef(new Map<string, HTMLDivElement>()),
+    measuredHeightsRef = useRef(
+      new Map<string, { rows: number; height: number }>(),
+    ),
+    rowHeightRef = useRef(DEFAULT_ROW_HEIGHT_PX);
+  // A new opening list must populate before the animation can reveal it.
+  // Once open, a closing fold keeps the existing window instead of mounting all.
+  const wasOpenRef = useRef(!freeze);
+  if (!freeze) wasOpenRef.current = true;
+  const frozenRef = useRef(false);
+  frozenRef.current = freeze && wasOpenRef.current;
+  const recentlyVisibleRef = useRef(new Map<string, number>()),
+    cacheClockRef = useRef(0);
+  const indexByKey = useMemo(
+    () => new Map(itemKeys.map((key, i) => [key, i])),
+    [itemKeys],
+  );
+  const [measurementVersion, setMeasurementVersion] = useState(0),
+    [visibleRange, setVisibleRange] = useState<[number, number]>([0, -1]);
+  const [focusedKey, setFocusedKey] = useState<string>();
+  const visibleRangeRef = useRef(visibleRange);
+  visibleRangeRef.current = visibleRange;
+  useLayoutEffect(() => {
+    for (const key of measuredHeightsRef.current.keys()) {
+      if (!indexByKey.has(key)) measuredHeightsRef.current.delete(key);
+    }
+  }, [indexByKey]);
+  const model = useMemo(() => {
+    const offsets = new Float64Array(itemKeys.length + 1),
+      counts = itemKeys.map((_, i) => Math.max(1, estimateRows(i)));
+    for (let i = 0; i < itemKeys.length; i++) {
+      const m = measuredHeightsRef.current.get(itemKeys[i]!);
+      offsets[i + 1] =
+        offsets[i]! +
+        (m?.rows === counts[i] ? m.height : counts[i]! * rowHeightRef.current);
+    }
+    return { offsets, counts };
+  }, [itemKeys, estimateRows, measurementVersion]);
+  const navigation = useMemo(() => {
+    const chunks: string[] = [],
+      offsets = [0];
+    let p = 0;
+    for (let i = 0; i < itemKeys.length; i++) {
+      const v = encodeSidebarWindowedNavigationEntries(
+        getNavigationEntries?.(i) ?? [],
+      );
+      chunks.push(v + " ");
+      p += v.length + 1;
+      offsets.push(p);
+    }
+    return { text: chunks.join(""), offsets };
+  }, [itemKeys, getNavigationEntries]);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const keyByWrapperRef = useRef(new WeakMap<Element, string>());
   const registerWrapper = useCallback(
     (key: string, node: HTMLDivElement | null) => {
-      if (node) wrapperByKeyRef.current.set(key, node);
-      else wrapperByKeyRef.current.delete(key);
+      const previous = wrapperByKeyRef.current.get(key);
+      if (previous && previous !== node)
+        resizeObserverRef.current?.unobserve(previous);
+      if (node) {
+        wrapperByKeyRef.current.set(key, node);
+        keyByWrapperRef.current.set(node, key);
+        resizeObserverRef.current?.observe(node);
+      } else wrapperByKeyRef.current.delete(key);
     },
     [],
   );
-
+  const resolveVisibleRange = useCallback(() => {
+    if (scrollRef === null) return [0, itemKeys.length - 1] as [number, number];
+    const s =
+      scrollRef?.current ??
+      containerRef.current?.closest<HTMLElement>("[data-sidebar=content]");
+    if (!containerRef.current) return [0, -1] as [number, number];
+    if (!s) return [0, itemKeys.length - 1] as [number, number];
+    const v = s.getBoundingClientRect(),
+      b = containerRef.current.getBoundingClientRect(),
+      top = Math.max(v.top, 0) - b.top,
+      bottom = Math.min(v.bottom, innerHeight) - b.top;
+    if (bottom < 0 || top > model.offsets.at(-1)!)
+      return [0, -1] as [number, number];
+    return [
+      Math.max(0, lowerBound(model.offsets, top - OVERSCAN_PX)),
+      Math.min(
+        itemKeys.length - 1,
+        lowerBound(model.offsets, bottom + OVERSCAN_PX),
+      ),
+    ] as [number, number];
+  }, [scrollRef, model, itemKeys.length]);
+  const resolveVisibleRangeRef = useRef(resolveVisibleRange);
+  resolveVisibleRangeRef.current = resolveVisibleRange;
   useLayoutEffect(() => {
-    if (!focusItemKey) return;
-    const wrapper = wrapperByKeyRef.current.get(focusItemKey);
-    const target = wrapper?.querySelector<HTMLElement>(
-      "a[data-sidebar-thread-id], button[aria-expanded]",
-    );
-    target?.focus();
-  }, [focusItemKey]);
-
-  // Overflow portals opt out through the sidebar context. Their complete
-  // contents must determine their size, as must selected/renamed/folding rows.
-  return itemKeys.map((key, index) => (
-    <SidebarWindowedItem
-      key={key}
-      itemKey={key}
-      index={index}
-      contained={
-        scrollElementRef !== null &&
-        key !== focusItemKey &&
-        !alwaysMountedKeys?.has(key)
+    if (frozenRef.current) return;
+    const next = resolveVisibleRange();
+    if (
+      next[0] !== visibleRangeRef.current[0] ||
+      next[1] !== visibleRangeRef.current[1]
+    ) {
+      visibleRangeRef.current = next;
+      setVisibleRange(next);
+    }
+  }, [resolveVisibleRange, freeze]);
+  useLayoutEffect(() => {
+    const scrollElement =
+      scrollRef?.current ??
+      containerRef.current?.closest<HTMLElement>('[data-sidebar="content"]');
+    if (!scrollElement) return;
+    function update() {
+      if (frozenRef.current) return;
+      const next = resolveVisibleRangeRef.current();
+      if (
+        next[0] === visibleRangeRef.current[0] &&
+        next[1] === visibleRangeRef.current[1]
+      )
+        return;
+      visibleRangeRef.current = next;
+      setVisibleRange(next);
+    }
+    const unsubscribeScroll = subscribeSidebarScroll(scrollElement, update);
+    const observer = new ResizeObserver((entries) => {
+      if (frozenRef.current) return;
+      const changed = entries.some((entry) => {
+        const key = keyByWrapperRef.current.get(entry.target);
+        if (key === undefined) return false;
+        const height =
+          entry.borderBoxSize[0]?.blockSize ??
+          entry.target.getBoundingClientRect().height;
+        return (
+          Math.abs(
+            (measuredHeightsRef.current.get(key)?.height ?? 0) - height,
+          ) > 0.5
+        );
+      });
+      flushSync(() => {
+        if (changed) setMeasurementVersion((version) => version + 1);
+        update();
+      });
+    });
+    resizeObserverRef.current = observer;
+    observer.observe(scrollElement);
+    if (scrollElement.firstElementChild)
+      observer.observe(scrollElement.firstElementChild);
+    for (const node of wrapperByKeyRef.current.values()) observer.observe(node);
+    return () => {
+      resizeObserverRef.current = null;
+      observer.disconnect();
+      unsubscribeScroll();
+    };
+  }, [scrollRef]);
+  useLayoutEffect(() => {
+    let changed = false;
+    for (const [key, n] of wrapperByKeyRef.current) {
+      const i = indexByKey.get(key) ?? -1,
+        h = n.getBoundingClientRect().height;
+      if (i < 0 || h <= 1) continue;
+      const count = model.counts[i]!;
+      const old = measuredHeightsRef.current.get(key);
+      if (!old || Math.abs(old.height - h) > 0.5 || old.rows !== count) {
+        measuredHeightsRef.current.set(key, { height: h, rows: count });
+        changed = true;
       }
-      registerWrapper={registerWrapper}
-      renderItem={renderItem}
-    />
-  ));
+      if (
+        count === 1 &&
+        h >= 20 &&
+        h <= 80 &&
+        Math.abs(rowHeightRef.current - h) > 0.5
+      ) {
+        rowHeightRef.current = h;
+        changed = true;
+      }
+    }
+    if (changed) setMeasurementVersion((v) => v + 1);
+  }, [visibleRange, itemKeys, model]);
+  useLayoutEffect(() => {
+    const element =
+      scrollRef?.current ??
+      containerRef.current?.closest<HTMLElement>('[data-sidebar="content"]');
+    if (element) refreshSidebarScrollWindows(element);
+  }, [model, scrollRef]);
+  useLayoutEffect(() => {
+    if (focusItemKey)
+      wrapperByKeyRef.current
+        .get(focusItemKey)
+        ?.querySelector<HTMLElement>(
+          "a[data-sidebar-thread-id],button[aria-expanded]",
+        )
+        ?.focus();
+  }, [focusItemKey]);
+  const indices = new Set<number>();
+  for (let i = visibleRange[0]; i <= visibleRange[1]; i++)
+    if (i >= 0 && i < itemKeys.length) indices.add(i);
+  for (const key of alwaysMountedKeys ?? []) {
+    const i = itemKeys.indexOf(key);
+    if (i >= 0) indices.add(i);
+  }
+  if (focusItemKey) {
+    const i = itemKeys.indexOf(focusItemKey);
+    if (i >= 0) indices.add(i);
+  }
+  if (focusedKey) {
+    const index = indexByKey.get(focusedKey);
+    if (index !== undefined) indices.add(index);
+  }
+  if (visibleRange[1] < visibleRange[0]) recentlyVisibleRef.current.clear();
+  const time = ++cacheClockRef.current;
+  for (const i of indices) recentlyVisibleRef.current.set(itemKeys[i]!, time);
+  for (const key of recentlyVisibleRef.current.keys())
+    if (!indexByKey.has(key)) recentlyVisibleRef.current.delete(key);
+  const candidates = [...recentlyVisibleRef.current]
+    .filter(([key]) => !indices.has(indexByKey.get(key)!))
+    .sort((a, b) => b[1] - a[1]);
+  // A cached parent represents its whole subtree, not one cheap leaf. Count
+  // that work against the same budget rather than multiplying it at each depth.
+  let retainedRows = [...indices].reduce(
+    (sum, index) => sum + model.counts[index]!,
+    0,
+  );
+  for (const [key] of candidates) {
+    const index = indexByKey.get(key)!;
+    if (retainedRows + model.counts[index]! <= ROW_CACHE_LIMIT) {
+      indices.add(index);
+      retainedRows += model.counts[index]!;
+    } else recentlyVisibleRef.current.delete(key);
+  }
+  const ordered = [...indices].sort((a, b) => a - b);
+  const content: ReactNode[] = [];
+  let cursor = 0;
+  function spacer(end: number) {
+    if (end <= cursor) return;
+    const start = cursor;
+    content.push(
+      <div
+        key={"gap:" + start}
+        data-sidebar-windowed-chunk-empty=""
+        {...{
+          [SIDEBAR_WINDOWED_NAV_ATTRIBUTE]: navigation.text
+            .slice(navigation.offsets[start], navigation.offsets[end])
+            .trim(),
+        }}
+        style={{
+          height: model.offsets[end]! - model.offsets[start]!,
+          overflowAnchor: "none",
+        }}
+      />,
+    );
+    cursor = end;
+  }
+  for (const i of ordered) {
+    spacer(i);
+    const key = itemKeys[i]!;
+    content.push(
+      <SidebarWindowedItem
+        key={key}
+        index={i}
+        itemKey={key}
+        contained={
+          !freeze &&
+          scrollRef !== null &&
+          key !== focusItemKey &&
+          key !== focusedKey &&
+          !alwaysMountedKeys?.has(key)
+        }
+        registerWrapper={registerWrapper}
+        renderItem={renderItem}
+      />,
+    );
+    cursor = i + 1;
+  }
+  spacer(itemKeys.length);
+  return (
+    <div
+      ref={containerRef}
+      style={{ overflowAnchor: "none" }}
+      data-sidebar-windowed-count={itemKeys.length}
+      onFocusCapture={(event) => {
+        for (const [key, node] of wrapperByKeyRef.current) {
+          if (node.contains(event.target)) {
+            setFocusedKey(key);
+            break;
+          }
+        }
+      }}
+      onBlurCapture={(event) => {
+        if (
+          !(event.relatedTarget instanceof Node) ||
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          setFocusedKey(undefined);
+      }}
+    >
+      {content}
+    </div>
+  );
 }

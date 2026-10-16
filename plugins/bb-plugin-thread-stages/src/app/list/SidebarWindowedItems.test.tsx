@@ -3,7 +3,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarContentElementContext } from "../ui/sidebar.js";
 import { SidebarWindowedItems } from "./SidebarWindowedItems.js";
 
@@ -23,6 +23,10 @@ function wrapper(index: number) {
   ]!;
 }
 
+beforeEach(() => {
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+});
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -30,28 +34,6 @@ afterEach(() => {
 });
 
 describe("SidebarWindowedItems", () => {
-  it("keeps offscreen rows mounted without scroll observers or geometry reads", () => {
-    const observe = vi.fn();
-    vi.stubGlobal("IntersectionObserver", observe);
-    const measure = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
-    render(
-      sidebar(
-        <SidebarWindowedItems
-          itemKeys={Array.from({ length: 600 }, (_, i) => `${i}`)}
-          estimateRows={() => 1}
-          renderItem={(i) => (
-            <a href="#thread" data-sidebar-thread-id={`${i}`}>
-              Thread {i}
-            </a>
-          )}
-        />,
-      ),
-    );
-    expect(screen.getAllByRole("link")).toHaveLength(600);
-    expect(observe).not.toHaveBeenCalled();
-    expect(measure).not.toHaveBeenCalled();
-  });
-
   it("uses browser rendering containment for rows and whole subtrees", () => {
     render(
       sidebar(
@@ -67,7 +49,7 @@ describe("SidebarWindowedItems", () => {
     expect(getComputedStyle(wrapper(0)).contentVisibility).not.toBe("auto");
   });
 
-  it("leaves selected, renamed, folding and focused items uncontained", () => {
+  it("leaves selected, renamed and focused items uncontained", () => {
     render(
       sidebar(
         <SidebarWindowedItems
