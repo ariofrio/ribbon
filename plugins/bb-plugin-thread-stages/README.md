@@ -130,9 +130,10 @@ name renames it.
 In progress is always blank at rest. **In progress icon on hover** chooses
 nothing or a hollow unread marker on hover and keyboard focus. Needs user has a
 filled unread marker, Dependent an hourglass, and Blocked the UserMultiple02 people
-icon, fitted to the existing 13px stage sizing. Completed has a checkmark and a
-struck-through title; Deferred keeps its dashed ring. Needs user uses primary ink
-for both icon and title; other stages use secondary ink. A selected row uses
+icon. Deferred uses CircleDashed and Completed uses Check with a struck-through
+title. These four glyphs use the original Hugeicons paths and strokes in a 16px
+slot, without fitting or stroke overrides. The 7px hollow unread marker matches
+their stroke weight. Needs user uses primary ink for both icon and title; other stages use secondary ink. A selected row uses
 primary ink in every stage.
 **Unread indicator on the right** defaults off; enable it to restore bb's unread dot.
 

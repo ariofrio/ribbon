@@ -100,15 +100,15 @@ describe("child thread tree", () => {
   it("drops a parent's line from the bottom of its shown ring", () => {
     expect(
       treeLines({ depth: 0, lastAtDepth: [], showsChildren: true, ring: "shown" }),
-    ).toEqual({ always: "M16.5 6.5V10000", whileRingHidden: "", node: null });
+    ).toEqual({ always: "M16.5 7.5V10000", whileRingHidden: "", node: null });
   });
 
   it("hangs a parent's line from a small hollow node while its ring is hidden", () => {
     expect(
       treeLines({ depth: 0, lastAtDepth: [], showsChildren: true, ring: "hidden-at-rest" }),
     ).toEqual({
-      always: "M16.5 6.5V10000",
-      whileRingHidden: "M16.5 3V6.5",
+      always: "M16.5 7.5V10000",
+      whileRingHidden: "M16.5 3V7.5",
       node: { cx: 16.5, cy: 0.5 },
     });
   });
@@ -117,7 +117,7 @@ describe("child thread tree", () => {
     expect(
       treeLines({ depth: 1, lastAtDepth: [false], showsChildren: false, ring: "shown" }),
     ).toEqual({
-      always: "M16.5 -10000V10000M16.5 -5.5Q16.5 0.5 22.5 0.5H33.5",
+      always: "M16.5 -10000V10000M16.5 -5.5Q16.5 0.5 22.5 0.5H32.5",
       whileRingHidden: "",
       node: null,
     });
@@ -127,8 +127,8 @@ describe("child thread tree", () => {
     expect(
       treeLines({ depth: 1, lastAtDepth: [true], showsChildren: false, ring: "hidden-at-rest" }),
     ).toEqual({
-      always: "M16.5 -10000V-5.5Q16.5 0.5 22.5 0.5H33.5",
-      whileRingHidden: "M33.5 0.5H38",
+      always: "M16.5 -10000V-5.5Q16.5 0.5 22.5 0.5H32.5",
+      whileRingHidden: "M32.5 0.5H38",
       node: { cx: 40.5, cy: 0.5 },
     });
   });
@@ -136,17 +136,17 @@ describe("child thread tree", () => {
   it("carries an ancestor's line past a nested row only while it has later siblings", () => {
     expect(
       treeLines({ depth: 2, lastAtDepth: [false, true], showsChildren: false, ring: "shown" }).always,
-    ).toBe("M16.5 -10000V10000M40.5 -10000V-5.5Q40.5 0.5 46.5 0.5H57.5");
+    ).toBe("M16.5 -10000V10000M40.5 -10000V-5.5Q40.5 0.5 46.5 0.5H56.5");
     expect(
       treeLines({ depth: 2, lastAtDepth: [true, true], showsChildren: false, ring: "shown" }).always,
-    ).toBe("M40.5 -10000V-5.5Q40.5 0.5 46.5 0.5H57.5");
+    ).toBe("M40.5 -10000V-5.5Q40.5 0.5 46.5 0.5H56.5");
   });
 
   it("draws a node with no ring to reveal as part of the tree", () => {
     expect(
       treeLines({ depth: 1, lastAtDepth: [true], showsChildren: true, ring: "absent" }),
     ).toEqual({
-      always: "M16.5 -10000V-5.5Q16.5 0.5 22.5 0.5H33.5M40.5 6.5V10000M33.5 0.5H38M40.5 3V6.5",
+      always: "M16.5 -10000V-5.5Q16.5 0.5 22.5 0.5H32.5M40.5 7.5V10000M32.5 0.5H38M40.5 3V7.5",
       whileRingHidden: "",
       node: { cx: 40.5, cy: 0.5 },
     });

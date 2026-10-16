@@ -46,10 +46,11 @@ export async function verifyThreadIcons({ stack, fixture }) {
     await paintedIcon('[aria-label="In progress stage"] svg', false);
     // Measure on our visible target, independent of stages earlier suites left.
     try {
-      for (const [stage, label] of [
-        ["BlockedOnOtherAgent", "Dependent"],
-        ["BlockedOnThirdParty", "Blocked"],
-        ["Completed", "Completed"],
+      for (const [stage, label, painted] of [
+        ["Deferred", "Deferred", 43 / 3],
+        ["BlockedOnOtherAgent", "Dependent", 13],
+        ["BlockedOnThirdParty", "Blocked", 43 / 3],
+        ["Completed", "Completed", 31 / 3],
       ]) {
         fixture.run(["thread-stages", "stage", stage, thread.id]);
         const glyph = target.getByLabel(`${label} stage`, { exact: true }).locator("svg");
@@ -61,8 +62,8 @@ export async function verifyThreadIcons({ stack, fixture }) {
           return { slot: getComputedStyle(svg).width, stroke, painted: Math.max(bounds.width, bounds.height) * 16 / 24 + stroke };
         });
         assert.equal(size.slot, "16px", `${label}: same slot as main`);
-        assert.ok(Math.abs(size.stroke - 4 / 3) < 0.01, `${label}: same stroke as main's rings`);
-        assert.ok(Math.abs(size.painted - 13) < 0.02, `${label}: glyph fits main's 13px painted bounds`);
+        assert.ok(Math.abs(size.stroke - 1) < 0.01, `${label}: original Hugeicons stroke at 16px`);
+        assert.ok(Math.abs(size.painted - painted) < 0.02, `${label}: original Hugeicons painted bounds`);
       }
       assert.equal(
         await target.getByLabel("Completed stage", { exact: true }).locator("path").getAttribute("d"),

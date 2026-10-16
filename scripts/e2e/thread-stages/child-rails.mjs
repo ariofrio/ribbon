@@ -161,8 +161,8 @@ async function verifyBar({ page, list, parent, first, last }) {
       const icon = box(slot.querySelector("svg"));
       const x = (icon.left + icon.right) / 2;
       const y = (icon.top + icon.bottom) / 2;
-      // The stage ring's outer edge: radius 8.75 plus half its 2-unit stroke, on a 24-unit grid.
-      const radius = ((icon.right - icon.left) * 9.75) / 24;
+      // Reserve the largest original Hugeicons envelope for every stage.
+      const radius = ((icon.right - icon.left) * 10.75) / 24;
       return {
         row: box(li),
         ring: { top: y - radius, bottom: y + radius },
@@ -200,7 +200,7 @@ async function verifyBar({ page, list, parent, first, last }) {
     }
   }
   assert.ok(covers(rest.first.bars, rest.first.ringCenter.y - 6.5, rest.first.ringCenter.y + 6.5), "The bar runs through the hidden ring's slot");
-  assert.ok(Math.min(...rest.first.bars.map((bar) => bar.top)) >= rest.first.ringCenter.y - 9.5,
+  assert.ok(Math.min(...rest.first.bars.map((bar) => bar.top)) >= rest.first.ringCenter.y - 10.5,
     "The bar starts at the first child's ring, not above it toward the parent");
   assert.ok(covers(rest.first.bars, rest.first.ringCenter.y, rest.last.row.top), "The bar crosses the gap from the first child into the last");
   assert.ok(clearOf(rest.last.bars, rest.last.ring), "The bar parts around the selected child's ring");
@@ -259,7 +259,7 @@ async function verifyTree({ page, list, parent, first, last, setLines }) {
           shape.isPointInStroke(new DOMPoint(x, y).matrixTransform(shape.getScreenCTM().inverse())));
     });
   }, { parentId: parent.id, ids: [first.id, last.id], points });
-  // The ring's outer edge is 6.5px from its centre, and each line runs half a
+  // The glyph envelope's outer edge is 7.5px from its centre, and each line runs half a
   // pixel right of and below the centre it follows.
   const probes = [
     { row: "first", dx: -8, dy: 0.5 },   // 0: the branch just short of the first child's ring

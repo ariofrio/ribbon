@@ -1,8 +1,8 @@
 /** Where a rail segment starts or stops within its row. */
 export type RailEdge = "row-top" | "ring-top" | "ring-bottom" | "row-bottom";
 
-// A stage ring is 13px across, and the bar stops 2.5px short of it.
-const RING_CLEARANCE = "9px";
+// Original Hugeicons paint up to 14⅓px across; leave at least 2.5px to the bar.
+const RING_CLEARANCE = "10px";
 
 /** CSS `top` for each edge a segment can start at, given `--ribbon-ring-y`. */
 export const RAIL_EDGE_TOP = {
@@ -74,7 +74,8 @@ export function railSegments({
 
 // Beyond any row: the SVG that draws the tree clips its lines to the row.
 const FAR = 10000;
-const RING_RADIUS = 6.5;
+// Round the largest glyph radius up so tree lines stop outside its stroke.
+const RING_RADIUS = 7.5;
 // A hollow node 5px across stands in for a hidden ring.
 const NODE_RADIUS = 2.5;
 const CORNER = 6;

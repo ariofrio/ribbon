@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import CheckIcon from "@hugeicons/core-free-icons/CheckIcon";
+import CircleDashedIcon from "@hugeicons/core-free-icons/CircleDashedIcon";
+import HourglassIcon from "@hugeicons/core-free-icons/HourglassIcon";
+import UserMultiple02Icon from "@hugeicons/core-free-icons/UserMultiple02Icon";
 import { STAGE_ICONS, createGroupingCatalog } from "./catalog";
 import { WORKFLOW_STAGES } from "./workflow-stage";
 
@@ -22,11 +26,19 @@ describe("stage catalog", () => {
     ]);
   });
 
-  it("preserves main's Deferred ring", () => {
-    const ring = STAGE_ICONS.Deferred.children![0]!;
-    expect(ring.attrs.strokeWidth).toBe(2);
-    expect(((Number(ring.attrs.r) + Number(ring.attrs.strokeWidth) / 2) * 2 * 16) / 24).toBe(13);
-    expect(ring.attrs.strokeDasharray).toBeDefined();
+  it("serializes the original Hugeicons without fitting or changing their strokes", () => {
+    for (const [stage, glyph] of [
+      ["Deferred", CircleDashedIcon],
+      ["BlockedOnOtherAgent", HourglassIcon],
+      ["BlockedOnThirdParty", UserMultiple02Icon],
+      ["Completed", CheckIcon],
+    ] as const) {
+      expect(STAGE_ICONS[stage]).toEqual({
+        tag: "svg",
+        attrs: { viewBox: "0 0 24 24", fill: "none" },
+        children: glyph.map(([tag, { key: _key, ...attrs }]) => ({ tag, attrs })),
+      });
+    }
   });
 
   it("hides all dependency stages behind one legacy setting", () => {
