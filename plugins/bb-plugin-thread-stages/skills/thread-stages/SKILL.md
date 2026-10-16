@@ -1,6 +1,6 @@
 ---
 name: thread-stages
-description: Inspect and organize bb threads across sections, projects, and the Deferred, In progress, Waiting, Blocked on user, Blocked on another thread, Blocked on external party, and Completed workflow stages. Use when deciding which stage a bb thread belongs in, including after asking the user something, selecting threads by sidebar organization or stage before bulk work or messaging, changing a thread's or child's stage, moving and ordering root threads, ordering children among siblings, managing saved prompt actions beside thread titles, or reading and changing the thread list's layout preferences. Discover the installed CLI rather than assuming its commands.
+description: Inspect and organize bb threads across sections, projects, and the Deferred, In progress, Needs user, Dependent, Blocked, and Completed workflow stages. Use when deciding which stage a bb thread belongs in, including after asking the user something, selecting threads by sidebar organization or stage before bulk work or messaging, changing a thread's or child's stage, moving and ordering root threads, ordering children among siblings, managing saved prompt actions beside thread titles, or reading and changing the thread list's layout preferences. Discover the installed CLI rather than assuming its commands.
 ---
 
 # Thread stages
@@ -43,45 +43,30 @@ Respect an explicit instruction to retain a stage or let the user manage it.
 | Stage | ID | Meaning |
 | --- | --- | --- |
 | **Deferred** | `Deferred` | Intentionally set aside for later. |
-| **In progress** | `Active` | Meaningful work is available or progressing under this thread's coordination. |
-| **Waiting** | `Waiting` | Standing by for an established condition, with no current action or user decision due. |
-| **Blocked on user** | `BlockedOnUser` | The user owes input, a decision, approval, direction, or intended review, and no useful independent work remains here. |
-| **Blocked on another thread** | `BlockedOnOtherAgent` | Another bb thread owns a required action or result, and no useful independent work remains here. |
-| **Blocked on external party** | `BlockedOnThirdParty` | An independent external party owns a required action or response, and no useful independent work remains here. |
+| **In progress** | `Active` | Work is available, progressing, or awaiting computation or an established condition under this thread's coordination. |
+| **Needs user** | `BlockedOnUser` | The user owes input, a decision, approval, direction, or intended review, and no useful independent work remains here. |
+| **Dependent** | `BlockedOnOtherAgent` | Another bb thread owns a required action or result, and no useful independent work remains here. |
+| **Blocked** | `BlockedOnThirdParty` | An independent external party owns a required action or response, and no useful independent work remains here. |
 | **Completed** | `Completed` | The established objective has reached a durable result and the thread can be put away, with intended review and loose ends settled or delegated. |
 
-Use **Blocked on user** when the user owes input, a decision, approval,
+Use **Needs user** when the user owes input, a decision, approval,
 direction, or intended review and no useful independent work remains. Continue
-independent work in **In progress** before marking the thread blocked. An answer
+independent work in **In progress** before selecting Needs user. An answer
 or report does not establish that the user has reviewed it; opening the thread,
 read status, and silence do not establish review either.
 
-Use **Waiting** for passive observation or listening, elapsed time, an accepted
-job awaiting its scheduled start, propagation, or system recovery. Establish
-what will resume the work and how it will be noticed or checked; do not promise
-automatic follow-up without an actual arrangement. If that path still needs to
-be established, stay In progress. Return to In progress when meaningful work
-becomes due, or use Blocked on user when a required user decision is the only
-remaining next step. Regular checks within an ongoing observation period do not
-require toggling the stage.
+Computation, passive observation, scheduled starts, propagation, and system
+recovery remain **In progress**, as do this thread's executing workers and
+managed jobs. Establish what resumes the work and how it will be noticed or
+checked; do not promise automatic follow-up without an actual arrangement.
+Regular checks do not require toggling the stage.
 
-Work actively executing through this thread's workers or managed jobs is
-**In progress**, whether local or remote. A separate bb workflow that owns a required
-delivery is **Blocked on another thread**, even if that thread is currently
-running or shares a parent, project, provider, or machine. Identify the
-responsible thread in the conversation when relevant; do not infer ownership
-from hierarchy alone. An independent outside counterpart is **Blocked on
-external party**, whether a person, an AI agent, an organization, or a mix.
-Expecting a response does not turn a required external action into Waiting,
-and the stage itself does not authorize sending reminders. Optional listening
-for findings can be Waiting when no counterpart owes a required delivery.
-
-A system recovering on its own is Waiting; repair work is In progress; a
-required user decision with no independent work left is Blocked on user; a
-vendor's required intervention is Blocked on external party. CI or
-an external job progressing under this thread's coordination is In progress, and
-an accepted queued job is Waiting. If useful independent work remains,
-continue it in In progress before marking the thread Blocked.
+Use **Dependent** when another bb thread owns a required action or result and
+no useful independent work remains here. Identify that thread in the conversation
+when relevant; do not infer ownership from hierarchy, project, provider, or machine.
+Use **Blocked** when an independent third party owns a required response or action,
+whether a person, agent, or organization. A stage does not authorize reminders.
+Continue useful independent work in **In progress** before selecting either.
 
 ### Completing a thread
 
@@ -103,12 +88,12 @@ findings. Keep unresolved findings open through resolution and verification
 unless the agreed scope explicitly ends at reporting or the remaining
 responsibility has been handed off. Useful investigation or an unestablished
 follow-up path keeps In progress. Once no independent work remains, required
-user input or intended review uses Blocked on user; a required fix owned by
-another thread or an external party uses the corresponding Blocked stage.
+user input or intended review uses Needs user; a required fix owned by
+another thread or an external party uses Dependent or Blocked.
 A bounded reporting task can finish even while its filed issue remains open.
 
 Initial questions, exploratory research, and proposals may be preparation for
-broader work. Continue useful investigation in In progress; use Blocked on user
+broader work. Continue useful investigation in In progress; use Needs user
 when the next required step is the user’s answer, decision, or intended review
 and no independent work remains. A substantial report alone does not establish
 closure. Standalone research can finish when its actual scope,
@@ -125,7 +110,7 @@ Each child has its own stage and remains nested beneath its parent. A child
 can be reordered among its siblings, while its stage remains independent.
 
 New root threads enter at the top of their section, project, and machine.
-In progress, Waiting, and all three Blocked stages share the main band; changing
+In progress, Needs user, Dependent, and Blocked share the main band; changing
 between those stages keeps a root's position. Deferred and Completed are subgroups of the
 current organization and use its saved order. Section, project, and machine
 orders are independent. Moving a root into another band defaults to the top
@@ -149,23 +134,26 @@ Completed; Completed threads archive on their own after the configured retention
 (seven days by default).
 
 Stages change only when someone sets them; thread activity alone never changes a
-stage. A working thread keeps its stage, and the list shows the work by
-turning the stage icon's ring on that row. A collapsed root's ring also turns
-for work in its hidden descendants. A pending question or approval stops the
-ring, because the thread is waiting on the user rather than working.
+stage. Needs user uses a filled unread marker; Dependent an hourglass; Blocked a people
+icon. Deferred and Completed retain their rings. In progress is always blank at
+rest; **In progress icon on hover** chooses no icon or a hollow unread marker
+on hover or keyboard focus. Needs user uses primary ink for its icon and title;
+other stages use secondary ink, and the selected row uses primary ink. Activity
+appears on the right. **Unread indicator on the right** defaults off. A collapsed root's
+activity indicator also reflects work in its hidden descendants. A pending
+question or approval takes precedence over activity.
 
 ## Stage mentions
 
-A mention of a stage, such as `@In progress` or `@Blocked on external party`, names
-that stage. A placement request, such as "do this, then @Blocked on another
-thread" or a stage mention on its own, asks for the thread to be placed in
+A mention of a stage, such as `@In progress` or `@Blocked`, names
+that stage. A placement request, such as "do this, then @Dependent" or a stage mention on its own, asks for the thread to be placed in
 that stage once the rest of the message is done. The plugin also tells a
 thread when someone else changes its stage, as "Thread stage updated: @In progress
-→ @Blocked on external party"; that move has already happened. Older messages
-may mention `@Idle` or `@Active`, now In progress, or `@Blocked`,
-now split into Blocked on another thread and Blocked on external party. Earlier
-names still resolve; In progress keeps the stored `Active` ID, and Blocked on
-user uses `BlockedOnUser`. Discussing a stage without requesting placement does not
+→ @Blocked"; that move has already happened. Older messages
+may mention `@Idle`, `@Active`, or `@Waiting`, now In progress. Earlier blocker
+names still resolve. The stored IDs stay `Active`, `BlockedOnUser`,
+`BlockedOnOtherAgent`, and `BlockedOnThirdParty`; Waiting assignments migrate to
+In progress without changing the containing group's order. Discussing a stage without requesting placement does not
 ask for a stage change.
 
 ## Layout preferences

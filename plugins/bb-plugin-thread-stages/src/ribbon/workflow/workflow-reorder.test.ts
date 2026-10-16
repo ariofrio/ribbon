@@ -189,7 +189,7 @@ describe("resolveWorkflowReorder", () => {
         workflowStage: "Active",
         intent: { scope: "stage", direction: 1 },
       }),
-    ).toEqual({ kind: "stage", workflowStage: "Waiting" });
+    ).toEqual({ kind: "stage", workflowStage: "BlockedOnUser" });
     expect(
       resolveWorkflowReorder({
         threads: nested,

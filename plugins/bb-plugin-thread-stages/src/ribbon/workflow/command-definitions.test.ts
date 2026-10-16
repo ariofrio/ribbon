@@ -39,17 +39,17 @@ it("files a thread into every stage from a command, keeping existing command IDs
       "File thread as Completed (alternate shortcut)",
     ],
     ["idle-thread", "Active", "Return thread to In progress"],
-    ["wait-thread", "Waiting", "File thread as Waiting"],
-    ["block-thread-on-user", "BlockedOnUser", "File thread as Blocked on user"],
+    ["wait-thread", "Active", "Return thread to In progress (alternate shortcut)"],
+    ["block-thread-on-user", "BlockedOnUser", "File thread as Needs user"],
     [
       "block-thread-on-agent",
       "BlockedOnOtherAgent",
-      "File thread as Blocked on another thread",
+      "File thread as Dependent",
     ],
     [
       "block-thread",
       "BlockedOnThirdParty",
-      "File thread as Blocked on external party",
+      "File thread as Blocked",
     ],
     ["defer-thread", "Deferred", "File thread as Deferred"],
   ]);

@@ -15,7 +15,6 @@ describe("thread statuses", () => {
     expect(WORKFLOW_STAGES).toEqual([
       "Deferred",
       "Active",
-      "Waiting",
       "BlockedOnUser",
       "BlockedOnOtherAgent",
       "BlockedOnThirdParty",
@@ -31,7 +30,9 @@ describe("thread statuses", () => {
     // Idle and Blocked are earlier names, kept for saved data and old messages.
     expect(parseWorkflowStage("Idle")).toBe("Active");
     expect(parseWorkflowStage("Blocked")).toBe("BlockedOnThirdParty");
-    expect(parseWorkflowStage("waiting")).toBe("Waiting");
+    expect(parseWorkflowStage("waiting")).toBe("Active");
+    expect(parseWorkflowStage("Needs user")).toBe("BlockedOnUser");
+    expect(parseWorkflowStage("Dependent")).toBe("BlockedOnOtherAgent");
     expect(parseWorkflowStage("Blocked on external party")).toBe("BlockedOnThirdParty");
     expect(parseWorkflowStage("Blocked on other agent")).toBe("BlockedOnOtherAgent");
     expect(parseWorkflowStage("Blocked on another thread")).toBe(
@@ -40,7 +41,7 @@ describe("thread statuses", () => {
     expect(parseWorkflowStage("blocked-on-third-party")).toBe(
       "BlockedOnThirdParty",
     );
-    // Working is shown on the stage icon, not stored as a stage.
+    // Runtime activity is an indicator, not a stored stage.
     expect(parseWorkflowStage("working")).toBeNull();
     expect(parseWorkflowStage("done")).toBe("Completed");
     expect(parseWorkflowStage("cancelled")).toBe("Completed");
@@ -51,10 +52,9 @@ describe("thread statuses", () => {
     expect(WORKFLOW_STAGES.map((stage) => WORKFLOW_STAGE_LABELS[stage])).toEqual([
       "Deferred",
       "In progress",
-      "Waiting",
-      "Blocked on user",
-      "Blocked on another thread",
-      "Blocked on external party",
+      "Needs user",
+      "Dependent",
+      "Blocked",
       "Completed",
     ]);
   });
@@ -65,17 +65,17 @@ describe("thread statuses", () => {
         showDeferredStage: false,
         showBlockedStage: false,
       }),
-    ).toEqual(["Active", "Waiting", "Completed"]);
+    ).toEqual(["Active", "Completed"]);
     expect(enabledWorkflowStages(undefined)).toEqual(WORKFLOW_STAGES);
   });
 
-  it("recognizes user blockers and groups them independently of Waiting", () => {
+  it("groups user blockers independently of In progress", () => {
     expect(isBlockedStage("BlockedOnUser")).toBe(true);
     const groups = groupThreadsByStage([{ id: "review", updatedAt: 1 }], [{
       threadId: "review", workflowStage: "BlockedOnUser", sortKey: "U", updatedAt: 1,
     }]);
     expect(groups.BlockedOnUser.map(({ id }) => id)).toEqual(["review"]);
-    expect(groups.Waiting).toEqual([]);
+    expect(groups.Active).toEqual([]);
   });
 
   it("defaults unassigned threads to Active and honors explicit sort keys", () => {
@@ -90,7 +90,7 @@ describe("thread statuses", () => {
       { threadId: "first", workflowStage: "Active", sortKey: "U", updatedAt: 1 },
       {
         threadId: "working",
-        workflowStage: "Waiting",
+        workflowStage: "BlockedOnOtherAgent",
         sortKey: "U",
         updatedAt: 3,
       },
@@ -103,7 +103,7 @@ describe("thread statuses", () => {
       "second",
       "unassigned",
     ]);
-    expect(groups.Waiting.map((thread) => thread.id)).toEqual(["working"]);
+    expect(groups.BlockedOnOtherAgent.map((thread) => thread.id)).toEqual(["working"]);
     expect(groups.Completed).toEqual([]);
   });
 

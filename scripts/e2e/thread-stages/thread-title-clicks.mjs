@@ -33,7 +33,7 @@ export async function verifyThreadTitleClicks({ stack, fixture }) {
     const featured = await link(list, fixture.threads.get(FEATURED_THREAD).id).boundingBox();
     await page.mouse.click(featured.x + featured.width / 2, featured.y + featured.height / 2);
     await page.waitForURL(`**/threads/${fixture.threads.get(FEATURED_THREAD).id}`, { timeout: 15_000 });
-    const icon = await row(list, longThread.id).locator('[aria-label$=" stage, working"]').boundingBox();
+    const icon = await row(list, longThread.id).locator('[data-ribbon-sidebar-icon-slot]').boundingBox();
     await page.mouse.click(icon.x + icon.width / 2, icon.y + icon.height / 2);
     await page.waitForURL(`**/threads/${longThread.id}`, { timeout: 15_000 });
     await context.close();

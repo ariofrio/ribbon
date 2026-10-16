@@ -52,18 +52,18 @@ is reported as an error rather than silently substituted.
 | Cases | What they exercise |
 | --- | --- |
 | 1–16: recommendation | Existing scope, stage, completion, preference, and linked-action questions. Agents return structured recommendations and obey each prompt's limits on execution. |
-| 17: observation | Established passive observation changes In progress to Waiting. |
-| 18: user review | Pending user review changes an incorrect external blocker to Blocked on user. |
+| 17: observation | Established passive observation remains In progress. |
+| 18: user review | Pending user review changes an incorrect external blocker to Needs user. |
 | 19: own workers | Executing coordinated workers change an incorrect thread blocker to In progress. |
 | 20: independent thread | A required delivery independently owned by another BB workflow blocks this thread. |
 | 21: external AI | A required delivery owned by an independent outside AI is an external blocker. |
-| 22: exploratory report | Research awaiting required user decisions and review becomes Blocked on user once independent work is exhausted. |
+| 22: exploratory report | Research awaiting required user decisions and review becomes Needs user once independent work is exhausted. |
 | 23: durable completion | Delivered work with review and loose ends settled or delegated becomes Completed. |
-| 24: routine observation | A routine check leaves Waiting unchanged. |
+| 24: routine observation | A routine check leaves In progress unchanged. |
 | 25: missing resumption path | Unfinished reporting setup keeps In progress. |
 | 26: automatic updates off | An independent dependency does not cause an unrequested stage write. |
 | 27: independent work before review | Pending user review leaves In progress unchanged while useful independent work remains. |
-| 28: user blocker unchanged | An established user blocker stays Blocked on user without a redundant write. |
+| 28: user blocker unchanged | An established user blocker stays Needs user without a redundant write. |
 | 29: filed issues unresolved | Submitting reports during an investigation keeps In progress while useful work and unresolved findings remain. |
 | 30: upstream fix pending | An accepted upstream fix blocks this thread while its own verification responsibility remains open. |
 | 31: report-only completion | A task explicitly limited to filing a report can finish while the issue stays open. |
@@ -76,7 +76,7 @@ investigation. Case 29 preserves the reporting request inside the earlier
 investigation and the Linux comparison added during reporting. Case 34 follows
 the controlled experiments and report update, with user review and failed
 scratch-profile cleanup still outstanding. Arranging the cleanup follow-up is
-independent work; user review alone would instead use Blocked on user. Neither
+independent work; user review alone would instead use Needs user. Neither
 supplies the agent's later
 acknowledgment that completion was premature. Case 31 remains the explicitly
 bounded reporting-only completion control.

@@ -114,7 +114,6 @@ export async function verifyThreadIndicators({ stack, fixture }) {
         const observation = await glyph.evaluate((node) => {
           const svg = node.querySelector("svg");
           const style = getComputedStyle(svg);
-          const rect = svg.getBoundingClientRect();
           // bb shines the glyph itself; Thread stages shines the whole row,
           // which masks a window around the glyph and slides it instead.
           // Either way it shimmers or not, and the row's slide is not the
@@ -126,11 +125,11 @@ export async function verifyThreadIndicators({ stack, fixture }) {
             if (each === node) break;
           }
           return {
-            // The shimmer slides the glyph by a compositor transform, which
-            // can land its box a hair off a whole pixel mid-frame.
+            // Compare layout size: a rotating square's bounding box changes
+            // throughout its turn, even though the icon stays 16px wide.
             color: style.color,
-            width: Math.round(rect.width * 100) / 100,
-            height: Math.round(rect.height * 100) / 100,
+            width: parseFloat(style.width),
+            height: parseFloat(style.height),
             shimmers,
             glyphMasked: style.maskImage !== "none",
             shapes: [...svg.querySelectorAll("path, circle, rect, line, polyline, polygon")].map((shape) => {
@@ -183,22 +182,34 @@ export async function verifyThreadIndicators({ stack, fixture }) {
       runtime = "active";
       await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
       await ready();
+      await observe("Thread working");
+      if (provider !== "__builtin__") {
+        const motion = await row.evaluate((node) => {
+          const stage = node.querySelector("[data-ribbon-sidebar-icon-slot]");
+          const indicator = node.querySelector("[data-sidebar-thread-trailing-indicator]");
+          const animations = (element) => element.getAnimations({ subtree: true })
+            .filter((animation) => animation.animationName === "spin");
+          return {
+            stageTurns: animations(stage).length > 0,
+            indicatorTurns: animations(indicator).length > 0,
+            right: indicator.getBoundingClientRect().left > stage.getBoundingClientRect().right,
+          };
+        });
+        assert.deepEqual(motion, { stageTurns: false, indicatorTurns: true, right: true });
+      }
       await editor.fill("A draft while working");
       await observe("Thread working with unsubmitted draft");
       if (provider !== "__builtin__") {
         const motion = await row.evaluate((node) => {
-          const ring = node.querySelector('[class*="animate-spin"]');
           const wave = node.querySelector("[data-ribbon-shine] [data-ribbon-shine-window]");
           return {
             waveAnimation: wave ? getComputedStyle(wave).animationName : null,
             waveDelay: wave ? getComputedStyle(wave).animationDelay : null,
-            ringDelay: ring ? getComputedStyle(ring).animationDelay : null,
             rowWidth: node.getBoundingClientRect().width,
             waveWidth: wave ? parseFloat(getComputedStyle(wave).maskSize) : null,
           };
         });
         assert.equal(motion.waveAnimation, "ribbon-shine-window");
-        assert.equal(motion.ringDelay, motion.waveDelay);
         assert.ok(Math.abs(motion.waveWidth - motion.rowWidth * 2) < 1, `shimmer wave ${motion.waveWidth}px should span twice the ${motion.rowWidth}px row`);
       }
       runtime = "idle";
@@ -208,7 +219,7 @@ export async function verifyThreadIndicators({ stack, fixture }) {
       await ready();
       await observe("Background command running");
       if (provider !== "__builtin__") {
-        // Background work alone leaves the agent idle: the ring holds still
+        // Background work alone leaves the agent idle: the stage holds still
         // and the row does not shimmer.
         const still = await link.evaluate((node) => {
           const container = node.closest("[data-thread-id]");
@@ -281,8 +292,12 @@ export async function verifyThreadIndicators({ stack, fixture }) {
     for (let index = 0; index < results[0].length; index += 1) {
       const builtin = results[0][index];
       const plugin = results[1][index];
-      const { shapes: builtinShapes, ...builtinAppearance } = builtin;
-      const { shapes: pluginShapes, ...pluginAppearance } = plugin;
+      const { shapes: builtinShapes, shimmers: builtinShimmers, ...builtinAppearance } = builtin;
+      const { shapes: pluginShapes, shimmers: pluginShimmers, ...pluginAppearance } = plugin;
+      // Ribbon's optional row shimmer also crosses its runtime spinner.
+      // Upstream only rotates the spinner; other glyphs shimmer in both lists.
+      assert.equal(pluginShimmers, builtin.label === "Thread working" ? true : builtinShimmers,
+        `${builtin.label}: shimmer should follow the row setting`);
       assert.deepEqual(pluginAppearance, builtinAppearance, `${builtin.label}: color, size, and animation should match bb`);
       if (builtin.label === "idle draft" || builtin.label === "Thread working with unsubmitted draft") {
         assert.deepEqual(pluginShapes, pluginDraftShapes, `${builtin.label}: the draft glyph should keep the same geometry`);
