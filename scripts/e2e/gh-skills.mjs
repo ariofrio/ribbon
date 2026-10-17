@@ -40,7 +40,7 @@ export async function verifyGhSkills({ stack }) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   try {
-    await page.goto(new URL('/plugins/gh-skills/skills', stack.serverUrl).href);
+    await page.goto(new URL('/plugins/gh-skills/skills/installed', stack.serverUrl).href);
     const panel = page.locator('[data-gh-skills]');
     await panel.getByText('No skills installed', { exact: true }).waitFor();
     const install = panel.getByRole('button', { name: 'Install skill', exact: true });
@@ -54,35 +54,46 @@ export async function verifyGhSkills({ stack }) {
     await dialog.getByRole('button', { name: 'Install', exact: true }).click();
     await dialog.waitFor({ state: 'hidden' });
     await panel.getByRole('button', { name: 'Open demo' }).waitFor();
+    await panel.getByRole('textbox', { name: 'Search installed skills' }).fill('missing');
+    await panel.getByText('No skills match "missing".', { exact: true }).waitFor();
+    await panel.getByRole('textbox', { name: 'Search installed skills' }).fill('');
     await panel.getByRole('button', { name: 'Open demo' }).click();
-    await page.getByRole('dialog', { name: 'demo', exact: true }).getByText('Installed on the server: v1', { exact: true }).waitFor();
-    await page.keyboard.press('Escape');
-    await page.getByRole('dialog').waitFor({ state: 'hidden' });
-    await panel.getByRole('button', { name: 'Check for updates' }).click();
-    await panel.getByText('Fixture update available', { exact: true }).waitFor();
-    await panel.getByRole('button', { name: 'Update demo' }).click();
-    await panel.getByText('Updated demo', { exact: true }).waitFor();
+    await page.waitForURL('**/skills/installed/demo');
+    await panel.getByRole('heading', { name: 'demo', exact: true }).waitFor();
+    await panel.getByText('Installed on the server: v1', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 0);
+    await page.goBack();
+    await panel.getByRole('button', { name: 'Open demo' }).waitFor();
+    await panel.getByRole('button', { name: 'Skill actions' }).click();
+    await page.getByRole('menuitem', { name: 'Check for updates', exact: true }).click();
+    const check = page.getByRole('dialog', { name: 'Skill update check' });
+    await check.getByText('Fixture update available', { exact: true }).waitFor();
+    await check.getByRole('button', { name: 'Done' }).click();
+    await panel.getByRole('button', { name: 'Actions for demo' }).click();
+    await page.getByRole('menuitem', { name: 'Update', exact: true }).click();
+    const update = page.getByRole('dialog', { name: 'Update demo?' });
+    await update.getByRole('button', { name: 'Update skill', exact: true }).click();
+    await update.waitFor({ state: 'hidden' });
     await panel.getByText('v2', { exact: true }).waitFor();
-    await panel.getByRole('button', { name: 'Remove demo' }).click();
+    await panel.getByRole('button', { name: 'Actions for demo' }).click();
+    await page.getByRole('menuitem', { name: 'Uninstall', exact: true }).click();
     dialog = page.getByRole('dialog', { name: 'Remove demo?' });
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await panel.getByRole('button', { name: 'Open demo' }).waitFor();
-    await panel.getByRole('button', { name: 'Remove demo' }).click();
+    await panel.getByRole('button', { name: 'Actions for demo' }).click();
+    await page.getByRole('menuitem', { name: 'Uninstall', exact: true }).click();
     await dialog.getByRole('button', { name: 'Remove skill', exact: true }).click();
     await panel.getByText('No skills installed', { exact: true }).waitFor();
     await panel.getByRole('tab', { name: 'Browse', exact: true }).click();
     await panel.getByRole('textbox', { name: 'Search GitHub skills' }).fill('demo');
-    await panel.getByRole('button', { name: 'Search', exact: true }).click();
     await panel.getByText('A searchable fixture skill', { exact: true }).waitFor();
-    await panel.getByRole('button', { name: 'Preview demo' }).click();
-    await page.getByRole('dialog').getByText('Preview from GitHub before installation', { exact: true }).waitFor();
-    await page.keyboard.press('Escape');
+    await panel.getByRole('button', { name: 'Open demo' }).click();
+    await panel.getByText('Preview from GitHub before installation', { exact: true }).waitFor();
+    await panel.getByRole('button', { name: 'Back to browse' }).click();
+    await panel.getByRole('button', { name: 'Install demo' }).waitFor();
     await panel.getByRole('button', { name: 'Install demo' }).click();
-    dialog = page.getByRole('dialog', { name: 'Install skill', exact: true });
-    assert.equal(await dialog.getByRole('textbox', { name: 'Repository', exact: true }).inputValue(), 'example/skills');
-    assert.equal(await dialog.getByRole('textbox', { name: 'Skill name or path' }).inputValue(), 'skills/demo/SKILL.md');
-    await dialog.getByRole('button', { name: 'Cancel' }).click();
-    await dialog.waitFor({ state: 'hidden' });
+    await panel.getByLabel('demo is installed', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 0);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForFunction(() => {
       const node = document.querySelector('[data-gh-skills]');
@@ -94,5 +105,7 @@ export async function verifyGhSkills({ stack }) {
     await mobileDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await mobileDialog.waitFor({ state: 'hidden' });
     assert.deepEqual(errors, []);
+  } catch (cause) {
+    throw new Error(`Skills workflow failed at ${page.url()}\n${(await page.locator('[data-gh-skills]').innerText()).slice(0, 8000)}`, { cause });
   } finally { await browser.close(); }
 }

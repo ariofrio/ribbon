@@ -57,6 +57,7 @@
       "dialog",
       "icon",
       "input",
+      "popover",
       "resource-list",
       "tabs",
       "checkbox"

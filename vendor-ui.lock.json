@@ -19,6 +19,7 @@
     "plugins/bb-plugin-gh-skills/src/vendor/components/ui/menu-item-hover.tsx": "sha256-+SwgrBZj5tAmRUW8VqIdx1xbEGNGmDMtb4UzqSVphfQ=",
     "plugins/bb-plugin-gh-skills/src/vendor/components/ui/motion.ts": "sha256-yWZQ5ENqVPIoDv74qVOxYL6uMARPNvevShRiltWFn4I=",
     "plugins/bb-plugin-gh-skills/src/vendor/components/ui/overlay-trigger.ts": "sha256-1oAf//g0DbmyA7IqnCOyz52LCkxZRbfGb+j/HxMdfYs=",
+    "plugins/bb-plugin-gh-skills/src/vendor/components/ui/popover.tsx": "sha256-doBZeWILqMPkR4tpknRvQaQtGI3QyvXtTwJDXu/Ypfs=",
     "plugins/bb-plugin-gh-skills/src/vendor/components/ui/resource-list.tsx": "sha256-xrGWwLxnjqe7WR1REBorSqzUtHtuaMocA6uSm+kqDbE=",
     "plugins/bb-plugin-gh-skills/src/vendor/components/ui/resource-route-label.ts": "sha256-Z6wm5+EEa9BLzS8Lg1Qq1qTkCio+gm4/jI8UJPnZDNQ=",
     "plugins/bb-plugin-gh-skills/src/vendor/components/ui/resource/atoms.tsx": "sha256-z0rvWJu9CtMTL3HnK0l32u+g1I68O9heX4LZATg6ar0=",

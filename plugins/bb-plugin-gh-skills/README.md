@@ -2,6 +2,8 @@
 
 Manage skills on the bb server with GitHub CLI’s `gh skill` commands. The **Skills** page provides GitHub search, repository discovery and preview, installation, update checks, updates, and removal.
 
+Browse and Installed use BB’s resource cards and search toolbars. Search GitHub as you type, install a result directly, and open a skill’s detail page without losing browser navigation. Installed skills support local search and name sorting. Card menus provide update and uninstall actions; update dialogs keep force and unpin options under Advanced options.
+
 Install from Ribbon:
 
 ```sh
