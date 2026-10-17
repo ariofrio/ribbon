@@ -43,13 +43,14 @@ when it no longer fits.
 For automatic updates, first respect an explicit user instruction to retain a
 stage or manage it themselves. Otherwise, align the stage before doing
 independent work: read the conversation to establish what can advance now,
-inspect the current stage with
+inspect the current stage again with
 `bb thread-stages show --self --json`, and complete any needed stage change
-before investigation or implementation tool calls. Use In progress while this
+before tool calls that advance that independent work. Use In progress while this
 thread can advance the work, even if a later step needs user review. Updating
 the stage after the work is done does not represent that work. A turn ending,
 a short side discussion, runtime
-idleness, or a routine monitoring check does not by itself change the stage.
+idleness, or a routine check for whether a wait has resolved does not by itself
+change the stage.
 
 | Stage | ID | Meaning |
 | --- | --- | --- |
@@ -62,7 +63,8 @@ idleness, or a routine monitoring check does not by itself change the stage.
 
 Use **Needs user** when the user owes input, a decision, approval,
 direction, or intended review and no useful independent work remains. Continue
-independent work in **In progress** before selecting Needs user. An answer
+independent work in **In progress**; align the stage before waiting for required
+user input once no useful independent work remains. An answer
 or report does not establish that the user has reviewed it; opening the thread,
 read status, and silence do not establish review either.
 
@@ -94,8 +96,9 @@ including verification after a handoff.
 
 Filing an issue, submitting a PR, or sending a report finishes a delivery step;
 it does not by itself resolve the problem or delegate follow-up. Infer the
-objective from the full conversation, not just the latest request to submit
-findings. Keep unresolved findings open through resolution and verification
+objective and who owns its next steps from the full conversation. A narrower
+follow-up does not by itself cancel outstanding authorized work or require new
+approval. Keep unresolved findings open through resolution and verification
 unless the agreed scope explicitly ends at reporting or the remaining
 responsibility has been handed off. Useful investigation or an unestablished
 follow-up path keeps In progress. Once no independent work remains, required

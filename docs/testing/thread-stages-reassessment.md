@@ -1,13 +1,17 @@
 # Thread stage reassessment evaluation
 
-The final guidance passes **all 40 cases on both runtimes**. The latest matched
-full-suite baseline passes 40/40 on Codex and 38/40 on Claude. Across three trials
-per investigation case with the final fixture, Codex passes 6/6 on both versions;
-Claude changes from 0/6 to 6/6. Earlier matched phases reproduced Codex failures,
-but the final fixture does not, so no consistent Codex improvement is claimed.
-The [full-suite comparison](#full-suite-validation-with-explicit-models) records
-all corrections, interrupted runs, commands, and limits. The CI-proposal case
-already passes its baseline and cannot establish a behavioral fix.
+The earlier **40/40** result is a diagnostic result, not acceptance evidence for
+forty autonomous tasks. An audit found that sixteen cases ask for recommendations,
+nineteen supply workflow conclusions, and five perform source investigations
+without grading their requested deliverables. A static counterexample replaced
+case 35's final answer with `Done.` while preserving its real tool trace; the
+old oracle still passed. That probe is not a new agent run.
+
+The new [native-conversation acceptance suite](../../plugins/bb-plugin-thread-stages/skills/thread-stages/evals/README.md#task-acceptance)
+addresses those limitations with seventeen scenarios and thirty-one turns.
+Its [native comparison](thread-stages-native-conversations.md) is recorded
+separately from the historical diagnostic comparisons below. Passing diagnostic cases or a previously passing baseline
+does not establish behavioral improvement.
 
 ## Method
 

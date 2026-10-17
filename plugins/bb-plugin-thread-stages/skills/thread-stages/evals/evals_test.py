@@ -46,7 +46,7 @@ class EvalTests(unittest.TestCase):
 
     def test_manifest_and_source_contract(self):
         validate()
-        self.assertEqual(len(load_cases()), 40)
+        self.assertEqual(len(load_cases()), 57)
         self.assertNotIn("Waiting", self.source["stages"])
         self.assertIn("BlockedOnUser", self.source["stages"])
         self.assertEqual(set(self.source["instructions"]), {"on", "off"})
@@ -244,6 +244,14 @@ class EvalTests(unittest.TestCase):
     def test_fenced_answer_with_prose_is_not_a_stage_error(self):
         answer = parse_answer('I did not run commands.\n```json\n{"stage":"Active"}\n```')
         self.assertEqual(answer, {"stage": "Active"})
+
+    def test_single_command_allows_a_readonly_inspection_prefix(self):
+        expected = {'command':'bb thread-stages stage BlockedOnOtherAgent --self'}
+        answer = {'command':'bb thread-stages show --self --json && bb thread-stages stage BlockedOnOtherAgent --self',
+                  'reason':'Inspect before changing the stage.'}
+        self.assertTrue(answer_matches(answer, expected))
+        answer['command'] += ' && bb thread-stages stage Completed --self'
+        self.assertFalse(answer_matches(answer, expected))
 
     def test_command_plan_accepts_inspection_without_accepting_extra_mutations(self):
         expected = {"commands": ["bb thread-stages prefs set organizationMode project"]}

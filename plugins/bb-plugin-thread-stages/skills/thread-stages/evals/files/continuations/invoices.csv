@@ -1,0 +1,6 @@
+account,amount_cents,status
+acme,1200,paid
+beta,400,paid
+acme,300,void
+acme,800,paid
+beta,150,paid

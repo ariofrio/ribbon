@@ -1,0 +1,1 @@
+{"region":"west","collector":"watch-ingress","condition":"three consecutive healthy samples","samples":[false,true,true],"notification":"thread notification when condition holds"}

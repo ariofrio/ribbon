@@ -241,7 +241,7 @@ def main():
         return 0 if all(r["passed"] for r in results) else 1
     if args.cases and set(args.cases) - {c["id"] for c in cases}:
         parser.error("Unknown case ID")
-    cases = [c for c in cases if (args.mode == "all" or c["mode"] == args.mode)
+    cases = [c for c in cases if c["mode"] != "continuation" and (args.mode == "all" or c["mode"] == args.mode)
              and (not args.cases or c["id"] in args.cases)]
     if not cases or args.timeout <= 0:
         parser.error("Select at least one case and a positive timeout")

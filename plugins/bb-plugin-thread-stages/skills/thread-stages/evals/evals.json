@@ -1347,6 +1347,1049 @@
         "work_stage": "Active",
         "inspect_before_work": false
       }
+    },
+    {
+      "id": 41,
+      "name": "implicit_review_comments_resume_investigation",
+      "mode": "continuation",
+      "prompt": "The exhaustion paragraph should distinguish retries from total attempts. The duplicate paragraph needs the receiver's actual guarantees. Check src/retry-worker.ts, src/receiver.ts and logs/retry-probes.json through bb files read. Correct drafts/exhaustion.md and drafts/duplicates.md. Also save findings.json with maxAttempts, retries408, deduplicates, and committedRows503 (a count) so I can reuse the conclusions. Send me the corrected wording before I decide whether to publish.",
+      "expected_output": "implicit review comments resume investigation",
+      "files": [
+        "evals/files/continuations/notes.md",
+        "evals/files/retry-worker.ts",
+        "evals/files/receiver.ts",
+        "evals/files/retry-probes.json"
+      ],
+      "workspace_files": {
+        "notes/delivery.md": "evals/files/continuations/notes.md",
+        "src/retry-worker.ts": "evals/files/retry-worker.ts",
+        "src/receiver.ts": "evals/files/receiver.ts",
+        "logs/retry-probes.json": "evals/files/retry-probes.json"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Draft two short issue paragraphs from notes/delivery.md (bb files read), one in drafts/exhaustion.md and one in drafts/duplicates.md. This is a scope pass: don't investigate source yet. Send me the drafts to review before publication.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "notes/delivery.md"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "drafts/exhaustion.md": {
+                "nonempty": true
+              },
+              "drafts/duplicates.md": {
+                "nonempty": true
+              }
+            },
+            "answer_patterns": []
+          }
+        },
+        {
+          "prompt": "The exhaustion paragraph should distinguish retries from total attempts. The duplicate paragraph needs the receiver's actual guarantees. Check src/retry-worker.ts, src/receiver.ts and logs/retry-probes.json through bb files read. Correct drafts/exhaustion.md and drafts/duplicates.md. Also save findings.json with maxAttempts, retries408, deduplicates, and committedRows503 (a count) so I can reuse the conclusions. Send me the corrected wording before I decide whether to publish.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "src/retry-worker.ts",
+              "src/receiver.ts",
+              "logs/retry-probes.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "findings.json": {
+                "json": {
+                  "maxAttempts": 4,
+                  "retries408": false,
+                  "deduplicates": false,
+                  "committedRows503": 4
+                }
+              },
+              "drafts/exhaustion.md": {
+                "patterns": [
+                  "(?i)(four|4|initial|three retries)"
+                ]
+              },
+              "drafts/duplicates.md": {
+                "patterns": [
+                  "(?i)duplicat"
+                ]
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "name": "supplied_choice_resumes_calculation",
+      "mode": "continuation",
+      "prompt": "eu please. Send me the estimate to approve before we order.",
+      "expected_output": "supplied choice resumes calculation",
+      "files": [
+        "evals/files/continuations/rates.json",
+        "evals/files/continuations/usage.json"
+      ],
+      "workspace_files": {},
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "We need a storage estimate. First ask me which region (us or eu) to use; I will send the usage and rates with my answer. Save the estimate for my approval before we order.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(region|us|eu)"
+            ]
+          }
+        },
+        {
+          "prompt": "eu please. Usage and pricing are available through bb files read at pricing/rates.json and usage/month.json. Save estimate.json with region and monthlyUSD, and send me the estimate to approve before we order.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "pricing/rates.json",
+              "usage/month.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "estimate.json": {
+                "json": {
+                  "region": "eu",
+                  "monthlyUSD": 72
+                }
+              }
+            },
+            "answer_patterns": []
+          },
+          "file_updates": {
+            "pricing/rates.json": "evals/files/continuations/rates.json",
+            "usage/month.json": "evals/files/continuations/usage.json"
+          }
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "name": "other_thread_result_unblocks_integration",
+      "mode": "continuation",
+      "prompt": "[bb message from thread:thr_81jsk27pq9]\nThe export is ready at exports/invoices.csv; you can read it with bb files read.",
+      "expected_output": "other thread result unblocks integration",
+      "files": [
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {},
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "The invoice export is being prepared by @thread:thr_81jsk27pq9; that thread owns delivery. Once it arrives, total paid amount_cents by account, excluding void rows, into totals.json. I want to review the totals before sending them to accounting.",
+          "expected": {
+            "stage": "BlockedOnOtherAgent",
+            "writes": [
+              "BlockedOnOtherAgent"
+            ],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(export|waiting|delivery)"
+            ]
+          }
+        },
+        {
+          "prompt": "[bb message from thread:thr_81jsk27pq9]\nThe export is ready at exports/invoices.csv; you can read it with bb files read.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": []
+          },
+          "file_updates": {
+            "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+          }
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "name": "external_result_unblocks_integration",
+      "mode": "continuation",
+      "prompt": "Accountant sent it: exports/invoices.csv is available through bb files read.",
+      "expected_output": "external result unblocks integration",
+      "files": [
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {},
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Our outside accountant is preparing the invoice export. After they send it, total paid amount_cents by account, excluding void rows, into totals.json for my review.",
+          "expected": {
+            "stage": "BlockedOnThirdParty",
+            "writes": [
+              "BlockedOnThirdParty"
+            ],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(export|accountant)"
+            ]
+          }
+        },
+        {
+          "prompt": "Accountant sent it: exports/invoices.csv is available through bb files read.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": []
+          },
+          "file_updates": {
+            "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+          }
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "name": "substantive_side_discussion_does_not_churn",
+      "mode": "continuation",
+      "prompt": "Still deciding on those issue drafts. In the meantime, what does exponential backoff mean? Show the first three delays starting at 0.5 seconds and doubling. Please just explain here.",
+      "expected_output": "substantive side discussion does not churn",
+      "files": [
+        "evals/files/continuations/notes.md",
+        "evals/files/retry-worker.ts",
+        "evals/files/receiver.ts",
+        "evals/files/retry-probes.json"
+      ],
+      "workspace_files": {
+        "notes/delivery.md": "evals/files/continuations/notes.md",
+        "src/retry-worker.ts": "evals/files/retry-worker.ts",
+        "src/receiver.ts": "evals/files/receiver.ts",
+        "logs/retry-probes.json": "evals/files/retry-probes.json"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Draft two short issue paragraphs from notes/delivery.md (bb files read), one in drafts/exhaustion.md and one in drafts/duplicates.md. This is a scope pass: don't investigate source yet. Send me the drafts to review before publication.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "notes/delivery.md"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "drafts/exhaustion.md": {
+                "nonempty": true
+              },
+              "drafts/duplicates.md": {
+                "nonempty": true
+              }
+            },
+            "answer_patterns": []
+          }
+        },
+        {
+          "prompt": "Still deciding on those issue drafts. In the meantime, what does exponential backoff mean? Show the first three delays starting at 0.5 seconds and doubling. Please just explain here.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "0[.]5",
+              "(?s)1.*2",
+              "(?i)(doubl|exponential)"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "name": "independent_work_while_review_remains",
+      "mode": "continuation",
+      "prompt": "While I review those drafts, total the paid invoices in exports/invoices.csv via bb files read, excluding void rows. Save totals.json keyed by account with amount_cents totals. I'll review that too before anything goes out.",
+      "expected_output": "independent work while review remains",
+      "files": [
+        "evals/files/continuations/notes.md",
+        "evals/files/retry-worker.ts",
+        "evals/files/receiver.ts",
+        "evals/files/retry-probes.json",
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {
+        "notes/delivery.md": "evals/files/continuations/notes.md",
+        "src/retry-worker.ts": "evals/files/retry-worker.ts",
+        "src/receiver.ts": "evals/files/receiver.ts",
+        "logs/retry-probes.json": "evals/files/retry-probes.json",
+        "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Draft two short issue paragraphs from notes/delivery.md (bb files read), one in drafts/exhaustion.md and one in drafts/duplicates.md. This is a scope pass: don't investigate source yet. Send me the drafts to review before publication.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "notes/delivery.md"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "drafts/exhaustion.md": {
+                "nonempty": true
+              },
+              "drafts/duplicates.md": {
+                "nonempty": true
+              }
+            },
+            "answer_patterns": []
+          }
+        },
+        {
+          "prompt": "While I review those drafts, total the paid invoices in exports/invoices.csv via bb files read, excluding void rows. Save totals.json keyed by account with amount_cents totals. I'll review that too before anything goes out.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "name": "coordinated_computation_remains_active",
+      "mode": "continuation",
+      "prompt": "Any progress on the conversion?",
+      "expected_output": "coordinated computation remains active",
+      "files": [
+        "evals/files/continuations/job.json"
+      ],
+      "workspace_files": {
+        "jobs/conversion.json": "evals/files/continuations/job.json"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "We coordinate conversion job-84 here. A collector is already registered to notify this thread on terminal status. Give me a quick progress update from jobs/conversion.json through bb files read.",
+          "expected": {
+            "stage": "Active",
+            "writes": [],
+            "source_reads": [
+              "jobs/conversion.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(37|running)"
+            ]
+          }
+        },
+        {
+          "prompt": "Any progress on the conversion?",
+          "expected": {
+            "stage": "Active",
+            "writes": [],
+            "source_reads": [
+              "jobs/conversion.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(37|running)"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "name": "established_observation_remains_active",
+      "mode": "continuation",
+      "prompt": "Has west recovered yet?",
+      "expected_output": "established observation remains active",
+      "files": [
+        "evals/files/continuations/health.json"
+      ],
+      "workspace_files": {
+        "monitor/ingress.json": "evals/files/continuations/health.json"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "We own the west ingress recovery watch. The registered collector notifies this thread after three consecutive healthy samples. Give me a quick status update from monitor/ingress.json through bb files read.",
+          "expected": {
+            "stage": "Active",
+            "writes": [],
+            "source_reads": [
+              "monitor/ingress.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(\\bno\\b|not|hasn['\u2019]t|two|2)"
+            ]
+          }
+        },
+        {
+          "prompt": "Has west recovered yet?",
+          "expected": {
+            "stage": "Active",
+            "writes": [],
+            "source_reads": [
+              "monitor/ingress.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(\\bno\\b|not|hasn['\u2019]t|two|2)"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "name": "finished_bounded_reporting",
+      "mode": "continuation",
+      "prompt": "Create the final accounting totals.json from exports/invoices.csv (bb files read): paid amount_cents totals keyed by account, excluding void rows. Saving this report is the entire assignment; accounting handles it from there. Tell me where you saved it.",
+      "expected_output": "finished bounded reporting",
+      "files": [
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {
+        "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Create the final accounting totals.json from exports/invoices.csv (bb files read): paid amount_cents totals keyed by account, excluding void rows. Saving this report is the entire assignment; accounting handles it from there. Tell me where you saved it.",
+          "expected": {
+            "stage": "Completed",
+            "writes": [
+              "Completed"
+            ],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "name": "explicit_stage_request_when_automatic_off",
+      "mode": "continuation",
+      "prompt": "Create the final accounting totals.json from exports/invoices.csv (bb files read): paid amount_cents totals keyed by account, excluding void rows. Saving this report is the entire assignment; accounting handles it from there. Tell me where you saved it. After saving it, put this thread in @Completed.",
+      "expected_output": "explicit stage request when automatic off",
+      "files": [
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {
+        "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+      },
+      "automatic_updates": false,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Create the final accounting totals.json from exports/invoices.csv (bb files read): paid amount_cents totals keyed by account, excluding void rows. Saving this report is the entire assignment; accounting handles it from there. Tell me where you saved it. After saving it, put this thread in @Completed.",
+          "expected": {
+            "stage": "Completed",
+            "writes": [
+              "Completed"
+            ],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "name": "manual_stage_preference_persists_on_resume",
+      "mode": "continuation",
+      "prompt": "Go ahead and total the paid amount_cents by account, excluding void rows, from exports/invoices.csv through bb files read. Save totals.json for my review.",
+      "expected_output": "manual stage preference persists on resume",
+      "files": [
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {
+        "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Deferred",
+      "turns": [
+        {
+          "prompt": "Keep this thread in @Deferred; I manage its stage myself until I say otherwise. Later I may ask you for accounting totals. For now, just confirm the export path is exports/invoices.csv.",
+          "expected": {
+            "stage": "Deferred",
+            "writes": [],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "exports/invoices[.]csv"
+            ]
+          }
+        },
+        {
+          "prompt": "Go ahead and total the paid amount_cents by account, excluding void rows, from exports/invoices.csv through bb files read. Save totals.json for my review.",
+          "expected": {
+            "stage": "Deferred",
+            "writes": [],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Deferred",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "name": "automatic_off_across_resumed_work",
+      "mode": "continuation",
+      "prompt": "Use eu. Read pricing/rates.json and usage/month.json with bb files read and save estimate.json with region and monthlyUSD for my review.",
+      "expected_output": "automatic off across resumed work",
+      "files": [
+        "evals/files/continuations/rates.json",
+        "evals/files/continuations/usage.json"
+      ],
+      "workspace_files": {},
+      "automatic_updates": false,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "BlockedOnUser",
+      "turns": [
+        {
+          "prompt": "Ask me whether to use us or eu for the storage estimate before calculating.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(us|eu|region)"
+            ]
+          }
+        },
+        {
+          "prompt": "Use eu. Read pricing/rates.json and usage/month.json with bb files read and save estimate.json with region and monthlyUSD for my review.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [],
+            "source_reads": [
+              "pricing/rates.json",
+              "usage/month.json"
+            ],
+            "work_stage": "BlockedOnUser",
+            "artifacts": {
+              "estimate.json": {
+                "json": {
+                  "region": "eu",
+                  "monthlyUSD": 72
+                }
+              }
+            },
+            "answer_patterns": []
+          },
+          "file_updates": {
+            "pricing/rates.json": "evals/files/continuations/rates.json",
+            "usage/month.json": "evals/files/continuations/usage.json"
+          }
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "name": "completed_thread_reopens_for_actual_followup",
+      "mode": "continuation",
+      "prompt": "Can you calculate a new accounting report from exports/invoices.csv via bb files read? Save totals.json with paid amount_cents totals keyed by account, excluding voids. Send me the result for review before sharing it.",
+      "expected_output": "completed thread reopens for actual followup",
+      "files": [
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {
+        "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Completed",
+      "turns": [
+        {
+          "prompt": "Can you calculate a new accounting report from exports/invoices.csv via bb files read? Save totals.json with paid amount_cents totals keyed by account, excluding voids. Send me the result for review before sharing it.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "name": "genuine_missing_user_input_stays_waiting",
+      "mode": "continuation",
+      "prompt": "I have to get those figures from finance, will send them after lunch.",
+      "expected_output": "genuine missing user input stays waiting",
+      "files": [],
+      "workspace_files": {},
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Calculate monthly storage cost and save estimate.json. I have not given you usage or pricing yet; ask me for those first.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(usage|storage)",
+              "(?i)(pric|rate)"
+            ]
+          }
+        },
+        {
+          "prompt": "I have to get those figures from finance, will send them after lunch.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "name": "ci_report_then_proposal_awaits_direction",
+      "mode": "continuation",
+      "prompt": "this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_plugins_complete, new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
+      "expected_output": "ci report then proposal awaits direction",
+      "files": [
+        "evals/files/ci-recapture/commit.json",
+        "evals/files/ci-recapture/screenshots.json",
+        "evals/files/ci-recapture/plugins.json",
+        "evals/files/ci-recapture/changes.mjs",
+        "evals/files/ci-recapture/parent-validation.json"
+      ],
+      "workspace_files": {},
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "We're deciding whether to ask the PR owner to add a lightweight CI gate after screenshot recapture. Investigate the tradeoffs before I choose whether to commission it; don't change CI or take over that PR's check follow-up. I'll send the commit and run details next.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": []
+          }
+        },
+        {
+          "prompt": "this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_plugins_complete, new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "ci/recapture-commit.json",
+              "ci/screenshots-run.json",
+              "ci/plugins-run.json",
+              "scripts/changes.mjs",
+              "ci/parent-validation.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "ci-note.md": {
+                "patterns": [
+                  "(?i)(pull request|PR|merge.base)",
+                  "(?i)(lightweight|light.weight|gate|skip|re.us|avoid)",
+                  "(?i)(png|screenshot)"
+                ]
+              },
+              "ci-facts.json": {
+                "json": {
+                  "png_files": 16,
+                  "parent_plugins_complete": false,
+                  "new_capture_complete": false,
+                  "new_e2e_groups_running": 4,
+                  "relevance_scope": "pull_request"
+                },
+                "count_fields": [
+                  "new_e2e_groups_running"
+                ]
+              }
+            },
+            "answer_patterns": []
+          },
+          "file_updates": {
+            "ci/recapture-commit.json": "evals/files/ci-recapture/commit.json",
+            "ci/screenshots-run.json": "evals/files/ci-recapture/screenshots.json",
+            "ci/plugins-run.json": "evals/files/ci-recapture/plugins.json",
+            "scripts/changes.mjs": "evals/files/ci-recapture/changes.mjs",
+            "ci/parent-validation.json": "evals/files/ci-recapture/parent-validation.json"
+          }
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "name": "tool_result_resolves_other_thread_wait",
+      "mode": "continuation",
+      "prompt": "Did the invoice export land?",
+      "expected_output": "Read the pending export status without churn; a completed result resumes integration before reading the export.",
+      "files": [
+        "evals/files/continuations/export-pending.json",
+        "evals/files/continuations/export-ready.json",
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {
+        "jobs/export.json": "evals/files/continuations/export-pending.json"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Infer readiness from the actual tool result, then set In progress before integration.",
+        "[oracle:deliverables] Save correct paid-account totals for intended user review."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "The invoice export is owned by @thread:thr_81jsk27pq9. Check jobs/export.json via bb files read. When the export lands, total paid amount_cents by account, excluding void rows, into totals.json for my review.",
+          "expected": {
+            "stage": "BlockedOnOtherAgent",
+            "writes": [
+              "BlockedOnOtherAgent"
+            ],
+            "source_reads": [
+              "jobs/export.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [],
+            "source_stages": {
+              "jobs/export.json": [
+                "Active",
+                "BlockedOnOtherAgent"
+              ]
+            }
+          }
+        },
+        {
+          "prompt": "Did the invoice export land?",
+          "file_updates": {
+            "jobs/export.json": "evals/files/continuations/export-ready.json",
+            "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+          },
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "jobs/export.json",
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": [],
+            "first_read_stages": {
+              "jobs/export.json": "BlockedOnOtherAgent"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 57,
+      "name": "narrower_followup_preserves_outstanding_work",
+      "mode": "continuation",
+      "prompt": "Finish the invoice totals using exports/invoices.csv through bb files read.",
+      "expected_output": "Complete both the totals and the earlier requested index rather than inventing another approval boundary.",
+      "files": [
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {},
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] A narrower follow-up does not cancel the earlier final-report objective.",
+        "[oracle:deliverables] Save both paid-account totals and the index, then complete the bounded delivery."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Prepare the final accounting package: totals.json with paid amount_cents totals keyed by account (exclude void rows), plus index.md linking to that report and stating it is in cents. Accounting takes over once both files are saved; there is no approval step. I will send the invoice export next.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": []
+          }
+        },
+        {
+          "prompt": "Finish the invoice totals using exports/invoices.csv through bb files read.",
+          "file_updates": {
+            "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+          },
+          "expected": {
+            "stage": "Completed",
+            "writes": [
+              "Active",
+              "Completed"
+            ],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              },
+              "index.md": {
+                "patterns": [
+                  "totals[.]json",
+                  "(?i)cents"
+                ]
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
     }
   ]
 }
