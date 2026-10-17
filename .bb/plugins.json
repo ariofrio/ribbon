@@ -8,6 +8,10 @@
       "source": "./plugins/bb-plugin-chatgpt-theme"
     },
     {
+      "name": "gh-skills",
+      "source": "./plugins/bb-plugin-gh-skills"
+    },
+    {
       "name": "global-instructions",
       "source": "./plugins/bb-plugin-global-instructions"
     },

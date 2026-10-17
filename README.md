@@ -35,6 +35,23 @@ bb plugin install thread-stages@ribbon
 
 <picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
 
+### <img src="assets/icons/gh-skills.svg" alt="" width="26" align="absmiddle"> &nbsp;Skills
+
+Install and manage skills on the bb server with gh skill.
+
+Search GitHub, preview repository skills, install pinned versions, and check or
+apply updates. Skills are installed in bb’s server directory for all connected
+projects and machines. Requires GitHub CLI with skill support on the server.
+
+```sh
+bb marketplace add git:github.com/ariofrio/ribbon
+bb plugin install gh-skills@ribbon
+```
+
+<a href="plugins/bb-plugin-gh-skills#readme">Read docs &rarr;</a>
+
+<picture><source media="(min-width: 881px)" srcset="assets/blank.svg"><source media="(prefers-color-scheme: dark)" srcset="assets/rule-dark.svg"><img src="assets/rule-light.svg" alt="" width="1120" height="35" align="top"></picture><br clear="all">
+
 ### <img src="assets/icons/global-instructions.svg" alt="" width="26" align="absmiddle"> &nbsp;Global instructions
 
 Edit bb’s global AGENTS.md without a length limit.

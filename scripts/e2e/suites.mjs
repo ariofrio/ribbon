@@ -43,6 +43,7 @@ export async function discoverSuites(
       typeof suite.run !== "function" ||
       (suite.group !== undefined && !E2E_GROUPS.includes(suite.group)) ||
       (suite.prepare !== undefined && typeof suite.prepare !== "function") ||
+      (suite.prepareStack !== undefined && typeof suite.prepareStack !== "function") ||
       (suite.order !== undefined && !Number.isFinite(suite.order))
     ) {
       throw new Error(`Invalid E2E suite in ${file}`);

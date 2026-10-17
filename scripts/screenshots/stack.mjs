@@ -93,7 +93,7 @@ export async function startStack({ dataDir, logStream, prepare }) {
   stopPreviousRun(pidPath);
   await rm(dataDir, { recursive: true, force: true });
   await mkdir(dataDir, { recursive: true });
-  await prepare?.({ dataDir });
+  const prepared = await prepare?.({ dataDir });
 
   const serverPort = await freePort();
   const hostDaemonPort = await freePort();
@@ -120,6 +120,7 @@ export async function startStack({ dataDir, logStream, prepare }) {
   }
 
   const serverEnv = {
+    ...prepared?.env,
     BB_SERVER_PORT: String(serverPort),
     BB_SERVER_BIND_HOST: "127.0.0.1",
     BB_SERVER_URL: serverUrl,

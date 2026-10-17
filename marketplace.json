@@ -35,9 +35,36 @@
       }
     },
     {
+      "id": "gh-skills",
+      "displayName": "Skills",
+      "description": "Install and manage skills on the bb server with gh skill.",
+      "icon": {
+        "url": "./plugins/bb-plugin-gh-skills/assets/icon.svg"
+      },
+      "tags": [
+        "skills",
+        "github",
+        "agents",
+        "productivity"
+      ],
+      "author": {
+        "name": "Andres Riofrio",
+        "github": "ariofrio",
+        "url": "https://github.com/ariofrio"
+      },
+      "source": {
+        "git": {
+          "url": "https://github.com/ariofrio/ribbon.git",
+          "subdir": "plugins/bb-plugin-gh-skills",
+          "range": "*",
+          "tagPrefix": "gh-skills/"
+        }
+      }
+    },
+    {
       "id": "global-instructions",
       "displayName": "Global instructions",
-      "description": "Edit bb’s global AGENTS.md without a length limit.",
+      "description": "Edit bb\u2019s global AGENTS.md without a length limit.",
       "icon": {
         "url": "./plugins/bb-plugin-global-instructions/assets/icon.svg"
       },

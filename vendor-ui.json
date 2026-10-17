@@ -49,6 +49,17 @@
       "button",
       "textarea",
       "tabs"
+    ],
+    "plugins/bb-plugin-gh-skills": [
+      "badge",
+      "button",
+      "confirm-delete-dialog",
+      "dialog",
+      "icon",
+      "input",
+      "resource-list",
+      "tabs",
+      "checkbox"
     ]
   },
   "literals": []

@@ -116,7 +116,7 @@ test("isolated groups partition every discovered case once, preserving suite ord
   ]);
   assert.deepEqual(grouped[3].map((suite) => suite.id), [
     "missing-shortcuts", "thread-title-clicks", "thread-context-menu", "thread-title-pan",
-    "pr-number", "row-actions", "global-instructions", "model-mentions", "row-shine", "stage-previews",
+    "pr-number", "row-actions", "gh-skills", "global-instructions", "model-mentions", "row-shine", "stage-previews",
   ]);
   const sidebarIds = new Set(grouped[2].map((suite) => suite.id));
   for (const id of ["grouping", "child-collapse", "child-stages", "child-rails", "child-reordering",

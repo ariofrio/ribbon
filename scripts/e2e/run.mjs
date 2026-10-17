@@ -63,8 +63,14 @@ const logStream = createWriteStream(join(scratch, "bb.log"));
 const stack = await timed("stack startup", () => startStack({
   dataDir: join(scratch, "data"),
   logStream,
-  prepare: ({ dataDir }) =>
-    writeFixtureProvider({ dataDir, harnessDir: screenshotHarnessDirectory }),
+  prepare: async ({ dataDir }) => {
+    await writeFixtureProvider({ dataDir, harnessDir: screenshotHarnessDirectory });
+    const env = {};
+    for (const suite of selectedSuites) {
+      Object.assign(env, await suite.prepareStack?.({ dataDir, scratch }));
+    }
+    return { env };
+  },
 }));
 
 try {
