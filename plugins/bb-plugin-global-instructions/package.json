@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-global-instructions",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Edit bb’s global AGENTS.md without a length limit.",
   "license": "MIT",
   "repository": {

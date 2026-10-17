@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   type ReactNode,
   type RefObject,
   useLayoutEffect,
@@ -83,9 +84,11 @@ function synchronizeRowAnimations(element: HTMLElement): void {
  */
 export function ShineContent({
   className = "",
+  style,
   children,
 }: {
   className?: string;
+  style?: CSSProperties;
   children: ReactNode;
 }) {
   return (
@@ -95,6 +98,7 @@ export function ShineContent({
     >
       <span
         className={`min-w-0 flex-1 ${className}`}
+        style={style}
         {...{ [SHINE_CONTENT_ATTRIBUTE]: "" }}
       >
         {children}

@@ -1,5 +1,30 @@
 # bb-plugin-thread-stages
 
+## 2.1.0
+
+### Minor Changes
+
+- 3635698: Use six stages: In progress, Needs user, Dependent, Blocked, Deferred, and Completed. Fold Waiting into In progress, preserving saved order and history. Use unread markers for In progress on hover and Needs user, an hourglass for thread dependencies, and people for third-party blockers. Keep In progress blank at rest, add a hover-icon choice and optional trailing unread dot, and emphasize both the icon and title only for Needs user or the selected row.
+- 3079970: Require bb 0.46.0 and Plugin SDK 0.6.37, with matching registry components
+  and the Thread list fork. Thread stages uses bb's shared menu and hover-action
+  registry, including other plugins' actions, and gains optional grouping by
+  read status and an inline row-action editor. Preserve Ribbon's stage bands,
+  section placement ranks, saved prompt editor, empty hover-action and hidden provider-icon defaults, and opaque sticky parent backgrounds. Narrow rows keep overflow hover actions in the menu so saved prompts and PR numbers stay in place.
+  
+  Missing keyboard shortcuts uses public navigation for new threads and terminal
+  opening; bb now owns terminal tab creation and selection.
+- bfcc21d: Queue saved thread actions by default and add a Steer checkbox to send an action into the current turn instead. Expose the same choice through the actions CLI.
+- 49c665f: Add Blocked on user for required input, decisions, approval, direction, and review when no independent work remains. Rename Active to In progress while preserving existing assignments, stage mentions, and shortcut bindings.
+
+### Patch Changes
+
+- 4179c9a: Keep child thread connectors continuous across stage bands and Show more controls, with branches ending at the last visible sibling.
+- 2658153: Refresh saved thread actions, child order, and sidebar preferences after a realtime reconnect so changes made while a client was offline appear without reloading.
+- e8c1ac3: Show Completed and Deferred threads at the bottom with the configured preview limit in Pinned, parent threads, and environment groups. Keep mixed-stage environments available in the main list.
+- 46453c7: Steer stage-change notices into an active turn instead of queueing them until the turn finishes. Idle threads still start a turn when a notice arrives.
+- 3635698: Restore bb's activity indicator on the right of thread rows and keep stage icons stationary on the left.
+- d4c4567: Keep unresolved investigations open after filing issues or submitting reports. Require an accepted handoff for delegation, preserve follow-up verification responsibility, and still allow explicitly bounded reporting tasks to finish.
+
 ## 2.0.1
 
 ### Patch Changes

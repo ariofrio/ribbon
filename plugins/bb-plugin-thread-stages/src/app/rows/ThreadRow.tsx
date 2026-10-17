@@ -896,15 +896,32 @@ function ThreadRowComponent({
                 // Inline, past bb's own rule for the class: the title takes
                 // only what the buttons and number beside it leave, so it
                 // is the first to give way as the row narrows.
-                style={ribbon ? { flex: "1 1 0%" } : undefined}
+                style={ribbon ? {
+                  flex: "1 1 0%",
+                  // Apply the inherited ink's alpha once to the whole title;
+                  // its solid text and strike must not accumulate alpha.
+                  ...(ribbon.stage === "Completed" ? {
+                    maskImage: "linear-gradient(currentColor, currentColor)",
+                    maskMode: "alpha",
+                  } : {}),
+                } : undefined}
                 {...(ribbon ? { [SHINE_ATTRIBUTE]: "" } : {})}
               >
                 {ribbon ? (
-                  <ShineContent className="flex items-center gap-2">
+                  <ShineContent
+                    className={cn(
+                      "flex items-center gap-2",
+                      ribbon.stage === "Completed" && !ribbonMarquee && "[&>span]:line-through",
+                    )}
+                    style={ribbon.stage === "Completed"
+                      ? { color: "rgb(from currentColor r g b / 1)" }
+                      : undefined}
+                  >
                     {ribbonMarquee ? (
                       <MarqueeText
                         text={labelTitle}
                         pan={ribbonSettings.longTitles === "Fade and pan on hover"}
+                        className={ribbon.stage === "Completed" ? "line-through" : ""}
                       />
                     ) : (
                       <ThreadTitle threadId={thread.id} />

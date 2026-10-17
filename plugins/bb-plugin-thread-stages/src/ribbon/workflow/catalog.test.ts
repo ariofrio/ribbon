@@ -22,14 +22,11 @@ describe("stage catalog", () => {
     ]);
   });
 
-  it("preserves main's Deferred and Completed rings", () => {
-    for (const stage of ["Deferred", "Completed"] as const) {
-      const ring = STAGE_ICONS[stage].children![0]!;
-      expect(ring.attrs.strokeWidth).toBe(2);
-      expect(((Number(ring.attrs.r) + Number(ring.attrs.strokeWidth) / 2) * 2 * 16) / 24).toBe(13);
-    }
-    expect(STAGE_ICONS.Deferred.children![0]!.attrs.strokeDasharray).toBeDefined();
-    expect(STAGE_ICONS.Completed.children![1]!.attrs).toMatchObject({ r: 5, fill: "currentColor" });
+  it("preserves main's Deferred ring", () => {
+    const ring = STAGE_ICONS.Deferred.children![0]!;
+    expect(ring.attrs.strokeWidth).toBe(2);
+    expect(((Number(ring.attrs.r) + Number(ring.attrs.strokeWidth) / 2) * 2 * 16) / 24).toBe(13);
+    expect(ring.attrs.strokeDasharray).toBeDefined();
   });
 
   it("hides all dependency stages behind one legacy setting", () => {

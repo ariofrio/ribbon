@@ -1,3 +1,4 @@
+import CheckIcon from "@hugeicons/core-free-icons/CheckIcon";
 import HourglassIcon from "@hugeicons/core-free-icons/HourglassIcon";
 import UserMultiple02Icon from "@hugeicons/core-free-icons/UserMultiple02Icon";
 import { groupingCatalogSchema, type IconDataV1 } from "../contracts";
@@ -67,10 +68,7 @@ export const STAGE_ICONS: Record<WorkflowStage, IconDataV1> = {
   BlockedOnUser: unreadMarker(true),
   BlockedOnOtherAgent: fittedIcon(HourglassIcon, 18),
   BlockedOnThirdParty: fittedIcon(UserMultiple02Icon, 20),
-  Completed: stageIcon([progressRing, {
-    tag: "circle",
-    attrs: { cx: 12, cy: 12, r: 5, fill: "currentColor" },
-  }]),
+  Completed: fittedIcon(CheckIcon, 14),
 };
 
 export function createGroupingCatalog(settings: {
