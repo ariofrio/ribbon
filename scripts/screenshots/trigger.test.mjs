@@ -157,5 +157,5 @@ test("the caller reports a skipped capture as success and propagates renderer fa
   const requiredJob = workflow.slice(workflow.indexOf("\n  recapture:"));
   assert.match(requiredJob, /needs: \[plugins, screenshots\]/u);
   assert.match(requiredJob, /if: always\(\)/u);
-  assert.match(requiredJob, /\*failure\*\|\*cancelled\*/u);
+  assert.match(requiredJob, /test "\$results" = 'success success'/u);
 });

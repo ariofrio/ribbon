@@ -2,6 +2,7 @@
 // one push, and the job the ruleset requires by name has to wait for the jobs
 // that do the work.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -193,11 +194,27 @@ test("successful validation is cached before the renderer starts", () => {
   const source = readFileSync(join(workflows, "plugins.yml"), "utf8");
   const found = jobs(source);
   assert.ok(found.get("screenshots").includes("plugins"));
+  const call = source.slice(source.indexOf("\n  screenshots:"), source.indexOf("\n  recapture:"));
+  assert.match(call, /if: \$\{\{ !cancelled\(\) && needs\.plugins\.result == 'success' \}\}/u);
   assert.ok(found.get("recapture").includes("screenshots"));
   const gate = source.slice(source.indexOf("\n  plugins:"), source.indexOf("\n  screenshots:"));
   assert.ok(gate.indexOf("uses: actions/cache/save@v6") > gate.indexOf("exit 1"));
   assert.match(gate, /key: ci-plugins-v1-\$\{\{ needs\.reuse\.outputs\.key \}\}/u);
   assert.match(source, /uses: \.\/\.github\/workflows\/screenshots\.yml/u);
+});
+
+test("recapture rejects a skipped workflow call even when validation passed", () => {
+  const source = readFileSync(join(workflows, "plugins.yml"), "utf8");
+  const gate = source.slice(source.indexOf("\n  recapture:"));
+  const run = /        run: \|\n((?:          .*\n)+)/u.exec(gate)[1]
+    .split("\n").map((line) => line.slice(10)).join("\n");
+  for (const [results, expected] of [
+    ["success success", 0], ["success skipped", 1],
+    ["failure skipped", 1], ["success failure", 1], ["success cancelled", 1],
+  ]) {
+    const script = run.replace(/\$\{\{ join\(needs\.\*\.result, ' '\) \}\}/u, results);
+    assert.equal(spawnSync("bash", ["-c", script]).status, expected, results);
+  }
 });
 
 test("the renderer caches the complete output tree before its push", () => {

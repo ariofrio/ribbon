@@ -189,6 +189,7 @@ jobs:
 
   screenshots:
     needs: [plugins]
+    if: ${{ !cancelled() && needs.plugins.result == 'success' }}
     permissions:
       contents: read
       pull-requests: read
@@ -204,6 +205,4 @@ jobs:
         run: |
           results='${{ join(needs.*.result, ' ') }}'
           echo "$results"
-          case "$results" in
-            *failure*|*cancelled*) echo "::error::the screenshot check did not pass"; exit 1 ;;
-          esac
+          test "$results" = 'success success'
