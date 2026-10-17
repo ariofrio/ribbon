@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, mock, test } from "node:test";
-import { startSidebarScrollSampling } from "./e2e/thread-stages/sidebar-scroll-samples.mjs";
+import { startSidebarScrollSampling, stopSidebarScrollSampling } from "./e2e/thread-stages/sidebar-scroll-samples.mjs";
 const saved = new Map();
 function global(name, value) {
   saved.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
@@ -91,4 +91,10 @@ test("a stopped sampler cannot resume when another run starts", () => {
   assert.equal(f.frames.length, 1);
   f.frames.shift()(110);
   assert.equal(window.scrollSamples.frames, 1);
+});
+
+test("includes queued long tasks when sampling stops", () => {
+  fixture();
+  window.scrollTaskObserver.takeRecords = () => [{ duration: 233 }];
+  assert.equal(stopSidebarScrollSampling().longestTask, 233);
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { FEATURED_THREAD } from "../../screenshots/fixture.mjs";
-import { launch, openContext, sidebar } from "./sidebar.mjs";
+import { dragChip, launch, openContext, pickUp, sidebar } from "./sidebar.mjs";
 import {
   startSidebarScrollSampling,
   stopSidebarScrollSampling,
@@ -19,6 +19,7 @@ export async function verifySidebarScroll({
         stack,
         fixture,
         nested: testCase === "nested-list",
+        tall: testCase === "tall-list",
         drag: testCase === "scrollbar-drag",
         size: testCase.includes("scalability") ? 9600 : 600,
         completed: testCase === "completed-scalability",
@@ -32,7 +33,7 @@ export async function verifySidebarScroll({
     throw new AggregateError(errors, "Scrolling regression failed");
 }
 
-async function verifyList({ stack, fixture, nested, drag, size, completed }) {
+async function verifyList({ stack, fixture, nested, tall, drag, size, completed }) {
   const { default: Database } = await import("better-sqlite3");
   // Real rows, all in one group, without starting hundreds of agent turns.
   const db = new Database(join(stack.dataDir, "bb.db"));
@@ -80,7 +81,7 @@ async function verifyList({ stack, fixture, nested, drag, size, completed }) {
   const browser = await launch({ scrollbars: drag });
   try {
     const context = await openContext(browser, {
-      viewport: { width: 1280, height: 800 },
+      viewport: { width: 1280, height: tall ? 1200 : 800 },
     });
     try {
       const page = await context.newPage();
@@ -287,7 +288,7 @@ async function verifyList({ stack, fixture, nested, drag, size, completed }) {
       );
       const samples = await page.evaluate(stopSidebarScrollSampling);
       console.log(
-        `sidebar scroll (${completed ? "completed-9600" : large ? "flat-9600" : nested ? "nested" : drag ? "scrollbar" : "flat"}): ${JSON.stringify(samples)}`,
+        `sidebar scroll (${tall ? "tall" : completed ? "completed-9600" : large ? "flat-9600" : nested ? "nested" : drag ? "scrollbar" : "flat"}): ${JSON.stringify(samples)}`,
       );
       assert.ok(samples.frames >= 10, "Scrolling must sample actual frames");
       assert.ok(
@@ -303,6 +304,10 @@ async function verifyList({ stack, fixture, nested, drag, size, completed }) {
         0,
         `Visible rows must stay populated during scrolling: ${JSON.stringify(samples)}`,
       );
+      if (!large && !nested && !drag) {
+        await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+        await verifyRecycledControls({ page, list, scroller, stack, Database });
+      }
       if (large) {
         const afterHeap = await heap();
         const mounted = await list
@@ -460,4 +465,53 @@ async function verifyList({ stack, fixture, nested, drag, size, completed }) {
     }
     await stack.restartServer();
   }
+}
+
+
+async function verifyRecycledControls({ page, list, scroller, stack, Database }) {
+  await scroller.evaluate(node => { node.scrollTop = node.scrollHeight; });
+  const threadId = await page.waitForFunction(() => {
+    const root = document.querySelector("[data-ribbon-sidebar-root]");
+    const viewport = root.closest('[data-sidebar="content"]').getBoundingClientRect();
+    return [...root.querySelectorAll('a[data-sidebar-thread-id^="thr_scroll_"]')].find(node => {
+      const box = node.getBoundingClientRect();
+      const row = node.closest("[data-thread-id]");
+      const hit = document.elementFromPoint(box.x + 60, box.y + box.height / 2);
+      return box.top >= viewport.top && box.bottom <= viewport.bottom && row?.contains(hit) && !hit?.closest("button,input");
+    })?.dataset.sidebarThreadId;
+  }).then(handle => handle.jsonValue());
+  const link = list.locator(`a[data-sidebar-thread-id="${threadId}"]`);
+  const original = await link.elementHandle();
+  const row = list.locator(`[data-thread-id="${threadId}"]`);
+  const beforeDrag = page.url();
+  await pickUp(page, row);
+  await dragChip(page).getByText(`Scroll test thread ${threadId.slice("thr_scroll_".length)}`, { exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  await dragChip(page).waitFor({ state: "hidden" });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
+  assert.equal(await page.evaluate(() => location.href), beforeDrag, "Cancelling a recycled-row drag must not navigate");
+  await link.click({ button: "right" });
+  const menu = page.getByRole("menu", { name: "Thread actions", exact: true });
+  await menu.waitFor();
+  await scroller.evaluate(node => { node.scrollTop = 0; });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
+  assert.equal(await original.evaluate(node => node.isConnected && node.dataset.sidebarThreadId), threadId,
+    "An open recycled row menu retains its original thread and DOM target");
+  await menu.getByRole("menuitem", { name: "Rename", exact: true }).click();
+  const editor = list.getByRole("textbox", { name: "Thread name", exact: true });
+  await editor.waitFor();
+  const renamed = "Renamed after recycling sidebar rows";
+  await editor.fill(renamed);
+  await editor.press("Enter");
+  await editor.waitFor({ state: "detached" });
+  await list.locator(`[data-thread-id="${threadId}"]`).getByText(renamed, { exact: true }).waitFor();
+  const db = new Database(join(stack.dataDir, "bb.db"), { readonly: true });
+  try {
+    assert.deepEqual(db.prepare("SELECT id FROM threads WHERE title = ?").all(renamed), [{ id: threadId }],
+      "Renaming after recycling updates exactly the intended thread");
+  } finally { db.close(); }
+  await link.click();
+  await page.waitForURL(`**/threads/${threadId}`);
+  console.log("recycled sidebar controls", { threadId, drag: true, rename: true, navigation: true });
 }

@@ -2,6 +2,7 @@ export function startSidebarScrollSampling(root) {
   const scroller = root.closest('[data-sidebar="content"]');
   const samples = (window.scrollSamples = {
     longestGap: 0,
+    longestGapPhase: null,
     blankFrames: 0,
     blankDetails: [],
     phase: "wheel",
@@ -81,8 +82,10 @@ export function startSidebarScrollSampling(root) {
   }
   function sampleFrame(now) {
     if (!samples.running) return;
-    if (previous !== undefined)
-      samples.longestGap = Math.max(samples.longestGap, now - previous);
+    if (previous !== undefined && now - previous > samples.longestGap) {
+      samples.longestGap = now - previous;
+      samples.longestGapPhase = samples.phase;
+    }
     previous = now;
     samples.frames++;
     // A post-paint timer can be deprioritized during wheel input.
@@ -97,6 +100,7 @@ export function startSidebarScrollSampling(root) {
 
 export function stopSidebarScrollSampling() {
   window.scrollSamples.running = false;
+  window.scrollLongTasks.push(...window.scrollTaskObserver.takeRecords().map(entry => entry.duration));
   window.scrollTaskObserver.disconnect();
   return {
     ...window.scrollSamples,

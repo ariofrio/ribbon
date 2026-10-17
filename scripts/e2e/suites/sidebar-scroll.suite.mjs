@@ -4,6 +4,7 @@ export default {
   id: "sidebar-scroll",
   cases: [
     "long-list",
+    "tall-list",
     "nested-list",
     "scrollbar-drag",
     "scalability",

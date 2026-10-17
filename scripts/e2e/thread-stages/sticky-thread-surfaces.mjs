@@ -69,6 +69,7 @@ export async function verifyStickyThreadSurfaces({ stack, fixture, cases }) {
         await list.waitFor({ timeout: 120_000 });
         const target = row(list, parent.id);
         if (unselected) {
+          await revealWindowedRow(list, parent.id);
           await page.waitForFunction((parentId) => {
             const parent = document.querySelector(
               `[data-ribbon-sidebar-root] [data-thread-id="${parentId}"]`,
@@ -190,4 +191,31 @@ export async function verifyStickyThreadSurfaces({ stack, fixture, cases }) {
     for (const child of children)
       fixture.run(["thread", "delete", child.id, "--yes"]);
   }
+}
+
+
+// Unselected rows can be unrealized. Bring the tested subtree into view
+// before asserting its containment and the surface over its children.
+async function revealWindowedRow(list, threadId) {
+  await list.page().waitForFunction(id => {
+    const root = document.querySelector("[data-ribbon-sidebar-root]");
+    return root?.querySelector(`[data-thread-id="${id}"], [data-sidebar-windowed-nav*="${id}:"]`);
+  }, threadId);
+  const scroller = list.locator('xpath=ancestor::*[@data-sidebar="content"]');
+  const step = await scroller.evaluate(node => Math.max(1, node.clientHeight / 2));
+  const passes = await scroller.evaluate((node, step) => Math.ceil(node.scrollHeight / step) + 2, step);
+  for (let pass = 0; pass < passes; pass++) {
+    await scroller.evaluate((node, top) => new Promise(resolve => {
+      const next = Math.min(top, node.scrollHeight - node.clientHeight);
+      if (node.scrollTop === next) return requestAnimationFrame(resolve);
+      node.addEventListener("scroll", () => requestAnimationFrame(resolve), { once: true });
+      node.scrollTop = next;
+    }), pass * step);
+    const target = row(list, threadId);
+    if (await target.count()) {
+      await target.evaluate(node => node.closest("[data-sidebar-windowed-item]").scrollIntoView({ block: "start" }));
+      return;
+    }
+  }
+  throw new Error(`Could not reveal sticky parent ${threadId}`);
 }
