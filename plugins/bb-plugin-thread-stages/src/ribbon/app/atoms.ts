@@ -28,6 +28,8 @@ export type RibbonRpc = PluginRpcClient<typeof rpcContract>;
 
 /** Whether the data provider is mounted; without it the list is bb's own. */
 export const ribbonEnabledAtom = atom(false);
+const EMPTY_SETTINGS: Readonly<Record<string, unknown>> = Object.freeze({});
+export const ribbonSettingsAtom = atom<Readonly<Record<string, unknown>>>(EMPTY_SETTINGS);
 export const ribbonRpcAtom = atom<RibbonRpc | null>(null);
 export const ribbonSnapshotAtom = atom<SidebarSnapshot | null>(null);
 /** Each grouping's placements in rank order, keyed by grouping. */
@@ -153,6 +155,7 @@ export const ribbonThreadAtoms = atomFamily((threadId: string) =>
 /** Back to nothing loaded, as the provider leaves the store when it unmounts. */
 export function resetRibbonAtoms(store: ReturnType<typeof getDefaultStore>): void {
   store.set(ribbonEnabledAtom, false);
+  store.set(ribbonSettingsAtom, EMPTY_SETTINGS);
   store.set(ribbonRpcAtom, null);
   store.set(ribbonSnapshotAtom, null);
   store.set(ribbonPlacementsAtom, new Map());

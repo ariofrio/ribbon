@@ -108,7 +108,7 @@ import {
   RibbonStageGlyph,
   RibbonTrailingIndicator,
   useRibbonRow,
-  useRibbonRowSettings,
+  ribbonRowSettings,
 } from "../../ribbon/app/row.js";
 import { useOwnerColor } from "../../ribbon/app/icons.js";
 import { RailBars, RailTree, useRowLineage } from "../../ribbon/app/rails.js";
@@ -556,7 +556,7 @@ function ThreadRowComponent({
     pluginThreadRowStatus,
   );
   const ribbon = useRibbonRow(thread, trailingIndicatorState, pluginThreadRowStatus);
-  const ribbonSettings = useRibbonRowSettings();
+  const ribbonSettings = ribbon?.settings ?? ribbonRowSettings();
   const shineRowRef = useRef<HTMLDivElement | null>(null);
   const actionCapacity = useRowActionCapacity(shineRowRef, {
     count: registeredQuickActions.length, enabled: ribbon !== null,
@@ -962,6 +962,7 @@ function ThreadRowComponent({
               ) : null}
               {ribbon && ribbon.actions.length > 0 ? (
                 <RibbonActionButtons
+                  key={thread.id}
                   actions={ribbon.actions}
                   color={ribbonActionColor}
                   rowTitle={labelTitle}
@@ -1103,6 +1104,7 @@ function ThreadRowComponent({
     attributes: ribbon
       ? {
           "data-thread-id": thread.id,
+          "data-sidebar-row-interacting": isActionsOpen || isEditing || isCustomizingActions ? "true" : undefined,
           "data-ribbon-stage": ribbon.stage,
           "data-ribbon-depth": String(options.depth),
           ...(ribbonShines ? { [SHINE_ROW_ATTRIBUTE]: "" } : {}),

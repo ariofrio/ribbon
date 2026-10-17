@@ -1653,6 +1653,7 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
           )}
           {showChildren ? (
             <StageBandedItems
+              ownerKey={node.thread.id}
               items={node.children}
               depth={parentRowDepth + 1}
               selectedThreadId={selectedThreadId}
@@ -1819,6 +1820,7 @@ function WindowedSectionItems({
     : -1;
   return (
     <SidebarWindowedItems
+      recycleItem={(index) => items[index]?.kind === "thread"}
       focusItemKey={focusIndex >= 0 ? itemKeys[focusIndex] : undefined}
       itemKeys={itemKeys}
       estimateRows={estimateRows}
