@@ -1,15 +1,15 @@
 # Thread stages evaluation
 
-The [manifest](evals.json) contains **17 task acceptance scenarios (41–57)** and
+The [manifest](evals.json) contains **18 task acceptance scenarios (41–58)** and
 **40 diagnostic cases (1–40)**. Report these groups separately. A recommendation
 answer or a correct stage operation from a supplied workflow summary does not
 establish autonomous behavior in a continuing conversation.
 
 ## Task acceptance
 
-[sessions.py](sessions.py) executes 31 turns across 17 scenarios through actual
+[sessions.py](sessions.py) executes 32 turns across 18 scenarios through actual
 `codex exec` / `codex exec resume` or `claude --print` / `claude --resume` calls.
-Fourteen scenarios resume the same native session; three have one bounded task.
+Fourteen scenarios resume the same native session; four have one task.
 Session IDs must persist. Earlier assistant messages and tool results come from
 the agent's own execution, rather than a supplied conversation synopsis.
 
@@ -39,6 +39,7 @@ file reads, including files the agent creates. It does not contact production BB
 | 55 | Establish the user's decision on a proposed gate, then investigate the recorded PNG-only recapture and PR-wide relevance code and save a discussion note and structured cutoff facts before that decision. No check-monitoring ownership is inferred. |
 | 56 | A status tool result reveals another thread's completed export. Retain Dependent for the status check, then use In progress before integrating the delivered data. |
 | 57 | A narrower follow-up retains the earlier report-index requirement and completes the bounded package without inventing another approval wait. |
+| 58 | Start Active for the CI question, investigate and save the report, then place the proposal in Needs user for the commissioning decision. This directly checks the reported post-report boundary. |
 
 The acceptance oracle requires correct saved deliverables as well as actual stage
 writes, their order, inspection before writes, the stage at evidence reads, and
@@ -71,7 +72,7 @@ From the repository root:
 # Validate all manifests and regression-test both runners and graders.
 npm run check:evals --workspace=bb-plugin-thread-stages
 
-# All 17 acceptance scenarios; choose a new neutral output path each time.
+# All 18 acceptance scenarios; choose a new neutral output path each time.
 python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime codex --ref <original-commit> --output .scratch/work/stage-sessions/run-01
 python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime codex --output .scratch/work/stage-sessions/run-02
 python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime claude --ref <original-commit> --output .scratch/work/stage-sessions/run-03

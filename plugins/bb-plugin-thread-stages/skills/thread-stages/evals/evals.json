@@ -2390,6 +2390,75 @@
           }
         }
       ]
+    },
+    {
+      "id": 58,
+      "name": "active_ci_investigation_returns_to_user_decision",
+      "mode": "continuation",
+      "prompt": "I'm deciding whether to commission a lightweight CI gate from the PR owner. Investigate before I choose; don't change CI or take over that PR's check follow-up. this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_plugins_complete, new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
+      "expected_output": "CI investigation report awaiting commissioning decision",
+      "files": [
+        "evals/files/ci-recapture/commit.json",
+        "evals/files/ci-recapture/screenshots.json",
+        "evals/files/ci-recapture/plugins.json",
+        "evals/files/ci-recapture/changes.mjs",
+        "evals/files/ci-recapture/parent-validation.json"
+      ],
+      "workspace_files": {
+        "ci/recapture-commit.json": "evals/files/ci-recapture/commit.json",
+        "ci/screenshots-run.json": "evals/files/ci-recapture/screenshots.json",
+        "ci/plugins-run.json": "evals/files/ci-recapture/plugins.json",
+        "scripts/changes.mjs": "evals/files/ci-recapture/changes.mjs",
+        "ci/parent-validation.json": "evals/files/ci-recapture/parent-validation.json"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "I'm deciding whether to commission a lightweight CI gate from the PR owner. Investigate before I choose; don't change CI or take over that PR's check follow-up. this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_plugins_complete, new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "ci/recapture-commit.json",
+              "ci/screenshots-run.json",
+              "ci/plugins-run.json",
+              "scripts/changes.mjs",
+              "ci/parent-validation.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "ci-note.md": {
+                "patterns": [
+                  "(?i)(pull request|PR|merge.base)",
+                  "(?i)(lightweight|light.weight|gate|skip|re.us|avoid)",
+                  "(?i)(png|screenshot)"
+                ]
+              },
+              "ci-facts.json": {
+                "json": {
+                  "png_files": 16,
+                  "parent_plugins_complete": false,
+                  "new_capture_complete": false,
+                  "new_e2e_groups_running": 4,
+                  "relevance_scope": "pull_request"
+                },
+                "count_fields": [
+                  "new_e2e_groups_running"
+                ]
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
     }
   ]
 }

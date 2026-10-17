@@ -8,7 +8,7 @@ case 35's final answer with `Done.` while preserving its real tool trace; the
 old oracle still passed. That probe is not a new agent run.
 
 The new [native-conversation acceptance suite](../../plugins/bb-plugin-thread-stages/skills/thread-stages/evals/README.md#task-acceptance)
-addresses those limitations with seventeen scenarios and thirty-one turns.
+addresses those limitations with eighteen scenarios and thirty-two turns.
 Its [native comparison](thread-stages-native-conversations.md) is recorded
 separately from the historical diagnostic comparisons below. Passing diagnostic cases or a previously passing baseline
 does not establish behavioral improvement.

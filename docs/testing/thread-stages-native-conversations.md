@@ -1,8 +1,8 @@
 # Thread stages: native conversation evaluation
 
-The acceptance comparison covers **17 tasks / 31 turns**, including fourteen
-native session resumptions. Updated guidance passes all seventeen on both CLIs.
-The original guidance passes 13/17 on Codex and 9/17 on Claude. These finite
+The acceptance comparison covers **18 tasks / 32 turns**, including fourteen
+native session resumptions. Updated guidance passes all eighteen on both CLIs.
+The original guidance passes 14/18 on Codex and 10/18 on Claude. These finite
 observations reproduce stale-stage work; they do not establish production reliability.
 The separate **40 diagnostics** pass 40/40 with updated guidance on each CLI.
 They are not forty autonomous tasks.
@@ -14,8 +14,8 @@ starts actual `codex exec` or `claude --print` processes, then resumes the same
 native session. Earlier answers and tool results are the agent's own history.
 Workers receive natural requests, raw artifacts, the source-extracted plugin
 reminder, and the skill catalog. No `work.json`, expected stage, grading rule,
-comparison label, or announcement of evaluation is supplied. Three tasks are
-bounded single-turn tasks; fourteen use two turns.
+comparison label, or announcement of evaluation is supplied. Four tasks have one
+turn; fourteen use two turns.
 
 The [manifest](../../plugins/bb-plugin-thread-stages/skills/thread-stages/evals/evals.json)
 covers implicit review feedback; supplied choices; other-thread and external
@@ -46,8 +46,8 @@ answers against inputs; that prose review was neither independent nor blind.
 
 | Runtime | Requested model / effort | Original | Updated |
 | --- | --- | --- | --- |
-| Codex CLI 0.163.0 | `gpt-6.1-sol` / low | 13/17 | 17/17 |
-| Claude Code 2.1.302 | `claude-opus-5-5[1m]` / high | 9/17 | 17/17 |
+| Codex CLI 0.163.0 | `gpt-6.1-sol` / low | 14/18 | 18/18 |
+| Claude Code 2.1.302 | `claude-opus-5-5[1m]` / high | 10/18 | 18/18 |
 
 Claude messages report canonical `claude-opus-5-5`. Codex JSONL does not report
 an accepted model ID. Both sides use the same model, effort, task, inputs, local
@@ -73,6 +73,7 @@ backend and sandbox configuration. Original instruction source is
 | 55 | ci report then proposal awaits direction | pass → pass | fail → pass |
 | 56 | tool result resolves other thread wait | pass → pass | pass → pass |
 | 57 | narrower followup preserves outstanding work | pass → pass | fail → pass |
+| 58 | active ci investigation returns to user decision | pass → pass | pass → pass |
 
 Codex failures 41, 43, 44 and 46 perform source work under the prior waiting
 stage. Claude failures 41, 46, 53 and 55 also do source work under a stale stage;
@@ -130,6 +131,18 @@ Original: `run 135: read jobs/export.json@A, show A, write D / resume: read jobs
 
 Updated: `run 148: show A, read jobs/export.json@A, show A, write D / resume: read jobs/export.json@D, show D, write A, read exports/invoices.csv@A, read exports/invoices.csv@A, show A, write U`
 
+### Case 58, codex
+
+Original: `run 155: show A, read ci/recapture-commit.json@A, read ci/screenshots-run.json@A, read ci/plugins-run.json@A, read ci/parent-validation.json@A, read scripts/changes.mjs@A, write U`
+
+Updated: `run 156: show A, read ci/recapture-commit.json@A, read ci/screenshots-run.json@A, read ci/plugins-run.json@A, read ci/parent-validation.json@A, read scripts/changes.mjs@A, show A, write U`
+
+### Case 58, claude
+
+Original: `run 157: show A, read ci/recapture-commit.json@A, read ci/screenshots-run.json@A, read ci/plugins-run.json@A, read ci/parent-validation.json@A, read scripts/changes.mjs@A, write U`
+
+Updated: `run 158: show A, read ci/recapture-commit.json@A, read ci/screenshots-run.json@A, read ci/plugins-run.json@A, read ci/parent-validation.json@A, read scripts/changes.mjs@A, show A, write U`
+
 Case 41's saved `findings.json` on both updated CLIs records four maximum
 attempts, no 408 retry, no receiver deduplication, and four committed rows for
 the 503 probe; both save corrected issue paragraphs. This is actual investigation
@@ -175,13 +188,19 @@ and fails the work-stage barrier. Both originals already finish U. This does
 post-report omission. A prior wording did reproduce an omitted first-turn U write
 (run 139); the final reminder covers alignment before waiting for required input.
 
+Case 58 adds the direct Active-start variant: the original CI question and raw
+artifacts are supplied in a single turn with the pending commissioning decision.
+It checks inspection of Active, investigation under Active, and an actual Needs
+user write after reporting. Both original and updated guidances pass on both
+CLIs; it is coverage of the reported boundary, not behavioral RED.
+
 ## Provenance, repairs and variability
 
 Acceptance is a declared composite, not a best-of sample: original Codex uses
-run 133 except case 57 from 137 and case 55 from 151; original Claude uses 135
-except 57 from 138 and 55 from 153. Updated Codex uses 147 except 55 from 152;
-updated Claude uses 148 except 55 from 154. All sixteen unchanged tasks retain
-their full-cohort outcomes. Only the repaired CI task is replaced, on both sides
+run 133 except case 57 from 137, case 55 from 151 and case 58 from 155; original Claude uses 135
+except 57 from 138, 55 from 153 and 58 from 157. Updated Codex uses 147 except 55 from 152 and 58 from 156;
+updated Claude uses 148 except 55 from 154 and 58 from 158. All sixteen unchanged tasks retain
+their full-cohort outcomes. The repaired CI task and added Active-start variant use matched runs on both sides
 and both CLIs. Assembly asserts matching worker tasks/inputs and source hashes.
 Each task has one selected observation per configuration; there is no variance
 estimate or claim of consistently reproducible improvement.
@@ -198,6 +217,7 @@ estimate or claim of consistently reproducible improvement.
 | 143–146 | Added before-waiting cue; valid read-only discovery/command chaining needed oracle repair; Claude authorization diagnostic still failed. |
 | 147–150 | Final instruction source: native cohort and all forty diagnostics. CI task 55 subsequently replaced on all configurations for missing parent evidence. |
 | 151–154 | Final CI task with parent cutoff data. Run 151's raw failure was a valid four-item list versus numeric count; separate repaired grading passes it. |
+| 155–158 | Added the direct Active-start CI boundary on both guidances and CLIs; baseline passes are retained as non-reproduction. |
 
 Oracle repairs preserve all visible questions, valid output directories and amount
 representations, ordinary negative status answers, recovered read-only discovery,
@@ -235,6 +255,10 @@ python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py -
 python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime codex --cases 55 --output .scratch/work/stage-sessions/run-152
 python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime claude --ref 7b6fbf0 --cases 55 --output .scratch/work/stage-sessions/run-153
 python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime claude --cases 55 --output .scratch/work/stage-sessions/run-154
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime codex --ref 7b6fbf0 --cases 58 --output .scratch/work/stage-sessions/run-155
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime codex --cases 58 --output .scratch/work/stage-sessions/run-156
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime claude --ref 7b6fbf0 --cases 58 --output .scratch/work/stage-sessions/run-157
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime claude --cases 58 --output .scratch/work/stage-sessions/run-158
 ```
 
 Updated source SHA-256:
