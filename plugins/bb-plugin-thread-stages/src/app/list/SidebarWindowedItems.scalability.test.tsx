@@ -25,7 +25,12 @@ function height(node: Element): number {
 }
 function rect(node: HTMLElement): DOMRect {
   if (node.hasAttribute("data-test-viewport"))
-    return new DOMRect(0, 0, 280, 280);
+    return new DOMRect(
+      0,
+      0,
+      280,
+      Number(node.dataset.testViewportHeight ?? 280),
+    );
   let top = 0;
   let current: Element | null = node;
   while (current && !current.hasAttribute("data-test-viewport")) {
@@ -75,6 +80,8 @@ function setup({
   subtreeRows = 1,
   recycle = false,
   onVisit,
+  viewportHeight = 280,
+  rowsAt,
 }: {
   selected?: string;
   focus?: string;
@@ -82,16 +89,24 @@ function setup({
   subtreeRows?: number;
   recycle?: boolean;
   onVisit?: (key: string) => void;
+  viewportHeight?: number;
+  rowsAt?: (index: number) => number;
 } = {}) {
+  vi.stubGlobal("innerHeight", viewportHeight);
   const viewport = createRef<HTMLDivElement>();
   const tree = (next = items, freeze = false) => (
-    <div ref={viewport} data-sidebar="content" data-test-viewport="">
+    <div
+      ref={viewport}
+      data-sidebar="content"
+      data-test-viewport=""
+      data-test-viewport-height={viewportHeight}
+    >
       <SidebarContentElementContext.Provider value={viewport}>
         <SidebarWindowedItems
           freeze={freeze}
           recycleItem={recycle ? () => true : undefined}
           itemKeys={next}
-          estimateRows={() => subtreeRows}
+          estimateRows={(index) => rowsAt?.(index) ?? subtreeRows}
           alwaysMountedKeys={selected ? new Set([selected]) : undefined}
           focusItemKey={focus}
           getNavigationEntries={(i) => [
@@ -100,7 +115,7 @@ function setup({
           renderItem={(i) => (
             <a
               data-test-row=""
-              data-test-height={subtreeRows * 28}
+              data-test-height={(rowsAt?.(i) ?? subtreeRows) * 28}
               data-sidebar-thread-id={next[i]}
               href={"#" + next[i]}
               onClick={(event) => {
@@ -128,7 +143,7 @@ function setup({
       ),
     ].filter((n) => {
       const b = n.getBoundingClientRect();
-      return b.height > 0 && b.top < 280 && b.bottom > 0;
+      return b.height > 0 && b.top < viewportHeight && b.bottom > 0;
     });
   return {
     freeze: () => view.rerender(tree(items, true)),
@@ -385,4 +400,39 @@ it("releases a pressed row even when its control stops pointerup propagation", a
   });
   h.jump(240000);
   expect(screen.queryByRole("link", { name: "thread-0" })).toBeNull();
+});
+
+it("keeps a spare buffer when the viewport is taller than the nominal row budget", () => {
+  const h = setup({ recycle: true, viewportHeight: 1400 });
+  act(() => {
+    const entries = [
+      ...h.viewport.current!.querySelectorAll("[data-sidebar-windowed-item]"),
+    ].map(
+      (target) =>
+        ({
+          target,
+          borderBoxSize: [{ blockSize: height(target) }],
+        }) as unknown as ResizeObserverEntry,
+    );
+    for (const report of resizeCallbacks) report(entries);
+  });
+  const original = screen
+    .getAllByRole("link")
+    .map((link) => ({ link, title: link.textContent }));
+  h.jump(87);
+  expect(h.holes()).toHaveLength(0);
+  for (const { link, title } of original) expect(link.textContent).toBe(title);
+});
+it("does not let a distant retained subtree consume the viewport's reuse buffer", () => {
+  const h = setup({
+    recycle: true,
+    selected: "thread-5000",
+    rowsAt: (index) => (index === 5000 ? 4000 : 1),
+  });
+  const original = screen
+    .getAllByRole("link")
+    .map((link) => ({ link, title: link.textContent }));
+  h.jump(200);
+  expect(h.holes()).toHaveLength(0);
+  for (const { link, title } of original) expect(link.textContent).toBe(title);
 });

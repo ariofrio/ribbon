@@ -24,7 +24,8 @@ const DEFAULT_ROW_HEIGHT_PX = 30;
 const OVERSCAN_PX = 96;
 const RECYCLED_OVERSCAN_PX = 32;
 const ROW_CACHE_LIMIT = 48;
-const RECYCLED_ROW_LIMIT = 32;
+const RECYCLED_ROW_TARGET = 24;
+const MIN_SPARE_CELLS = 4;
 
 interface SidebarWindowedItemsProps {
   /** Only opt in for rows whose owner state is external or reset on identity changes. */
@@ -369,6 +370,7 @@ export function SidebarWindowedItems({
   const indices = new Set<number>();
   for (let i = visibleRange[0]; i <= visibleRange[1]; i++)
     if (i >= 0 && i < itemKeys.length) indices.add(i);
+  const visibleIndices = new Set(indices);
   for (const key of alwaysMountedKeys ?? []) {
     const i = itemKeys.indexOf(key);
     if (i >= 0) indices.add(i);
@@ -387,6 +389,10 @@ export function SidebarWindowedItems({
   if (focusItemKey) lockedKeys.add(focusItemKey);
   for (const key of pressedKeys) lockedKeys.add(key);
   if (recycleItem) {
+    const rowCacheLimit = Math.max(
+      RECYCLED_ROW_TARGET,
+      visibleIndices.size + MIN_SPARE_CELLS,
+    );
     for (const [key, node] of wrapperByKeyRef.current) {
       if (
         node.querySelector(
@@ -413,18 +419,21 @@ export function SidebarWindowedItems({
       previous.keys.every(
         (key, offset) => itemKeys[previous.first + offset] === key,
       );
-    const buffered = new Set(indices);
+    // Interaction pins are additional lifetime requirements, not spare cache.
+    // A retained large subtree must not starve an unrelated visible window.
+    const buffered = new Set(visibleIndices);
     if (keepPrevious)
       for (let i = previous.first; i <= previousEnd; i++) buffered.add(i);
     const bufferedRows = [...buffered].reduce(
       (sum, index) => sum + model.counts[index]!,
       0,
     );
-    if (keepPrevious && bufferedRows <= RECYCLED_ROW_LIMIT) {
+    if (keepPrevious && bufferedRows <= rowCacheLimit) {
       for (const index of buffered) indices.add(index);
       buffer = previous;
     } else if (visibleRange[1] >= visibleRange[0]) {
-      let retainedRows = [...indices].reduce(
+      const nextBuffer = new Set(visibleIndices);
+      let retainedRows = [...nextBuffer].reduce(
         (sum, index) => sum + model.counts[index]!,
         0,
       );
@@ -434,20 +443,19 @@ export function SidebarWindowedItems({
         let added = false;
         if (
           right < itemKeys.length &&
-          retainedRows + model.counts[right]! <= RECYCLED_ROW_LIMIT
+          retainedRows + model.counts[right]! <= rowCacheLimit
         ) {
-          if (!indices.has(right)) {
+          if (!nextBuffer.has(right)) {
+            nextBuffer.add(right);
             indices.add(right);
             retainedRows += model.counts[right]!;
           }
           right++;
           added = true;
         } else right = itemKeys.length;
-        if (
-          left >= 0 &&
-          retainedRows + model.counts[left]! <= RECYCLED_ROW_LIMIT
-        ) {
-          if (!indices.has(left)) {
+        if (left >= 0 && retainedRows + model.counts[left]! <= rowCacheLimit) {
+          if (!nextBuffer.has(left)) {
+            nextBuffer.add(left);
             indices.add(left);
             retainedRows += model.counts[left]!;
           }
@@ -460,8 +468,8 @@ export function SidebarWindowedItems({
       // around the visible range, not every retained interaction.
       let first = visibleRange[0],
         last = visibleRange[1];
-      while (indices.has(first - 1)) first--;
-      while (indices.has(last + 1)) last++;
+      while (nextBuffer.has(first - 1)) first--;
+      while (nextBuffer.has(last + 1)) last++;
       buffer = { first, keys: itemKeys.slice(first, last + 1) };
     }
   } else {
