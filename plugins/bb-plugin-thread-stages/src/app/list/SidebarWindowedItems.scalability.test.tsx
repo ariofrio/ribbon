@@ -81,6 +81,7 @@ function setup({
   recycle = false,
   onVisit,
   viewportHeight = 280,
+  intrinsic = false,
   rowsAt,
 }: {
   selected?: string;
@@ -90,6 +91,7 @@ function setup({
   recycle?: boolean;
   onVisit?: (key: string) => void;
   viewportHeight?: number;
+  intrinsic?: boolean;
   rowsAt?: (index: number) => number;
 } = {}) {
   vi.stubGlobal("innerHeight", viewportHeight);
@@ -103,6 +105,7 @@ function setup({
     >
       <SidebarContentElementContext.Provider value={viewport}>
         <SidebarWindowedItems
+          allowIntrinsic={intrinsic}
           freeze={freeze}
           recycleItem={recycle ? () => true : undefined}
           itemKeys={next}
@@ -439,7 +442,7 @@ it("does not let a distant retained subtree consume the viewport's reuse buffer"
 
 it("renders tiny child lists without geometry reads or scroll observers", () => {
   const reads = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
-  const h = setup({ items: keys.slice(0, 3), recycle: true });
+  const h = setup({ items: keys.slice(0, 3), recycle: true, intrinsic: true });
   const original = screen.getAllByRole("link");
   h.rerender(keys.slice(100, 103));
   expect(screen.getAllByRole("link")).toEqual(original);
@@ -449,14 +452,14 @@ it("renders tiny child lists without geometry reads or scroll observers", () => 
 });
 
 it("still windows a short list whose items represent large subtrees", () => {
-  const h = setup({ items: keys.slice(0, 8), subtreeRows: 100 });
+  const h = setup({ items: keys.slice(0, 8), subtreeRows: 100, intrinsic: true });
   expect(screen.getAllByRole("link").length).toBeLessThan(8);
   expect(h.holes()).toHaveLength(0);
   expect(resizeCallbacks.length).toBeGreaterThan(0);
 });
 
 it("switches between tiny and large lists without leaving visible gaps", () => {
-  const h = setup({ items: keys.slice(0, 3), focus: "thread-1" });
+  const h = setup({ items: keys.slice(0, 3), focus: "thread-1", intrinsic: true });
   expect(document.activeElement?.textContent).toBe("thread-1");
   h.rerender(keys);
   expect(h.holes()).toHaveLength(0);
@@ -464,4 +467,9 @@ it("switches between tiny and large lists without leaving visible gaps", () => {
   h.rerender(keys.slice(0, 3));
   expect(screen.getAllByRole("link")).toHaveLength(3);
   expect(h.holes()).toHaveLength(0);
+});
+
+it("keeps independent small windows observed unless their parent bounds them", () => {
+  setup({ items: keys.slice(0, 3) });
+  expect(resizeCallbacks.length).toBeGreaterThan(0);
 });

@@ -29,6 +29,8 @@ const MIN_SPARE_CELLS = 4;
 const INTRINSIC_ROW_LIMIT = 8;
 
 interface SidebarWindowedItemsProps {
+  /** Only when an outer window already bounds these child rows. */
+  allowIntrinsic?: boolean;
   /** Only opt in for rows whose owner state is external or reset on identity changes. */
   recycleItem?: (index: number) => boolean;
   freeze?: boolean;
@@ -98,6 +100,7 @@ export function SidebarWindowedItems({
   getNavigationEntries,
   renderItem,
   recycleItem,
+  allowIntrinsic = false,
   freeze = false,
 }: SidebarWindowedItemsProps) {
   const recycling = recycleItem !== undefined;
@@ -184,6 +187,7 @@ export function SidebarWindowedItems({
   // Small child windows already have a bounded parent. Keep recycling their
   // cells, but let intrinsic layout replace their own scroll/resize machinery.
   const intrinsic =
+    allowIntrinsic &&
     itemKeys.length <= INTRINSIC_ROW_LIMIT &&
     model.counts.reduce((sum, rows) => sum + rows, 0) <= INTRINSIC_ROW_LIMIT;
   const measurementContextRef = useRef({
