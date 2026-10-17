@@ -1,5 +1,13 @@
 # bb-plugin-thread-titles
 
+## 0.5.4
+
+### Patch Changes
+
+- b86fd18: Add light and dark README screenshots showing model selection, a title
+  generated from an issue-link conversation, and rich Markdown instructions.
+  Keep the screenshot assets out of installed plugin packages.
+
 ## 0.5.3
 
 ### Patch Changes

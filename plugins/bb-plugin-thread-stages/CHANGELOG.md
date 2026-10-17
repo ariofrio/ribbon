@@ -1,5 +1,12 @@
 # bb-plugin-thread-stages
 
+## 2.1.1
+
+### Patch Changes
+
+- 7b6fbf0: Show completed threads with a checkmark and a single struck-through title in every title display mode. Composite the text and strike together using the theme's own ink and alpha, so intersections stay uniform over every row background.
+- c02e826: Use original Hugeicons Pause, Hourglass, UserMultiple02, and Check glyphs for Deferred, Dependent, Blocked, and Completed without custom fitting or stroke overrides. Match the hollow unread marker's stroke and leave room for the wider glyphs beside child-thread lines. Use the same hollow In progress marker in the tree line's color at rest, and place Deferred immediately before Completed in stage menus and keyboard navigation. Give In progress the same primary title and icon color as Needs user.
+
 ## 2.1.0
 
 ### Minor Changes
