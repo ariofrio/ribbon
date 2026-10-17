@@ -3,25 +3,14 @@ name: Screenshots
 # Nothing records what each shot was captured from: the harness renders the
 # same bytes twice, so git already reports whether a screenshot changed.
 #
-# The pull request trigger is what lets the check be required; the main one
-# corrects a branch that merged without recapturing. A deploy key's push is
-# not the token's, so the commit written to main starts one more run, which
-# stops at the relevance step. A PR's screenshot-only update reuses the
-# producer's proof instead of starting the renderer again.
+# The caller runs this after validation and reports the required `recapture`
+# check. Main still captures a branch that merged without its screenshots.
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_call:
 
 permissions:
   contents: read
   pull-requests: read
-
-# A second push supersedes the first: the older run would recapture a tree
-# nobody is on, and its push would lose the race anyway.
-concurrency:
-  group: screenshots-${{ github.head_ref || github.ref }}
-  cancel-in-progress: true
 
 jobs:
   # Keep the relevance decision on the hosted runner. Starting the renderer
@@ -31,7 +20,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-      actions: read
     outputs:
       capture: ${{ steps.relevant.outputs.capture }}
     steps:
@@ -39,13 +27,17 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-      - id: reuse
-        name: Verify this commit was produced by the screenshot workflow
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/ci-reuse.mjs reuse screenshots >> "$GITHUB_OUTPUT"
+      - id: key
+        run: echo "key=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+      - id: cache
+        uses: actions/cache/restore@v6
+        continue-on-error: true
+        with:
+          path: .scratch/ci-passed
+          key: ci-screenshots-v1-${{ steps.key.outputs.key }}
+          lookup-only: true
       - id: relevant
-        if: steps.reuse.outputs.reuse != 'true'
+        if: steps.cache.outputs.cache-hit != 'true'
         name: Decide whether anything can have moved a picture
         env:
           GH_TOKEN: ${{ github.token }}
@@ -93,7 +85,7 @@ jobs:
       - name: Prepare the container
         run: apt-get update
       - name: Install the native build tools
-        run: apt-get install -y make g++
+        run: apt-get install -y make g++ zstd
       # Install every workspace together so the screenshot harness and all
       # five plugins share one bb-app and one native dependency build.
       - run: npm ci
@@ -109,6 +101,7 @@ jobs:
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git add -A assets plugins/*/assets
+          echo "key=$(git write-tree)" >> "$GITHUB_OUTPUT"
           if git diff --cached --quiet; then
             echo "The capture reproduced what is committed; nothing to push."
             exit 0
@@ -123,17 +116,14 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m "Recapture the screenshots this branch moved"
           echo "changed=true" >> "$GITHUB_OUTPUT"
-      # Upload before pushing: that push can cancel this run immediately.
-      - name: Record the commit this capture produced
-        if: steps.commit.outputs.changed == 'true'
-        run: node scripts/ci-reuse.mjs record screenshots
-      - uses: actions/upload-artifact@v7
-        if: steps.commit.outputs.changed == 'true'
+      # Save before pushing: that push can cancel this run immediately.
+      - name: Mark this capture successful
+        run: mkdir -p .scratch && touch .scratch/ci-passed
+      - uses: actions/cache/save@v6
+        continue-on-error: true
         with:
-          name: ci-validation-screenshots-${{ github.run_attempt }}
-          path: .scratch/work/ci-validation/validation.json
-          include-hidden-files: true
-          if-no-files-found: error
+          path: .scratch/ci-passed
+          key: ci-screenshots-v1-${{ steps.commit.outputs.key }}
       - name: Push the captured commit
         if: steps.commit.outputs.changed == 'true'
         env:
@@ -148,18 +138,3 @@ jobs:
           path: .scratch/screenshots/bb.log
           if-no-files-found: error
           include-hidden-files: true
-
-  # The stable required-check name. A skipped capture is success; a failed or
-  # cancelled relevance/capture job is not.
-  recapture:
-    needs: [relevant, capture]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: The screenshot check passed
-        run: |
-          results='${{ join(needs.*.result, ' ') }}'
-          echo "$results"
-          case "$results" in
-            *failure*|*cancelled*) echo "::error::the screenshot check did not pass"; exit 1 ;;
-          esac

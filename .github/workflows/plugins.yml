@@ -9,24 +9,29 @@ on:
 permissions:
   contents: read
 
+# A second push supersedes the first: the older run would recapture a tree
+# nobody is on, and its push would lose the race anyway.
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   reuse:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-      actions: read
-      # gh run watch also reads the original run's check suite.
-      checks: read
     outputs:
-      reuse: ${{ steps.reuse.outputs.reuse }}
+      key: ${{ steps.key.outputs.key }}
+      reuse: ${{ steps.cache.outputs.cache-hit }}
     steps:
       - uses: actions/checkout@v7
-      - id: reuse
-        name: Reuse validation for a CI-produced screenshot commit
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/ci-reuse.mjs reuse plugins >> "$GITHUB_OUTPUT"
+      - id: key
+        run: node scripts/ci-key.mjs >> "$GITHUB_OUTPUT"
+      - id: cache
+        uses: actions/cache/restore@v6
+        continue-on-error: true
+        with:
+          path: .scratch/ci-passed
+          key: ci-plugins-v1-${{ steps.key.outputs.key }}
+          lookup-only: true
 
   release-automation:
     needs: [reuse]
@@ -154,7 +159,7 @@ jobs:
           include-hidden-files: true
           retention-days: 7
 
-  # The one name this workflow is required by. release-check names its jobs
+  # The stable required name for validation. release-check names its jobs
   # from a matrix, so requiring those would break whenever a plugin is renamed.
   plugins:
     needs: [reuse, release-automation, discover, release-check, relevant, end-to-end]
@@ -172,13 +177,32 @@ jobs:
           esac
       - uses: actions/checkout@v7
         if: needs.reuse.outputs.reuse != 'true'
-      - name: Record the tree these checks validated
+      - name: Mark this validation successful
         if: needs.reuse.outputs.reuse != 'true'
-        run: node scripts/ci-reuse.mjs record plugins
-      - uses: actions/upload-artifact@v7
+        run: mkdir -p .scratch && touch .scratch/ci-passed
+      - uses: actions/cache/save@v6
         if: needs.reuse.outputs.reuse != 'true'
+        continue-on-error: true
         with:
-          name: ci-validation-plugins-${{ github.run_attempt }}
-          path: .scratch/work/ci-validation/validation.json
-          include-hidden-files: true
-          if-no-files-found: error
+          path: .scratch/ci-passed
+          key: ci-plugins-v1-${{ needs.reuse.outputs.key }}
+
+  screenshots:
+    needs: [plugins]
+    if: ${{ !cancelled() && needs.plugins.result == 'success' }}
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/screenshots.yml
+    secrets: inherit
+
+  recapture:
+    needs: [plugins, screenshots]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: The screenshot check passed
+        run: |
+          results='${{ join(needs.*.result, ' ') }}'
+          echo "$results"
+          test "$results" = 'success success'

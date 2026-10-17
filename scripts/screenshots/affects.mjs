@@ -22,6 +22,7 @@ const ROOT_FILES = new Set([
   ".bb/plugins.json",
   ".nvmrc",
   ".github/workflows/screenshots.yml",
+  ".github/workflows/plugins.yml",
 ]);
 
 function affects(path) {
