@@ -21,9 +21,7 @@ import {
   type SidebarWindowedNavigationEntry,
 } from "./sidebarThreadShortcuts.js";
 const DEFAULT_ROW_HEIGHT_PX = 30;
-const OVERSCAN_PX = 96;
-const RECYCLED_OVERSCAN_PX = 32;
-const ROW_CACHE_LIMIT = 48;
+const OVERSCAN_PX = 32;
 const RECYCLED_ROW_TARGET = 24;
 const MIN_SPARE_CELLS = 4;
 const INTRINSIC_ROW_LIMIT = 8;
@@ -103,8 +101,6 @@ export function SidebarWindowedItems({
   allowIntrinsic = false,
   freeze = false,
 }: SidebarWindowedItemsProps) {
-  const recycling = recycleItem !== undefined;
-  const overscan = recycling ? RECYCLED_OVERSCAN_PX : OVERSCAN_PX;
   const scrollRef = useSidebarContentElementRef(),
     containerRef = useRef<HTMLDivElement>(null),
     wrapperByKeyRef = useRef(new Map<string, HTMLDivElement>()),
@@ -118,8 +114,6 @@ export function SidebarWindowedItems({
   if (!freeze) wasOpenRef.current = true;
   const frozenRef = useRef(false);
   frozenRef.current = freeze && wasOpenRef.current;
-  const recentlyVisibleRef = useRef(new Map<string, number>()),
-    cacheClockRef = useRef(0);
   const indexByKey = useMemo(
     () => new Map(itemKeys.map((key, i) => [key, i])),
     [itemKeys],
@@ -132,7 +126,6 @@ export function SidebarWindowedItems({
   );
   const heldPointersRef = useRef(new Map<number, string>());
   useLayoutEffect(() => {
-    if (!recycling) return;
     const release = (event: PointerEvent) => {
       const pointerId = event.pointerId;
       if (!heldPointersRef.current.has(pointerId)) return;
@@ -156,7 +149,7 @@ export function SidebarWindowedItems({
       document.removeEventListener("pointercancel", release, true);
       window.removeEventListener("blur", clear);
     };
-  }, [recycling]);
+  }, []);
   const committedSlotsRef = useRef(new Map<string, number>());
   const committedSlotOrderRef = useRef<readonly number[]>([]);
   const committedBufferRef = useRef<{
@@ -249,13 +242,13 @@ export function SidebarWindowedItems({
     if (bottom < 0 || top > model.offsets.at(-1)!)
       return [0, -1] as [number, number];
     return [
-      Math.max(0, lowerBound(model.offsets, top - overscan)),
+      Math.max(0, lowerBound(model.offsets, top - OVERSCAN_PX)),
       Math.min(
         itemKeys.length - 1,
-        lowerBound(model.offsets, bottom + overscan),
+        lowerBound(model.offsets, bottom + OVERSCAN_PX),
       ),
     ] as [number, number];
-  }, [scrollRef, model, itemKeys.length, overscan, intrinsic]);
+  }, [scrollRef, model, itemKeys.length, intrinsic]);
   const resolveVisibleRangeRef = useRef(resolveVisibleRange);
   resolveVisibleRangeRef.current = resolveVisibleRange;
   useLayoutEffect(() => {
@@ -378,129 +371,93 @@ export function SidebarWindowedItems({
   for (let i = visibleRange[0]; i <= visibleRange[1]; i++)
     if (i >= 0 && i < itemKeys.length) indices.add(i);
   const visibleIndices = new Set(indices);
-  for (const key of alwaysMountedKeys ?? []) {
-    const i = itemKeys.indexOf(key);
-    if (i >= 0) indices.add(i);
-  }
-  if (focusItemKey) {
-    const i = itemKeys.indexOf(focusItemKey);
-    if (i >= 0) indices.add(i);
-  }
-  if (focusedKey) {
-    const index = indexByKey.get(focusedKey);
-    if (index !== undefined) indices.add(index);
-  }
   let buffer: { first: number; keys: readonly string[] } | null = null;
   const lockedKeys = new Set(alwaysMountedKeys);
   if (focusedKey) lockedKeys.add(focusedKey);
   if (focusItemKey) lockedKeys.add(focusItemKey);
   for (const key of pressedKeys) lockedKeys.add(key);
-  if (recycleItem) {
-    const rowCacheLimit = Math.max(
-      RECYCLED_ROW_TARGET,
-      visibleIndices.size + MIN_SPARE_CELLS,
-    );
-    for (const [key, node] of wrapperByKeyRef.current) {
-      if (
-        node.querySelector(
-          '[data-sidebar-hover-actions-open="true"], [data-sidebar-row-busy="true"], [data-sidebar-row-interacting="true"]',
-        )
+  const rowCacheLimit = Math.max(
+    RECYCLED_ROW_TARGET,
+    visibleIndices.size + MIN_SPARE_CELLS,
+  );
+  for (const [key, node] of wrapperByKeyRef.current) {
+    if (
+      node.querySelector(
+        '[data-sidebar-hover-actions-open="true"], [data-sidebar-row-busy="true"], [data-sidebar-row-interacting="true"]',
       )
-        lockedKeys.add(key);
-    }
-    for (const key of lockedKeys) {
-      const index = indexByKey.get(key);
-      if (index !== undefined) indices.add(index);
-    }
-    // A scroll inside the existing buffer only changes the range calculation.
-    // Keep the same row bindings until its edge is crossed, then refill once.
-    const previous = committedBufferRef.current;
-    const previousEnd = previous
-      ? previous.first + previous.keys.length - 1
-      : -1;
-    const keepPrevious =
-      previous !== null &&
-      visibleRange[1] >= visibleRange[0] &&
-      visibleRange[0] >= previous.first &&
-      visibleRange[1] <= previousEnd &&
-      previous.keys.every(
-        (key, offset) => itemKeys[previous.first + offset] === key,
-      );
-    // Interaction pins are additional lifetime requirements, not spare cache.
-    // A retained large subtree must not starve an unrelated visible window.
-    const buffered = new Set(visibleIndices);
-    if (keepPrevious)
-      for (let i = previous.first; i <= previousEnd; i++) buffered.add(i);
-    const bufferedRows = [...buffered].reduce(
+    )
+      lockedKeys.add(key);
+  }
+  for (const key of lockedKeys) {
+    const index = indexByKey.get(key);
+    if (index !== undefined) indices.add(index);
+  }
+  // A scroll inside the existing buffer only changes the range calculation.
+  // Keep the same row bindings until its edge is crossed, then refill once.
+  const previous = committedBufferRef.current;
+  const previousEnd = previous
+    ? previous.first + previous.keys.length - 1
+    : -1;
+  const keepPrevious =
+    previous !== null &&
+    visibleRange[1] >= visibleRange[0] &&
+    visibleRange[0] >= previous.first &&
+    visibleRange[1] <= previousEnd &&
+    previous.keys.every(
+      (key, offset) => itemKeys[previous.first + offset] === key,
+    );
+  // Interaction pins are additional lifetime requirements, not spare cache.
+  // A retained large subtree must not starve an unrelated visible window.
+  const buffered = new Set(visibleIndices);
+  if (keepPrevious)
+    for (let i = previous.first; i <= previousEnd; i++) buffered.add(i);
+  const bufferedRows = [...buffered].reduce(
+    (sum, index) => sum + model.counts[index]!,
+    0,
+  );
+  if (keepPrevious && bufferedRows <= rowCacheLimit) {
+    for (const index of buffered) indices.add(index);
+    buffer = previous;
+  } else if (visibleRange[1] >= visibleRange[0]) {
+    const nextBuffer = new Set(visibleIndices);
+    let retainedRows = [...nextBuffer].reduce(
       (sum, index) => sum + model.counts[index]!,
       0,
     );
-    if (keepPrevious && bufferedRows <= rowCacheLimit) {
-      for (const index of buffered) indices.add(index);
-      buffer = previous;
-    } else if (visibleRange[1] >= visibleRange[0]) {
-      const nextBuffer = new Set(visibleIndices);
-      let retainedRows = [...nextBuffer].reduce(
-        (sum, index) => sum + model.counts[index]!,
-        0,
-      );
-      let left = visibleRange[0] - 1;
-      let right = visibleRange[1] + 1;
-      while (left >= 0 || right < itemKeys.length) {
-        let added = false;
-        if (
-          right < itemKeys.length &&
-          retainedRows + model.counts[right]! <= rowCacheLimit
-        ) {
-          if (!nextBuffer.has(right)) {
-            nextBuffer.add(right);
-            indices.add(right);
-            retainedRows += model.counts[right]!;
-          }
-          right++;
-          added = true;
-        } else right = itemKeys.length;
-        if (left >= 0 && retainedRows + model.counts[left]! <= rowCacheLimit) {
-          if (!nextBuffer.has(left)) {
-            nextBuffer.add(left);
-            indices.add(left);
-            retainedRows += model.counts[left]!;
-          }
-          left--;
-          added = true;
-        } else left = -1;
-        if (!added) break;
-      }
-      // Pins can be far away; the reusable buffer is the contiguous run
-      // around the visible range, not every retained interaction.
-      let first = visibleRange[0],
-        last = visibleRange[1];
-      while (nextBuffer.has(first - 1)) first--;
-      while (nextBuffer.has(last + 1)) last++;
-      buffer = { first, keys: itemKeys.slice(first, last + 1) };
+    let left = visibleRange[0] - 1;
+    let right = visibleRange[1] + 1;
+    while (left >= 0 || right < itemKeys.length) {
+      let added = false;
+      if (
+        right < itemKeys.length &&
+        retainedRows + model.counts[right]! <= rowCacheLimit
+      ) {
+        if (!nextBuffer.has(right)) {
+          nextBuffer.add(right);
+          indices.add(right);
+          retainedRows += model.counts[right]!;
+        }
+        right++;
+        added = true;
+      } else right = itemKeys.length;
+      if (left >= 0 && retainedRows + model.counts[left]! <= rowCacheLimit) {
+        if (!nextBuffer.has(left)) {
+          nextBuffer.add(left);
+          indices.add(left);
+          retainedRows += model.counts[left]!;
+        }
+        left--;
+        added = true;
+      } else left = -1;
+      if (!added) break;
     }
-  } else {
-    if (visibleRange[1] < visibleRange[0]) recentlyVisibleRef.current.clear();
-    const time = ++cacheClockRef.current;
-    for (const i of indices) recentlyVisibleRef.current.set(itemKeys[i]!, time);
-    for (const key of recentlyVisibleRef.current.keys())
-      if (!indexByKey.has(key)) recentlyVisibleRef.current.delete(key);
-    const candidates = [...recentlyVisibleRef.current]
-      .filter(([key]) => !indices.has(indexByKey.get(key)!))
-      .sort((a, b) => b[1] - a[1]);
-    // A cached parent represents its whole subtree, not one cheap leaf. Count
-    // that work against the same budget rather than multiplying it at each depth.
-    let retainedRows = [...indices].reduce(
-      (sum, index) => sum + model.counts[index]!,
-      0,
-    );
-    for (const [key] of candidates) {
-      const index = indexByKey.get(key)!;
-      if (retainedRows + model.counts[index]! <= ROW_CACHE_LIMIT) {
-        indices.add(index);
-        retainedRows += model.counts[index]!;
-      } else recentlyVisibleRef.current.delete(key);
-    }
+    // Pins can be far away; the reusable buffer is the contiguous run
+    // around the visible range, not every retained interaction.
+    let first = visibleRange[0],
+      last = visibleRange[1];
+    while (nextBuffer.has(first - 1)) first--;
+    while (nextBuffer.has(last + 1)) last++;
+    buffer = { first, keys: itemKeys.slice(first, last + 1) };
   }
   const ordered = [...indices].sort((a, b) => a - b);
   const renderedIndices = ordered.join(",");
