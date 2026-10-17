@@ -137,7 +137,8 @@ filled unread marker, Dependent an hourglass, and Blocked the UserMultiple02 peo
 icon. Deferred uses Pause and Completed uses Check with a struck-through
 title. These four glyphs use the original Hugeicons paths and strokes in a 16px
 slot, without fitting or stroke overrides. The 7px hollow unread marker matches
-their stroke weight. Needs user uses primary ink for both icon and title; other stages use secondary ink. A selected row uses
+their stroke weight. In progress and Needs user use primary ink for both icon and title;
+other stages use secondary ink. A selected row uses
 primary ink in every stage.
 **Unread indicator on the right** defaults off; enable it to restore bb's unread dot.
 
