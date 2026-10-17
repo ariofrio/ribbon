@@ -6,7 +6,8 @@ name: Screenshots
 # The pull request trigger is what lets the check be required; the main one
 # corrects a branch that merged without recapturing. A deploy key's push is
 # not the token's, so the commit written to main starts one more run, which
-# stops at the relevance step.
+# stops at the relevance step. A PR's screenshot-only update reuses the
+# producer's proof instead of starting the renderer again.
 on:
   pull_request:
   push:
@@ -27,14 +28,24 @@ jobs:
   # container is most of the cost of a pull request that needs no capture.
   relevant:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
     outputs:
       capture: ${{ steps.relevant.outputs.capture }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+      - id: reuse
+        name: Verify this commit was produced by the screenshot workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci-reuse.mjs reuse screenshots >> "$GITHUB_OUTPUT"
       - id: relevant
+        if: steps.reuse.outputs.reuse != 'true'
         name: Decide whether anything can have moved a picture
         env:
           GH_TOKEN: ${{ github.token }}
@@ -63,9 +74,9 @@ jobs:
           permission-contents: write
       - uses: actions/checkout@v7
         with:
-          # A pull_request run checks out the merge commit, which is no branch,
-          # and the recapture has to land on one.
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          # Capture the immutable source that started this run, then push the
+          # resulting commit to its branch below.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           # GitHub Actions cannot be a bypass actor on a repository a person
           # owns, so this workflow's token cannot write to main. Protect main
@@ -88,6 +99,7 @@ jobs:
       - run: npm ci
       - run: npm run screenshots
       - name: Commit what changed
+        id: commit
         # Whoever opened the pull request chose these. Interpolating them with
         # ${{ }} would paste them into the script for bash to parse; read from
         # the environment they are values, not code.
@@ -110,6 +122,23 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m "Recapture the screenshots this branch moved"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+      # Upload before pushing: that push can cancel this run immediately.
+      - name: Record the commit this capture produced
+        if: steps.commit.outputs.changed == 'true'
+        run: node scripts/ci-reuse.mjs record screenshots
+      - uses: actions/upload-artifact@v7
+        if: steps.commit.outputs.changed == 'true'
+        with:
+          name: ci-validation-screenshots-${{ github.run_attempt }}
+          path: .scratch/work/ci-validation/validation.json
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Push the captured commit
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
           git push origin "HEAD:${HEAD_REF:-$GITHUB_REF_NAME}"
       - name: Upload screenshot diagnostics
         if: failure()

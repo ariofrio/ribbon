@@ -187,3 +187,34 @@ test("automation that updates pull requests uses the CI GitHub App", () => {
     /token: \$\{\{ steps\.app-token\.outputs\.token \|\| github\.token \}\}/u,
   );
 });
+
+test("a recapture publishes proof of its pinned commit before a push can cancel it", () => {
+  const source = readFileSync(join(workflows, "screenshots.yml"), "utf8");
+  const capture = source.slice(source.indexOf("\n  capture:"), source.indexOf("\n  recapture:"));
+  assert.match(capture, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/u);
+  const record = capture.indexOf("run: node scripts/ci-reuse.mjs record screenshots");
+  const upload = capture.indexOf("name: ci-validation-screenshots-${{ github.run_attempt }}");
+  const push = capture.indexOf('git push origin "HEAD:${HEAD_REF:-$GITHUB_REF_NAME}"');
+  assert.ok(record > capture.indexOf("git commit -m"));
+  assert.ok(upload > record);
+  assert.ok(push > upload);
+  const relevance = source.slice(source.indexOf("\n  relevant:"), source.indexOf("\n  capture:"));
+  assert.match(relevance, /actions: read/u);
+  assert.match(relevance, /run: node scripts\/ci-reuse\.mjs reuse screenshots/u);
+  assert.match(relevance, /if: steps\.reuse\.outputs\.reuse != 'true'/u);
+});
+
+test("Plugins skips expensive work only behind reuse and records success after its gate", () => {
+  const source = readFileSync(join(workflows, "plugins.yml"), "utf8");
+  const found = jobs(source);
+  for (const name of ["release-automation", "discover", "relevant"]) {
+    assert.ok(found.get(name).includes("reuse"), name);
+    assert.match(source.slice(source.indexOf(`\n  ${name}:`)),
+      /^\n {2}[^\n]+\n {4}needs: \[reuse\]\n {4}if: needs\.reuse\.outputs\.reuse != 'true'/u);
+  }
+  assert.match(source, /run: node scripts\/ci-reuse\.mjs reuse plugins/u);
+  const gate = source.slice(source.indexOf("\n  plugins:"));
+  assert.ok(gate.indexOf("run: node scripts/ci-reuse.mjs record plugins") > gate.indexOf("exit 1"));
+  assert.match(gate, /name: ci-validation-plugins-\$\{\{ github\.run_attempt \}\}/u);
+  assert.match(gate, /include-hidden-files: true/u);
+});
