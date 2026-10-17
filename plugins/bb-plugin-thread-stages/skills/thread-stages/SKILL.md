@@ -136,9 +136,10 @@ Completed; Completed threads archive on their own after the configured retention
 Stages change only when someone sets them; thread activity alone never changes a
 stage. Needs user uses a filled unread marker; Dependent an hourglass; Blocked a people
 icon. Completed has a checkmark and a struck-through title; Deferred uses a
-pause icon. In progress is always blank at
+pause icon. Outside Tree mode, In progress is blank at
 rest; **In progress icon on hover** chooses no icon or a hollow unread marker
-on hover or keyboard focus. Needs user uses primary ink for its icon and title;
+on hover or keyboard focus. In Tree mode the same hollow marker uses the tree
+line’s color at rest. Needs user uses primary ink for its icon and title;
 other stages use secondary ink, and the selected row uses primary ink. Activity
 appears on the right. **Unread indicator on the right** defaults off. A collapsed root's
 activity indicator also reflects work in its hidden descendants. A pending

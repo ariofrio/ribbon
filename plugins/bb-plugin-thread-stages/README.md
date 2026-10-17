@@ -130,7 +130,8 @@ name renames it.
 
 ## Rows
 
-In progress is always blank at rest. **In progress icon on hover** chooses
+In progress is blank at rest outside Tree mode. In Tree mode its hollow marker
+uses the tree line’s color at rest. **In progress icon on hover** chooses
 nothing or a hollow unread marker on hover and keyboard focus. Needs user has a
 filled unread marker, Dependent an hourglass, and Blocked the UserMultiple02 people
 icon. Deferred uses Pause and Completed uses Check with a struck-through
