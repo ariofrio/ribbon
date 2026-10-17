@@ -133,11 +133,11 @@ const RIBBON_CHEVRON_HIT_AREA_CLASS =
 // A toggle shown only on hover takes no room at rest, so the title runs on
 // past where it will appear; hovering the row opens it up, reach and all.
 const RIBBON_CHEVRON_REVEAL_CLASS =
-  "overflow-hidden pointer-fine:h-5 pointer-fine:w-0 pointer-fine:mx-0 pointer-fine:after:hidden pointer-fine:group-hover/thread-row:w-5 pointer-fine:group-hover/thread-row:mx-1 pointer-fine:group-hover/thread-row:after:block pointer-fine:group-has-[:focus-visible]/thread-row:w-5 pointer-fine:group-has-[:focus-visible]/thread-row:mx-1 pointer-fine:group-has-[:focus-visible]/thread-row:after:block";
+  "overflow-hidden pointer-fine:h-5 pointer-fine:w-0 pointer-fine:mx-0 pointer-fine:after:hidden pointer-fine:group-hover/thread-row:w-5 pointer-fine:group-hover/thread-row:mx-1 pointer-fine:group-hover/thread-row:after:block pointer-fine:[:where(.ribbon-thread-row):has(:focus-visible)_&]:w-5 pointer-fine:[:where(.ribbon-thread-row):has(:focus-visible)_&]:mx-1 pointer-fine:[:where(.ribbon-thread-row):has(:focus-visible)_&]:after:block";
 // Hover controls open their own lane before prompts and PR information, so
 // only the title yields space while those persistent items stay in place.
 const RIBBON_ROW_CONTROLS_LANE_CLASS =
-  "relative w-0 shrink-0 self-stretch group-hover/thread-row:w-(--ribbon-row-controls-width) group-has-[:focus-visible]/thread-row:w-(--ribbon-row-controls-width) group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:w-(--ribbon-row-controls-width) max-md:pointer-coarse:hidden";
+  "relative w-0 shrink-0 self-stretch group-hover/thread-row:w-(--ribbon-row-controls-width) [:where(.ribbon-thread-row):has(:focus-visible)_&]:w-(--ribbon-row-controls-width) [:where(.ribbon-thread-row):has([data-sidebar-hover-actions-open=true])_&]:w-(--ribbon-row-controls-width) max-md:pointer-coarse:hidden";
 import { ThreadActionsContextMenu, ThreadActionsMenu } from "./ThreadActionsMenu.js";
 import { useCustomizeThreadRowActions, useThreadRowActionsCustomizing } from "../list/customizeRowActionsContext.js";
 import { SIDEBAR_MORE_ACTION_TRIGGER_CLASS, SIDEBAR_STICKY_ROW_INTERACTIVE_SURFACE_CLASS } from "./sidebarRowClasses.js";
@@ -594,7 +594,7 @@ function ThreadRowComponent({
   const isActionsOpen = isDropdownActionsOpen || isContextActionsOpen;
   const rowClassName = cn(
     SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
-    "group/thread-row cursor-pointer",
+    "group/thread-row ribbon-thread-row cursor-pointer",
     SIDEBAR_ROW_BASE_CLASS,
     LIST_HOVER_TRANSITION,
     parentOptions?.stickyLevel === undefined && "relative",
@@ -758,8 +758,8 @@ function ThreadRowComponent({
           ribbon !== null &&
             !isEditing &&
             (ribbonControlsMeetIndicator
-              ? "group-hover/thread-row:pr-7.5 group-has-[:focus-visible]/thread-row:pr-7.5 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-7.5"
-              : "group-hover/thread-row:pr-9 group-has-[:focus-visible]/thread-row:pr-9 group-has-[[data-sidebar-hover-actions-open=true]]/thread-row:pr-9"),
+              ? "group-hover/thread-row:pr-7.5 [:where(.ribbon-thread-row):has(:focus-visible)_&]:pr-7.5 [:where(.ribbon-thread-row):has([data-sidebar-hover-actions-open=true])_&]:pr-7.5"
+              : "group-hover/thread-row:pr-9 [:where(.ribbon-thread-row):has(:focus-visible)_&]:pr-9 [:where(.ribbon-thread-row):has([data-sidebar-hover-actions-open=true])_&]:pr-9"),
           ribbon !== null &&
             !isEditing &&
             (ribbonLaneAtRest
