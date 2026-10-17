@@ -63,7 +63,7 @@ export async function verifyMobileStageMenu({ stack, fixture, cases }) {
         await activate(move);
         await back.waitFor();
         assert.deepEqual(await menu.getByRole("menuitemradio").allTextContents(), [
-          "Deferred", "In progress", "Needs user", "Dependent", "Blocked", "Completed",
+          "In progress", "Needs user", "Dependent", "Blocked", "Deferred", "Completed",
         ]);
         assert.equal(await menu.getByRole("menuitem", { name: "Rename", exact: true }).count(), 0);
         assert.equal(await menu.getByRole("menuitemradio", { name: "In progress", exact: true }).getAttribute("aria-checked"), "true");

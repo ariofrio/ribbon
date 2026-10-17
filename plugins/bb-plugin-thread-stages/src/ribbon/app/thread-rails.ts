@@ -76,8 +76,8 @@ export function railSegments({
 const FAR = 10000;
 // Round the largest glyph radius up so tree lines stop outside its stroke.
 const RING_RADIUS = 7.5;
-// A hollow node 5px across stands in for a hidden ring.
-const NODE_RADIUS = 2.5;
+// The 7px hollow In progress marker stands in for its hidden hover icon.
+const NODE_RADIUS = 3.5;
 const CORNER = 6;
 
 /**
@@ -118,14 +118,14 @@ export function treeLines({
       : `M${x} -${FAR}V${FAR}M${x} ${y - CORNER}`;
     if (lastAtDepth[depth - 1]) always += `V${y - CORNER}`;
     always += `Q${x} ${y} ${x + CORNER} ${y}H${ringEdge}`;
-    toNode += `M${ringEdge} ${y}H${line(depth) - NODE_RADIUS}`;
+    toNode += `M${ringEdge} ${y}H${line(depth) - 0.5 - NODE_RADIUS}`;
   }
   if (showsChildren) {
     always += `M${line(depth)} ${RING_RADIUS}V${FAR}`;
-    toNode += `M${line(depth)} ${y + NODE_RADIUS}V${RING_RADIUS}`;
+    toNode += `M${line(depth)} ${NODE_RADIUS}V${RING_RADIUS}`;
   }
   if (ring === "shown" || !toNode) return { always, whileRingHidden: "", node: null };
-  const node = { cx: line(depth), cy: y };
+  const node = { cx: line(depth) - 0.5, cy: 0 };
   return ring === "absent"
     ? { always: always + toNode, whileRingHidden: "", node }
     : { always, whileRingHidden: toNode, node };

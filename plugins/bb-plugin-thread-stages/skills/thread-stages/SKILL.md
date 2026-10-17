@@ -1,6 +1,6 @@
 ---
 name: thread-stages
-description: Inspect and organize bb threads across sections, projects, and the Deferred, In progress, Needs user, Dependent, Blocked, and Completed workflow stages. Use when deciding which stage a bb thread belongs in, including after asking the user something, selecting threads by sidebar organization or stage before bulk work or messaging, changing a thread's or child's stage, moving and ordering root threads, ordering children among siblings, managing saved prompt actions beside thread titles, or reading and changing the thread list's layout preferences. Discover the installed CLI rather than assuming its commands.
+description: Inspect and organize bb threads across sections, projects, and the In progress, Needs user, Dependent, Blocked, Deferred, and Completed workflow stages. Use when deciding which stage a bb thread belongs in, including after asking the user something, selecting threads by sidebar organization or stage before bulk work or messaging, changing a thread's or child's stage, moving and ordering root threads, ordering children among siblings, managing saved prompt actions beside thread titles, or reading and changing the thread list's layout preferences. Discover the installed CLI rather than assuming its commands.
 ---
 
 # Thread stages
@@ -42,11 +42,11 @@ Respect an explicit instruction to retain a stage or let the user manage it.
 
 | Stage | ID | Meaning |
 | --- | --- | --- |
-| **Deferred** | `Deferred` | Intentionally set aside for later. |
 | **In progress** | `Active` | Work is available, progressing, or awaiting computation or an established condition under this thread's coordination. |
 | **Needs user** | `BlockedOnUser` | The user owes input, a decision, approval, direction, or intended review, and no useful independent work remains here. |
 | **Dependent** | `BlockedOnOtherAgent` | Another bb thread owns a required action or result, and no useful independent work remains here. |
 | **Blocked** | `BlockedOnThirdParty` | An independent external party owns a required action or response, and no useful independent work remains here. |
+| **Deferred** | `Deferred` | Intentionally set aside for later. |
 | **Completed** | `Completed` | The established objective has reached a durable result and the thread can be put away, with intended review and loose ends settled or delegated. |
 
 Use **Needs user** when the user owes input, a decision, approval,

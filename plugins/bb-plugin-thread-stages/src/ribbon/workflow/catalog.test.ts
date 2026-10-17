@@ -17,11 +17,11 @@ describe("stage catalog", () => {
     const [grouping] = createGroupingCatalog({}).groupings;
     expect(grouping!.defaultGroupId).toBe("Active");
     expect(grouping!.groups.map(({ id, label }) => [id, label])).toEqual([
-      ["Deferred", "Deferred"],
       ["Active", "In progress"],
       ["BlockedOnUser", "Needs user"],
       ["BlockedOnOtherAgent", "Dependent"],
       ["BlockedOnThirdParty", "Blocked"],
+      ["Deferred", "Deferred"],
       ["Completed", "Completed"],
     ]);
   });

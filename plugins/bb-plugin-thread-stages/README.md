@@ -61,7 +61,9 @@ the remaining responsibility. Verification this thread still coordinates
 keeps it open.
 
 Inside each group, In progress, Needs user, Dependent, and Blocked share one
-manually ordered list, followed by Deferred and then Completed. New roots enter at the top, and
+manually ordered list, followed by Deferred and then Completed. Stage menus and
+keyboard stage navigation use In progress, Needs user, Dependent, Blocked,
+Deferred, Completed. New roots enter at the top, and
 activity leaves positions unchanged.
 
 **⋯ menu → Sort by → Custom** selects this saved manual order and is the
@@ -105,7 +107,8 @@ copies the former root's section placement.
 Children hang from their parent by a bar in their own stage-ring column, which
 fills in for a hidden In progress ring and parts around a shown one. Set **Child
 thread lines** to Tree to branch a line from the parent into each child's ring
-instead, or into a small hollow node while that ring is hidden.
+instead. In progress uses its hover marker at rest in the tree line’s color;
+hover and keyboard focus reveal it in the row’s icon color.
 
 ## Icons and headings
 

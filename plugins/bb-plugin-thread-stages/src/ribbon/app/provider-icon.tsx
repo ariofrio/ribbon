@@ -13,6 +13,10 @@ function renderNode(
   );
 }
 
+export function renderProviderIcon(icon: IconDataV1): ReactElement {
+  return renderNode(icon, "icon");
+}
+
 export function ProviderIcon({
   icon,
   label,
@@ -27,7 +31,7 @@ export function ProviderIcon({
       aria-label={label}
       className={`inline-flex size-4 shrink-0 items-center justify-center [&_svg]:size-4 ${className}`}
     >
-      {renderNode(icon, "icon")}
+      {renderProviderIcon(icon)}
     </span>
   );
 }
