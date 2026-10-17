@@ -47,6 +47,7 @@ test("the pinned Chromium recaptures", () => {
   assert.ok(captures("package-lock.json"));
   assert.ok(captures(".nvmrc"));
   assert.ok(captures(".github/workflows/screenshots.yml"));
+  assert.ok(captures(".github/workflows/plugins.yml"));
 });
 
 test("a test does not recapture", () => {
@@ -62,7 +63,6 @@ test("prose does not recapture", () => {
   assert.equal(captures(`plugins/${plugins[0]}/README.md`), false);
   assert.equal(captures(".changeset/wide-personal-bubble.md"), false);
   assert.equal(captures("AGENTS.md"), false);
-  assert.equal(captures(".github/workflows/plugins.yml"), false);
 });
 
 // The workflow hands it a whole changeset, and one file in it is enough.
@@ -84,9 +84,9 @@ test("one file that matters carries a changeset full of files that do not", () =
 
 // A workflow skipped by a `paths:` filter never reports its check, which
 // blocks the pull request requiring it.
-test("the trigger filters no paths, so the check always reports", () => {
+test("the caller filters no paths, so the check always reports", () => {
   const workflow = readFileSync(
-    join(repositoryRoot, ".github/workflows/screenshots.yml"),
+    join(repositoryRoot, ".github/workflows/plugins.yml"),
     "utf8",
   );
   const trigger = workflow.slice(
@@ -108,7 +108,7 @@ test("the relevance gate runs outside the renderer container", () => {
   );
   const captureJob = workflow.slice(
     workflow.indexOf("\n  capture:"),
-    workflow.indexOf("\n  recapture:"),
+    workflow.length,
   );
 
   assert.match(relevanceJob, /name: Decide whether anything can have moved/u);
@@ -141,7 +141,7 @@ test("a failed capture preserves the isolated bb log", () => {
   );
   const captureJob = workflow.slice(
     workflow.indexOf("\n  capture:"),
-    workflow.indexOf("\n  recapture:"),
+    workflow.length,
   );
 
   assert.match(captureJob, /name: Upload screenshot diagnostics/u);
@@ -152,14 +152,10 @@ test("a failed capture preserves the isolated bb log", () => {
   assert.match(captureJob, /include-hidden-files: true/u);
 });
 
-test("the required recapture job reports skipped captures as success", () => {
-  const workflow = readFileSync(
-    join(repositoryRoot, ".github/workflows/screenshots.yml"),
-    "utf8",
-  );
+test("the caller reports a skipped capture as success and propagates renderer failures", () => {
+  const workflow = readFileSync(join(repositoryRoot, ".github/workflows/plugins.yml"), "utf8");
   const requiredJob = workflow.slice(workflow.indexOf("\n  recapture:"));
-
-  assert.match(requiredJob, /needs: \[relevant, capture\]/u);
+  assert.match(requiredJob, /needs: \[plugins, screenshots\]/u);
   assert.match(requiredJob, /if: always\(\)/u);
   assert.match(requiredJob, /\*failure\*\|\*cancelled\*/u);
 });

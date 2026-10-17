@@ -72,7 +72,7 @@ const files = readdirSync(workflows).filter((name) => name.endsWith(".yml"));
 
 // The ruleset requires `plugins` by name, so a job it does not wait for is a
 // job nothing requires.
-test("the required gate waits for every other job in Plugins", () => {
+test("the required gates together wait for every job in Plugins", () => {
   const found = jobs(readFileSync(join(workflows, "plugins.yml"), "utf8"));
   assert.ok(found.has("plugins"), "Plugins has no `plugins` gate job");
 
@@ -85,9 +85,10 @@ test("the required gate waits for every other job in Plugins", () => {
     }
   };
   walk("plugins");
+  walk("recapture");
 
   const unguarded = [...found.keys()].filter(
-    (name) => name !== "plugins" && !reached.has(name),
+    (name) => !["plugins", "recapture"].includes(name) && !reached.has(name),
   );
   assert.deepEqual(
     unguarded,
@@ -188,33 +189,44 @@ test("automation that updates pull requests uses the CI GitHub App", () => {
   );
 });
 
-test("a recapture publishes proof of its pinned commit before a push can cancel it", () => {
-  const source = readFileSync(join(workflows, "screenshots.yml"), "utf8");
-  const capture = source.slice(source.indexOf("\n  capture:"), source.indexOf("\n  recapture:"));
-  assert.match(capture, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/u);
-  const record = capture.indexOf("run: node scripts/ci-reuse.mjs record screenshots");
-  const upload = capture.indexOf("name: ci-validation-screenshots-${{ github.run_attempt }}");
-  const push = capture.indexOf('git push origin "HEAD:${HEAD_REF:-$GITHUB_REF_NAME}"');
-  assert.ok(record > capture.indexOf("git commit -m"));
-  assert.ok(upload > record);
-  assert.ok(push > upload);
-  const relevance = source.slice(source.indexOf("\n  relevant:"), source.indexOf("\n  capture:"));
-  assert.match(relevance, /actions: read/u);
-  assert.match(relevance, /run: node scripts\/ci-reuse\.mjs reuse screenshots/u);
-  assert.match(relevance, /if: steps\.reuse\.outputs\.reuse != 'true'/u);
-});
-
-test("Plugins skips expensive work only behind reuse and records success after its gate", () => {
+test("successful validation is cached before the renderer starts", () => {
   const source = readFileSync(join(workflows, "plugins.yml"), "utf8");
   const found = jobs(source);
+  assert.ok(found.get("screenshots").includes("plugins"));
+  assert.ok(found.get("recapture").includes("screenshots"));
+  const gate = source.slice(source.indexOf("\n  plugins:"), source.indexOf("\n  screenshots:"));
+  assert.ok(gate.indexOf("uses: actions/cache/save@v6") > gate.indexOf("exit 1"));
+  assert.match(gate, /key: ci-plugins-v1-\$\{\{ needs\.reuse\.outputs\.key \}\}/u);
+  assert.match(source, /uses: \.\/\.github\/workflows\/screenshots\.yml/u);
+});
+
+test("the renderer caches the complete output tree before its push", () => {
+  const source = readFileSync(join(workflows, "screenshots.yml"), "utf8");
+  assert.match(source, /workflow_call:/u);
+  assert.doesNotMatch(source, /pull_request:|branches:/u);
+  assert.match(source, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/u);
+  const tree = source.indexOf('git write-tree');
+  const save = source.indexOf("uses: actions/cache/save@v6");
+  const push = source.indexOf('git push origin "HEAD:${HEAD_REF:-$GITHUB_REF_NAME}"');
+  assert.ok(tree > source.indexOf("git add -A"));
+  assert.ok(save > tree);
+  assert.ok(push > save);
+  assert.match(source, /key: ci-screenshots-v1-\$\{\{ steps\.commit\.outputs\.key \}\}/u);
+  // The hosted lookup and container save must use the same compression method.
+  assert.match(source, /apt-get install -y make g\+\+ zstd/u);
+});
+
+test("cache misses and lookup failures take the ordinary validation path", () => {
+  for (const name of ["plugins.yml", "screenshots.yml"]) {
+    const source = readFileSync(join(workflows, name), "utf8");
+    assert.match(source, /uses: actions\/cache\/restore@v6\n\s+continue-on-error: true/u);
+    assert.match(source, /lookup-only: true/u);
+    assert.doesNotMatch(source, /restore-keys:|actions: read|checks: read|ci-reuse/u);
+  }
+  const source = readFileSync(join(workflows, "plugins.yml"), "utf8");
   for (const name of ["release-automation", "discover", "relevant"]) {
-    assert.ok(found.get(name).includes("reuse"), name);
+    assert.ok(jobs(source).get(name).includes("reuse"), name);
     assert.match(source.slice(source.indexOf(`\n  ${name}:`)),
       /^\n {2}[^\n]+\n {4}needs: \[reuse\]\n {4}if: needs\.reuse\.outputs\.reuse != 'true'/u);
   }
-  assert.match(source, /run: node scripts\/ci-reuse\.mjs reuse plugins/u);
-  const gate = source.slice(source.indexOf("\n  plugins:"));
-  assert.ok(gate.indexOf("run: node scripts/ci-reuse.mjs record plugins") > gate.indexOf("exit 1"));
-  assert.match(gate, /name: ci-validation-plugins-\$\{\{ github\.run_attempt \}\}/u);
-  assert.match(gate, /include-hidden-files: true/u);
 });
