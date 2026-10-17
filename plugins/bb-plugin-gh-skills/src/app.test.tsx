@@ -4,9 +4,9 @@ import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import app from "./app";
 
-beforeEach(() => vi.stubGlobal("ResizeObserver", class {
+beforeEach(() => { window.sessionStorage.clear(); window.history.replaceState(null, "", "/"); vi.stubGlobal("ResizeObserver", class {
   observe() {} unobserve() {} disconnect() {}
-}));
+}); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 test("provides sidebar pages, hides the thread list, and restores native content on unmount", async () => {
@@ -236,4 +236,23 @@ test("keeps the installed document visible when an update fails and the dialog i
   expect(slot.getByText(/Available offline instructions/)).toBeTruthy();
   expect(slot.queryByRole("button", { name: "Retry" })).toBeNull();
   slot.lifecycle.unmount();
+});
+
+test("restores search and loaded results when reopening Skills and records the query in the URL", async () => {
+  window.history.replaceState(null, "", "/plugins/gh-skills/skills/browse");
+  const loaded = await loadPluginApp(async () => app);
+  const options = { pluginId: "gh-skills", rpc: {
+    "skills.list": () => ({ directory: "/server/skills", skills: [] }),
+    "skills.search": () => ({ skills: [{ skillName: "models", namespace: "", repo: "example/skills", path: "skills/models/SKILL.md", description: "Search result to return to", stars: 12 }] }),
+  } };
+  const first = renderSlot(loaded.navPanels[0]!, { subPath: "browse" }, options);
+  fireEvent.change(first.getByRole("textbox", { name: "Search GitHub skills" }), { target: { value: "restorable" } });
+  await first.findByText("Search result to return to");
+  expect(new URL(window.location.href).searchParams.get("query")).toBe("restorable");
+  first.lifecycle.unmount();
+  window.history.replaceState(null, "", "/");
+  const reopened = renderSlot(loaded.navPanels[0]!, { subPath: "browse" }, options);
+  expect((reopened.getByRole("textbox", { name: "Search GitHub skills" }) as HTMLInputElement).value).toBe("restorable");
+  expect(reopened.getByText("Search result to return to")).toBeTruthy();
+  reopened.lifecycle.unmount();
 });

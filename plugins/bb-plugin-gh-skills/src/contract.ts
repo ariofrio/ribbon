@@ -1,5 +1,6 @@
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import { repositoryInput } from "./repository";
 
 export const installedSkill = z.object({
   id: z.string(), skillName: z.string(), sourceURL: z.string(),
@@ -12,8 +13,7 @@ const searchSkill = z.object({
 export type SearchSkill = z.infer<typeof searchSkill>;
 const argument = z.string().trim().min(1).max(1024).refine((value) => !/^[\-]|[\x00-\x1f]/u.test(value), "Invalid argument");
 export const sourceInput = z.object({
-  repository: z.string().trim().transform((value) => value.replace(/^https:\/\/github\.com\//iu, "").replace(/\/$/u, "").replace(/\.git$/u, ""))
-    .pipe(z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u, "Enter OWNER/REPO or a GitHub repository URL.")),
+  repository: repositoryInput,
   skill: argument.optional(),
   allowHidden: z.boolean().default(false),
 });

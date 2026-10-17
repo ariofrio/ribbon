@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ConfirmDeleteDialog, ConfirmDeleteDialogContent } from "@/vendor/components/ui/confirm-delete-dialog";
 import { ResourceCollectionPage, ResourceCollectionViewport, ResourceControlButton, ResourceDetailPage, ResourceDetailOverviewSection, ResourceInstalledControl, ResourceInstallControl, ResourceListState, ResourceOverflowMenu, ResourceToolbar, ResourceSortMenu } from "@/vendor/components/ui/resource-list";
 import type { InstalledSkill, SearchSkill, rpcContract } from "./contract";
-import { sourceInput } from "./contract";
+import { repositoryInput } from "./repository";
 import { SkillCard, SkillGrid } from "./skill-card";
 import { SkillsSidebar } from "./sidebar";
+import { cachedSearch, cacheSearch, searchKey, useCollectionState } from "./collection-state";
 import { toast } from "sonner";
 
 const band = "mx-auto w-full max-w-5xl px-4 md:px-5";
@@ -32,6 +33,11 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
   const previewRepository = mode === "browse" && parts.length >= 4 ? `${decode(parts[1]!)}/${decode(parts[2]!)}` : undefined;
   const previewSkill = previewRepository ? parts.slice(3).map(decode).join("/") : undefined;
   const isDetail = Boolean(detailId || previewRepository);
+  const { query, owner, descending, setQuery, setOwner, setDescending } = useCollectionState(mode, isDetail);
+  const installedQuery = query;
+  const setInstalledQuery = setQuery;
+  const resultKey = searchKey(query, owner);
+  const initialSearch = cachedSearch(resultKey);
   const [inventory, setInventory] = useState<{ directory: string; skills: InstalledSkill[] }>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -46,15 +52,11 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
   const [detailAttempt, setDetailAttempt] = useState(0);
   const [removing, setRemoving] = useState<InstalledSkill>();
   const [updating, setUpdating] = useState<InstalledSkill | "all">();
-  const [installedQuery, setInstalledQuery] = useState("");
-  const [descending, setDescending] = useState(false);
-  const [query, setQuery] = useState("");
-  const [owner, setOwner] = useState("");
-  const [results, setResults] = useState<SearchSkill[]>();
-  const [page, setPage] = useState(1);
+  const [results, setResults] = useState<SearchSkill[] | undefined>(initialSearch?.skills);
+  const [page, setPage] = useState(initialSearch?.page ?? 1);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string>();
-  const [hasMore, setHasMore] = useState(false);
+  const [hasMore, setHasMore] = useState(initialSearch?.hasMore ?? false);
   const searchGeneration = useRef(0);
   const [force, setForce] = useState(false);
   const [unpin, setUnpin] = useState(false);
@@ -96,7 +98,7 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
     });
   }
   function validateRepository() {
-    const result = sourceInput.shape.repository.safeParse(draft.repository);
+    const result = repositoryInput.safeParse(draft.repository);
     setRepositoryError(result.success ? undefined : result.error.issues[0]?.message);
     return result.success ? result.data : undefined;
   }
@@ -113,18 +115,23 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
     try {
       const result = await rpc.call("skills.search", { query: query.trim(), ...(owner.trim() ? { owner: owner.trim() } : {}), page: nextPage });
       if (generation !== searchGeneration.current) return;
-      setResults((old) => nextPage === 1 ? result.skills : [...(old ?? []), ...result.skills.filter((entry) => !old?.some((item) => item.repo === entry.repo && item.path === entry.path))]); setPage(nextPage); setHasMore(result.skills.length === 20);
+      const old = cachedSearch(resultKey)?.skills ?? [];
+      const skills = nextPage === 1 ? result.skills : [...old, ...result.skills.filter((entry) => !old.some((item) => item.repo === entry.repo && item.path === entry.path))];
+      cacheSearch(resultKey, { skills, page: nextPage, hasMore: result.skills.length === 20, fetchedAt: Date.now() });
+      setResults(skills); setPage(nextPage); setHasMore(result.skills.length === 20);
     } catch (cause) { if (generation === searchGeneration.current) setSearchError(message(cause)); }
     finally { if (generation === searchGeneration.current) setSearching(false); }
-  }, [rpc, query, owner]);
+  }, [rpc, query, owner, resultKey]);
   useEffect(() => {
     const generation = ++searchGeneration.current;
     if (mode !== "browse" || isDetail) return;
-    setResults(undefined); setPage(1); setSearchError(undefined); setSearching(false);
+    const cached = cachedSearch(resultKey);
+    setResults(cached?.skills); setPage(cached?.page ?? 1); setHasMore(cached?.hasMore ?? false); setSearchError(undefined); setSearching(false);
     if (query.trim().length < 2) return;
+    if (cached && Date.now() - cached.fetchedAt < 5 * 60_000) return;
     const timeout = setTimeout(() => void search(1, generation), 300);
     return () => { clearTimeout(timeout); searchGeneration.current++; };
-  }, [search, mode, isDetail, query]);
+  }, [search, mode, isDetail, query, resultKey]);
   const installedResult = (skill: SearchSkill) => inventory?.skills.find((entry) =>
     entry.sourceURL.replace(/\/$/u, "").toLowerCase() === `https://github.com/${skill.repo}`.toLowerCase() && entry.skillName === (skill.namespace ? `${skill.namespace}/${skill.skillName}` : skill.skillName));
   const installResult = (skill: SearchSkill) => void perform(async () => {
