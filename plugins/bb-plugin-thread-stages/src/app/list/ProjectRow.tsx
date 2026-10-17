@@ -1660,6 +1660,7 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
               revealAll={nestPreviewThread !== null}
               renderMain={(items, focusThreadId) => (
                 <WindowedSectionItems
+                  allowIntrinsic
                   items={items}
                   focusThreadId={focusThreadId}
                   collapsedThreadIds={collapsedThreadIds}
@@ -1795,6 +1796,7 @@ function useWindowedThreadItems({
 /** One windowed run of items, each drawn by `renderItem`. */
 function WindowedSectionItems({
   items,
+  allowIntrinsic = false,
   collapsedThreadIds,
   collapsedEnvironmentIds,
   selectedThreadId,
@@ -1802,6 +1804,7 @@ function WindowedSectionItems({
   renderItem,
 }: {
   items: readonly ProjectThreadItem[];
+  allowIntrinsic?: boolean;
   collapsedThreadIds: Set<string>;
   collapsedEnvironmentIds: Set<string>;
   selectedThreadId?: string;
@@ -1820,6 +1823,7 @@ function WindowedSectionItems({
     : -1;
   return (
     <SidebarWindowedItems
+      allowIntrinsic={allowIntrinsic}
       recycleItem={(index) => items[index]?.kind === "thread"}
       focusItemKey={focusIndex >= 0 ? itemKeys[focusIndex] : undefined}
       itemKeys={itemKeys}
