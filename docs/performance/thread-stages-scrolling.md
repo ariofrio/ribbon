@@ -1,112 +1,160 @@
 # Thread stages scrolling and scalability
 
-[PR #199](https://github.com/ariofrio/ribbon/pull/199) restores bounded row
-mounting while filling the visible window synchronously before paint. Keeping
-all rows mounted hid the original empty placeholders, but made memory and
-ordinary updates grow with every expanded row.
+[PR #199](https://github.com/ariofrio/ribbon/pull/199) keeps viewport virtualization
+and fills visible windows synchronously before paint. Full mounting removes
+placeholder blanks, but makes memory and ordinary updates grow with every row.
+The bounded renderer preserves that memory advantage while eliminating observed
+blank frames. Its remaining performance limits are described below.
 
 ## Renderer
 
 [SidebarWindowedItems](../../plugins/bb-plugin-thread-stages/src/app/list/SidebarWindowedItems.tsx)
-uses measured heights, compressed spacers, a small overscan, and a recently
-visible cache. Its 48-row budget includes the visible window and weights cached
-parents by their estimated descendant count. Selection, renaming, and keyboard
-focus can retain additional rows. The total is per window, not a global cap of
-48 DOM elements; offscreen child windows release their caches.
+uses measured heights, compressed spacers, and reusable row cells. Movement
+inside its existing buffer keeps the same bindings; crossing an edge refills
+it in physical DOM order. Links, keyboard navigation, and full row controls
+remain in logical document order.
+
+The buffer targets 24 weighted rows or the visible item count plus four spare
+cells, whichever is larger. A cached parent counts its estimated descendants.
+Required visible content always renders. Selected, renamed, focused, pressed,
+menu-owning, and busy rows can retain additional cells with their original
+identity; those pins do not consume the viewport's spare buffer. Each nested
+window has its own budget, so this is not a global 24-element cap.
+
+Tiny child lists representing at most eight rows retain their recycled cells
+but use intrinsic layout inside their bounded parent. Independent groups keep
+normal windowing. This avoids multiplying geometry reads and observers at
+every tree depth without mounting every small group in a large sidebar.
 
 [sidebarScrollUpdates](../../plugins/bb-plugin-thread-stages/src/app/list/sidebarScrollUpdates.ts)
-updates nested windows in one synchronous React commit per scroll event and
-reconciles them after ancestor geometry changes. This matters when a parent's
-height correction moves a child window without resizing the child itself.
-Offscreen shortcut destinations remain encoded on spacers.
-
-Rows use their full existing presentation and controls. The host's split gesture
-registration attaches on the original pointer/focus/context input; empty quick
-action configurations subscribe to no action resolver. Folding freezes the
-current window. Expanded Deferred and Completed previews use the same windowed
-renderer as the main band.
+batches nested window updates before paint and refreshes them after ancestor
+geometry changes. Leaf sizes come from ResizeObserver; unknown composite
+heights are checked synchronously. Draft presence and Ribbon settings use
+shared stores. Split behavior attaches on first input. Expanded previews remain
+windowed, owner-specific preview/action state resets on rebinding, and folding
+freezes the existing window.
 
 ## Matched measurements
 
-Apple M1, 16 GiB RAM, macOS arm64, BB 0.46.0, SDK 0.6.37, repository-pinned
-Playwright/Chromium, 1280×900 viewport. Two runs per cell. Each renderer uses
-Ribbon's complete row presentation: “original” swaps in the upstream virtualizer;
-“mounted” uses the previous PR implementation; “bounded” uses this change.
+The [46 observations](data/thread-stages-scrolling.csv) use Apple M1, 16 GiB RAM,
+macOS arm64, Node 22.23.3, BB 0.46.0, SDK 0.6.37, and repository-pinned
+Playwright 1.62.1/Chromium, at 1280×900. Each renderer/size/CPU setting has two
+runs in a fresh browser. The environment includes BB's default bundled plugins
+and Thread stages, with no other optional Ribbon plugins.
 
-The workload includes repeated native wheel input, eight distant jumps, a full
-traversal in both directions, and a selected-thread rename. Heap is the whole
-client's retained JavaScript heap after GC and traversal, not plugin-only memory.
-RSS is renderer-process memory. Raw observations and the apparatus are retained
-in this BB thread's `reports/sidebar-scalability/final` artifact directory.
+All three variants use the same full row implementation from
+[commit 3281361](https://github.com/ariofrio/ribbon/commit/3281361cdf97a214ad5703221c3957def690282a).
+Only `SidebarWindowedItems.tsx` differs: **original** is the release-pinned
+upstream virtualizer, **mounted** is the previous full-mount implementation,
+and **pool** is this bounded renderer. Frontend SHA-256 hashes accompany every
+CSV observation. Complete raw JSONL, source hashes, environment metadata, and
+apparatus are archived in this BB thread's
+`reports/sidebar-scalability/current` directory.
 
-| Added rows | Original heap | Mounted heap | Bounded heap | Bounded mounted wrappers |
+The workload includes repeated wheel input, eight distant jumps, complete
+native traversals in both directions, and a selected-thread rename. Heap is
+retained whole-client JavaScript heap after GC; RSS sums the owned browser's
+renderer processes. Neither is plugin-only memory. Host load can vary, so these
+are observed ranges rather than universal hardware thresholds.
+
+| Added rows | Original heap | Fully mounted heap | Pool heap | Pool wrappers after traversal |
 | ---: | ---: | ---: | ---: | ---: |
-| 600 | 41.8–41.9 MiB | 112.7–133.8 MiB | 40.5–41.5 MiB | 49 |
-| 2,400 | 48.0–48.2 MiB | 352.4–436.4 MiB | 47.2–47.3 MiB | 49 |
-| 9,600 | 69.4–69.9 MiB | Not attempted | 65.8–65.8 MiB | 49 |
+| 24 | 35.5–35.8 MiB | 35.5 MiB | 35.8 MiB | 29 |
+| 40 | 36.6–37.0 MiB | 37.3–37.4 MiB | 37.9–38.0 MiB | 34 |
+| 100 | 37.9 MiB | 43.8–43.9 MiB | 38.3–38.4 MiB | 34 |
+| 600 | 39.9–40.0 MiB | 96.8–97.6 MiB | 39.9–40.0 MiB | 34 |
+| 2,400 | 46.8–47.1 MiB | 296.5 MiB | 45.1–46.3 MiB | 34 |
+| 9,600 | 67.9–68.9 MiB | Not attempted | 65.0–65.8 MiB | 34 |
 
-At 2,400 rows, mounted renderer RSS after traversal was 813–909 MiB versus
-327–331 MiB bounded; startup peaks were 931–955 MiB versus 283–302 MiB.
-The mounted selected-thread rename produced 746–797 ms main-thread tasks;
-bounded had no reported task of 50 ms or longer. At 600 rows those mounted
-rename tasks were already 209–218 ms. No deliberate out-of-memory test was run.
+At 2,400 rows, fully mounted renderer RSS was **733.7–734.0 MiB**, versus
+**314.5–314.8 MiB** for the pool. Startup renderer RSS peaked at 732–769 MiB
+fully mounted. No deliberate OOM or fully mounted 9,600-row run was attempted.
 
-| Added rows, 4× CPU slowdown | Original blank frames, each run | Bounded blank frames | Bounded maximum frame gap | Bounded rename task |
+## Crossover points and costs
+
+- **Small lists:** at 24–40 rows, the pool has a small fixed overhead and can
+  scroll more slowly than full mounting. At 40 rows, its heap is about
+  0.5–0.7 MiB higher than mounted, and maximum gaps are 53–59 ms versus
+  37–42 ms. Full mounting's memory penalty appears between **40 and 100 added
+  rows** in this fixture. Viewport size, grouping, and row content move that
+  crossover; it is not a universal item-count threshold.
+- **Ordinary updates:** mounted rename tasks take **183–186 ms at 600 rows**
+  and **658–664 ms at 2,400**. The first tested mounted size over 200 ms is
+  2,400, a measured bracket of **600–2,400**. The pool reports no task of
+  50 ms or longer for either rename.
+- **Scrolling tradeoff:** mounted scrolling remains cheap while memory fits.
+  At 600 rows, maximum gaps are 35–40 ms mounted and 44–51 ms pooled;
+  at 2,400 they are 54 ms mounted and 50–64 ms pooled. The pool combines
+  bounded DOM and zero observed blanks, rather than winning every small-list
+  scrolling measurement.
+- **Large fixed datasets:** at 9,600 rows, the pool records 45–52 ms maximum
+  gaps and 65–72 ms rename tasks at native CPU speed. The original records
+  100–126 ms maximum gaps and 112/121 blank frames; the pool records zero.
+
+A zero Long Tasks API value means **no reported task reached 50 ms**, not zero
+CPU work. Frame gaps and long tasks are separate measurements.
+
+## Artificial CPU slowdown
+
+These matched runs use 4× CPU slowdown with the same environment and input.
+Every pooled run records zero blank frames.
+
+| Added rows | Original blank frames | Pool maximum gap | Pool longest task | Pool rename task |
 | ---: | ---: | ---: | ---: | ---: |
-| 600 | 126 / 120 | 0 / 0 | 175.0–190.1 ms | 61–65 ms |
-| 2,400 | 145 / 142 | 0 / 0 | 165.7–175.1 ms | 112–114 ms |
-| 9,600 | 176 / 190 | 0 / 0 | 176.6–200.5 ms | 204–208 ms |
+| 600 | 125 / 128 | 86–93 ms | 96–101 ms | <50 ms |
+| 2,400 | 128 / 126 | 115–116 ms | 94–131 ms | 91–97 ms |
+| 9,600 | 155 / 193 | 107–148 ms | 105–121 ms | 195–203 ms |
 
-Visibility is sampled every animation frame and again after paint when the scroll
-offset has not changed. Spacers are included. A timer observing a *future* scroll
-offset is counted separately; the next animation frame must still contain its
-rows. Instrumentation adds work, especially to the original renderer's thousands
-of placeholder elements. These are stress measurements, not a claim of constant
-60 fps. At normal CPU, bounded maximum gaps ranged from 62–220 ms across the
-matched sizes/runs; every run had zero blank frames.
+The 9,600-row model update approaches/exceeds 200 ms under slowdown: its frame
+gaps are 205–212 ms. Original rename tasks are 228–257 ms. Thread data and
+whole-list model updates still scale with dataset size.
 
-The dedicated 9,600-row regression at 1280×800 recorded 84.6 ms maximum gap,
-zero blanks, 69.4 MiB heap after traversal and 49 wrappers. Expanded Completed
-recorded 89.1 ms, zero blanks, 68.7 MiB and 54 wrappers, including keyboard focus
-retention. Their rename tasks were 74 and 85 ms. Folding peaked at 48 and 53
-wrappers respectively, and retained the selected row exactly once.
+## All-plugin integration and remaining limits
 
-The Mac entered maintenance sleep during the initial expanded-preview startup,
-which invalidated that run with a plugin load timeout. The successful rerun used
-`caffeinate -is` for the test process; no persistent power setting changed.
+The separate all-Ribbon-plugin suite exercises flat/nested 600-row lists,
+a 1,200-pixel-tall viewport, native scrollbar dragging, and 9,600-row main and
+Completed lists. Its memory values include those extra plugins and should not
+be compared directly with the matched table above.
 
-## Limits
+On M1, the four native-speed 600-row cases record zero blanks and maximum gaps
+below 64 ms. Recycled controls retain their original target through drag
+cancellation, an open menu scrolled away, rename, and navigation. All six sticky
+surface cases pass with 30 additional siblings, including dark/light hover,
+selection, and unselected parent containment.
 
-Mounted row DOM and behavior now stay bounded with list length. Thread data,
-height/navigation metadata, backend enumeration, and global client model updates
-still grow with the dataset. The 9,600-row rename crosses 200 ms under 4× CPU
-slowdown; this change does not make arbitrarily large model updates constant-time.
+The existing **200 ms budget at artificial 4× CPU still fails on
+[Linux CI](https://github.com/ariofrio/ribbon/actions/runs/38995175893)**: 600-row
+cases reach 516–1,000 ms frame gaps and up to 1,001 ms tasks, with zero blanks.
+Its native-speed 9,600-row cases pass at 133/167 ms maximum gaps. This is a real
+remaining stress limit; the PR remains draft while the readiness target is resolved. The editor-test focus condition is now
+explicit and the full feature suite passes locally; CI confirmation is pending.
+No assertions have been relaxed.
 
-Ribbon's existing backend enumeration guard rejects sufficiently large datasets
-before a renderer loads. A 24,000-thread experiment failed with
-`Thread list exceeds 10000 entries.` The current 100-entry pagination loop accepts
-10,099 entries and rejects 10,100 per enumeration, as confirmed against
-[listAllThreads](../../plugins/bb-plugin-thread-stages/src/ribbon/workflow/list-all-threads.ts).
-The startup enumerators use the same boundary. This guard is unchanged; results
-at 9,600 added rows leave room for the fixture's existing threads.
+Mounted row DOM and behavior are bounded with list length; data, navigation,
+height metadata, and client caches are not constant-size. These fixed-dataset
+runs do not establish constant heap under unbounded thread creation/deletion.
+The existing [listAllThreads guard](../../plugins/bb-plugin-thread-stages/src/ribbon/workflow/list-all-threads.ts)
+accepts 10,099 entries and rejects 10,100 per enumeration. An earlier 24,000-row
+attempt failed before rendering with `Thread list exceeds 10000 entries.`
+That boundary is unchanged and is not a measured renderer crash limit.
 
 ## Regression checks
 
-Run with the repository's required Node version:
+Use the repository's required Node version and pinned BB CLI:
 
 ```sh
 npm run release:check --workspace plugins/bb-plugin-thread-stages
 npm test
 npm run test:e2e -- --group sidebar
-npm run test:e2e -- --group placement
+npm run test:e2e -- --group features
 ```
 
-The sidebar scroll suite covers flat/nested 600-row lists at 4× CPU, real native
-scrollbar dragging to both limits, and 9,600-row main/Completed lists at normal
-CPU. Large cases enforce zero blanks, a 200 ms frame/task budget, retained heap
-below 160 MiB, traversal growth below 32 MiB, fewer than 200 mounted wrappers,
-keyboard expansion focus, bounded title-update tasks, and bounded folding. Unit regressions cover geometry
-corrections, batched nested updates, focus, offscreen navigation, removal/reorder,
-subtree-weighted caching, and first-input split registration.
+Scrolling probes run every animation frame and after paint at the same scroll
+offset, including spacers. Native-speed and 4× cases retain the existing 200 ms
+assertions. Large cases also enforce heap below 160 MiB, traversal growth below
+32 MiB, fewer than 200 wrappers, keyboard preview focus, bounded model updates,
+and bounded folding. Unit tests cover geometry corrections, batched nested
+updates, pointer/focus/menu retention, owner resets, stopped pointer events,
+subtree-weighted buffering, and tall-viewport spare cells.
 
 <sub>Written by Codex</sub>
