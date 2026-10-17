@@ -30,8 +30,15 @@ export function subscribeSidebarScroll(
   };
 }
 
+const pendingGeometryRefresh = new WeakSet<HTMLElement>();
+
 /** React layout effects can move another window without resizing that window.
- * Reconcile against the committed layout before the next paint. */
+ * Coalesce requests in a microtask before the next paint. */
 export function refreshSidebarScrollWindows(element: HTMLElement): void {
-  for (const update of subscriptions.get(element)?.listeners ?? []) update();
+  if (pendingGeometryRefresh.has(element)) return;
+  pendingGeometryRefresh.add(element);
+  queueMicrotask(() => {
+    pendingGeometryRefresh.delete(element);
+    subscriptions.get(element)?.handle();
+  });
 }

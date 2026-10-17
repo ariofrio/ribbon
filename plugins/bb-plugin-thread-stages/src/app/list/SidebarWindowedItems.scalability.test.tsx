@@ -157,7 +157,7 @@ function setup({
   };
 }
 describe("SidebarWindowedItems scalability", () => {
-  it("reveals a sibling moved into view by another window's refill", () => {
+  it("reveals a sibling moved into view by another window's refill", async () => {
     const viewport = createRef<HTMLDivElement>();
     const items = keys.slice(0, 100);
     render(
@@ -182,7 +182,7 @@ describe("SidebarWindowedItems scalability", () => {
       </div>,
     );
     expect(screen.queryByText("Footer")).toBeNull();
-    act(() => {
+    await act(async () => {
       viewport.current!.scrollTop = 2680;
       viewport.current!.dispatchEvent(new Event("scroll"));
     });

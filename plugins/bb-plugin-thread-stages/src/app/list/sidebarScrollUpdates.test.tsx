@@ -7,6 +7,20 @@ import {
   subscribeSidebarScroll,
 } from "./sidebarScrollUpdates.js";
 afterEach(cleanup);
+it("coalesces geometry refreshes before the next paint and drops removed listeners", async () => {
+  const element = document.createElement("div");
+  const update = vi.fn();
+  const removed = vi.fn();
+  const unsubscribe = subscribeSidebarScroll(element, update);
+  const unsubscribeRemoved = subscribeSidebarScroll(element, removed);
+  refreshSidebarScrollWindows(element);
+  refreshSidebarScrollWindows(element);
+  unsubscribeRemoved();
+  await Promise.resolve();
+  expect(update).toHaveBeenCalledOnce();
+  expect(removed).not.toHaveBeenCalled();
+  unsubscribe();
+});
 it("commits nested windows together without an intermediate parent/child layout", () => {
   const element = document.createElement("div"),
     commits: string[][] = [];
@@ -54,7 +68,7 @@ it("commits nested windows together without an intermediate parent/child layout"
   expect(commits).toHaveLength(count);
 });
 
-it("settles a child window after an ancestor changes layout without another scroll event", () => {
+it("settles a child window after an ancestor changes layout without another scroll event", async () => {
   const element = document.createElement("div");
   let requested = 0;
   function Child() {
@@ -84,7 +98,9 @@ it("settles a child window after an ancestor changes layout without another scro
   }
   render(<Parent />);
   requested = 1;
-  act(() => element.dispatchEvent(new Event("scroll")));
+  await act(async () => {
+    element.dispatchEvent(new Event("scroll"));
+  });
   expect(document.querySelector("strong")!.textContent).toBe("1");
   expect(document.querySelector("em")!.textContent).toBe("1");
 });
