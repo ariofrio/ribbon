@@ -72,11 +72,13 @@ export function useDeferredSidebarThreadSplit(threadId: string) {
         if (!focused.current && !pressed.current) setArmed(false);
       });
     };
-    document.addEventListener("pointerup", release);
-    document.addEventListener("pointercancel", release);
+    document.addEventListener("pointerup", release, true);
+    document.addEventListener("pointercancel", release, true);
+    window.addEventListener("blur", release);
     return () => {
-      document.removeEventListener("pointerup", release);
-      document.removeEventListener("pointercancel", release);
+      document.removeEventListener("pointerup", release, true);
+      document.removeEventListener("pointercancel", release, true);
+      window.removeEventListener("blur", release);
     };
   }, [armed]);
   return {

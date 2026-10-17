@@ -81,3 +81,20 @@ it("keeps behavior alive throughout a gesture and releases it after focus leaves
   await waitFor(() => expect(dispose).toHaveBeenCalledWith("thread"));
   expect(screen.getByRole("link")).toBe(anchor);
 });
+
+it("releases gesture behavior when a control stops pointerup propagation", async () => {
+  render(<Row id="thread" />);
+  const anchor = screen.getByRole("link");
+  anchor.addEventListener("pointerup", event => event.stopPropagation());
+  fireEvent.pointerDown(anchor, { button: 0, pointerId: 1 });
+  expect(register).toHaveBeenCalledWith("thread");
+  fireEvent.pointerUp(anchor, { pointerId: 1 });
+  await waitFor(() => expect(dispose).toHaveBeenCalledWith("thread"));
+});
+
+it("releases an unfocused gesture when the window loses focus", async () => {
+  render(<Row id="thread" />);
+  fireEvent.pointerDown(screen.getByRole("link"), { button: 0, pointerId: 1 });
+  fireEvent.blur(window);
+  await waitFor(() => expect(dispose).toHaveBeenCalledWith("thread"));
+});
