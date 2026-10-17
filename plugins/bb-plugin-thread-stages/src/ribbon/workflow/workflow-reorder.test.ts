@@ -83,34 +83,19 @@ describe("resolveWorkflowReorder", () => {
     ).toEqual({ kind: "none" });
   });
 
-  it("steps to the neighboring stage and stops at the ends", () => {
-    expect(
-      resolveWorkflowReorder({
-        threads,
-        assignments,
-        threadId: "thr_b",
-        workflowStage: "Active",
-        intent: { scope: "stage", direction: -1 },
-      }),
-    ).toEqual({ kind: "stage", workflowStage: "Deferred" });
-    expect(
-      resolveWorkflowReorder({
-        threads,
-        assignments,
-        threadId: "thr_b",
-        workflowStage: "Deferred",
-        intent: { scope: "stage", direction: -1 },
-      }),
-    ).toEqual({ kind: "none" });
-    expect(
-      resolveWorkflowReorder({
-        threads,
-        assignments,
-        threadId: "thr_b",
-        workflowStage: "Completed",
-        intent: { scope: "stage", direction: 1 },
-      }),
-    ).toEqual({ kind: "none" });
+  it("steps to Deferred just before Completed and stops at the ends", () => {
+    for (const [stage, direction, expected] of [
+      ["BlockedOnThirdParty", 1, { kind: "stage", workflowStage: "Deferred" }],
+      ["Completed", -1, { kind: "stage", workflowStage: "Deferred" }],
+      ["Deferred", -1, { kind: "stage", workflowStage: "BlockedOnThirdParty" }],
+      ["Active", -1, { kind: "none" }],
+      ["Completed", 1, { kind: "none" }],
+    ] as const) {
+      expect(resolveWorkflowReorder({
+        threads, assignments, threadId: "thr_b", workflowStage: stage,
+        intent: { scope: "stage", direction },
+      })).toEqual(expected);
+    }
   });
 
   it("skips disabled stages during cross-stage keyboard moves", () => {

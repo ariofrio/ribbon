@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import CheckIcon from "@hugeicons/core-free-icons/CheckIcon";
+import PauseIcon from "@hugeicons/core-free-icons/PauseIcon";
+import HourglassIcon from "@hugeicons/core-free-icons/HourglassIcon";
+import UserMultiple02Icon from "@hugeicons/core-free-icons/UserMultiple02Icon";
 import { STAGE_ICONS, createGroupingCatalog } from "./catalog";
 import { WORKFLOW_STAGES } from "./workflow-stage";
 
@@ -13,23 +17,28 @@ describe("stage catalog", () => {
     const [grouping] = createGroupingCatalog({}).groupings;
     expect(grouping!.defaultGroupId).toBe("Active");
     expect(grouping!.groups.map(({ id, label }) => [id, label])).toEqual([
-      ["Deferred", "Deferred"],
       ["Active", "In progress"],
       ["BlockedOnUser", "Needs user"],
       ["BlockedOnOtherAgent", "Dependent"],
       ["BlockedOnThirdParty", "Blocked"],
+      ["Deferred", "Deferred"],
       ["Completed", "Completed"],
     ]);
   });
 
-  it("preserves main's Deferred and Completed rings", () => {
-    for (const stage of ["Deferred", "Completed"] as const) {
-      const ring = STAGE_ICONS[stage].children![0]!;
-      expect(ring.attrs.strokeWidth).toBe(2);
-      expect(((Number(ring.attrs.r) + Number(ring.attrs.strokeWidth) / 2) * 2 * 16) / 24).toBe(13);
+  it("serializes the original Hugeicons without fitting or changing their strokes", () => {
+    for (const [stage, glyph] of [
+      ["Deferred", PauseIcon],
+      ["BlockedOnOtherAgent", HourglassIcon],
+      ["BlockedOnThirdParty", UserMultiple02Icon],
+      ["Completed", CheckIcon],
+    ] as const) {
+      expect(STAGE_ICONS[stage]).toEqual({
+        tag: "svg",
+        attrs: { viewBox: "0 0 24 24", fill: "none" },
+        children: glyph.map(([tag, { key: _key, ...attrs }]) => ({ tag, attrs })),
+      });
     }
-    expect(STAGE_ICONS.Deferred.children![0]!.attrs.strokeDasharray).toBeDefined();
-    expect(STAGE_ICONS.Completed.children![1]!.attrs).toMatchObject({ r: 5, fill: "currentColor" });
   });
 
   it("hides all dependency stages behind one legacy setting", () => {

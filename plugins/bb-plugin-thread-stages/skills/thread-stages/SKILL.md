@@ -42,11 +42,11 @@ a user decision.
 
 | Stage | ID | Meaning |
 | --- | --- | --- |
-| **Deferred** | `Deferred` | Intentionally set aside for later. |
 | **In progress** | `Active` | Work is available, progressing, or awaiting computation or an established condition under this thread's coordination. |
 | **Needs user** | `BlockedOnUser` | Required user input, decision, approval, or intended review is the only next step. |
 | **Dependent** | `BlockedOnOtherAgent` | An independent bb workflow owns a required delivery. |
 | **Blocked** | `BlockedOnThirdParty` | An independent outside owner owes a required action, whether human, AI, or organization. |
+| **Deferred** | `Deferred` | Intentionally set aside for later. |
 | **Completed** | `Completed` | The objective is durably delivered; intended review and follow-ups are settled or delegated. |
 
 Ownership, not hierarchy or runtime status, distinguishes independent workflows
@@ -103,9 +103,11 @@ Completed; Completed threads archive on their own after the configured retention
 
 Stages change only when someone sets them; thread activity alone never changes a
 stage. Needs user uses a filled unread marker; Dependent an hourglass; Blocked a people
-icon. Deferred and Completed retain their rings. In progress is always blank at
+icon. Completed has a checkmark and a struck-through title; Deferred uses a
+pause icon. Outside Tree mode, In progress is blank at
 rest; **In progress icon on hover** chooses no icon or a hollow unread marker
-on hover or keyboard focus. Needs user uses primary ink for its icon and title;
+on hover or keyboard focus. In Tree mode the same hollow marker uses the tree
+line’s color at rest. In progress and Needs user use primary ink for their icons and titles;
 other stages use secondary ink, and the selected row uses primary ink. Activity
 appears on the right. **Unread indicator on the right** defaults off. A collapsed root's
 activity indicator also reflects work in its hidden descendants. A pending

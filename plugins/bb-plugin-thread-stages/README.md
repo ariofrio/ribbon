@@ -61,7 +61,9 @@ the remaining responsibility. Verification this thread still coordinates
 keeps it open.
 
 Inside each group, In progress, Needs user, Dependent, and Blocked share one
-manually ordered list, followed by Deferred and then Completed. New roots enter at the top, and
+manually ordered list, followed by Deferred and then Completed. Stage menus and
+keyboard stage navigation use In progress, Needs user, Dependent, Blocked,
+Deferred, Completed. New roots enter at the top, and
 activity leaves positions unchanged.
 
 **⋯ menu → Sort by → Custom** selects this saved manual order and is the
@@ -105,7 +107,8 @@ copies the former root's section placement.
 Children hang from their parent by a bar in their own stage-ring column, which
 fills in for a hidden In progress ring and parts around a shown one. Set **Child
 thread lines** to Tree to branch a line from the parent into each child's ring
-instead, or into a small hollow node while that ring is hidden.
+instead. In progress uses its hover marker at rest in the tree line’s color;
+hover and keyboard focus reveal it in the row’s icon color.
 
 ## Icons and headings
 
@@ -127,12 +130,16 @@ name renames it.
 
 ## Rows
 
-In progress is always blank at rest. **In progress icon on hover** chooses
+In progress is blank at rest outside Tree mode. In Tree mode its hollow marker
+uses the tree line’s color at rest. **In progress icon on hover** chooses
 nothing or a hollow unread marker on hover and keyboard focus. Needs user has a
 filled unread marker, Dependent an hourglass, and Blocked the UserMultiple02 people
-icon, fitted to the existing 13px stage sizing. Deferred and Completed retain
-main's rings. Needs user uses primary ink for both icon and title; other stages
-use secondary ink. A selected row uses primary ink in every stage.
+icon. Deferred uses Pause and Completed uses Check with a struck-through
+title. These four glyphs use the original Hugeicons paths and strokes in a 16px
+slot, without fitting or stroke overrides. The 7px hollow unread marker matches
+their stroke weight. In progress and Needs user use primary ink for both icon and title;
+other stages use secondary ink. A selected row uses
+primary ink in every stage.
 **Unread indicator on the right** defaults off; enable it to restore bb's unread dot.
 
 Thread activity alone never changes a stage. Stage icons stay still on the left.

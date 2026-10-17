@@ -1,5 +1,6 @@
 import copy
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -48,6 +49,8 @@ class EvalTests(unittest.TestCase):
         cases = validate()
         self.assertEqual(len(cases), 22)
         self.assertNotIn("Waiting", self.source["stages"])
+        skill_stages = re.findall(r"^\| \*\*[^|]+\*\* \| `([^`]+)` \|", self.source["files"]["skills/thread-stages/SKILL.md"], re.M)
+        self.assertEqual(skill_stages, self.source["stages"])
         for case in cases:
             self.assertIn(case["initial"]["stage"], self.source["stages"])
             self.assertTrue(set(case["expected"]["stages"].values()) <= set(self.source["stages"]))

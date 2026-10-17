@@ -28,11 +28,14 @@ export function MarqueeText({
   text,
   onMeasure,
   pan = true,
+  className = "",
 }: {
   text: string;
   onMeasure?: (width: number) => void;
   /** Whether the text pans to its end while its row is hovered; without it, the trailing fade stays put. */
   pan?: boolean;
+  /** Styles the text itself, inside its fade and pan wrappers. */
+  className?: string;
 }) {
   const containerRef = useRef<HTMLSpanElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
@@ -90,7 +93,7 @@ export function MarqueeText({
       >
         <span
           ref={textRef}
-          className={`inline-block ${pan ? PAN_TEXT_CLASS : ""}`}
+          className={`inline-block ${pan ? PAN_TEXT_CLASS : ""} ${className}`}
         >
           {text}
         </span>
