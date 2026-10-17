@@ -18,8 +18,15 @@ export const sourceInput = z.object({
   allowHidden: z.boolean().default(false),
 });
 const output = z.object({ output: z.string() });
+export const skillOperation = z.object({
+  id: z.string(), kind: z.enum(["install", "update", "check", "remove"]), target: z.string(),
+  state: z.enum(["running", "succeeded", "failed"]), startedAt: z.number(), finishedAt: z.number().optional(),
+  output: z.string().optional(), error: z.string().optional(),
+});
+export type SkillOperation = z.infer<typeof skillOperation>;
 
 export const rpcContract = defineRpcContract({
+  "skills.operation": { input: z.null(), output: skillOperation.nullable() },
   "skills.list": {
     input: z.null(),
     output: z.object({ directory: z.string(), skills: z.array(installedSkill) }),

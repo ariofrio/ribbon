@@ -27,7 +27,7 @@ The plugin adds its own Skills navigation entry. You can hide the built-in Skill
 - Installed skills without source metadata appear in the list; non-interactive updates skip them according to GitHub CLI’s behavior.
 - Removal deletes the selected skill directory after confirmation. GitHub CLI currently provides no skill-removal command. Its shared lockfile is left to GitHub CLI.
 
-Operations run on the server and are serialized within the plugin. Closing the page does not cancel an already-running command. Reloading or disabling the plugin stops its child processes. Errors from GitHub CLI, including authentication and preview-API errors, appear on the page.
+Operations run on the server and are serialized within the plugin. Every window shows the active operation and disables conflicting actions. The latest result is retained across navigation and plugin reloads. Closing the page does not cancel an already-running command. Reloading or disabling the plugin stops its child processes; an interrupted operation is reported on the next load. Errors from GitHub CLI, including authentication and preview-API errors, appear on the page.
 
 ## Development
 

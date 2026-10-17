@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/vendor/components/ui/
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/vendor/components/ui/dialog";
 import { ConfirmDeleteDialog, ConfirmDeleteDialogContent } from "@/vendor/components/ui/confirm-delete-dialog";
 import { ResourceCollectionPage, ResourceCollectionViewport, ResourceControlButton, ResourceDetailPage, ResourceDetailOverviewSection, ResourceInstalledControl, ResourceInstallControl, ResourceListState, ResourceOverflowMenu, ResourceToolbar, ResourceSortMenu } from "@/vendor/components/ui/resource-list";
-import type { InstalledSkill, SearchSkill, rpcContract } from "./contract";
+import type { InstalledSkill, SearchSkill, SkillOperation, rpcContract } from "./contract";
 import { repositoryInput } from "./repository";
 import { SkillCard, SkillGrid } from "./skill-card";
 import { SkillsSidebar } from "./sidebar";
@@ -40,7 +40,12 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
   const initialSearch = cachedSearch(resultKey);
   const [inventory, setInventory] = useState<{ directory: string; skills: InstalledSkill[] }>();
   const [error, setError] = useState<string>();
-  const [busy, setBusy] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [operation, setOperation] = useState<SkillOperation | null>(null);
+  const [operationError, setOperationError] = useState<string>();
+  const [dismissedOperation, setDismissedOperation] = useState<string>();
+  const operationGeneration = useRef(0);
+  const busy = working || operation?.state === "running";
   const [installing, setInstalling] = useState<string>();
   const [output, setOutput] = useState("");
   const [checkOpen, setCheckOpen] = useState(false);
@@ -60,6 +65,16 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
   const searchGeneration = useRef(0);
   const [force, setForce] = useState(false);
   const [unpin, setUnpin] = useState(false);
+  const refreshOperation = useCallback(async () => {
+    const generation = ++operationGeneration.current;
+    try {
+      const next = await rpc.call("skills.operation", null);
+      if (generation !== operationGeneration.current) return;
+      setOperation(next); setOperationError(undefined); if (next?.output) setOutput(next.output);
+    } catch (cause) { if (generation === operationGeneration.current) setOperationError(message(cause)); }
+  }, [rpc]);
+  useEffect(() => { void refreshOperation(); }, [refreshOperation]);
+  useRealtime("skills.operation", () => { void refreshOperation(); });
   const refresh = useCallback(async () => {
     try { setInventory(await rpc.call("skills.list", null)); setError(undefined); }
     catch (cause) { setError(message(cause)); }
@@ -80,10 +95,10 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
   }, [rpc, detailId, previewRepository, previewSkill, detailAttempt, detailId ? inventory : undefined]);
   async function perform(action: () => Promise<void>) {
     if (busy) return;
-    setBusy(true); setError(undefined);
+    setWorking(true); setError(undefined);
     try { await action(); }
     catch (cause) { setError(message(cause)); }
-    finally { setBusy(false); }
+    finally { await refreshOperation(); setWorking(false); }
   }
   async function install(event: FormEvent) {
     event.preventDefault();
@@ -168,6 +183,9 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
   return (
     <section data-gh-skills className="flex h-full min-h-0 flex-col" aria-label="Managed server skills">
       <SkillsSidebar mode={mode} onNavigate={goToPage} onAvailable={setSidebarAvailable} />
+      {operationError && <div role="alert" className={`${band} py-3 text-sm text-destructive`}>Couldn’t load skill operation status. <Button variant="ghost" size="sm" onClick={() => void refreshOperation()}>Retry status</Button></div>}
+      {operation?.state === "running" && <p role="status" className={`${band} py-3 text-sm text-muted-foreground`}>{({ install: "Installing", update: "Updating", check: "Checking", remove: "Uninstalling" })[operation.kind]} {operation.target} on the BB server…</p>}
+      {operation?.state === "failed" && operation.id !== dismissedOperation && !installOpen && !updating && !removing && <div role="alert" className={`${band} flex items-start justify-between gap-2 py-3 text-sm text-destructive`}><span>{operation.error}</span><Button variant="ghost" size="sm" onClick={() => setDismissedOperation(operation.id)}>Dismiss</Button></div>}
       {isDetail ? <div className="h-full overflow-auto p-4 md:p-5">
         <div className="mx-auto mb-5 max-w-3xl"><Button variant="ghost" onClick={() => navigate.toPluginPanel("skills", { subPath: mode })}>{detailId ? "Back to installed skills" : "Back to browse"}</Button></div>
         <ResourceDetailPage title={detailSkill?.skillName ?? detailId ?? previewEntry?.skillName}
@@ -195,7 +213,7 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
           action={<div className="flex items-center gap-1.5">{actions}</div>} compact expandSearchOnFocus
         />}>
           <div className={`${band} space-y-4`}>
-            {busy && <p role="status" className="text-sm text-muted-foreground">Running on the BB server…</p>}
+            {working && operation?.state !== "running" && <p role="status" className="text-sm text-muted-foreground">Running on the BB server…</p>}
             {error && !installOpen && !removing && !updating && <div role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive">{error}</div>}
             {output && <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer text-sm font-medium">Last operation details</summary><pre role="status" className="mt-2 overflow-auto whitespace-pre-wrap break-words text-xs">{output}</pre></details>}
             {mode === "browse" ? <>

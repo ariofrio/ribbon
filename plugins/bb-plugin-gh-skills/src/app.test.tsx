@@ -20,6 +20,7 @@ test("provides sidebar pages, hides the thread list, and restores native content
   const native = host.querySelector<HTMLElement>('[data-sidebar="content"] > div')!;
   const loaded = await loadPluginApp(async () => app);
   const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, { rpc: {
+    "skills.operation": () => null,
     "skills.list": () => ({ directory: "/server/skills", skills: [] }),
   } });
   try {
@@ -41,6 +42,7 @@ test("provides sidebar pages, hides the thread list, and restores native content
 test("reattaches sidebar navigation when BB replaces its sidebar and keeps a fallback without it", async () => {
   const loaded = await loadPluginApp(async () => app);
   const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, { rpc: {
+    "skills.operation": () => null,
     "skills.list": () => ({ directory: "/server/skills", skills: [] }),
   } });
   await slot.findByText("No skills installed");
@@ -68,6 +70,7 @@ test("keeps an unfamiliar BB sidebar visible and falls back to in-page navigatio
   document.body.append(host);
   const loaded = await loadPluginApp(async () => app);
   const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, { rpc: {
+    "skills.operation": () => null,
     "skills.list": () => ({ directory: "/server/skills", skills: [] }),
   } });
   try {
@@ -81,6 +84,7 @@ test("keeps an unfamiliar BB sidebar visible and falls back to in-page navigatio
 test("filters installed skills without a server search and offers a clear empty state", async () => {
   const loaded = await loadPluginApp(async () => app);
   const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, { rpc: {
+    "skills.operation": () => null,
     "skills.list": () => ({ directory: "/server/skills", skills: [
       { id: "models", skillName: "models", sourceURL: "https://github.com/example/skills", version: "v1", pinned: true, path: "/server/skills/models" },
       { id: "review", skillName: "review", sourceURL: "https://github.com/team/review", version: "v2", pinned: false, path: "/server/skills/review" },
@@ -99,6 +103,7 @@ test("filters installed skills without a server search and offers a clear empty 
 test("opens an installed skill as a deep-linked detail page with a return to the collection", async () => {
   const loaded = await loadPluginApp(async () => app);
   const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed/models" }, { rpc: {
+    "skills.operation": () => null,
     "skills.list": () => ({ directory: "/server/skills", skills: [{ id: "models", skillName: "models", sourceURL: "https://github.com/example/skills", version: "v1", pinned: true, path: "/server/skills/models" }] }),
     "skills.read": () => ({ content: "# Model guide\n\nRead model documentation here." }),
   } });
@@ -115,7 +120,8 @@ test("installs from a repository with explicit pinning and refreshes server inve
   let installed = false;
   const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, {
     rpc: {
-      "skills.list": () => ({ directory: "/server/skills", skills: installed ? [
+      "skills.operation": () => null,
+    "skills.list": () => ({ directory: "/server/skills", skills: installed ? [
         { id: "models", skillName: "models", sourceURL: "https://github.com/example/skills", version: "v1", pinned: true, path: "/server/skills/models" },
       ] : [] }),
       "skills.install": () => { installed = true; return { output: "Installed models" }; },
@@ -138,6 +144,7 @@ test("checks updates, updates a skill, and requires confirmation before removal"
   const loaded = await loadPluginApp(async () => app);
   let removed = false;
   const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, { rpc: {
+    "skills.operation": () => null,
     "skills.list": () => ({ directory: "/server/skills", skills: removed ? [] : [{
       id: "models", skillName: "models", sourceURL: "https://github.com/example/skills", version: "v1", pinned: false, path: "/server/skills/models",
     }] }),
@@ -170,6 +177,7 @@ test("searches as the user types and installs a catalog result without re-enteri
   const loaded = await loadPluginApp(async () => app);
   let installed = false;
   const slot = renderSlot(loaded.navPanels[0]!, { subPath: "browse" }, { rpc: {
+    "skills.operation": () => null,
     "skills.list": () => ({ directory: "/server/skills", skills: installed ? [{ id: "models", skillName: "models", sourceURL: "https://github.com/example/skills", version: "v1", pinned: false, path: "/server/skills/models" }] : [] }),
     "skills.search": () => ({ skills: [{ skillName: "models", namespace: "", repo: "example/skills", path: "skills/models/SKILL.md", description: "Query available models", stars: 12 }] }),
     "skills.install": () => { installed = true; return { output: "Installed models" }; },
@@ -188,6 +196,7 @@ test("searches as the user types and installs a catalog result without re-enteri
 test("keeps the install form editable after gh reports an error", async () => {
   const loaded = await loadPluginApp(async () => app);
   const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, { rpc: {
+    "skills.operation": () => null,
     "skills.list": () => ({ directory: "/server/skills", skills: [] }),
     "skills.install": () => { throw new Error("Run gh auth login on the BB server"); },
   } });
@@ -206,6 +215,7 @@ test("shows the updated document immediately after updating an installed skill",
   const loaded = await loadPluginApp(async () => app);
   let version = "v1";
   const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed/models" }, { rpc: {
+    "skills.operation": () => null,
     "skills.list": () => ({ directory: "/server/skills", skills: [{ id: "models", skillName: "models", sourceURL: "https://github.com/example/skills", version, pinned: false, path: "/server/skills/models" }] }),
     "skills.read": () => ({ content: `# Model guide\n\nInstructions from ${version}.` }),
     "skills.update": () => { version = "v2"; return { output: "Updated models" }; },
@@ -222,6 +232,7 @@ test("shows the updated document immediately after updating an installed skill",
 test("keeps the installed document visible when an update fails and the dialog is dismissed", async () => {
   const loaded = await loadPluginApp(async () => app);
   const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed/models" }, { rpc: {
+    "skills.operation": () => null,
     "skills.list": () => ({ directory: "/server/skills", skills: [{ id: "models", skillName: "models", sourceURL: "https://github.com/example/skills", version: "v1", pinned: false, path: "/server/skills/models" }] }),
     "skills.read": () => ({ content: "# Model guide\n\nAvailable offline instructions." }),
     "skills.update": () => { throw new Error("Upstream unavailable"); },
@@ -242,6 +253,7 @@ test("restores search and loaded results when reopening Skills and records the q
   window.history.replaceState(null, "", "/plugins/gh-skills/skills/browse");
   const loaded = await loadPluginApp(async () => app);
   const options = { pluginId: "gh-skills", rpc: {
+    "skills.operation": () => null,
     "skills.list": () => ({ directory: "/server/skills", skills: [] }),
     "skills.search": () => ({ skills: [{ skillName: "models", namespace: "", repo: "example/skills", path: "skills/models/SKILL.md", description: "Search result to return to", stars: 12 }] }),
   } };
@@ -255,4 +267,20 @@ test("restores search and loaded results when reopening Skills and records the q
   expect((reopened.getByRole("textbox", { name: "Search GitHub skills" }) as HTMLInputElement).value).toBe("restorable");
   expect(reopened.getByText("Search result to return to")).toBeTruthy();
   reopened.lifecycle.unmount();
+});
+
+test("shows a command started in another window and restores its completion details", async () => {
+  const loaded = await loadPluginApp(async () => app);
+  let state = "running";
+  const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, { rpc: {
+    "skills.list": () => ({ directory: "/server/skills", skills: [] }),
+    "skills.operation": () => ({ id: "operation-1", kind: "update", target: "models", state, startedAt: 1, ...(state === "succeeded" ? { output: "Updated models" } : {}) }),
+  } });
+  await slot.findByText("Updating models on the BB server…");
+  expect((slot.getByRole("button", { name: "Install skill" }) as HTMLButtonElement).disabled).toBe(true);
+  state = "succeeded";
+  await slot.behavior.emitRealtime("skills.operation", null);
+  await slot.findByText("Updated models");
+  expect((slot.getByRole("button", { name: "Install skill" }) as HTMLButtonElement).disabled).toBe(false);
+  slot.lifecycle.unmount();
 });

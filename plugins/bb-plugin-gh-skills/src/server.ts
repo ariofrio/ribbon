@@ -1,11 +1,12 @@
 import { lstat, mkdir, readFile, realpath, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
+import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { installedSkill, rpcContract } from "./contract";
+import { installedSkill, rpcContract, skillOperation, type SkillOperation } from "./contract";
 import { runGh } from "./gh";
 
-export default function plugin(bb: BbPluginApi) {
+export default async function plugin(bb: BbPluginApi) {
   const directory = join(bb.server.experimental_dataDir, "skills");
   const lifecycle = new AbortController();
   bb.onDispose(() => lifecycle.abort());
@@ -37,17 +38,36 @@ export default function plugin(bb: BbPluginApi) {
     if ((await lstat(entry.path)).isSymbolicLink()) throw new Error("Symlinked skill directories are not supported.");
     return path;
   }
-  let mutating = false;
-  async function mutate(operation: () => Promise<string>) {
-    if (mutating) throw new Error("Another skill operation is in progress. Wait for it to finish.");
-    mutating = true;
+  const saved = skillOperation.safeParse(await bb.storage.kv.get("lastOperation"));
+  let operation: SkillOperation | null = saved.success ? saved.data : null;
+  if (operation?.state === "running") {
+    operation = { ...operation, state: "failed", finishedAt: Date.now(), error: "The plugin stopped before this operation finished. Refresh your skills before retrying." };
+    await bb.storage.kv.set("lastOperation", operation);
+  }
+  async function publishOperation() {
+    await bb.storage.kv.set("lastOperation", operation);
+    bb.realtime.publish("skills.operation", null);
+  }
+  async function mutate(kind: SkillOperation["kind"], target: string, run: () => Promise<string>) {
+    if (operation?.state === "running") throw new Error("Another skill operation is in progress. Wait for it to finish.");
+    operation = { id: randomUUID(), kind, target, state: "running", startedAt: Date.now() };
     try {
-      const output = await operation();
-      bb.realtime.publish("skills.changed", null);
+      await publishOperation();
+      const output = await run();
+      operation = { ...operation, state: "succeeded", output: output.slice(-16 * 1024), finishedAt: Date.now() };
       return { output };
-    } finally { mutating = false; }
+    } catch (cause) {
+      operation = { ...operation, state: "failed", error: (cause instanceof Error ? cause.message : String(cause)).slice(-16 * 1024), finishedAt: Date.now() };
+      throw cause;
+    } finally {
+      if (!lifecycle.signal.aborted) {
+        await publishOperation();
+        bb.realtime.publish("skills.changed", null);
+      }
+    }
   }
   bb.rpc.register(rpcContract, {
+    "skills.operation": async () => operation,
     "skills.list": list,
     "skills.search": async ({ query, owner, page }) => {
       const args = ["search", "--limit", "20", "--page", String(page), "--json", "skillName,namespace,repo,path,description,stars"];
@@ -61,7 +81,7 @@ export default function plugin(bb: BbPluginApi) {
     "skills.discover": async ({ repository, allowHidden }) => ({
       output: await gh("install", "--dir", directory, ...(allowHidden ? ["--allow-hidden-dirs"] : []), "--", repository),
     }),
-    "skills.install": (input) => mutate(() => {
+    "skills.install": (input) => mutate("install", input.all ? input.repository : input.skill!, () => {
       const args = ["install", "--dir", directory];
       if (input.pin) args.push("--pin", input.pin);
       if (input.all) args.push("--all");
@@ -71,7 +91,7 @@ export default function plugin(bb: BbPluginApi) {
       if (input.skill) args.push(input.skill);
       return gh(...args);
     }),
-    "skills.update": (input) => mutate(async () => {
+    "skills.update": (input) => mutate(input.dryRun ? "check" : "update", input.id ?? "all skills", async () => {
       const args = ["update", "--dir", directory, "--all"];
       if (input.dryRun) args.push("--dry-run");
       if (input.force) args.push("--force");
@@ -90,7 +110,7 @@ export default function plugin(bb: BbPluginApi) {
       if ((await stat(file)).size > 1024 * 1024) throw new Error("SKILL.md is too large to preview (maximum 1 MiB).");
       return { content: await readFile(file, "utf8") };
     },
-    "skills.remove": ({ id }) => mutate(async () => {
+    "skills.remove": ({ id }) => mutate("remove", id, async () => {
       await rm(await installedPath(id), { recursive: true });
       return `Removed ${id}.`;
     }),

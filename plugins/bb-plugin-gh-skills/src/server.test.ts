@@ -15,7 +15,7 @@ beforeEach(async () => {
   await mkdir(bin);
   reply = join(directory, "reply.json"); calls = join(directory, "calls.jsonl");
   await writeFile(reply, JSON.stringify({ stdout: "[]" }));
-  await writeFile(join(bin, "gh"), `#!${process.execPath}\nimport fs from 'node:fs';fs.appendFileSync(${JSON.stringify(calls)},JSON.stringify(process.argv.slice(2))+'\\n');const r=JSON.parse(fs.readFileSync(${JSON.stringify(reply)},'utf8'));process.stdout.write(r.stdout||'');process.stderr.write(r.stderr||'');process.exitCode=r.code||0;\n`);
+  await writeFile(join(bin, "gh"), `#!${process.execPath}\nimport fs from 'node:fs';fs.appendFileSync(${JSON.stringify(calls)},JSON.stringify(process.argv.slice(2))+'\\n');const r=JSON.parse(fs.readFileSync(${JSON.stringify(reply)},'utf8'));if(r.delay)await new Promise(resolve=>setTimeout(resolve,r.delay));process.stdout.write(r.stdout||'');process.stderr.write(r.stderr||'');process.exitCode=r.code||0;\n`);
   await chmod(join(bin, "gh"), 0o755);
   vi.stubEnv("PATH", `${bin}${delimiter}${process.env.PATH}`);
   host = createFakePluginHost({ pluginId: "gh-skills", dataDir: join(directory, "server-data") });
@@ -102,4 +102,22 @@ test("accepts a GitHub repository URL and passes its canonical name to gh", asyn
   await host.harness.behavior.callRpc("skills.install", { repository: "https://github.com/example/skills.git/", skill: "models" });
   const args = JSON.parse((await readFile(calls, "utf8")).trim());
   expect(args.slice(args.indexOf("--") + 1)).toEqual(["example/skills", "models"]);
+});
+
+test("reports running operations to other clients and retains the result after a plugin reload", async () => {
+  expect(await host.harness.behavior.callRpc("skills.operation", null)).toBeNull();
+  await writeFile(reply, JSON.stringify({ stdout: "Installed models", delay: 300 }));
+  const installation = host.harness.behavior.callRpc("skills.install", { repository: "example/skills", skill: "models" });
+  try {
+    await vi.waitFor(async () => expect(await host.harness.behavior.callRpc("skills.operation", null)).toMatchObject({ kind: "install", target: "models", state: "running" }));
+  } finally { await installation; }
+  await host.harness.lifecycle.reload(plugin);
+  expect(await host.harness.behavior.callRpc("skills.operation", null)).toMatchObject({ kind: "install", target: "models", state: "succeeded", output: "Installed models" });
+});
+
+test("retains command failures for a client that reopens the page", async () => {
+  await writeFile(reply, JSON.stringify({ code: 1, stderr: "Run gh auth login on this server" }));
+  await expect(host.harness.behavior.callRpc("skills.install", { repository: "example/private-skills", skill: "models" })).rejects.toThrow("Run gh auth login");
+  await host.harness.lifecycle.reload(plugin);
+  expect(await host.harness.behavior.callRpc("skills.operation", null)).toMatchObject({ state: "failed", error: "Run gh auth login on this server" });
 });

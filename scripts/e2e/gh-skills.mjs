@@ -10,6 +10,10 @@ export async function prepareGhSkills({ scratch }) {
 import fs from 'node:fs';
 import path from 'node:path';
 const args=process.argv.slice(2);const command=args[1];
+const controlFile=path.join(process.env.BB_DATA_DIR,'gh-skill-control.json');
+const control=fs.existsSync(controlFile)?JSON.parse(fs.readFileSync(controlFile,'utf8'))[command]??{}:{};
+if(control.delay)await new Promise(resolve=>setTimeout(resolve,control.delay));
+if(control.error){console.error(control.error);process.exit(1);}
 const option=(name)=>args[args.indexOf(name)+1];
 const root=path.join(process.env.BB_DATA_DIR,'skills');
 if(['list','install','update'].includes(command)&&option('--dir')!==root)throw new Error('Wrong installation destination');
@@ -108,7 +112,19 @@ export async function verifyGhSkills({ stack, fixture }) {
     await panel.getByRole('button', { name: 'Actions for demo' }).click();
     await page.getByRole('menuitem', { name: 'Update', exact: true }).click();
     const update = page.getByRole('dialog', { name: 'Update demo?' });
+    await writeFile(join(stack.dataDir, 'gh-skill-control.json'), JSON.stringify({ update: { delay: 5000 } }));
     await update.getByRole('button', { name: 'Update skill', exact: true }).click();
+    await panel.getByText('Updating demo on the BB server…', { exact: true }).waitFor();
+    const other = await context.newPage();
+    try {
+      await other.goto(new URL('/plugins/gh-skills/skills/installed', stack.serverUrl).href);
+      const second = other.locator('[data-gh-skills]');
+      await second.getByText('Updating demo on the BB server…', { exact: true }).waitFor();
+      assert.equal(await second.getByRole('button', { name: 'Install skill', exact: true }).isEnabled(), false);
+      await second.getByText('Last operation details', { exact: true }).click();
+      await second.getByText('Updated demo', { exact: true }).waitFor();
+      assert.equal(await second.getByRole('button', { name: 'Install skill', exact: true }).isEnabled(), true);
+    } finally { await other.close(); await writeFile(join(stack.dataDir, 'gh-skill-control.json'), '{}'); }
     await update.waitFor({ state: 'hidden' });
     await panel.getByText('v2', { exact: true }).waitFor();
     await panel.getByText('Installed on the server: v2', { exact: true }).waitFor();
