@@ -46,7 +46,7 @@ class EvalTests(unittest.TestCase):
 
     def test_manifest_and_source_contract(self):
         validate()
-        self.assertEqual(len(load_cases()), 39)
+        self.assertEqual(len(load_cases()), 40)
         self.assertNotIn("Waiting", self.source["stages"])
         self.assertIn("BlockedOnUser", self.source["stages"])
         self.assertIn("Inspect the current stage", self.source["instructions"]["on"])
@@ -153,6 +153,25 @@ class EvalTests(unittest.TestCase):
             self.assertEqual(code, 0)
         calls = [json.loads(line) for line in (workspace / "calls.jsonl").read_text().splitlines()]
         self.assertFalse(any(c.get("source_read") for c in calls))
+
+    def test_ci_discussion_needs_a_recorded_write_after_its_investigation(self):
+        case, workspace, events = self.source_case(40)
+        invoke(workspace, ["thread-stages", "show", "--self", "--json"])
+        for path in case["expected_action"]["source_reads"]:
+            invoke(workspace, ["files", "read", path])
+        self.assertFalse(grade_run(case, workspace, events, 0)["passed"])
+        invoke(workspace, ["thread-stages", "stage", "BlockedOnUser", "--self"])
+        self.assertTrue(grade_run(case, workspace, events, 0)["passed"])
+
+    def test_ci_discussion_cannot_stop_for_user_before_investigating(self):
+        case, workspace, events = self.source_case(40)
+        invoke(workspace, ["thread-stages", "show", "--self", "--json"])
+        invoke(workspace, ["thread-stages", "stage", "BlockedOnUser", "--self"])
+        for path in case["expected_action"]["source_reads"]:
+            invoke(workspace, ["files", "read", path])
+        grade = grade_run(case, workspace, events, 0)
+        self.assertEqual([c["text"] for c in grade["checks"] if not c["passed"]],
+                         ["Stage fit before independent source work resumed"])
 
     def test_codex_normalization_preserves_commands_failures_and_completion(self):
         events = [{"type": "item.completed", "item": {"id": "c1", "type": "command_execution",

@@ -242,6 +242,8 @@ def main():
     version = None if args.prepare else subprocess.check_output([executable, "--version"], text=True).strip()
     (output / "run.json").write_text(json.dumps({"sourceRef": source["ref"], "sourceHashes": source["hashes"],
         "suiteHash": hashlib.sha256((HERE / "evals.json").read_bytes()).hexdigest(),
+        "inputHashes": {path: hashlib.sha256((HERE.parent / path).read_bytes()).hexdigest()
+                        for case in cases for path in case["files"]},
         "runtime": args.runtime, "cliVersion": version, "caseIds": [c["id"] for c in cases], "preparedOnly": args.prepare}, indent=2))
     print(f"Artifacts: {output}", flush=True)
     results = []

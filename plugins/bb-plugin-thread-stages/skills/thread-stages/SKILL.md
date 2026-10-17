@@ -102,8 +102,10 @@ closure. Standalone research can finish when its actual scope,
 review, and follow-ups are fulfilled or delegated. Use the request, conversation,
 and delivery evidence to infer completion after established work; a separate
 explicit closing agreement is not required. Concrete loose ends or meaningful
-uncertainty keep In progress, while the abstract possibility of future questions
-does not. Finishing an individual request or turn is insufficient.
+uncertainty keep In progress while this thread can advance them independently
+or coordinates an established wait. Otherwise, use the stage for whoever must
+act next. The abstract possibility of future questions does not keep In progress.
+Finishing an individual request or turn is insufficient.
 
 Place a thread by stage ID:
 `bb thread-stages stage BlockedOnOtherAgent --self`.

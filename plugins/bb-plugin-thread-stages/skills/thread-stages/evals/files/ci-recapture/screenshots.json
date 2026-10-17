@@ -1,0 +1,17 @@
+{
+  "url": "https://github.com/ariofrio/ribbon/actions/runs/38988301794",
+  "head_sha": "230212acf5fba96c096cf92ae77059dfa27055ad",
+  "observed_at_ms": 1792198428193,
+  "jobs": [
+    {
+      "conclusion": "success",
+      "name": "relevant",
+      "status": "completed"
+    },
+    {
+      "conclusion": "",
+      "name": "capture",
+      "status": "in_progress"
+    }
+  ]
+}

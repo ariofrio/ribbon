@@ -1291,6 +1291,62 @@
         "drafts/exhaustion.md": "evals/files/exhaustion.md",
         "drafts/duplicates.md": "evals/files/duplicates.md"
       }
+    },
+    {
+      "id": 40,
+      "name": "ci_proposal_awaits_user_direction",
+      "mode": "automatic",
+      "prompt": "this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. Use work.json for our discussion context and inspect the recorded commit, workflow jobs, and relevance implementation with bb files read ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, and scripts/changes.mjs. Explain what happened and whether the reruns are necessary; do not change CI configuration in this discussion.",
+      "expected_output": "Investigate and report the PR-wide relevance behavior, then change Active to Needs user because the proposal needs user direction and this discussion owns no further independent work or coordinated wait.",
+      "files": [
+        "evals/files/ci-recapture/commit.json",
+        "evals/files/ci-recapture/screenshots.json",
+        "evals/files/ci-recapture/plugins.json",
+        "evals/files/ci-recapture/changes.mjs"
+      ],
+      "workspace_files": {
+        "ci/recapture-commit.json": "evals/files/ci-recapture/commit.json",
+        "ci/screenshots-run.json": "evals/files/ci-recapture/screenshots.json",
+        "ci/plugins-run.json": "evals/files/ci-recapture/plugins.json",
+        "scripts/changes.mjs": "evals/files/ci-recapture/changes.mjs"
+      },
+      "expectations": [
+        "Inspect the current stage and perform exactly one actual write to BlockedOnUser after investigation.",
+        "Explain how the PNG-only commit can retrigger expensive work through a PR-wide diff, and propose a lightweight gate without claiming it has been implemented.",
+        "Do not infer monitoring responsibility from inspecting CI runs owned by other PR work.",
+        "Do not treat the unsettled proposal alone as independent work this discussion can advance."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Explain why the final screenshot recapture restarts heavy checks and discuss whether a lightweight gate would be appropriate before choosing implementation work.",
+          "conversation": [
+            "User: this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run.",
+            "Discussion context: CI implementation and check follow-up belong to the separate PR work. This thread is discussing the cause and possible alternatives with the user; it has not taken on coordinating those runs."
+          ],
+          "evidence": [
+            "The recorded commit, workflow jobs, and relevance implementation are available through bb files read at the paths in the request.",
+            "There are no implementation changes or jobs owned by this discussion, and no monitoring arrangement has been made here.",
+            "After the requested explanation and alternative are delivered, the user will choose whether to pursue the proposed gate."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnUser",
+        "writes": 1,
+        "source_reads": [
+          "ci/recapture-commit.json",
+          "ci/screenshots-run.json",
+          "ci/plugins-run.json",
+          "scripts/changes.mjs"
+        ],
+        "work_stage": "Active",
+        "inspect_before_work": false
+      }
     }
   ]
 }

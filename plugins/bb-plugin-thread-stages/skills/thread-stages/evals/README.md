@@ -20,13 +20,17 @@ From the repository root:
 # Validate the cases and exercise the grader and CLI fixture without a model.
 npm run check:evals --workspace=bb-plugin-thread-stages
 
-# Execute all 39 cases, or just the twenty-three automatic-update cases.
+# Execute all 40 cases, or just the twenty-four automatic-update cases.
 npm run evals --workspace=bb-plugin-thread-stages
 npm run evals --workspace=bb-plugin-thread-stages -- --mode automatic
 
 # Run the reassessment cases and no-churn controls on either runtime.
 npm run evals --workspace=bb-plugin-thread-stages -- --runtime codex --cases 24 26 28 35 36 37 38 39
 npm run evals --workspace=bb-plugin-thread-stages -- --runtime claude --cases 24 26 28 35 36 37 38 39
+
+# Compare an unresolved proposal with observation, computation, and completion controls.
+npm run evals --workspace=bb-plugin-thread-stages -- --runtime codex --cases 17 19 22 27 31 40
+npm run evals --workspace=bb-plugin-thread-stages -- --runtime claude --cases 17 19 22 27 31 40
 
 # Select cases, or inspect prepared inputs without launching an agent.
 npm run evals --workspace=bb-plugin-thread-stages -- --cases 2 5 17
@@ -84,6 +88,7 @@ is reported as an error rather than silently substituted.
 | 37: pending review | A short acknowledgment and read marker leave genuine user review outstanding and Needs user unchanged. |
 | 38: manual stage preference | An explicit instruction to retain Needs user prevents automatic writes during the investigation. |
 | 39: automatic updates off during work | Disabled automatic updates prevent unrequested writes during the investigation. |
+| 40: CI proposal awaiting direction | Investigate a PNG-only recapture that retriggers PR-wide checks, then write Needs user when only the user's direction on a proposal remains. The inspected runs belong to other work. |
 
 Cases 29 and 34 reconstruct two decision points from a browser-login
 investigation. Case 29 preserves the reporting request inside the earlier
@@ -121,6 +126,14 @@ a skill read or inspection just to leave the stage alone. The grader checks
 source access and stage order; review the answer against the source and probes
 to assess the explanation and revised paragraphs.
 
+Case 40 supplies recorded commit/job metadata and the relevance implementation,
+not the user's later stage correction or the agent's retrospective explanation.
+Its question/report boundary leaves implementation undecided. It checks an
+actual stage write after investigation; a verbal recommendation alone fails.
+Cases 17 and 19 preserve established observation and coordinated computation,
+22 checks a report awaiting user direction, 27 preserves useful independent
+work despite pending review, and 31 preserves finished bounded reporting.
+
 Recommendation grading checks the declared answer fields and proposed commands,
 with equivalent JSON quoting and object-key order accepted. A single fenced JSON
 answer may have explanatory prose around it. Required commands must appear in
@@ -143,9 +156,10 @@ revised session that meets the contract. A timeout, failed skill read, or missin
 instruction string does not establish a behavioral regression. Inspect the
 transcripts and recorded writes on both sides.
 
-The approved reassessment wording has a [recorded comparison](../../../../../docs/testing/thread-stages-reassessment.md).
-Both runtimes still failed work ordering in that comparison; passing controls
-and individual grader checks do not establish a behavioral GREEN.
+The [recorded comparisons](../../../../../docs/testing/thread-stages-reassessment.md)
+distinguish the investigation-before-work failure from the CI proposal case.
+Passing controls or a case that already passes its baseline does not establish
+a behavioral fix.
 
 Cases 29–32 and 34 cover workflow boundaries that the previous guidance can also
 pass; their passing results do not measure improvement. Case 33 targets the changed
@@ -155,7 +169,7 @@ can vary between runs, so keep the artifacts and report the observed scope.
 
 ## Artifacts and limits
 
-Each run records source hashes, the suite hash, selected case IDs, and CLI
+Each run records source hashes, input-file hashes, the suite hash, selected case IDs, and CLI
 version in `run.json`. Each case retains the exact prompt, instruction text,
 skill snapshots, workflow evidence, final state, `calls.jsonl`, full
 `transcript.jsonl`, stderr, and `result.json`. The run's `results.json` contains

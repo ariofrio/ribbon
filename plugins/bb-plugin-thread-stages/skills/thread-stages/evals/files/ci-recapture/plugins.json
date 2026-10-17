@@ -1,0 +1,72 @@
+{
+  "url": "https://github.com/ariofrio/ribbon/actions/runs/38988301786",
+  "head_sha": "230212acf5fba96c096cf92ae77059dfa27055ad",
+  "observed_at_ms": 1792198428193,
+  "jobs": [
+    {
+      "conclusion": "success",
+      "name": "discover",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "name": "release-automation",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "name": "relevant",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "name": "bb-plugin-chatgpt-theme",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "name": "bb-plugin-thread-titles",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "name": "bb-plugin-missing-keyboard-shortcuts",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "name": "bb-plugin-global-instructions",
+      "status": "completed"
+    },
+    {
+      "conclusion": "",
+      "name": "bb-plugin-thread-stages",
+      "status": "in_progress"
+    },
+    {
+      "conclusion": "success",
+      "name": "bb-plugin-model-mentions",
+      "status": "completed"
+    },
+    {
+      "conclusion": "",
+      "name": "end-to-end (sidebar)",
+      "status": "in_progress"
+    },
+    {
+      "conclusion": "",
+      "name": "end-to-end (features)",
+      "status": "in_progress"
+    },
+    {
+      "conclusion": "",
+      "name": "end-to-end (ordering)",
+      "status": "in_progress"
+    },
+    {
+      "conclusion": "",
+      "name": "end-to-end (placement)",
+      "status": "in_progress"
+    }
+  ]
+}

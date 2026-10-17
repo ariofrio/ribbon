@@ -1,9 +1,10 @@
 # Thread stage reassessment evaluation
 
-The approved instruction changes did **not** achieve behavioral GREEN in this
-fixture. Both runtimes failed the required work ordering in both trials of both
-investigation cases, with original and updated guidance. The PR remains a draft;
-these results support reproducing the failure, not claiming the wording fixes it.
+The investigation-before-work cases remain **behaviorally RED**. Both runtimes
+failed the required ordering with original and updated guidance. A separate
+CI-proposal case checks placement after reporting; its passing baseline cannot
+establish a behavioral fix. The PR remains a draft because the work-ordering
+contract has not been achieved.
 
 ## Method
 
@@ -13,9 +14,9 @@ model ID is not emitted in its JSONL. The same CLI configuration was used on bot
 sides. No subagents simulated target-agent behavior.
 
 The [runner](../../plugins/bb-plugin-thread-stages/skills/thread-stages/evals/run.py)
-loads the skill and injected guidance from Git commit
+For the investigation-before-work comparison, the runner loads the skill and injected guidance from Git commit
 `7b6fbf0bcb732ea6832877faf0563502e2930490` for original-guidance runs, and from the
-working tree for updated runs. The
+then-working tree (now commit `69ae0e5`) for updated runs. The
 [cases and expectations](../../plugins/bb-plugin-thread-stages/skills/thread-stages/evals/evals.json)
 stay fixed across the comparison. Case 35 supplies user review comments that
 require investigation; case 36 supplies the previously requested decision and
@@ -148,9 +149,110 @@ substantive investigation, draft artifacts were supplied, and fixture file-help
 and manual-stage grading gaps were corrected. Runs 09–18 all used the same
 frozen suite. No failed updated runs from that suite were discarded.
 
+## Unresolved proposal and next actor
+
+The second change qualifies the broad instruction that concrete loose ends or
+meaningful uncertainty keep a thread In progress. It now says:
+
+> Concrete loose ends or meaningful uncertainty keep In progress while this
+> thread can advance them independently or coordinates an established wait.
+> Otherwise, use the stage for whoever must act next. The abstract possibility
+> of future questions does not keep In progress.
+
+This replaces the overbroad sentence in Completing a thread; it does not add
+parallel rules in the introduction or injected reminder. It distinguishes an
+unfinished objective from work this thread can advance, while preserving
+coordinated waits and the existing completion requirements.
+
+Case 40 reconstructs the question/report boundary around the
+[16-PNG recapture commit](https://github.com/ariofrio/ribbon/commit/230212acf5fba96c096cf92ae77059dfa27055ad),
+[restarted screenshot run](https://github.com/ariofrio/ribbon/actions/runs/38988301794),
+[plugin/E2E run](https://github.com/ariofrio/ribbon/actions/runs/38988301786), and
+[PR-wide relevance implementation](https://github.com/ariofrio/ribbon/blob/119d80b/scripts/changes.mjs#L79).
+The job snapshots are the original tool observations at
+2026-10-17 00:53:48 UTC, when capture, Thread stages validation, and all four E2E
+groups were still running. Those jobs belong to other PR work: this discussion
+has no implementation changes, owned jobs, or monitoring arrangement. The
+worker receives neither the user's later stage correction nor the agent's
+retrospective diagnosis. It must inspect the evidence, report its analysis and
+proposal, and perform a real Needs user write when user direction is next.
+
+The baseline is the existing PR at `69ae0e5`; the revised source changes only
+the quoted qualification. The injected reminder is identical on both sides.
+Both use the same target CLI configurations described above. Codex's model ID
+remains unreported by its JSONL, so the comparison controls its clean-config
+CLI invocation rather than claiming a verified production model/effort match.
+Claude again reported `claude-opus-5-5[1m]`.
+
+| Runtime | Baseline case 40 | Revised case 40 | Interpretation |
+| --- | --- | --- | --- |
+| Codex | 2/2 pass | 2/2 pass | No reproduced omission or measured fix. |
+| Claude | 2/2 pass | 2/2 pass | No reproduced omission or measured fix. |
+
+The exact commands use the same `R` as above and `--timeout 240`:
+
+| Output run | Runtime | Cases | Source option |
+| --- | --- | --- | --- |
+| run-23 | codex | 17 19 22 27 31 | `--ref 69ae0e5` |
+| run-24 | claude | 17 19 22 27 31 | `--ref 69ae0e5` |
+| run-25 | codex | 17 19 22 27 31 35 36 40 | working tree |
+| run-26 | claude | 17 19 22 27 31 35 36 40 | working tree |
+| run-29 | codex | 40 | `--ref 69ae0e5` |
+| run-30 | claude | 40 | `--ref 69ae0e5` |
+| run-31 | codex | 40 | working tree |
+| run-32 | claude | 40 | working tree |
+| run-33 | codex | 40 | `--ref 69ae0e5` |
+| run-34 | claude | 40 | `--ref 69ae0e5` |
+| run-35 | codex | 40 | working tree |
+| run-36 | claude | 40 | working tree |
+
+For example:
+
+```sh
+python3 "$R" --runtime codex --cases 40 --ref 69ae0e5 --output .scratch/work/thread-stage-evals/run-29 --timeout 240
+python3 "$R" --runtime codex --cases 40 --output .scratch/work/thread-stage-evals/run-31 --timeout 240
+```
+
+Every final case-40 run exited 0, completed the required skill/file reads, and
+made exactly one `bb thread-stages stage BlockedOnUser --self` write after the
+four evidence reads. Each write was preceded by
+`bb thread-stages show --self --json`, which returned `Active`. Codex inspected
+before its evidence reads; Claude inspected after them. This case grades the
+missing post-investigation write; cases 35–36 own the separate before-work
+ordering contract. A verbal recommendation without a write fails the oracle.
+
+Run-31's answer explained: “Earlier implementation changes therefore remain
+relevant after an image-only push.” It ended: “Whether to pursue that gate is
+your decision; this discussion hasn't taken on monitoring the runs.” These
+statements agree with its recorded stage operation. Prose review confirmed the
+PR-wide trigger and proposal-only boundary; the stage grade does not validate
+every CI recommendation or replace investigation of a future implementation.
+
+Controls 17 (established observation), 19 (coordinated computation), 22 (report
+awaiting direction), 27 (independent work despite pending review), and 31
+(finished bounded reporting) all passed on both runtimes with both versions:
+**20/20 case passes**. Cases 35–36 still failed on the revised wording in
+run-25/run-26, **0/2 per runtime**, with source reads preceding the needed Active
+write. Their failure remains a reason to keep the PR in draft.
+
+The case manifest hash is
+`0a0372189527d62dc2ca80e0200f68b9e8d29e1a7dcd4e7716216235c8da0a02`.
+The baseline skill hash is the previous comparison's updated hash; the new
+skill hash is
+`aaef1780ba62ecbabc2d1f1da183e0fb8f125aace53f160f025fff5dc5631fdc`.
+Runs 29–36 additionally record SHA-256 hashes for each input file in `run.json`.
+
+Earlier runs 19–22 and 25–28 used later, completed-job snapshots. Case 40 passed
+all eight of those trials too. Inspection of the original first-turn tool log
+identified that fidelity gap; the final eight trials use its historical
+in-progress snapshots instead. The earlier passing trials are retained, not
+counted as RED or silently discarded. Control cases and the case-35/36 reruns
+have unchanged inputs across that correction. All runs were regraded from
+saved transcripts; no baseline omission was observed in either snapshot set.
+
 ## Software verification
 
-- `npm run check:evals --workspace=bb-plugin-thread-stages`: 20 grader/fixture tests passed.
+- `npm run check:evals --workspace=bb-plugin-thread-stages`: 22 grader/fixture tests passed.
 - `npm test`: 127 repository tests passed.
 - `npm run check:layout`, `check:ui`, `check:heading-icons`, `check:fork`: passed.
 - Codex `quick_validate.py` with PyYAML: passed.
