@@ -9,7 +9,6 @@ import os
 from pathlib import Path
 import re
 import shlex
-import shutil
 import signal
 import subprocess
 import sys
@@ -24,6 +23,8 @@ PLUGIN = HERE.parents[2]
 REPO = PLUGIN.parents[1]
 SOURCE_FILES = ["skills/thread-stages/SKILL.md", "skills/thread-actions/SKILL.md",
                 "src/ribbon/agent-instructions.ts", "src/ribbon/workflow/workflow-stage.ts"]
+MODEL_CONFIGS = {"codex": {"model": "gpt-6.1-sol", "effort": "low"},
+                 "claude": {"model": "claude-opus-5-5[1m]", "effort": "high"}}
 
 
 def load_source(ref=None):
@@ -48,6 +49,7 @@ def load_source(ref=None):
     if not stages:
         raise ValueError("Workflow stage source changed; update its eval extraction")
     return {"files": files, "ref": commit or "working-tree",
+            "fixture": (HERE / "fixture.py").read_text(),
             "instructions": {"on": json.loads(match[1]), "off": json.loads(match[2])},
             "stages": [json.loads(x) for x in re.findall(literal, stages[1])],
             "hashes": {name: hashlib.sha256(value.encode()).hexdigest() for name, value in files.items()}}
@@ -66,7 +68,7 @@ def prepare_case(workspace, case, source):
             path = workspace / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text)
-    shutil.copyfile(HERE / "fixture.py", workspace / "fixture.py")
+    (workspace / "fixture.py").write_text(source["fixture"])
     binary = workspace / "bin/bb"
     binary.parent.mkdir()
     binary.write_text("#!/bin/sh\nexec " + shlex.quote(sys.executable) + " "
@@ -103,6 +105,7 @@ When using a skill, open and read its SKILL.md. Apply relevant skills without re
             return ("array of strings" if isinstance(value, list) else "boolean" if type(value) is bool
                     else "string or null" if key == "command" else "string")
         fields = {key: shape(value, key) for key, value in case["expected_answer"].items()}
+        fields["reason"] = "string"
         prompt += ("\nReply with a JSON object using these fields and types: " + json.dumps(fields)
                    + ". Include a nonempty reason. Use canonical stage IDs. Commands are proposed shell command strings.")
     (workspace / "system.txt").write_text(system)
@@ -133,22 +136,27 @@ def normalize_events(events, runtime):
     return normalized
 
 
-def run_case(workspace, case, source, executable, timeout, runtime):
-    system, prompt = prepare_case(workspace, case, source)
-    env = {key: value for key, value in os.environ.items() if not key.startswith("BB_")}
-    env.update(PATH=str(workspace / "bin") + os.pathsep + env["PATH"], BB_THREAD_ID="thr_eval")
-    env.pop("CLAUDECODE", None)
+def cli_args(workspace, system, prompt, executable, runtime, model, effort):
     if runtime == "claude":
-        args = [executable, "--safe-mode", "--system-prompt", system, "--print", "--no-session-persistence",
+        return [executable, "--model", model, "--effort", effort,
+                "--safe-mode", "--system-prompt", system, "--print", "--no-session-persistence",
                 "--output-format", "stream-json", "--verbose", "--tools", "Bash,Read",
                 "--allowedTools", "Bash", "Read", "--permission-prompts", "none", prompt]
-    else:
-        args = [executable, "exec", "--ignore-user-config", "--ignore-rules", "--ephemeral",
+    return [executable, "exec", "--model", model, "-c", "model_reasoning_effort=" + json.dumps(effort),
+                "--ignore-user-config", "--ignore-rules", "--ephemeral",
                 "--skip-git-repo-check", "--sandbox", "workspace-write", "--json",
                 "-c", "project_doc_max_bytes=0", "-c", "skills.include_instructions=false",
                 "-c", "allow_login_shell=false", "-c", 'shell_environment_policy.inherit="all"',
                 "-c", "model_instructions_file=" + json.dumps(str(workspace / "system.txt")),
                 "--output-last-message", str(workspace / "assistant.md"), prompt]
+
+
+def run_case(workspace, case, source, executable, timeout, runtime, model, effort):
+    system, prompt = prepare_case(workspace, case, source)
+    env = {key: value for key, value in os.environ.items() if not key.startswith("BB_")}
+    env.update(PATH=str(workspace / "bin") + os.pathsep + env["PATH"], BB_THREAD_ID="thr_eval")
+    env.pop("CLAUDECODE", None)
+    args = cli_args(workspace, system, prompt, executable, runtime, model, effort)
     (workspace / "command.json").write_text(json.dumps(args, indent=2) + "\n")
     began = time.monotonic()
     with (workspace / "transcript.jsonl").open("w") as stdout, (workspace / "stderr.txt").open("w") as stderr:
@@ -170,6 +178,7 @@ def run_case(workspace, case, source, executable, timeout, runtime):
     (workspace / "assistant.md").write_text((result.get("answer") or "") + "\n")
     init = next((e for e in events if e.get("type") == "system" and e.get("subtype") == "init"), {})
     result.update(model=init.get("model"), sessionId=init.get("session_id"),
+                  requestedModel=model, requestedEffort=effort,
                   seconds=round(time.monotonic() - began, 2), sourceRef=source["ref"], runtime=runtime)
     (workspace / "result.json").write_text(json.dumps(result, indent=2) + "\n")
     write_grading(workspace, result)
@@ -193,14 +202,16 @@ def main():
     parser.add_argument("--output", type=Path, help="New output directory; existing directories are refused")
     parser.add_argument("--prepare", action="store_true", help="Prepare fixtures without launching agents")
     parser.add_argument("--grade", type=Path, help="Regrade a saved run without launching agents")
-    parser.add_argument("--claude", default="claude", help="Claude Code executable (uses its configured default model)")
-    parser.add_argument("--codex", default="codex", help="Codex executable (uses its clean-config default model)")
+    parser.add_argument("--claude", default="claude", help="Claude Code executable")
+    parser.add_argument("--codex", default="codex", help="Codex executable")
+    parser.add_argument("--model", help="Explicit model (defaults: gpt-6.1-sol; claude-opus-5-5[1m])")
+    parser.add_argument("--effort", help="Explicit reasoning effort (defaults: Codex low; Claude high)")
     parser.add_argument("--runtime", choices=("claude", "codex"), default="claude")
     parser.add_argument("--timeout", type=int, default=180, help="Seconds allowed per case")
     args = parser.parse_args()
     cases = validate()
     if args.grade:
-        if args.prepare or args.ref or args.output or args.cases or args.mode != "all":
+        if args.prepare or args.ref or args.output or args.cases or args.model or args.effort or args.mode != "all":
             parser.error("--grade uses the saved run's complete selection")
         metadata = json.loads((args.grade / "run.json").read_text())
         if metadata["preparedOnly"] or not metadata["caseIds"]:
@@ -235,6 +246,8 @@ def main():
     if not cases or args.timeout <= 0:
         parser.error("Select at least one case and a positive timeout")
     source = load_source(args.ref)
+    model = args.model or MODEL_CONFIGS[args.runtime]["model"]
+    effort = args.effort or MODEL_CONFIGS[args.runtime]["effort"]
     name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     output = (args.output or REPO / ".scratch/work/thread-stage-evals" / name).resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -244,7 +257,9 @@ def main():
         "suiteHash": hashlib.sha256((HERE / "evals.json").read_bytes()).hexdigest(),
         "inputHashes": {path: hashlib.sha256((HERE.parent / path).read_bytes()).hexdigest()
                         for case in cases for path in case["files"]},
-        "runtime": args.runtime, "cliVersion": version, "caseIds": [c["id"] for c in cases], "preparedOnly": args.prepare}, indent=2))
+        "runtime": args.runtime, "cliVersion": version, "requestedModel": model, "requestedEffort": effort,
+        "fixtureHash": hashlib.sha256(source["fixture"].encode()).hexdigest(),
+        "caseIds": [c["id"] for c in cases], "preparedOnly": args.prepare}, indent=2))
     print(f"Artifacts: {output}", flush=True)
     results = []
     for case in cases:
@@ -254,7 +269,7 @@ def main():
             print(f"Prepared case {case['id']} (not evaluated)", flush=True)
             continue
         try:
-            result = run_case(workspace, case, source, executable, args.timeout, args.runtime)
+            result = run_case(workspace, case, source, executable, args.timeout, args.runtime, model, effort)
         except (OSError, ValueError) as error:
             result = {"caseId": case["id"], "passed": False, "error": str(error)}
             workspace.mkdir(parents=True, exist_ok=True)

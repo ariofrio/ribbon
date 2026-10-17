@@ -6,7 +6,7 @@ import unittest
 
 from fixture import invoke
 from oracle import answer_matches, grade_run, load_cases, parse_answer, validate
-from run import load_source, normalize_events, prepare_case
+from run import cli_args, load_source, normalize_events, prepare_case
 
 
 HERE = Path(__file__).resolve().parent
@@ -52,11 +52,44 @@ class EvalTests(unittest.TestCase):
         self.assertEqual(set(self.source["instructions"]), {"on", "off"})
         self.assertNotEqual(self.source["instructions"]["on"], self.source["instructions"]["off"])
 
+    def test_cli_invocations_pin_the_requested_model_and_effort(self):
+        for runtime in ("codex", "claude"):
+            args = cli_args(self.workspace, "system", "prompt", runtime, runtime,
+                            "chosen-model", "high")
+            self.assertEqual(args[args.index("--model") + 1], "chosen-model")
+            if runtime == "claude":
+                self.assertEqual(args[args.index("--effort") + 1], "high")
+            else:
+                self.assertIn('model_reasoning_effort="high"', args)
+
+    def test_each_case_uses_the_runs_fixture_snapshot(self):
+        source = {**self.source, "fixture": "fixture snapshot"}
+        other = self.workspace / "snapshot"
+        prepare_case(other, self.case, source)
+        self.assertEqual((other / "fixture.py").read_text(), "fixture snapshot")
+
+    def test_recommendation_response_schema_includes_the_required_reason(self):
+        case = next(x for x in load_cases() if x["id"] == 4)
+        _, prompt = prepare_case(self.workspace / "preferences", case, self.source)
+        self.assertIn('"reason": "string"', prompt)
+
+    def test_preference_discovery_describes_layout_keys_and_excludes_plugin_settings(self):
+        code, output = invoke(self.workspace, ["thread-stages", "prefs", "list"])
+        self.assertEqual(code, 0)
+        self.assertIn("Whether sibling threads sharing a worktree collapse into one row", output)
+        self.assertNotIn("automaticStageUpdates", output)
+        code, value = invoke(self.workspace, ["thread-stages", "prefs", "get",
+                                             "environmentGrouping", "--json"])
+        self.assertEqual((code, value), (0, {"key": "environmentGrouping", "value": True}))
+
     def test_success_requires_real_recorded_transition(self):
         self.transition()
         self.assertTrue(self.grade()["passed"])
 
     def test_thread_discovery_help_is_a_valid_read_only_call(self):
+        code, root_help = invoke(self.workspace, ["--help"])
+        self.assertEqual(code, 0)
+        self.assertIn("bb thread show <id>", root_help)
         code, _ = invoke(self.workspace, ["thread", "--help"])
         self.assertEqual(code, 0)
         code, _ = invoke(self.workspace, ["thread"])

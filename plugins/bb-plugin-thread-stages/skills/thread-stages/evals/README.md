@@ -9,10 +9,12 @@ case, and [oracle.py](oracle.py) grades its answer and recorded behavior.
 Requirements: Python 3, a POSIX host, and an authenticated target CLI: Claude Code
 with `--safe-mode` support or Codex with `--ignore-user-config` and
 `skills.include_instructions=false` support (tested with 2.1.302 and 0.163.0).
-Claude uses its configured default model; Codex uses its clean-config default.
-The runner records the CLI version and Claude's reported model; Codex JSONL does
-not report its model. Model runs consume the
-account's normal quota; CI does not launch them.
+The runner explicitly requests `gpt-6.1-sol` with low reasoning effort for Codex
+and `claude-opus-5-5[1m]` with high effort for Claude. Override these with
+`--model` and `--effort`, using the same settings on both sides of a comparison.
+It records the requested model and effort, CLI version, and Claude's reported
+model; Codex JSONL does not report its model. Model runs consume the account's
+normal quota; CI does not launch them.
 
 From the repository root:
 
@@ -23,6 +25,12 @@ npm run check:evals --workspace=bb-plugin-thread-stages
 # Execute all 40 cases, or just the twenty-four automatic-update cases.
 npm run evals --workspace=bb-plugin-thread-stages
 npm run evals --workspace=bb-plugin-thread-stages -- --mode automatic
+
+# Compare all 40 cases on each runtime, explicitly selecting the model and effort.
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/run.py --runtime codex --model gpt-6.1-sol --effort low --ref <baseline>
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/run.py --runtime codex --model gpt-6.1-sol --effort low
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/run.py --runtime claude --model 'claude-opus-5-5[1m]' --effort high --ref <baseline>
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/run.py --runtime claude --model 'claude-opus-5-5[1m]' --effort high
 
 # Run the reassessment cases and no-churn controls on either runtime.
 npm run evals --workspace=bb-plugin-thread-stages -- --runtime codex --cases 24 26 28 35 36 37 38 39
@@ -141,6 +149,12 @@ order; additional valid read-only inspection commands are allowed. It also check
 required skill reads (including Thread actions in case 5), forbidden unnecessary
 reads, and execution limits. Prose reasoning is preserved for human review;
 the grader requires a nonempty reason but does not judge its meaning.
+Case 4 permits read-only preference discovery because the skill intentionally
+does not memorize every key. Cases such as 3 retain the prohibition on command
+execution through BB and check that boundary separately. Recommendation prompts
+permit skill-file reads: Codex reads files through its shell tool, while Claude
+can use Read. A blanket prohibition on commands would conflict with the required
+skill read on Codex.
 
 `npm run check:evals` runs the manifest validation and regression tests for the
 grader and CLI fixture as part of `release:check`. These tests cover false passes
@@ -174,8 +188,11 @@ passing one fixture does not establish production-session reliability.
 
 ## Artifacts and limits
 
-Each run records source hashes, input-file hashes, the suite hash, selected case IDs, and CLI
-version in `run.json`. Each case retains the exact prompt, instruction text,
+Each run records source hashes, input-file hashes, the suite and fixture hashes,
+selected case IDs, requested model and effort, and CLI version in `run.json`.
+The fixture and instruction sources are snapshotted once per invocation, so
+edits during a run cannot change later cases' guidance or CLI behavior.
+Each case retains the exact prompt, instruction text,
 skill snapshots, workflow evidence, final state, `calls.jsonl`, full
 `transcript.jsonl`, stderr, and `result.json`. The run's `results.json` contains
 all graded outcomes. `assistant.md` contains the plain answer, `command.json`

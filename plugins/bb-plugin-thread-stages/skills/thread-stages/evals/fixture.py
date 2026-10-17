@@ -29,7 +29,8 @@ def dispatch(state, args, record):
         return 2, {"error": message}
 
     if not args or args == ["--help"]:
-        return 0, "bb: status, thread-stages, thread show, files read <path>"
+        return 0, ("Usage: bb [command]\nCommands: status, thread-stages, thread, files\n"
+                   "Run bb <command> --help for arguments.\nQuick start: bb status; bb thread show <id>")
     if args in (["files"], ["files", "--help"], ["files", "read", "--help"]):
         return 0, "Usage: bb files read <path>"
     if args[:2] == ["files", "read"]:
@@ -60,7 +61,7 @@ def dispatch(state, args, record):
             "stage": "stage <stage> [<thread>] [--self] [--json]; stages: " + ", ".join(state["stages"]),
             "show": "show [<thread>] [--self] [--json]",
             "list": "list [--json] [--include-children] [--stage <stage>]",
-            "prefs": "prefs list|get <key> [--json]; organizationMode, environmentGrouping, automaticStageUpdates",
+            "prefs": "prefs list; prefs get <key>; prefs set <key> <value>; prefs reset <key>; optional --json",
             "actions": "actions list [<thread>] [--self] [--json]; actions set --self --actions <json-array>; actions run <action-id> --self",
         }
         if command not in help_text:
@@ -98,12 +99,18 @@ def dispatch(state, args, record):
         if rest and rest[0] in ("set", "reset"):
             record["mutation_attempt"] = True
             return error("Preference mutations are outside the evaluation contract")
-        preferences = {"automaticStageUpdates": state["automaticStageUpdates"],
-                       "organizationMode": "section", "environmentGrouping": True}
-        if rest in (["list"], ["list", "--json"]):
+        preferences = {"organizationMode": "chronological", "environmentGrouping": True}
+        if rest == ["list"]:
+            return 0, (
+                'organizationMode\t"chronological"\tHow the list groups threads: by project, chronologically with custom sections, or by machine.\n'
+                'environmentGrouping\ttrue\tWhether sibling threads sharing a worktree collapse into one row. auto groups them in every organization except chronological.'
+            )
+        if rest == ["list", "--json"]:
             return 0, preferences
-        if len(rest) in (2, 3) and rest[0] == "get" and rest[1] in preferences:
-            return 0, preferences[rest[1]]
+        if (len(rest) in (2, 3) and rest[0] == "get" and rest[1] in preferences
+                and (len(rest) == 2 or rest[2] == "--json")):
+            value = preferences[rest[1]]
+            return 0, {"key": rest[1], "value": value} if len(rest) == 3 else value
         return error("Unsupported preference command")
     if command == "actions":
         if rest and rest[0] in ("set", "run"):

@@ -5,8 +5,9 @@ description: Inspect and organize bb threads across sections, projects, and the 
 
 # Thread stages
 
-Start by running `bb thread-stages`, and discover the available operations
-and arguments from its help as needed. Do not rely on a memorized command
+When CLI inspection is allowed, start by running `bb thread-stages`, and discover
+the available operations and arguments from its help as needed. Respect requests
+to propose commands without executing them. Do not rely on a memorized command
 surface.
 
 For requests to inspect, edit, or run saved prompt buttons beside thread titles,

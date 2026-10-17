@@ -27,7 +27,7 @@
     },
     {
       "id": 2,
-      "prompt": "You're the agent on a root bb thread. You just finished a draft migration plan and your last message asks me to pick between two rollout options before you continue. Before you end your turn, should this thread change stage? If so, give the exact bb thread-stages command you would run; if not, say why. Don't run anything.",
+      "prompt": "You're the agent on a root bb thread. You just finished a draft migration plan and your last message asks me to pick between two rollout options before you continue. Before you end your turn, should this thread change stage? If so, give the exact bb thread-stages command you would run; if not, say why. Do not execute BB commands.",
       "expected_output": "Move to Needs user because the rollout decision is required and no independent work remains.",
       "files": [],
       "expectations": [
@@ -51,7 +51,7 @@
     },
     {
       "id": 3,
-      "prompt": "Two root bb threads I own are stuck. Thread A can't continue until another bb thread lands the auth refactor it depends on. Thread B is waiting for the vendor to approve our SSO app. Which stage should each go in, and what exact command would place each one? Use <thread-a> and <thread-b> as placeholders. Don't run anything.",
+      "prompt": "Two root bb threads I own are stuck. Thread A can't continue until another bb thread lands the auth refactor it depends on. Thread B is waiting for the vendor to approve our SSO app. Which stage should each go in, and what exact command would place each one? Use <thread-a> and <thread-b> as placeholders. Do not execute BB commands.",
       "expected_output": "Thread A goes to Dependent and thread B to Blocked, each placed by stage ID.",
       "files": [],
       "expectations": [
@@ -77,7 +77,7 @@
     },
     {
       "id": 4,
-      "prompt": "Make my sidebar group threads by project, and stop collapsing sibling threads that share a worktree into one row. Give the exact commands you would run. Don't run anything.",
+      "prompt": "Make my sidebar group threads by project, and stop collapsing sibling threads that share a worktree into one row. Give the exact commands you would run. You may inspect read-only CLI help and preferences; do not change settings or thread state, and do not send messages.",
       "expected_output": "The agent sets organizationMode and environmentGrouping through `bb thread-stages prefs set`, not through bb's built-in `bb thread-list prefs`.",
       "files": [],
       "expectations": [
@@ -96,7 +96,7 @@
         "thread-stages"
       ],
       "automatic_updates": true,
-      "allow_inspection": false
+      "allow_inspection": true
     },
     {
       "id": 5,
@@ -129,7 +129,7 @@
     },
     {
       "id": 6,
-      "prompt": "Use $thread-stages. My thread is In progress, and Automatic stage updates is switched off. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not requested a stage change. What should happen to this thread's stage before yielding? Explain without executing any commands.",
+      "prompt": "Use $thread-stages. My thread is In progress, and Automatic stage updates is switched off. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not requested a stage change. What should happen to this thread's stage before yielding? Explain without executing BB commands.",
       "expected_output": "The agent keeps In progress because automatic stage updates is off and no stage change was requested, while recognizing that the dependency would otherwise fit Dependent.",
       "files": [],
       "expectations": [
@@ -149,7 +149,7 @@
     },
     {
       "id": 7,
-      "prompt": "Use $thread-stages. My thread is In progress, and Automatic stage updates is switched on. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not mentioned a stage. What should happen to this thread's stage before yielding? Explain and give the exact command you would run, without executing any commands.",
+      "prompt": "Use $thread-stages. My thread is In progress, and Automatic stage updates is switched on. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not mentioned a stage. What should happen to this thread's stage before yielding? Explain and give the exact command you would run, without executing BB commands.",
       "expected_output": "The agent selects Dependent without requiring a stage mention and gives the correct current-thread placement command.",
       "files": [],
       "expectations": [
@@ -169,7 +169,7 @@
     },
     {
       "id": 8,
-      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. Earlier in this thread I asked you to implement a database migration, validate it in a disposable environment, deploy it, and verify production. My latest request was 'finish validations and testing'. All disposable tests now pass and the test environment is stopped; production deployment and verification are still outstanding. You're ready to send me the validation results and end this turn. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
+      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. Earlier in this thread I asked you to implement a database migration, validate it in a disposable environment, deploy it, and verify production. My latest request was 'finish validations and testing'. All disposable tests now pass and the test environment is stopped; production deployment and verification are still outstanding. You're ready to send me the validation results and end this turn. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute BB commands.",
       "expected_output": "Keep In progress because only validation is finished; the earlier implementation/deployment objective remains unfinished.",
       "files": [],
       "expectations": [
@@ -189,7 +189,7 @@
     },
     {
       "id": 9,
-      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. My entire request for this thread was to investigate whether a retry bug exists and report the finding with source references; I explicitly asked for no implementation or deployment. You finished the investigation, verified the source references, and delivered the requested answer. No requested work or user review is outstanding. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
+      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. My entire request for this thread was to investigate whether a retry bug exists and report the finding with source references; I explicitly asked for no implementation or deployment. You finished the investigation, verified the source references, and delivered the requested answer. No requested work or user review is outstanding. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute BB commands.",
       "expected_output": "Completed with the current-thread stage command because the bounded investigation was the entire agreed objective and is fulfilled.",
       "files": [],
       "expectations": [
@@ -209,7 +209,7 @@
     },
     {
       "id": 10,
-      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. This is a resumed thread. The available handoff says the latest testing step passed and calls that step done, but it also says the original thread objective was omitted and unresolved earlier follow-ups may exist. You have not yet recovered that earlier context. What stage should this thread have now? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
+      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. This is a resumed thread. The available handoff says the latest testing step passed and calls that step done, but it also says the original thread objective was omitted and unresolved earlier follow-ups may exist. You have not yet recovered that earlier context. What stage should this thread have now? Reply with JSON containing stage, reason, and command (null if no change). Do not execute BB commands.",
       "expected_output": "Keep In progress while resolving the unknown completion boundary; do not close the thread solely because the latest tests passed.",
       "files": [],
       "expectations": [
@@ -229,7 +229,7 @@
     },
     {
       "id": 11,
-      "prompt": "Use $thread-stages. This thread owns a week of network observation. Recorders are collecting and a scheduled collector reports incidents; there is no current incident, user decision, or action due. What stage fits between reports? Do not run commands.",
+      "prompt": "Use $thread-stages. This thread owns a week of network observation. Recorders are collecting and a scheduled collector reports incidents; there is no current incident, user decision, or action due. What stage fits between reports? Do not run BB commands.",
       "expected_output": "In progress: established passive observation with a reporting arrangement, even though recorders continue collecting.",
       "files": [],
       "expectations": [
@@ -248,7 +248,7 @@
     },
     {
       "id": 12,
-      "prompt": "Use $thread-stages. This thread coordinates three workers actively implementing its task, including a managed job on another machine. A different thread also owns a separate refactor this task will need later. What stage fits now? Do not run commands.",
+      "prompt": "Use $thread-stages. This thread coordinates three workers actively implementing its task, including a managed job on another machine. A different thread also owns a separate refactor this task will need later. What stage fits now? Do not run BB commands.",
       "expected_output": "In progress while owned workers progress and useful work remains; hierarchy and machine do not decide ownership.",
       "files": [],
       "expectations": [
@@ -267,7 +267,7 @@
     },
     {
       "id": 13,
-      "prompt": "Use $thread-stages. Classify these threads: A is waiting for a system to recover automatically, with an established health check; B needs the user to choose how to recover; C needs a vendor to restore its account; D has a managed external AI job accepted into a queue for a scheduled start. No other useful work remains. Do not run commands.",
+      "prompt": "Use $thread-stages. Classify these threads: A is waiting for a system to recover automatically, with an established health check; B needs the user to choose how to recover; C needs a vendor to restore its account; D has a managed external AI job accepted into a queue for a scheduled start. No other useful work remains. Do not run BB commands.",
       "expected_output": "A and D are In progress, B is Needs user, C is Blocked.",
       "files": [],
       "expectations": [
@@ -291,7 +291,7 @@
     },
     {
       "id": 14,
-      "prompt": "Use $thread-stages. The thread's implementation PR is merged and the requested production check passed. Its result is saved where it belongs. The intended review was completed, and the only follow-up was handed to another tracked thread whose owner has been notified and accepted responsibility. We did not separately agree on a formal closing condition. What stage fits? Do not run commands.",
+      "prompt": "Use $thread-stages. The thread's implementation PR is merged and the requested production check passed. Its result is saved where it belongs. The intended review was completed, and the only follow-up was handed to another tracked thread whose owner has been notified and accepted responsibility. We did not separately agree on a formal closing condition. What stage fits? Do not run BB commands.",
       "expected_output": "Completed: the established objective is fulfilled and loose ends are settled or delegated, without requiring a separate closing agreement.",
       "files": [],
       "expectations": [
@@ -310,7 +310,7 @@
     },
     {
       "id": 15,
-      "prompt": "Use $thread-stages. I began this thread by asking how we might redesign a plugin. You just delivered a long research report with several unresolved design choices and want me to review it before we decide whether to implement. What stage fits? Do not run commands.",
+      "prompt": "Use $thread-stages. I began this thread by asking how we might redesign a plugin. You just delivered a long research report with several unresolved design choices and want me to review it before we decide whether to implement. What stage fits? Do not run BB commands.",
       "expected_output": "Needs user: design choices and intended user review remain, with no independent work left.",
       "files": [],
       "expectations": [
@@ -329,7 +329,7 @@
     },
     {
       "id": 16,
-      "prompt": "Use $thread-stages. An independent outside AI service owns a required deliverable for this thread and is currently running. Another thread is merely listening for optional unsolicited findings from an outside service using an established collector. Neither has other work or a user decision due. What stage fits each? Do not run commands.",
+      "prompt": "Use $thread-stages. An independent outside AI service owns a required deliverable for this thread and is currently running. Another thread is merely listening for optional unsolicited findings from an outside service using an established collector. Neither has other work or a user decision due. What stage fits each? Do not run BB commands.",
       "expected_output": "The required independent deliverable is Blocked; optional established listening is In progress.",
       "files": [],
       "expectations": [

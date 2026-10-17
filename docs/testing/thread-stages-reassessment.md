@@ -1,17 +1,18 @@
 # Thread stage reassessment evaluation
 
-The final matched comparison is **behaviorally GREEN**: both investigation-before-work
-cases pass on Codex and Claude with the revised guidance and fail with the
-previous PR snapshot. The full fourteen-case selection also passes on both
-runtimes. The [final iteration](#aligning-the-stage-before-work) records the
-manual-preference regression, fixture correction, repeated runs, and limits.
-Earlier failed comparisons remain below; the separate CI-proposal case already
-passed before revision and cannot establish a behavioral fix.
+The final guidance passes **all 40 cases on both runtimes**. The latest matched
+full-suite baseline passes 40/40 on Codex and 38/40 on Claude. Across three trials
+per investigation case with the final fixture, Codex passes 6/6 on both versions;
+Claude changes from 0/6 to 6/6. Earlier matched phases reproduced Codex failures,
+but the final fixture does not, so no consistent Codex improvement is claimed.
+The [full-suite comparison](#full-suite-validation-with-explicit-models) records
+all corrections, interrupted runs, commands, and limits. The CI-proposal case
+already passes its baseline and cannot establish a behavioral fix.
 
 ## Method
 
-Executed on 2026-10-16 using Codex CLI 0.163.0 and Claude Code 2.1.302.
-Claude reported `claude-opus-5-5[1m]`; Codex used its clean-config default, whose
+The comparisons through run 76 were executed on 2026-10-16–17 using
+Codex CLI 0.163.0 and Claude Code 2.1.302. Claude reported `claude-opus-5-5[1m]`; Codex used its clean-config default, whose
 model ID is not emitted in its JSONL. The same CLI configuration was used on both
 sides. No subagents simulated target-agent behavior.
 
@@ -393,9 +394,175 @@ same. The CLI/model reporting limits in Method still apply. Case 40 already
 passed before the qualification and continues as a control; no RED→GREEN
 improvement is attributed to it.
 
+## Full-suite validation with explicit models
+
+The fourteen-case selection omitted twenty-six cases. The subsequent comparison covers
+all **40 distinct cases: 16 recommendations and 24 automatic updates**, on both
+CLIs and both guidance versions. This phase explicitly requests:
+
+- Codex CLI 0.163.0: `gpt-6.1-sol`, reasoning effort `low`.
+- Claude Code 2.1.302: `claude-opus-5-5[1m]`, effort `high`.
+
+Claude reports the requested model. Codex JSONL still does not report a model ID;
+its exact `--model` and `model_reasoning_effort` arguments are saved in each
+`command.json`. The runner records requested and reported settings separately
+and freezes the fixture once per invocation.
+
+### Full-suite diagnostics and fixture repairs
+
+The first full runs used the original suite and explicitly pinned configurations.
+They used the same command shape as runs 85–88 below, with output names 77–80:
+77–78 selected `--ref 7b6fbf0`; 79–80 read the working tree at `e67f4839`.
+
+| Runs | Runtime | Original guidance `7b6fbf0` | PR snapshot `e67f4839` |
+| --- | --- | --- | --- |
+| 77 / 79 | Codex | 29/40 pass | 31/40 pass |
+| 78 / 80 | Claude | 37/40 pass | 39/40 pass |
+
+The PR snapshot passed all 24 automatic-update cases on both CLIs. The original
+source failed the before-investigation ordering in cases 35–36 on both CLIs.
+Codex also issued invalid `bb thread show` without a target in case 34; its
+correct stage does not excuse that invalid call. These results and their original
+grades are retained. The aggregate recommendation failures cannot all be treated
+as guidance failures:
+
+- Case 4 required an exact preference key while forbidding its discovery. The
+  skill deliberately delegates key discovery to the installed CLI. Claude
+  declined to invent the key; Codex sometimes guessed an invalid one. Case 4 now
+  permits read-only help and preference discovery, while still forbidding
+  settings, thread-state, and message writes.
+- The generated JSON schema omitted the `reason` field that its grader required.
+  It now includes that field's type, without supplying expected values.
+- The preference fixture now returns the actual layout-key descriptions and
+  JSON `get` shape from `preferenceCliCommands` in
+  [server.ts](../../plugins/bb-plugin-thread-stages/src/server.ts) and
+  [preferences.ts](../../plugins/bb-plugin-thread-stages/src/shared/preferences.ts).
+  It no longer advertises the plugin setting `automaticStageUpdates` as a layout
+  preference. Its regression test failed before the correction and passed after.
+
+Runs 81–84 started with those corrections. A later Codex case chose the correct
+stage but skipped reading the skill: its prompt forbade *all commands*, while
+Codex reads files using a shell command. The grader prohibited BB execution but
+allowed file reads, so the prompt and grading boundary did not match. These runs
+were stopped rather than continuing that conflict:
+
+| Run | Configuration | Completed cases | Passed completed cases |
+| --- | --- | --- | --- |
+| 81 | Codex, interim guidance | 16/40 | 13/16 |
+| 82 | Claude, interim guidance | 22/40 | 22/22 |
+| 83 | Codex, original guidance | 11/40 | 8/11 |
+| 84 | Claude, original guidance | 17/40 | 16/17 |
+
+Their completed results, partial transcripts, and interruption reasons remain
+in the archive. They are not full-suite passes. The interim broader skill-read
+reminder was removed after identifying the prompt conflict; the automatic-off
+reminder remains unchanged from the original source. Recommendation prompts now
+forbid **BB commands**, allowing skill-file reads on both runtimes. Case 3 still
+rejects actual help calls through BB. The skill opening now makes CLI discovery
+conditional on permission to execute it, preserving command-only proposals.
+
+### Portable recommendation prompts
+
+Runs 85–88 use the same corrected case manifest, input files, fixture, oracle,
+CLI versions, and explicit model/effort configuration on each side. Only the skill
+and injected instruction snapshots differ. With `R` as defined above:
+
+```sh
+python3 "$R" --runtime codex --model gpt-6.1-sol --effort low --ref 7b6fbf0 --output .scratch/work/thread-stage-evals/run-85 --timeout 240
+python3 "$R" --runtime claude --model 'claude-opus-5-5[1m]' --effort high --ref 7b6fbf0 --output .scratch/work/thread-stage-evals/run-86 --timeout 240
+python3 "$R" --runtime codex --model gpt-6.1-sol --effort low --output .scratch/work/thread-stage-evals/run-87 --timeout 240
+python3 "$R" --runtime claude --model 'claude-opus-5-5[1m]' --effort high --output .scratch/work/thread-stage-evals/run-88 --timeout 240
+```
+
+The corrected suite SHA-256 is
+`875c36bf4fa12e59809a91f9a3462b3da20515c5876dca8e09c032226455e369`;
+the fixture is
+`523a9ba18834839c9393e848720aaf4ecfa9a90036c44b4772d7f1471ea30489`.
+The skill is
+`f359a5618e555a2ce810518c2d7e0bed53955c1e788726e9288ce02972d7bc19`;
+the injection and oracle hashes remain those recorded in the before-work
+comparison. All original and interrupted runs remain separate from this comparison.
+
+Runs 85–88 finished with Codex **37/40 → 39/40** and Claude **37/40 → 40/40**.
+Both revised investigations passed, and both original-guidance investigations
+failed their stage ordering. Codex's remaining failure was case 29: it called
+`bb thread show` without a target on both sides. The stage remained correctly
+In progress; the oracle still rejected the invalid call. Claude's other original
+failure was case 8: it invented a need for renewed deployment permission despite
+the original request already including deployment.
+
+### Root-help fidelity and final comparison
+
+The fixture's root help advertised `thread show` without its target. The pinned
+BB CLI's root quick-start instead shows `bb thread show <id>`; its selector
+requires an ID or `--self` and rejects the bare command. This was verified from
+its `--help` and the bundled thread-selector implementation, without contacting
+production thread state. The fixture now preserves that usage in its root help,
+and its regression test failed before the correction and passed after. Bare
+`bb thread show` remains invalid. This corrects a misleading discovery response;
+it does not turn the prior invalid calls into passes or change stage policy.
+
+Runs 89–92 repeat all forty cases with that final frozen fixture. Their command
+lines are the four commands above with output numbers 89, 90, 91, and 92,
+respectively. Models, efforts, original source ref, revised source, input files,
+suite, and oracle are unchanged. The final fixture SHA-256 is
+`3d53bb0bd33eef74e459af53253a30a5e42c26f6e705e9e758354ec95d10387e`.
+Earlier complete and interrupted outputs remain in the evidence.
+
+| Runtime | Original guidance, full suite | Revised guidance, full suite |
+| --- | --- | --- |
+| Codex | 40/40 | 40/40 |
+| Claude | 38/40 | 40/40 |
+
+The final full suite therefore shows no measured Codex improvement. Its earlier
+ordering failures in runs 77 and 85 were real: successful sessions made the
+source reads in Needs user before writing In progress. Runs 79 and 87 passed the
+same investigation contracts with matching fixtures. Those observations remain
+valid but do not establish a consistent effect across the later fixture change.
+
+After seeing the Codex baseline pass, two additional trials per investigation
+case and configuration were selected in advance. They used the exact command
+shape above with `--cases 35 36`, the same model/effort settings, and the following
+source and output selections:
+
+| Runs | Runtime | Source |
+| --- | --- | --- |
+| 93, 97 | Codex | `--ref 7b6fbf0` |
+| 94, 98 | Claude | `--ref 7b6fbf0` |
+| 95, 99 | Codex | working tree |
+| 96, 100 | Claude | working tree |
+
+Including the full-suite trial gives three trials per case/configuration:
+
+| Runtime | Original cases 35–36 | Revised cases 35–36 |
+| --- | --- | --- |
+| Codex | 6/6 pass | 6/6 pass |
+| Claude | 0/6 pass | 6/6 pass |
+
+Codex makes `show → stage Active → read(5) → stage BlockedOnUser` in the final
+baseline and revised trials. Claude's baseline reads all five source files in
+`BlockedOnUser` and makes no stage writes; revised Claude inspects, writes
+`Active`, reads all five files in `Active`, and returns to `BlockedOnUser` for
+the remaining user decision. All revised manual/disabled-update and no-churn
+controls pass in the full suite. Case 40 passes both versions, preserving the
+non-reproduction limit of the original CI-proposal comparison.
+
+The final full runs and repetitions used matching suite, fixture, common input,
+and runtime-configuration hashes across both sides, with one consistent guidance
+snapshot per configuration. Per-case copies were checked
+against the recorded fixture, skill, and input hashes. Saved transcripts were
+regraded without new agents; their results matched. All source reads, stage
+operations/order, outputs, exact CLI arguments, verdicts, and interrupted-run
+reasons from runs 77–100 are retained in this BB thread's private storage as
+`thread-stages-evidence/full-suite-runs.zip` and `full-suite-summary.json`.
+The skill creator's static viewers show plain answers and their grades for the
+full comparison and the three-trial investigation comparison on each runtime.
+These finite reconstructed native-CLI sessions do not establish production
+provider-session reliability.
+
 ## Software verification
 
-- `npm run check:evals --workspace=bb-plugin-thread-stages`: 23 grader/fixture tests passed.
+- `npm run check:evals --workspace=bb-plugin-thread-stages`: 27 grader/fixture/runner tests passed.
 - `npm test`: 127 repository tests passed.
 - `npm run check:layout`, `check:ui`, `check:heading-icons`, `check:fork`: passed.
 - Codex `quick_validate.py` with PyYAML: passed.
@@ -423,6 +590,8 @@ BB_CLI="$PWD/node_modules/bb-app/host-daemon/dist/bb" npm run release:check
 The installed host CLI initially failed `verify:types` because its SDK is
 0.6.50 while the repository pins 0.6.37. Using the repository's bb-app 0.46.0
 CLI matches CI and passed without changing either pin or production settings.
+The final release check, after the root-help correction, passed all 887 tests
+and the remaining checks in `thread-stages-release-check-full-suite-final-fixture.log`.
 No local screenshot recapture, install, merge, or deployment was performed.
 
 Written by Codex
