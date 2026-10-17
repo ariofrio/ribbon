@@ -3,6 +3,7 @@ import { applyPluginState, FEATURED_PROJECT, FEATURED_THREAD, SECTION } from "..
 import { heading, launch, link, openContext, row, section, sidebar, sidebarRoot } from "./sidebar.mjs";
 
 export async function verifyThreadIcons({ stack, fixture }) {
+  const { default: CheckIcon } = await import("@hugeicons/core-free-icons/CheckIcon");
   const thread = fixture.threads.get(FEATURED_THREAD);
   // Earlier filing and placement cases can move this shared thread out of Active.
   fixture.run(["thread-stages", "stage", "Active", thread.id]);
@@ -48,6 +49,7 @@ export async function verifyThreadIcons({ stack, fixture }) {
       for (const [stage, label] of [
         ["BlockedOnOtherAgent", "Dependent"],
         ["BlockedOnThirdParty", "Blocked"],
+        ["Completed", "Completed"],
       ]) {
         fixture.run(["thread-stages", "stage", stage, thread.id]);
         const glyph = target.getByLabel(`${label} stage`, { exact: true }).locator("svg");
@@ -62,10 +64,47 @@ export async function verifyThreadIcons({ stack, fixture }) {
         assert.ok(Math.abs(size.stroke - 4 / 3) < 0.01, `${label}: same stroke as main's rings`);
         assert.ok(Math.abs(size.painted - 13) < 0.02, `${label}: glyph fits main's 13px painted bounds`);
       }
+      assert.equal(
+        await target.getByLabel("Completed stage", { exact: true }).locator("path").getAttribute("d"),
+        CheckIcon[0][1].d,
+        "Completed uses a checkmark",
+      );
+      for (const mode of ["Ellipsis", "Fade", "Fade and pan on hover"]) {
+        fixture.run(["plugin", "config", "thread-stages", "set", "longTitles", mode]);
+        await target.hover();
+        await page.waitForFunction(({ threadId, title, mode }) => {
+          const row = document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${threadId}"]`);
+          const text = [...(row?.querySelectorAll(".bb-thread-title span") ?? [])]
+            .find((node) => node.childElementCount === 0 && node.textContent === title);
+          if (!text) return false;
+          const faded = [...row.querySelectorAll(".bb-thread-title span")]
+            .some((node) => getComputedStyle(node).maskImage !== "none");
+          const style = getComputedStyle(text);
+          let struck = false;
+          for (let node = text; node && !node.classList.contains("bb-thread-title"); node = node.parentElement) {
+            const paint = getComputedStyle(node);
+            if (paint.textDecorationLine === "line-through") { struck = true; break; }
+            if (paint.display === "inline-block") break;
+          }
+          return faded === (mode !== "Ellipsis") &&
+            (style.transitionProperty === "transform") === (mode === "Fade and pan on hover") &&
+            struck;
+        }, { threadId: thread.id, title: thread.title, mode });
+        const strikes = await target.locator(".bb-thread-title").evaluate((node) =>
+          [...node.querySelectorAll("span")].filter((el) =>
+            getComputedStyle(el).textDecorationLine === "line-through").length);
+        assert.equal(strikes, 1, `${mode}: draw the strike once, on the text`);
+      }
     } finally {
       fixture.run(["thread-stages", "stage", "Active", thread.id]);
+      fixture.run(["plugin", "config", "thread-stages", "set", "longTitles", "Fade and pan on hover"]);
     }
     await paintedIcon('[aria-label="In progress stage"] svg', false);
+    await page.waitForFunction((threadId) => {
+      const title = document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${threadId}"] .bb-thread-title`);
+      return title && getComputedStyle(title).maskImage === "none" && [...title.querySelectorAll("span")].every((node) =>
+        getComputedStyle(node).textDecorationLine !== "line-through");
+    }, thread.id);
     const workingRow = row(list, workingThread.id);
     // Runtime activity occupies the trailing lane; the stage stays still.
     const geometry = await workingRow.evaluate((node) => {
