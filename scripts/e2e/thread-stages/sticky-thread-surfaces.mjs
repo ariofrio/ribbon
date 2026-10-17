@@ -67,6 +67,8 @@ export async function verifyStickyThreadSurfaces({ stack, fixture, cases }) {
         );
         const list = sidebar(page);
         await list.waitFor({ timeout: 120_000 });
+        await page.waitForLoadState("networkidle", { timeout: 120_000 });
+        await page.evaluate(() => document.fonts.ready);
         const target = row(list, parent.id);
         // Earlier suites can give this parent more children than one viewport.
         // Reveal the intended run before requiring all three adjacent rows.
@@ -112,24 +114,25 @@ export async function verifyStickyThreadSurfaces({ stack, fixture, cases }) {
         await list.evaluate((node) => {
           node.style.setProperty("--sidebar-accent", "rgba(71, 82, 102, 0.25)");
         });
-        await target.evaluate((node, childId) => {
-          const scroller = node.closest('[data-sidebar="content"]');
-          const child = scroller.querySelector(`[data-thread-id="${childId}"]`);
-          const top =
-            scroller.getBoundingClientRect().top +
-            parseFloat(getComputedStyle(node).top);
+        await page.waitForFunction(([parentId, childId]) => {
+          const root = document.querySelector("[data-ribbon-sidebar-root]");
+          const scroller = root?.closest('[data-sidebar="content"]');
+          const parent = root?.querySelector(`[data-thread-id="${parentId}"]`);
+          const child = root?.querySelector(`[data-thread-id="${childId}"]`);
+          if (!scroller || !parent || !child) return false;
+          const top = scroller.getBoundingClientRect().top + parseFloat(getComputedStyle(parent).top);
           scroller.scrollTop += child.getBoundingClientRect().top - top - 4;
-        }, overlapChildId);
+          return true;
+        }, [parent.id, overlapChildId]);
         await page.waitForFunction(
           ([parentId, childId]) => {
             const root = document.querySelector("[data-ribbon-sidebar-root]");
-            const parent = root
-              .querySelector(`[data-thread-id="${parentId}"]`)
-              .getBoundingClientRect();
-            const child = root
-              .querySelector(`[data-thread-id="${childId}"]`)
-              .getBoundingClientRect();
-            return child.top > parent.top && child.top < parent.bottom;
+            const parent = root.querySelector(`[data-thread-id="${parentId}"]`);
+            const child = root.querySelector(`[data-thread-id="${childId}"]`);
+            if (!parent || !child) return false;
+            const parentBox = parent.getBoundingClientRect();
+            const childBox = child.getBoundingClientRect();
+            return childBox.top > parentBox.top && childBox.top < parentBox.bottom;
           },
           [parent.id, overlapChildId],
         );

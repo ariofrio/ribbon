@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { FEATURED_THREAD } from "../../screenshots/fixture.mjs";
-import { dragChip, launch, openContext, pickUp, sidebar } from "./sidebar.mjs";
+import { dragChip, launch, openContext, pickUp, sidebar, withPreferenceSaved } from "./sidebar.mjs";
 import {
   startSidebarScrollSampling,
   stopSidebarScrollSampling,
@@ -441,10 +441,14 @@ async function verifyList({ stack, fixture, native, nested, tall, drag, size, co
           1,
           "The selected row survives folding exactly once",
         );
-        await group
-          .getByRole("button", { name: /^Expand .* section$/ })
-          .click();
-        await selected.waitFor({ state: "visible" });
+        await withPreferenceSaved(page, "collapsedThreadSections", async () => {
+          await group
+            .getByRole("button", { name: /^Expand .* section$/ })
+            .click();
+          await group.getByRole("button", { name: /^Collapse .* section$/ }).waitFor();
+          await group.evaluate(node => node.scrollIntoView({ block: "start" }));
+          await group.locator("a[data-sidebar-thread-id]").nth(1).waitFor({ state: "visible" });
+        }, value => Array.isArray(value) && !value.includes(sectionId));
       }
     } finally {
       await context.close();
