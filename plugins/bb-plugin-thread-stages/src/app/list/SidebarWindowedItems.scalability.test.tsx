@@ -436,3 +436,32 @@ it("does not let a distant retained subtree consume the viewport's reuse buffer"
   expect(h.holes()).toHaveLength(0);
   for (const { link, title } of original) expect(link.textContent).toBe(title);
 });
+
+it("renders tiny child lists without geometry reads or scroll observers", () => {
+  const reads = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+  const h = setup({ items: keys.slice(0, 3), recycle: true });
+  const original = screen.getAllByRole("link");
+  h.rerender(keys.slice(100, 103));
+  expect(screen.getAllByRole("link")).toEqual(original);
+  expect(screen.getAllByRole("link").map(node => node.textContent)).toEqual(keys.slice(100, 103));
+  expect(reads).not.toHaveBeenCalled();
+  expect(resizeCallbacks).toHaveLength(0);
+});
+
+it("still windows a short list whose items represent large subtrees", () => {
+  const h = setup({ items: keys.slice(0, 8), subtreeRows: 100 });
+  expect(screen.getAllByRole("link").length).toBeLessThan(8);
+  expect(h.holes()).toHaveLength(0);
+  expect(resizeCallbacks.length).toBeGreaterThan(0);
+});
+
+it("switches between tiny and large lists without leaving visible gaps", () => {
+  const h = setup({ items: keys.slice(0, 3), focus: "thread-1" });
+  expect(document.activeElement?.textContent).toBe("thread-1");
+  h.rerender(keys);
+  expect(h.holes()).toHaveLength(0);
+  expect(screen.getAllByRole("link").length).toBeLessThan(100);
+  h.rerender(keys.slice(0, 3));
+  expect(screen.getAllByRole("link")).toHaveLength(3);
+  expect(h.holes()).toHaveLength(0);
+});

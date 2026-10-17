@@ -26,6 +26,7 @@ const RECYCLED_OVERSCAN_PX = 32;
 const ROW_CACHE_LIMIT = 48;
 const RECYCLED_ROW_TARGET = 24;
 const MIN_SPARE_CELLS = 4;
+const INTRINSIC_ROW_LIMIT = 8;
 
 interface SidebarWindowedItemsProps {
   /** Only opt in for rows whose owner state is external or reset on identity changes. */
@@ -180,6 +181,11 @@ export function SidebarWindowedItems({
     }
     return { offsets, counts };
   }, [itemKeys, estimateRows, measurementVersion]);
+  // Small child windows already have a bounded parent. Keep recycling their
+  // cells, but let intrinsic layout replace their own scroll/resize machinery.
+  const intrinsic =
+    itemKeys.length <= INTRINSIC_ROW_LIMIT &&
+    model.counts.reduce((sum, rows) => sum + rows, 0) <= INTRINSIC_ROW_LIMIT;
   const measurementContextRef = useRef({
     indexByKey,
     model,
@@ -225,7 +231,8 @@ export function SidebarWindowedItems({
     [],
   );
   const resolveVisibleRange = useCallback(() => {
-    if (scrollRef === null) return [0, itemKeys.length - 1] as [number, number];
+    if (intrinsic || scrollRef === null)
+      return [0, itemKeys.length - 1] as [number, number];
     const s =
       scrollRef?.current ??
       containerRef.current?.closest<HTMLElement>("[data-sidebar=content]");
@@ -244,7 +251,7 @@ export function SidebarWindowedItems({
         lowerBound(model.offsets, bottom + overscan),
       ),
     ] as [number, number];
-  }, [scrollRef, model, itemKeys.length, overscan]);
+  }, [scrollRef, model, itemKeys.length, overscan, intrinsic]);
   const resolveVisibleRangeRef = useRef(resolveVisibleRange);
   resolveVisibleRangeRef.current = resolveVisibleRange;
   useLayoutEffect(() => {
@@ -259,6 +266,7 @@ export function SidebarWindowedItems({
     }
   }, [resolveVisibleRange, freeze]);
   useLayoutEffect(() => {
+    if (intrinsic) return;
     const scrollElement =
       scrollRef?.current ??
       containerRef.current?.closest<HTMLElement>('[data-sidebar="content"]');
@@ -320,12 +328,13 @@ export function SidebarWindowedItems({
       observer.disconnect();
       unsubscribeScroll();
     };
-  }, [scrollRef]);
+  }, [scrollRef, intrinsic]);
   // Leaf rows use the calibrated stride until ResizeObserver reports their
   // size. Reading every leaf here forces a second layout during cold mounts.
   // A new composite can contain a collapsed preview, so measure that unknown
   // shape before paint rather than exposing a spacer below a short subtree.
   useLayoutEffect(() => {
+    if (intrinsic) return;
     let changed = false;
     for (const [key, node] of wrapperByKeyRef.current) {
       const index = indexByKey.get(key);
@@ -351,13 +360,14 @@ export function SidebarWindowedItems({
       if (Math.abs(expected - height) > 0.5) changed = true;
     }
     if (changed) setMeasurementVersion((version) => version + 1);
-  }, [visibleRange, itemKeys, indexByKey, model]);
+  }, [visibleRange, itemKeys, indexByKey, model, intrinsic]);
   useLayoutEffect(() => {
+    if (intrinsic) return;
     const element =
       scrollRef?.current ??
       containerRef.current?.closest<HTMLElement>('[data-sidebar="content"]');
     if (element) refreshSidebarScrollWindows(element);
-  }, [model, scrollRef]);
+  }, [model, scrollRef, intrinsic]);
   useLayoutEffect(() => {
     if (focusItemKey)
       wrapperByKeyRef.current
