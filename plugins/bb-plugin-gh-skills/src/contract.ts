@@ -5,6 +5,7 @@ import { repositoryInput } from "./repository";
 export const installedSkill = z.object({
   id: z.string(), skillName: z.string(), sourceURL: z.string(),
   version: z.string(), pinned: z.boolean(), path: z.string(),
+  description: z.string().default(""), sourcePath: z.string().default(""),
 });
 export type InstalledSkill = z.infer<typeof installedSkill>;
 const searchSkill = z.object({
@@ -20,13 +21,20 @@ export const sourceInput = z.object({
 const output = z.object({ output: z.string() });
 export const skillOperation = z.object({
   id: z.string(), kind: z.enum(["install", "update", "check", "remove"]), target: z.string(),
+  repository: z.string().optional(),
   state: z.enum(["running", "succeeded", "failed"]), startedAt: z.number(), finishedAt: z.number().optional(),
   output: z.string().optional(), error: z.string().optional(),
 });
 export type SkillOperation = z.infer<typeof skillOperation>;
+export const skillUpdateCheck = output.extend({
+  checkedAt: z.number(),
+  updates: z.array(z.object({ skillName: z.string(), repository: z.string(), from: z.string(), to: z.string(), ref: z.string() })),
+});
+export type SkillUpdateCheck = z.infer<typeof skillUpdateCheck>;
 
 export const rpcContract = defineRpcContract({
   "skills.operation": { input: z.null(), output: skillOperation.nullable() },
+  "skills.check": { input: z.object({ force: z.boolean().default(false) }).strict(), output: skillUpdateCheck },
   "skills.list": {
     input: z.null(),
     output: z.object({ directory: z.string(), skills: z.array(installedSkill) }),
@@ -49,9 +57,12 @@ export const rpcContract = defineRpcContract({
   },
   "skills.remove": { input: z.object({ id: argument }).strict(), output },
   "skills.search": {
-    input: z.object({ query: argument, owner: argument.optional(), page: z.number().int().min(1).max(100).default(1) }).strict(),
+    input: z.object({ query: argument, owner: argument.optional(), page: z.number().int().min(1).max(100).default(1), limit: z.number().int().min(1).max(20).default(20) }).strict(),
     output: z.object({ skills: z.array(searchSkill) }),
   },
-  "skills.preview": { input: sourceInput.required({ skill: true }).strict(), output },
-  "skills.discover": { input: sourceInput.omit({ skill: true }).strict(), output },
+  "skills.preview": { input: sourceInput.required({ skill: true }).strict(), output: output.extend({ content: z.string().optional(), description: z.string().optional(), sourcePath: z.string().optional(), ref: z.string().optional() }) },
+  "skills.discover": {
+    input: sourceInput.omit({ skill: true }).extend({ pin: argument.optional() }).strict(),
+    output: output.extend({ skills: z.array(z.object({ name: z.string(), description: z.string() })) }),
+  },
 });

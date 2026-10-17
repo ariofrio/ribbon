@@ -15,7 +15,7 @@ beforeEach(async () => {
   await mkdir(bin);
   reply = join(directory, "reply.json"); calls = join(directory, "calls.jsonl");
   await writeFile(reply, JSON.stringify({ stdout: "[]" }));
-  await writeFile(join(bin, "gh"), `#!${process.execPath}\nimport fs from 'node:fs';fs.appendFileSync(${JSON.stringify(calls)},JSON.stringify(process.argv.slice(2))+'\\n');const r=JSON.parse(fs.readFileSync(${JSON.stringify(reply)},'utf8'));if(r.delay)await new Promise(resolve=>setTimeout(resolve,r.delay));process.stdout.write(r.stdout||'');process.stderr.write(r.stderr||'');process.exitCode=r.code||0;\n`);
+  await writeFile(join(bin, "gh"), `#!${process.execPath}\nimport fs from 'node:fs';const args=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(calls)},JSON.stringify(args)+'\\n');const config=JSON.parse(fs.readFileSync(${JSON.stringify(reply)},'utf8'));const r=config.responses?.[args[1]]??config;if(r.delay)await new Promise(resolve=>setTimeout(resolve,r.delay));process.stdout.write(r.stdout||'');process.stderr.write(r.stderr||'');process.exitCode=r.code||0;\n`);
   await chmod(join(bin, "gh"), 0o755);
   vi.stubEnv("PATH", `${bin}${delimiter}${process.env.PATH}`);
   host = createFakePluginHost({ pluginId: "gh-skills", dataDir: join(directory, "server-data") });
@@ -120,4 +120,41 @@ test("retains command failures for a client that reopens the page", async () => 
   await expect(host.harness.behavior.callRpc("skills.install", { repository: "example/private-skills", skill: "models" })).rejects.toThrow("Run gh auth login");
   await host.harness.lifecycle.reload(plugin);
   expect(await host.harness.behavior.callRpc("skills.operation", null)).toMatchObject({ state: "failed", error: "Run gh auth login on this server" });
+});
+
+test("shows installed skill descriptions and previews instructions without tracking frontmatter", async () => {
+  const folder = join(directory, "server-data/skills/models");
+  await mkdir(folder, { recursive: true });
+  await writeFile(join(folder, "SKILL.md"), "---\nname: models\ndescription: >-\n  Query available models\n  and compare providers.\nmetadata:\n  github-path: skills/models\n---\n# Model guide\n\nUse the model catalog.\n");
+  await writeFile(reply, JSON.stringify({ stdout: JSON.stringify([{ skillName: "models", sourceURL: "https://github.com/example/skills", version: "v1", pinned: false, path: folder }]) }));
+  expect(await host.harness.behavior.callRpc("skills.list", null)).toMatchObject({ skills: [{ description: "Query available models and compare providers.", sourcePath: "skills/models" }] });
+  expect(await host.harness.behavior.callRpc("skills.read", { id: "models" })).toEqual({ content: "# Model guide\n\nUse the model catalog.\n" });
+});
+
+test("provides original Markdown for a remote file at gh's selected release", async () => {
+  await writeFile(reply, JSON.stringify({ responses: {
+    preview: { stdout: "Terminal preview" },
+    "repos/example/skills/releases/latest": { stdout: '{"tag_name":"v2"}' },
+    "repos/example/skills/contents/skills/models/SKILL.md?ref=v2": { stdout: "---\nname: models\ndescription: Query available models\n---\n# Model guide\n\nRead **these** instructions.\n" },
+  } }));
+  expect(await host.harness.behavior.callRpc("skills.preview", { repository: "example/skills", skill: "skills/models/SKILL.md" })).toMatchObject({ content: "# Model guide\n\nRead **these** instructions.\n", description: "Query available models", sourcePath: "skills/models/SKILL.md", ref: "v2", output: "Terminal preview" });
+});
+
+test("lists selectable repository skills at the requested pin without installing anything", async () => {
+  await writeFile(reply, JSON.stringify({ stdout: "models\tCompare model providers\nauthor/review\tReview changes", stderr: "Using ref v1" }));
+  expect(await host.harness.behavior.callRpc("skills.discover", { repository: "example/skills", pin: "v1" })).toMatchObject({ skills: [
+    { name: "models", description: "Compare model providers" }, { name: "author/review", description: "Review changes" },
+  ] });
+  const args = JSON.parse((await readFile(calls, "utf8")).trim());
+  expect(args).toEqual(expect.arrayContaining(["--pin", "v1"]));
+  expect(args).not.toContain("--all");
+  expect(args.slice(args.indexOf("--") + 1)).toEqual(["example/skills"]);
+});
+
+test("reports gh update candidates for cards and confirmations without applying them", async () => {
+  await writeFile(reply, JSON.stringify({ stdout: "  • models (example/skills) abc1234 > def5678 [v2]\n", stderr: "1 update(s) available:\n⊘ review is pinned to v1 (skipped)" }));
+  expect(await host.harness.behavior.callRpc("skills.check", {})).toMatchObject({ updates: [{ skillName: "models", repository: "example/skills", from: "abc1234", to: "def5678", ref: "v2" }] });
+  const args = JSON.parse((await readFile(calls, "utf8")).trim());
+  expect(args).toEqual(expect.arrayContaining(["update", "--all", "--dry-run"]));
+  expect(args).not.toContain("--unpin");
 });

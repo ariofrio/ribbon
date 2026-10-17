@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { experimental_usePluginId } from "@get-bb/plugin-sdk/app";
 import type { SearchSkill } from "./contract";
 
@@ -65,4 +65,21 @@ export function cacheSearch(key: string, value: SearchPage) {
   searches.delete(key);
   searches.set(key, value);
   if (searches.size > 20) searches.delete(searches.keys().next().value!);
+}
+
+const scrollPositions = new Map<string, number>();
+export function useCollectionScroll(key: string, isDetail: boolean, items: unknown) {
+  const viewport = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const node = viewport.current;
+    if (!node || isDetail) return;
+    node.scrollTop = scrollPositions.get(key) ?? 0;
+    const remember = () => {
+      scrollPositions.delete(key); scrollPositions.set(key, node.scrollTop);
+      if (scrollPositions.size > 50) scrollPositions.delete(scrollPositions.keys().next().value!);
+    };
+    node.addEventListener("scroll", remember);
+    return () => node.removeEventListener("scroll", remember);
+  }, [key, isDetail, items]);
+  return viewport;
 }

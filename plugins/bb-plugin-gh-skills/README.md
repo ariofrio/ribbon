@@ -1,8 +1,10 @@
 # Skills
 
-Manage skills on the bb server with GitHub CLI’s `gh skill` commands. The **Skills** page provides GitHub search, repository discovery and preview, installation, update checks, updates, and removal.
+Manage skills on the bb server with GitHub CLI’s `gh skill` commands. Browse skills through GitHub search and discovery shelves, preview their instructions, and install from a search result or repository. Repository discovery offers selectable skills at the chosen pin.
 
-Browse and Installed appear in BB’s left sidebar and use its resource cards and search toolbars. Search GitHub as you type, install a result directly, and open a skill’s detail page without losing browser navigation. Installed skills support local search and name sorting. Card menus provide update and uninstall actions; update dialogs keep force and unpin options under Advanced options.
+Browse and Installed appear in BB’s left sidebar and use its resource cards and search toolbars. Search, owner filters, and installed-name sorting survive navigation. Returning from details restores loaded search results and scroll position; more results load as you scroll, with a Load more button available too.
+
+Installed cards show descriptions, versions, pins, and available updates. Detail pages show instructions, source information, and update status. Installed instructions omit tracking frontmatter. Remote previews render original Markdown when an exact SKILL.md path is available, using authenticated GitHub CLI on the server; other previews retain gh’s terminal output. GitHub CLI details remain available alongside formatted previews and update summaries.
 
 Install from Ribbon:
 
@@ -23,11 +25,11 @@ The plugin adds its own Skills navigation entry. You can hide the built-in Skill
 - Without a pin, installation selects the latest repository release, falling back to the default branch.
 - Explicit pins, including branch pins, are skipped by ordinary updates. **Remove pins and include pinned skills** passes `--unpin`.
 - **Force re-download** passes `--force`. Updates can overwrite local edits; the plugin does not preserve customizations, restore executable bits, or implement a separate version tracker.
-- Checks show `gh skill update --dry-run` output directly. Preview and operation output also come from GitHub CLI.
+- Installed pages check for updates automatically. Checks are cached for five minutes; **Check for updates** requests a fresh check. Candidate summaries reflect gh’s dry-run output, and the update command resolves the source again when applied. CLI details preserve warnings, skipped skills, and output that cannot be summarized.
 - Installed skills without source metadata appear in the list; non-interactive updates skip them according to GitHub CLI’s behavior.
-- Removal deletes the selected skill directory after confirmation. GitHub CLI currently provides no skill-removal command. Its shared lockfile is left to GitHub CLI.
+- Uninstall deletes the selected skill directory after confirmation. GitHub CLI currently provides no skill-removal command. Its shared lockfile is left to GitHub CLI.
 
-Operations run on the server and are serialized within the plugin. Every window shows the active operation and disables conflicting actions. The latest result is retained across navigation and plugin reloads. Closing the page does not cancel an already-running command. Reloading or disabling the plugin stops its child processes; an interrupted operation is reported on the next load. Errors from GitHub CLI, including authentication and preview-API errors, appear on the page.
+Operations run on the server and are serialized within the plugin. Install and update dialogs close while the command runs; failures reopen the form with its inputs intact. Every window shows the active operation and disables conflicting actions. The latest result is retained across navigation and plugin reloads. Closing the page does not cancel an already-running command. Reloading or disabling the plugin stops its child processes; an interrupted operation is reported on the next load. Errors from GitHub CLI, including authentication and preview-API errors, appear on the page.
 
 ## Development
 
