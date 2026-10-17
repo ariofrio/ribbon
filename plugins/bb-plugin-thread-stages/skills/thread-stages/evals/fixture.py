@@ -12,7 +12,10 @@ def invoke(workspace, args):
         fcntl.flock(lock, fcntl.LOCK_EX)
         state = json.loads((workspace / "state.json").read_text())
         record = {"args": args, "before": state["stage"], "error": False}
-        code, output = dispatch(state, args, record)
+        if args == ["files", "read", "work.json"] and (workspace / "work.json").exists():
+            code, output = 0, (workspace / "work.json").read_text()
+        else:
+            code, output = dispatch(state, args, record)
         record["after"] = state["stage"]
         (workspace / "state.json").write_text(json.dumps(state))
         with (workspace / "calls.jsonl").open("a") as calls:
@@ -26,10 +29,19 @@ def dispatch(state, args, record):
         return 2, {"error": message}
 
     if not args or args == ["--help"]:
-        return 0, "bb: status, thread-stages, thread show"
+        return 0, "bb: status, thread-stages, thread show, files read <path>"
+    if args in (["files"], ["files", "--help"], ["files", "read", "--help"]):
+        return 0, "Usage: bb files read <path>"
+    if args[:2] == ["files", "read"]:
+        if len(args) != 3 or args[2] not in state.get("files", {}):
+            return error("Unknown workspace file; use bb files read <path>")
+        record["source_read"] = args[2]
+        return 0, state["files"][args[2]]
     if args in (["status"], ["status", "--json"]):
         return 0, {"thread": {"id": state["id"]}, "stage": state["stage"]}
     if args[:2] == ["thread", "show"]:
+        if args[2:] == ["--help"]:
+            return 0, "Usage: bb thread show <thread> [--json]; use thr_eval for this thread"
         if not valid_target(state, args[2:]):
             return error("Unknown thread or unsupported arguments")
         record["inspected"] = True
@@ -108,7 +120,7 @@ def valid_target(state, args):
 
 
 def row(state):
-    return {"id": state["id"], "title": "Evaluation workflow", "stage": state["stage"],
+    return {"id": state["id"], "title": "Current workflow", "stage": state["stage"],
             "status": "active", "archivedAt": None}
 
 

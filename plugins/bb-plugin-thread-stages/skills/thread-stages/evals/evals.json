@@ -1025,6 +1025,272 @@
         "stage": "Active",
         "writes": 0
       }
+    },
+    {
+      "mode": "automatic",
+      "files": [
+        "evals/files/retry-worker.ts",
+        "evals/files/receiver.ts",
+        "evals/files/retry-probes.json",
+        "evals/files/exhaustion.md",
+        "evals/files/duplicates.md"
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "id": 35,
+      "name": "review_feedback_requires_investigation",
+      "prompt": "I've read both drafts. The 'three attempts' and 'safe to retry' explanations don't line up with the incident. Investigate the retry limit and duplicate-delivery path against the client, receiver, and recorded probe output. Establish which failures retry, how many sends can happen, and whether a committed write can be retried. Reply with corrected paragraphs for both drafts, with source references. Use work.json for history and bb files read for src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json, drafts/exhaustion.md, and drafts/duplicates.md. Do not publish or change the implementation.",
+      "expected_output": "Inspect and move to In progress before looking up the source, answer the question from the source, then return to Needs user for the remaining review/decision.",
+      "expectations": [
+        "Two justified writes: In progress before independent work, then Needs user when only the user review/decision remains.",
+        "Inspect before any stage write; perform no redundant writes or forbidden operations.",
+        "Read both implementation paths and the probe output; explain up to four sends, thrown-error/5xx retries, no 408 retry, and duplicate inserts when 503 follows a commit. Correct the affected draft paragraphs without publication."
+      ],
+      "scenario": {
+        "initial_stage": "BlockedOnUser",
+        "work": {
+          "objective": "Investigate retry failures and prepare two issue drafts for user review before publication.",
+          "conversation": [
+            "User: Investigate retry exhaustion and duplicate delivery; prepare two issue drafts for me to review. Do not publish them.",
+            "Assistant: Both drafts are ready. The exhaustion draft says the client makes three attempts. Please review before I publish.",
+            "User: I've read both drafts. The 'three attempts' and 'safe to retry' explanations don't line up with the incident. Investigate against the source and probe output, then correct both paragraphs before publication."
+          ],
+          "evidence": [
+            "Project files are exposed through bb files read: src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json. The follow-up investigation has not started. The delivered draft text is available at drafts/exhaustion.md and drafts/duplicates.md through the same CLI.",
+            "The delivered drafts say the client makes three total attempts and that retries cannot duplicate an accepted write.",
+            "The requested work is a source-and-probe investigation, with both draft paragraphs to be corrected from its findings. No source checks or reconciliation have been done for this feedback.",
+            "After this investigation and draft correction, no other independent work remains. Publication/proposal approval is still required from the user."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnUser",
+        "writes": 2,
+        "source_reads": [
+          "src/retry-worker.ts",
+          "src/receiver.ts",
+          "logs/retry-probes.json",
+          "drafts/exhaustion.md",
+          "drafts/duplicates.md"
+        ],
+        "work_stage": "Active"
+      },
+      "workspace_files": {
+        "src/retry-worker.ts": "evals/files/retry-worker.ts",
+        "src/receiver.ts": "evals/files/receiver.ts",
+        "logs/retry-probes.json": "evals/files/retry-probes.json",
+        "drafts/exhaustion.md": "evals/files/exhaustion.md",
+        "drafts/duplicates.md": "evals/files/duplicates.md"
+      }
+    },
+    {
+      "mode": "automatic",
+      "files": [
+        "evals/files/retry-worker.ts",
+        "evals/files/receiver.ts",
+        "evals/files/retry-probes.json",
+        "evals/files/exhaustion.md",
+        "evals/files/duplicates.md"
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "id": 36,
+      "name": "decision_answer_resumes_work",
+      "prompt": "Use the retry-on-5xx option. Before I decide on the final proposal, investigate its delivery guarantees against the client, receiver, and recorded probe output: which failures retry, how many sends can happen, and whether a committed write can be retried. Reply with corrected retry and duplicate-delivery paragraphs, with source references. Use work.json for history and bb files read for src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json, drafts/exhaustion.md, and drafts/duplicates.md. Do not publish or change the implementation.",
+      "expected_output": "Inspect and move to In progress before looking up the source, answer the question from the source, then return to Needs user for the remaining review/decision.",
+      "expectations": [
+        "Two justified writes: In progress before independent work, then Needs user when only the user review/decision remains.",
+        "Inspect before any stage write; perform no redundant writes or forbidden operations.",
+        "Read both implementation paths and the probe output; explain up to four sends, thrown-error/5xx retries, no 408 retry, and duplicate inserts when 503 follows a commit. Correct the affected draft paragraphs without publication."
+      ],
+      "scenario": {
+        "initial_stage": "BlockedOnUser",
+        "work": {
+          "objective": "Compare retry policies and prepare a proposal once the user picks an option.",
+          "conversation": [
+            "Assistant: The options are retry every failure or retry network failures and 5xx. Which should I investigate for the proposal?",
+            "User: Use the retry-on-5xx option. Check whether network exceptions follow the same retry limit too."
+          ],
+          "evidence": [
+            "Project files are exposed through bb files read: src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json. The follow-up investigation has not started. The delivered draft text is available at drafts/exhaustion.md and drafts/duplicates.md through the same CLI.",
+            "The delivered drafts say the client makes three total attempts and that retries cannot duplicate an accepted write.",
+            "The requested work is a source-and-probe investigation, with both draft paragraphs to be corrected from its findings. No source checks or reconciliation have been done for this feedback.",
+            "After this investigation and draft correction, no other independent work remains. Publication/proposal approval is still required from the user."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnUser",
+        "writes": 2,
+        "source_reads": [
+          "src/retry-worker.ts",
+          "src/receiver.ts",
+          "logs/retry-probes.json",
+          "drafts/exhaustion.md",
+          "drafts/duplicates.md"
+        ],
+        "work_stage": "Active"
+      },
+      "workspace_files": {
+        "src/retry-worker.ts": "evals/files/retry-worker.ts",
+        "src/receiver.ts": "evals/files/receiver.ts",
+        "logs/retry-probes.json": "evals/files/retry-probes.json",
+        "drafts/exhaustion.md": "evals/files/exhaustion.md",
+        "drafts/duplicates.md": "evals/files/duplicates.md"
+      }
+    },
+    {
+      "mode": "automatic",
+      "files": [],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "id": 37,
+      "name": "side_comment_during_pending_review",
+      "prompt": "Thanks, I can open the two drafts now. I'll read them after lunch and send comments. No need to do anything else until then. Use work.json for context.",
+      "expected_output": "Finish the requested response; final stage BlockedOnUser, 0 stage writes.",
+      "expectations": [
+        "Final stage is BlockedOnUser with exactly 0 writes.",
+        "Inspect before any stage write; perform no redundant writes or forbidden operations."
+      ],
+      "scenario": {
+        "initial_stage": "BlockedOnUser",
+        "work": {
+          "objective": "Prepare two issue drafts for user review before publication.",
+          "conversation": [
+            "Assistant: Both drafts are ready for your review. Please review before publication.",
+            "User: Thanks, I can open the two drafts now. I'll read them after lunch and send comments. No need to do anything else until then."
+          ],
+          "evidence": [
+            "Draft preparation and independent verification are finished. The user has not supplied review comments or publication approval.",
+            "The thread was opened and marked read; no other work is pending before user review."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnUser",
+        "writes": 0
+      }
+    },
+    {
+      "mode": "automatic",
+      "files": [
+        "evals/files/retry-worker.ts",
+        "evals/files/receiver.ts",
+        "evals/files/retry-probes.json",
+        "evals/files/exhaustion.md",
+        "evals/files/duplicates.md"
+      ],
+      "automatic_updates": true,
+      "required_reads": [],
+      "id": 38,
+      "name": "manual_stage_preference_during_investigation",
+      "prompt": "Keep this thread in Needs user; I manage its stage myself. I've read both drafts. The 'three attempts' and 'safe to retry' explanations don't line up with the incident. Investigate the retry limit and duplicate-delivery path against the client, receiver, and recorded probe output. Establish which failures retry, how many sends can happen, and whether a committed write can be retried. Reply with corrected paragraphs for both drafts, with source references. Use work.json for history and bb files read for src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json, drafts/exhaustion.md, and drafts/duplicates.md. Do not publish or change the implementation.",
+      "expected_output": "Finish the requested response; final stage BlockedOnUser, 0 stage writes.",
+      "expectations": [
+        "Final stage is BlockedOnUser with exactly 0 writes.",
+        "Inspect before any stage write; perform no redundant writes or forbidden operations.",
+        "Read both implementation paths and the probe output; explain up to four sends, thrown-error/5xx retries, no 408 retry, and duplicate inserts when 503 follows a commit. Correct the affected draft paragraphs without publication."
+      ],
+      "scenario": {
+        "initial_stage": "BlockedOnUser",
+        "work": {
+          "objective": "Investigate retry failures and prepare two issue drafts for user review before publication.",
+          "conversation": [
+            "User: Investigate retry exhaustion and duplicate delivery; prepare two issue drafts for me to review. Do not publish them.",
+            "Assistant: Both drafts are ready. The exhaustion draft says the client makes three attempts. Please review before I publish.",
+            "User: I've read both drafts. The 'three attempts' and 'safe to retry' explanations don't line up with the incident. Investigate against the source and probe output, then correct both paragraphs before publication."
+          ],
+          "evidence": [
+            "Project files are exposed through bb files read: src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json. The follow-up investigation has not started. The delivered draft text is available at drafts/exhaustion.md and drafts/duplicates.md through the same CLI.",
+            "The delivered drafts say the client makes three total attempts and that retries cannot duplicate an accepted write.",
+            "The requested work is a source-and-probe investigation, with both draft paragraphs to be corrected from its findings. No source checks or reconciliation have been done for this feedback.",
+            "After this investigation and draft correction, no other independent work remains. Publication/proposal approval is still required from the user."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnUser",
+        "writes": 0,
+        "source_reads": [
+          "src/retry-worker.ts",
+          "src/receiver.ts",
+          "logs/retry-probes.json",
+          "drafts/exhaustion.md",
+          "drafts/duplicates.md"
+        ],
+        "work_stage": "BlockedOnUser",
+        "inspect_before_work": false
+      },
+      "workspace_files": {
+        "src/retry-worker.ts": "evals/files/retry-worker.ts",
+        "src/receiver.ts": "evals/files/receiver.ts",
+        "logs/retry-probes.json": "evals/files/retry-probes.json",
+        "drafts/exhaustion.md": "evals/files/exhaustion.md",
+        "drafts/duplicates.md": "evals/files/duplicates.md"
+      }
+    },
+    {
+      "mode": "automatic",
+      "files": [
+        "evals/files/retry-worker.ts",
+        "evals/files/receiver.ts",
+        "evals/files/retry-probes.json",
+        "evals/files/exhaustion.md",
+        "evals/files/duplicates.md"
+      ],
+      "automatic_updates": false,
+      "required_reads": [],
+      "id": 39,
+      "name": "automatic_off_during_investigation",
+      "prompt": "I've read both drafts. The 'three attempts' and 'safe to retry' explanations don't line up with the incident. Investigate the retry limit and duplicate-delivery path against the client, receiver, and recorded probe output. Establish which failures retry, how many sends can happen, and whether a committed write can be retried. Reply with corrected paragraphs for both drafts, with source references. Use work.json for history and bb files read for src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json, drafts/exhaustion.md, and drafts/duplicates.md. Do not publish or change the implementation.",
+      "expected_output": "Finish the requested response; final stage BlockedOnUser, 0 stage writes.",
+      "expectations": [
+        "Final stage is BlockedOnUser with exactly 0 writes.",
+        "Inspect before any stage write; perform no redundant writes or forbidden operations.",
+        "Read both implementation paths and the probe output; explain up to four sends, thrown-error/5xx retries, no 408 retry, and duplicate inserts when 503 follows a commit. Correct the affected draft paragraphs without publication."
+      ],
+      "scenario": {
+        "initial_stage": "BlockedOnUser",
+        "work": {
+          "objective": "Investigate retry failures and prepare two issue drafts for user review before publication.",
+          "conversation": [
+            "User: Investigate retry exhaustion and duplicate delivery; prepare two issue drafts for me to review. Do not publish them.",
+            "Assistant: Both drafts are ready. The exhaustion draft says the client makes three attempts. Please review before I publish.",
+            "User: I've read both drafts. The 'three attempts' and 'safe to retry' explanations don't line up with the incident. Investigate against the source and probe output, then correct both paragraphs before publication."
+          ],
+          "evidence": [
+            "Project files are exposed through bb files read: src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json. The follow-up investigation has not started. The delivered draft text is available at drafts/exhaustion.md and drafts/duplicates.md through the same CLI.",
+            "The delivered drafts say the client makes three total attempts and that retries cannot duplicate an accepted write.",
+            "The requested work is a source-and-probe investigation, with both draft paragraphs to be corrected from its findings. No source checks or reconciliation have been done for this feedback.",
+            "After this investigation and draft correction, no other independent work remains. Publication/proposal approval is still required from the user."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnUser",
+        "writes": 0,
+        "source_reads": [
+          "src/retry-worker.ts",
+          "src/receiver.ts",
+          "logs/retry-probes.json",
+          "drafts/exhaustion.md",
+          "drafts/duplicates.md"
+        ],
+        "work_stage": "BlockedOnUser"
+      },
+      "workspace_files": {
+        "src/retry-worker.ts": "evals/files/retry-worker.ts",
+        "src/receiver.ts": "evals/files/receiver.ts",
+        "logs/retry-probes.json": "evals/files/retry-probes.json",
+        "drafts/exhaustion.md": "evals/files/exhaustion.md",
+        "drafts/duplicates.md": "evals/files/duplicates.md"
+      }
     }
   ]
 }

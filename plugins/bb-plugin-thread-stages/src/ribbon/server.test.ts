@@ -20,7 +20,8 @@ describe("automatic stage guidance", () => {
       expect(resolved.instructions).toContain("thread-stages skill");
       expect(resolved.instructions).toContain("Read the thread-stages skill");
       expect(resolved.instructions).toContain("overall workflow state");
-      expect(resolved.instructions).toContain("only when it no longer fits");
+      expect(resolved.instructions).toContain("before resuming independent work");
+      expect(resolved.instructions).toContain("when it no longer fits");
       expect(resolved.instructions).toContain("unresolved findings and follow-up responsibility");
       expect(resolved.instructions).toContain("submission alone does not establish closure");
       expect(resolved.instructions).not.toContain("BlockedOnOtherAgent");

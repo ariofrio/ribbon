@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the committed cases in fresh Claude Code sessions with a local BB fixture."""
+"""Run the committed cases in fresh Codex or Claude sessions with a local BB fixture."""
 
 import argparse
 from datetime import datetime, timezone
@@ -73,14 +73,16 @@ def prepare_case(workspace, case, source):
                       + shlex.quote(str(workspace / "fixture.py")) + ' "$@"\n')
     binary.chmod(0o755)
     (workspace / "state.json").write_text(json.dumps({"id": "thr_eval", "stage": stage,
-        "stages": source["stages"], "automaticStageUpdates": case["automatic_updates"]}))
+        "stages": source["stages"], "automaticStageUpdates": case["automatic_updates"],
+        "files": {name: (HERE.parent / path).read_text()
+                  for name, path in case.get("workspace_files", {}).items()}}))
     if case["mode"] == "automatic":
         (workspace / "work.json").write_text(json.dumps(case["scenario"]["work"], indent=2))
     skill = workspace / "skills/thread-stages/SKILL.md"
     description = re.search(r"^description: (.+)$", skill.read_text(), re.M)[1]
     guidance = source["instructions"]["on" if case["automatic_updates"] else "off"]
     system = f"""You are a coding agent working inside BB. Carry out the user's request with the available tools.
-This workspace is an evaluation fixture. Its BB CLI only simulates local thread state; never connect to live services, send messages, or start jobs. Do not fabricate evidence or arrangements.
+The BB CLI is isolated and serves local thread state and recorded project files; never connect to live services, send messages, or start jobs. Do not fabricate evidence or arrangements.
 The BB CLI is on PATH, with absolute path {binary}. BB_THREAD_ID is thr_eval.
 Stage IDs available in this fixture: {', '.join(source['stages'])}.
 {'work.json contains the complete relevant conversation and verified workflow evidence.' if case['mode'] == 'automatic' else 'The user message supplies the relevant workflow context. Follow its limits on execution.'}
@@ -108,17 +110,49 @@ When using a skill, open and read its SKILL.md. Apply relevant skills without re
     return system, prompt
 
 
-def run_case(workspace, case, source, claude, timeout):
+def normalize_events(events, runtime):
+    """Adapt actual Codex command results to the shared tool-evidence reader."""
+    if runtime == "claude":
+        return events
+    normalized = []
+    answer = ""
+    for event in events:
+        item = event.get("item", {})
+        if event.get("type") == "item.completed" and item.get("type") == "command_execution":
+            normalized.extend([
+                {"type": "assistant", "message": {"content": [{"type": "tool_use",
+                    "id": item["id"], "name": "Bash", "input": {"command": item["command"]}}]}},
+                {"type": "user", "message": {"content": [{"type": "tool_result",
+                    "tool_use_id": item["id"], "is_error": item.get("exit_code") != 0,
+                    "content": item.get("aggregated_output", "")}]}},
+            ])
+        elif event.get("type") == "item.completed" and item.get("type") == "agent_message":
+            answer = item["text"]
+        elif event.get("type") == "turn.completed":
+            normalized.append({"type": "result", "is_error": False, "result": answer})
+    return normalized
+
+
+def run_case(workspace, case, source, executable, timeout, runtime):
     system, prompt = prepare_case(workspace, case, source)
     env = {key: value for key, value in os.environ.items() if not key.startswith("BB_")}
     env.update(PATH=str(workspace / "bin") + os.pathsep + env["PATH"], BB_THREAD_ID="thr_eval")
     env.pop("CLAUDECODE", None)
-    args = [claude, "--safe-mode", "--system-prompt", system, "--print", "--no-session-persistence",
-            "--output-format", "stream-json", "--verbose", "--tools", "Bash,Read",
-            "--allowedTools", "Bash", "Read", "--permission-prompts", "none", prompt]
+    if runtime == "claude":
+        args = [executable, "--safe-mode", "--system-prompt", system, "--print", "--no-session-persistence",
+                "--output-format", "stream-json", "--verbose", "--tools", "Bash,Read",
+                "--allowedTools", "Bash", "Read", "--permission-prompts", "none", prompt]
+    else:
+        args = [executable, "exec", "--ignore-user-config", "--ignore-rules", "--ephemeral",
+                "--skip-git-repo-check", "--sandbox", "workspace-write", "--json",
+                "-c", "project_doc_max_bytes=0", "-c", "skills.include_instructions=false",
+                "-c", "allow_login_shell=false", "-c", 'shell_environment_policy.inherit="all"',
+                "-c", "model_instructions_file=" + json.dumps(str(workspace / "system.txt")),
+                "--output-last-message", str(workspace / "assistant.md"), prompt]
+    (workspace / "command.json").write_text(json.dumps(args, indent=2) + "\n")
     began = time.monotonic()
     with (workspace / "transcript.jsonl").open("w") as stdout, (workspace / "stderr.txt").open("w") as stderr:
-        process = subprocess.Popen(args, cwd=workspace, env=env, stdout=stdout, stderr=stderr,
+        process = subprocess.Popen(args, cwd=workspace, env=env, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr,
                                    start_new_session=True)
         try:
             exit_code = process.wait(timeout=timeout)
@@ -131,12 +165,24 @@ def run_case(workspace, case, source, claude, timeout):
                 process.wait()
             exit_code = "timeout"
     events = [json.loads(line) for line in (workspace / "transcript.jsonl").read_text().splitlines()]
+    events = normalize_events(events, runtime)
     result = grade_run(case, workspace, events, exit_code)
+    (workspace / "assistant.md").write_text((result.get("answer") or "") + "\n")
     init = next((e for e in events if e.get("type") == "system" and e.get("subtype") == "init"), {})
     result.update(model=init.get("model"), sessionId=init.get("session_id"),
-                  seconds=round(time.monotonic() - began, 2), sourceRef=source["ref"])
+                  seconds=round(time.monotonic() - began, 2), sourceRef=source["ref"], runtime=runtime)
     (workspace / "result.json").write_text(json.dumps(result, indent=2) + "\n")
+    write_grading(workspace, result)
     return result
+
+
+def write_grading(workspace, result):
+    expectations = [{**c, "evidence": json.dumps(c["evidence"], ensure_ascii=False)}
+                    for c in result["checks"]]
+    passed = sum(c["passed"] for c in expectations)
+    (workspace / "grading.json").write_text(json.dumps({"expectations": expectations,
+        "summary": {"passed": passed, "failed": len(expectations) - passed,
+                    "total": len(expectations), "pass_rate": passed / len(expectations)}}, indent=2) + "\n")
 
 
 def main():
@@ -148,6 +194,8 @@ def main():
     parser.add_argument("--prepare", action="store_true", help="Prepare fixtures without launching agents")
     parser.add_argument("--grade", type=Path, help="Regrade a saved run without launching agents")
     parser.add_argument("--claude", default="claude", help="Claude Code executable (uses its configured default model)")
+    parser.add_argument("--codex", default="codex", help="Codex executable (uses its clean-config default model)")
+    parser.add_argument("--runtime", choices=("claude", "codex"), default="claude")
     parser.add_argument("--timeout", type=int, default=180, help="Seconds allowed per case")
     args = parser.parse_args()
     cases = validate()
@@ -172,8 +220,9 @@ def main():
             events = [json.loads(line) for line in (workspace / "transcript.jsonl").read_text().splitlines()]
             exit_code = next(c["evidence"]["exitCode"] for c in prior["checks"]
                              if c["text"] == "Agent completed successfully")
-            result = grade_run(case, workspace, events, exit_code)
+            result = grade_run(case, workspace, normalize_events(events, metadata.get("runtime", "claude")), exit_code)
             (workspace / "grade.json").write_text(json.dumps(result, indent=2) + "\n")
+            write_grading(workspace, result)
             results.append(result)
             print(f"Case {case['id']}: {'PASS' if result['passed'] else 'FAIL'}", flush=True)
         (args.grade / "graded-results.json").write_text(json.dumps(results, indent=2) + "\n")
@@ -189,10 +238,11 @@ def main():
     name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     output = (args.output or REPO / ".scratch/work/thread-stage-evals" / name).resolve()
     output.mkdir(parents=True, exist_ok=False)
-    version = None if args.prepare else subprocess.check_output([args.claude, "--version"], text=True).strip()
+    executable = args.claude if args.runtime == "claude" else args.codex
+    version = None if args.prepare else subprocess.check_output([executable, "--version"], text=True).strip()
     (output / "run.json").write_text(json.dumps({"sourceRef": source["ref"], "sourceHashes": source["hashes"],
         "suiteHash": hashlib.sha256((HERE / "evals.json").read_bytes()).hexdigest(),
-        "claudeVersion": version, "caseIds": [c["id"] for c in cases], "preparedOnly": args.prepare}, indent=2))
+        "runtime": args.runtime, "cliVersion": version, "caseIds": [c["id"] for c in cases], "preparedOnly": args.prepare}, indent=2))
     print(f"Artifacts: {output}", flush=True)
     results = []
     for case in cases:
@@ -202,7 +252,7 @@ def main():
             print(f"Prepared case {case['id']} (not evaluated)", flush=True)
             continue
         try:
-            result = run_case(workspace, case, source, args.claude, args.timeout)
+            result = run_case(workspace, case, source, executable, args.timeout, args.runtime)
         except (OSError, ValueError) as error:
             result = {"caseId": case["id"], "passed": False, "error": str(error)}
             workspace.mkdir(parents=True, exist_ok=True)

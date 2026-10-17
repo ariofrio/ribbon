@@ -32,6 +32,7 @@ def validate():
         assert all(x in ("thread-stages", "thread-actions") for x in case["required_reads"])
         for file in case["files"]:
             assert (HERE.parent / file).is_file(), file
+        assert set(case.get("workspace_files", {}).values()) <= set(case["files"])
         if case["mode"] == "recommendation":
             assert isinstance(case["expected_answer"], dict) and case["expected_answer"]
             assert type(case["allow_inspection"]) is bool
@@ -41,7 +42,7 @@ def validate():
             assert case["scenario"]["work"]["objective"]
             assert case["expected_action"]["stage"]
             assert type(case["expected_action"]["writes"]) is int
-            assert case["expected_action"]["writes"] in (0, 1)
+            assert case["expected_action"]["writes"] in (0, 1, 2)
     return cases
 
 
@@ -184,6 +185,18 @@ def grade_run(case, workspace, events, exit_code):
         for call in writes:
             recorded = call["after"]
         check("Final state agrees with the recorded writes", recorded == state["stage"], state["stage"])
+        if "source_reads" in expected:
+            source_reads = [c for c in calls if c.get("source_read")]
+            check("Requested source was actually inspected",
+                  set(expected["source_reads"]) <= {c["source_read"] for c in source_reads}, source_reads)
+            check("Stage fit before independent source work resumed",
+                  bool(source_reads) and all(c["before"] == expected["work_stage"] for c in source_reads),
+                  source_reads)
+            first_work = next((i for i, c in enumerate(calls) if c.get("source_read")), len(calls))
+            check("Current stage inspected before resuming automatic independent work",
+                  not expected.get("inspect_before_work", case["automatic_updates"])
+                  or any(c.get("inspected") for c in calls[:first_work]),
+                  calls[:first_work])
     return {"caseId": case["id"], "mode": case["mode"], "passed": all(c["passed"] for c in checks),
             "checks": checks, "answer": result.get("result") if result else None,
             "stage": state["stage"], "writes": len(writes)}

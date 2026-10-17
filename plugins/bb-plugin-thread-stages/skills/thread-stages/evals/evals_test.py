@@ -6,7 +6,7 @@ import unittest
 
 from fixture import invoke
 from oracle import answer_matches, grade_run, load_cases, parse_answer, validate
-from run import load_source, prepare_case
+from run import load_source, normalize_events, prepare_case
 
 
 HERE = Path(__file__).resolve().parent
@@ -46,7 +46,7 @@ class EvalTests(unittest.TestCase):
 
     def test_manifest_and_source_contract(self):
         validate()
-        self.assertEqual(len(load_cases()), 34)
+        self.assertEqual(len(load_cases()), 39)
         self.assertNotIn("Waiting", self.source["stages"])
         self.assertIn("BlockedOnUser", self.source["stages"])
         self.assertIn("Inspect the current stage", self.source["instructions"]["on"])
@@ -107,6 +107,64 @@ class EvalTests(unittest.TestCase):
         self.assertTrue(grade_run(case, other, events, 0)["passed"])
         invoke(other, ["thread-stages", "stage", "BlockedOnOtherAgent", "--self"])
         self.assertFalse(grade_run(case, other, events, 0)["passed"])
+
+    def source_case(self, case_id):
+        case = next(x for x in load_cases() if x["id"] == case_id)
+        workspace = self.workspace / str(case_id)
+        prepare_case(workspace, case, self.source)
+        return case, workspace, transcript(workspace / "skills/thread-stages/SKILL.md")
+
+    def test_stage_must_fit_before_source_work_not_just_at_end(self):
+        case, workspace, events = self.source_case(35)
+        invoke(workspace, ["thread-stages", "show", "--self", "--json"])
+        for path in case["expected_action"]["source_reads"]:
+            invoke(workspace, ["files", "read", path])
+        invoke(workspace, ["thread-stages", "stage", "Active", "--self"])
+        invoke(workspace, ["thread-stages", "stage", "BlockedOnUser", "--self"])
+        grade = grade_run(case, workspace, events, 0)
+        self.assertFalse(grade["passed"])
+        self.assertEqual([c["text"] for c in grade["checks"] if not c["passed"]],
+                         ["Stage fit before independent source work resumed"])
+
+    def test_stage_update_then_real_source_read_passes(self):
+        case, workspace, events = self.source_case(35)
+        invoke(workspace, ["thread-stages", "show", "--self", "--json"])
+        invoke(workspace, ["thread-stages", "stage", "Active", "--self"])
+        self.assertFalse(grade_run(case, workspace, events, 0)["passed"])
+        code, source = invoke(workspace, ["files", "read", "src/retry-worker.ts"])
+        self.assertEqual(code, 0)
+        self.assertIn("attempt <= MAX_RETRIES", source)
+        for path in case["expected_action"]["source_reads"][1:]:
+            invoke(workspace, ["files", "read", path])
+        invoke(workspace, ["thread-stages", "stage", "BlockedOnUser", "--self"])
+        self.assertTrue(grade_run(case, workspace, events, 0)["passed"])
+
+    def test_manual_and_disabled_updates_allow_work_without_stage_write(self):
+        for case_id in (38, 39):
+            case, workspace, events = self.source_case(case_id)
+            for path in case["expected_action"]["source_reads"]:
+                invoke(workspace, ["files", "read", path])
+            self.assertTrue(grade_run(case, workspace, events[-1:], 0)["passed"])
+
+    def test_file_discovery_and_context_read_are_not_investigation_work(self):
+        case, workspace, _ = self.source_case(35)
+        for args in (["files", "--help"], ["files", "read", "--help"], ["files", "read", "work.json"]):
+            code, _ = invoke(workspace, args)
+            self.assertEqual(code, 0)
+        calls = [json.loads(line) for line in (workspace / "calls.jsonl").read_text().splitlines()]
+        self.assertFalse(any(c.get("source_read") for c in calls))
+
+    def test_codex_normalization_preserves_commands_failures_and_completion(self):
+        events = [{"type": "item.completed", "item": {"id": "c1", "type": "command_execution",
+                   "command": "cat skills/thread-stages/SKILL.md", "exit_code": 0,
+                   "aggregated_output": "# Thread stages\n## Stages"}},
+                  {"type": "item.completed", "item": {"id": "m1", "type": "agent_message", "text": "Done"}},
+                  {"type": "turn.completed"}]
+        self.transition()
+        self.assertTrue(self.grade(normalize_events(events, "codex"))["passed"])
+        events[0]["item"]["exit_code"] = 1
+        self.assertFalse(self.grade(normalize_events(events, "codex"))["passed"])
+        self.assertFalse(self.grade(normalize_events(events[:-1], "codex"))["passed"])
 
     def test_recommendation_case_checks_answer_without_performing_mutations(self):
         case = next(x for x in load_cases() if x["id"] == 8)

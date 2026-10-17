@@ -1,0 +1,46 @@
+{
+  "transport_error": {
+    "sendCalls": 4,
+    "outcome": "throw ECONNRESET",
+    "committedRows": 0
+  },
+  "http_408": {
+    "sendCalls": 1,
+    "outcome": "return 408",
+    "committedRows": 0
+  },
+  "http_503_after_commit": {
+    "sendCalls": 4,
+    "outcome": "return 503",
+    "committedRows": [
+      {
+        "id": "evt-17"
+      },
+      {
+        "id": "evt-17"
+      },
+      {
+        "id": "evt-17"
+      },
+      {
+        "id": "evt-17"
+      }
+    ]
+  },
+  "http_503_then_200": {
+    "statuses": [
+      503,
+      200
+    ],
+    "sendCalls": 2,
+    "outcome": "return 200",
+    "committedRows": [
+      {
+        "id": "evt-18"
+      },
+      {
+        "id": "evt-18"
+      }
+    ]
+  }
+}
