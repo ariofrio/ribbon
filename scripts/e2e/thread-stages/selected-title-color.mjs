@@ -24,8 +24,8 @@ export async function verifySelectedTitleColor({ stack, fixture }) {
         const active = link(list, thread.id);
         const inactive = link(list, inactiveThread.id);
 
-        async function assertTitleColor(target, selected, title) {
-          const colors = await target.evaluate(async (node, { selected, title }) => {
+        async function assertTitleColor(target, primary, title) {
+          const colors = await target.evaluate(async (node, { primary, title }) => {
             const row = node.closest("[data-thread-id]");
             await Promise.all(row.getAnimations({ subtree: true })
               .filter((animation) => animation.effect.getTiming().iterations !== Infinity)
@@ -33,7 +33,7 @@ export async function verifySelectedTitleColor({ stack, fixture }) {
             const label = [...row.querySelectorAll("span")]
               .find((span) => span.childElementCount === 0 && span.textContent === title);
             const reference = document.createElement("span");
-            reference.style.color = selected
+            reference.style.color = primary
               ? "var(--sidebar-foreground)"
               : "var(--subtle-foreground)";
             reference.style.maskImage = "linear-gradient(currentColor, currentColor)";
@@ -62,25 +62,25 @@ export async function verifySelectedTitleColor({ stack, fixture }) {
             };
             reference.remove();
             return colors;
-          }, { selected, title });
+          }, { primary, title });
           assert.equal(colors.icon, colors.expected, `${theme}: the icon keeps the theme's attention color`);
           if (colors.completed) {
             assert.deepEqual(colors.pixel, colors.solidPixel, `${theme}: completed text and strike paint in solid theme ink`);
             assert.equal(colors.mask, colors.expectedMask, `${theme}: apply the theme's actual alpha once to the whole title`);
             assert.equal(colors.maskMode, "alpha");
           } else {
-            assert.equal(colors.actual, colors.expected, `${theme}: ${selected ? "selected" : "unselected"} thread title color`);
+            assert.equal(colors.actual, colors.expected, `${theme}: ${primary ? "primary" : "secondary"} thread title color`);
             assert.equal(colors.mask, "none", "Other stages need no alpha mask");
           }
         }
 
         await assertTitleColor(active, true, thread.title);
-        await assertTitleColor(inactive, false, inactiveThread.title);
+        await assertTitleColor(inactive, true, inactiveThread.title);
         await active.hover();
         await assertTitleColor(active, true, thread.title);
         await inactive.hover();
-        await assertTitleColor(inactive, false, inactiveThread.title);
-        for (const [stage, label] of [["BlockedOnUser", "Needs user"], ["BlockedOnOtherAgent", "Dependent"], ["BlockedOnThirdParty", "Blocked"], ["Completed", "Completed"]]) {
+        await assertTitleColor(inactive, true, inactiveThread.title);
+        for (const [stage, label] of [["Active", "In progress"], ["BlockedOnUser", "Needs user"], ["BlockedOnOtherAgent", "Dependent"], ["BlockedOnThirdParty", "Blocked"], ["Completed", "Completed"]]) {
           fixture.run(["thread-stages", "stage", stage, thread.id]);
           await list.locator(`[data-thread-id="${thread.id}"]`).first().getByLabel(`${label} stage`, { exact: true }).waitFor();
           await assertTitleColor(active, true, thread.title);
@@ -89,7 +89,7 @@ export async function verifySelectedTitleColor({ stack, fixture }) {
           if (stage === "Completed") fixture.run(["thread-stages", "stage", "Active", thread.id]);
           fixture.run(["thread-stages", "stage", stage, inactiveThread.id]);
           await list.locator(`[data-thread-id="${inactiveThread.id}"]`).first().getByLabel(`${label} stage`, { exact: true }).waitFor();
-          await assertTitleColor(inactive, stage === "BlockedOnUser", inactiveThread.title);
+          await assertTitleColor(inactive, stage === "Active" || stage === "BlockedOnUser", inactiveThread.title);
         }
         // Change theme tokens live, including colored ink, different alpha
         // values for selected rows, and fully transparent/opaque ink.

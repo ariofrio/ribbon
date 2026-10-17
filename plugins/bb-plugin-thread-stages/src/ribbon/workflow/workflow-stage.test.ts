@@ -13,11 +13,11 @@ import {
 describe("thread statuses", () => {
   it("keeps the supported stages stable and accepts friendly CLI spellings", () => {
     expect(WORKFLOW_STAGES).toEqual([
-      "Deferred",
       "Active",
       "BlockedOnUser",
       "BlockedOnOtherAgent",
       "BlockedOnThirdParty",
+      "Deferred",
       "Completed",
     ]);
     expect(parseWorkflowStage("backlog")).toBe("Deferred");
@@ -50,11 +50,11 @@ describe("thread statuses", () => {
 
   it("labels each stage for people", () => {
     expect(WORKFLOW_STAGES.map((stage) => WORKFLOW_STAGE_LABELS[stage])).toEqual([
-      "Deferred",
       "In progress",
       "Needs user",
       "Dependent",
       "Blocked",
+      "Deferred",
       "Completed",
     ]);
   });
