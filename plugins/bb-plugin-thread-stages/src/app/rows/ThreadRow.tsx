@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type FocusEventHandler,
   type MouseEventHandler,
   type PointerEventHandler,
   type ReactNode,
@@ -38,12 +39,10 @@ import {
 import {
   experimental_ThreadStatusGlyph as ThreadStatusGlyph,
   experimental_THREAD_ACTION_GROUPS,
-  experimental_useSidebarThreadSplit,
   experimental_useProviders,
   experimental_ProviderIcon as ProviderIcon,
   ThreadTitle,
   useSidebarSplitLayout,
-  useSidebarThreadDraft,
   useSidebarThreadRowStatus,
   useSidebarThreadShortcut,
   useSdk,
@@ -96,9 +95,10 @@ import type {
 import type { SidebarSortableDragBindings } from "@/components/ui/sortable-motion";
 import { SidebarThreadDragChip } from "../dnd/sidebarThreadDragChip.js";
 import { SplitPaneMiniMap } from "./SplitPaneMiniMap.js";
+import { useDeferredSidebarThreadSplit } from "./useDeferredSidebarThreadSplit.js";
 import { ThreadRowQuickActions } from "./ThreadRowQuickActions.js";
 import { useRowActionCapacity } from "../../ribbon/app/use-row-action-capacity.js";
-import { useRibbonThreadActions } from "../../ribbon/app/row-actions.js";
+import { useRowQuickActions } from "../../ribbon/app/use-row-quick-actions.js";
 import { useOpenThreadInSplit } from "./threadRowNavigation.js";
 import { Button } from "@/components/ui/button";
 import { COARSE_POINTER_ICON_SIZE_CLASS } from "@/components/ui/coarse-pointer-sizing";
@@ -108,7 +108,7 @@ import {
   RibbonStageGlyph,
   RibbonTrailingIndicator,
   useRibbonRow,
-  useRibbonRowSettings,
+  ribbonRowSettings,
 } from "../../ribbon/app/row.js";
 import { useOwnerColor } from "../../ribbon/app/icons.js";
 import { RailBars, RailTree, useRowLineage } from "../../ribbon/app/rails.js";
@@ -194,6 +194,35 @@ interface ThreadRowProps {
   options: ThreadRowOptions;
 }
 
+function CrossProjectMarker({
+  projectId,
+  onClick,
+}: {
+  projectId: string;
+  onClick: MouseEventHandler<HTMLSpanElement>;
+}) {
+  // Resolving a project name subscribes to the sidebar thread data. Rows in
+  // their own project do not need that subscription or its list projection.
+  const name = useSidebarProjectName(projectId);
+  const label = name ? `In project ${name}` : "In another project";
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          data-sidebar-thread-cross-project=""
+          role="img"
+          aria-label={label}
+          className="relative z-[31] flex size-5 shrink-0 items-center justify-center text-muted-foreground"
+          onClick={onClick}
+        >
+          <Icon name="FolderExport" className="size-3.5" aria-hidden />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 type ThreadRowClickCaptureHandler = MouseEventHandler<HTMLDivElement>;
 
 interface ThreadRowContainerArgs {
@@ -207,6 +236,9 @@ interface ThreadRowContainerArgs {
   onClick?: MouseEventHandler<HTMLDivElement>;
   onClickCapture?: ThreadRowClickCaptureHandler;
   onSplitDragPointerDown?: PointerEventHandler<HTMLElement>;
+  onFocusCapture?: FocusEventHandler<HTMLElement>;
+  onBlurCapture?: FocusEventHandler<HTMLElement>;
+  onContextMenuCapture?: MouseEventHandler<HTMLElement>;
   stickyLevel?: number;
   style: CSSProperties;
 }
@@ -254,6 +286,9 @@ function renderThreadRowContainer({
   onClick,
   onClickCapture,
   onSplitDragPointerDown,
+  onFocusCapture,
+  onBlurCapture,
+  onContextMenuCapture,
   reorderPlacement,
   stickyLevel,
   style,
@@ -270,6 +305,9 @@ function renderThreadRowContainer({
     onClick,
     onClickCapture,
     onPointerDown: onSplitDragPointerDown,
+    onFocusCapture,
+    onBlurCapture,
+    onContextMenuCapture,
   };
   if (stickyLevel !== undefined) {
     return (
@@ -419,22 +457,14 @@ function ThreadRowComponent({
     : undefined;
   const shortcut = useSidebarThreadShortcut(thread.id);
   const pluginThreadRowStatus = useSidebarThreadRowStatus(thread.id);
-  const { hasUnsubmittedDraft: hasComposerDraft } = useSidebarThreadDraft(
-    thread.id,
-  );
+  const draftThreadIds = useMemo(() => [thread.id], [thread.id]);
+  const hasComposerDraft = useThreadsHaveDraft(draftThreadIds);
   const showActive = isActive;
   const threadStatus = threadListIndicatorStateForThread(
     thread,
     hasComposerDraft,
   );
   const labelTitle = thread.displayTitle;
-  const crossProjectName = useSidebarProjectName(crossProjectId);
-  const crossProjectLabel =
-    crossProjectId === null
-      ? null
-      : crossProjectName
-        ? `In project ${crossProjectName}`
-        : "In another project";
   const handleRename = useCallback(
     async (nextTitle: string) => {
       await sdk.threads.update({ threadId: thread.id, title: nextTitle });
@@ -462,19 +492,19 @@ function ThreadRowComponent({
   );
   const miniMap = useThreadSplitMiniMap(thread.id);
   const isOpenInSplit = miniMap !== null;
-  const split = experimental_useSidebarThreadSplit(thread.id);
-  const onSplitDragPointerDown = split.splitProps.onPointerDown;
+  const split = useDeferredSidebarThreadSplit(thread.id);
+  const onSplitDragPointerDown = split.onPointerDown;
   const splitAvailable = split.isAvailable;
   const openInSplit = useCallback(() => {
     openThreadInSplit(thread.id);
   }, [openThreadInSplit, thread.id]);
   const rowActionKeys = useAtomValue(threadRowActionsAtom);
-  const registeredQuickActions = useRibbonThreadActions(thread, {
-    keys: thread.archivedAt !== null ? ARCHIVED_ROW_ACTION_KEYS : rowActionKeys,
-    requestRename: () => {
-      startEditing();
-    },
-  });
+  const quickActionState = useRowQuickActions(
+    thread,
+    thread.archivedAt !== null ? ARCHIVED_ROW_ACTION_KEYS : rowActionKeys,
+    startEditing,
+  );
+  const registeredQuickActions = quickActionState.entries;
   const customizeRowActions = useCustomizeThreadRowActions();
   const isCompactViewport = useIsCompactViewport();
   const parentOptions = options.kind === "parent" ? options : null;
@@ -485,7 +515,7 @@ function ThreadRowComponent({
     parentOptions?.childActivity ?? NO_COLLAPSED_CHILD_ACTIVITY;
   const hasChildren = childCount > 0;
   const reserveActionSpace =
-    crossProjectLabel !== null || (isParentRow && hasChildren);
+    crossProjectId !== null || (isParentRow && hasChildren);
   const hasHiddenChildren = isParentRow && isParentCollapsed && hasChildren;
   const hiddenChildrenHaveDraft = useThreadsHaveDraft(
     hasHiddenChildren ? childActivity.threadIds : NO_THREAD_IDS,
@@ -526,7 +556,7 @@ function ThreadRowComponent({
     pluginThreadRowStatus,
   );
   const ribbon = useRibbonRow(thread, trailingIndicatorState, pluginThreadRowStatus);
-  const ribbonSettings = useRibbonRowSettings();
+  const ribbonSettings = ribbon?.settings ?? ribbonRowSettings();
   const shineRowRef = useRef<HTMLDivElement | null>(null);
   const actionCapacity = useRowActionCapacity(shineRowRef, {
     count: registeredQuickActions.length, enabled: ribbon !== null,
@@ -733,6 +763,8 @@ function ThreadRowComponent({
   ) : null;
   const rowContent = (
     <>
+      {split.behavior}
+      {quickActionState.registration}
       {ribbonRails}
       {parentOptions?.stickyLevel !== undefined && parentGuideLeft !== null && ribbon === null ? (
         <span
@@ -808,7 +840,7 @@ function ThreadRowComponent({
         <span
           className={cn(
             "pointer-events-none relative flex min-w-0 items-center self-stretch",
-            ((crossProjectLabel === null && (!parentOptions || !hasChildren)) ||
+            ((crossProjectId === null && (!parentOptions || !hasChildren)) ||
               isEditing ||
               // Ribbon's lane spans the row: its child toggle sits against
               // the actions, as do action buttons and a right-hand PR number.
@@ -887,7 +919,7 @@ function ThreadRowComponent({
               <span
                 className={cn(
                   "bb-thread-title",
-                  (crossProjectLabel !== null || ribbon !== null) &&
+                  (crossProjectId !== null || ribbon !== null) &&
                     (ribbonMarquee ? "min-w-0" : "min-w-0 truncate"),
                   ribbon !== null && "flex min-w-0 flex-1 items-center gap-2",
                 )}
@@ -947,6 +979,7 @@ function ThreadRowComponent({
               ) : null}
               {ribbon && ribbon.actions.length > 0 ? (
                 <RibbonActionButtons
+                  key={thread.id}
                   actions={ribbon.actions}
                   color={ribbonActionColor}
                   rowTitle={labelTitle}
@@ -957,25 +990,15 @@ function ThreadRowComponent({
             </>
           )}
         </span>
-        {crossProjectLabel !== null ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                data-sidebar-thread-cross-project=""
-                role="img"
-                aria-label={crossProjectLabel}
-                className="relative z-[31] flex size-5 shrink-0 items-center justify-center text-muted-foreground"
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  rowLinkRef.current?.click();
-                }}
-              >
-                <Icon name="FolderExport" className="size-3.5" aria-hidden />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top">{crossProjectLabel}</TooltipContent>
-          </Tooltip>
+        {crossProjectId !== null ? (
+          <CrossProjectMarker
+            projectId={crossProjectId}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              rowLinkRef.current?.click();
+            }}
+          />
         ) : null}
         {ribbon === null ? childToggle : null}
       </span>
@@ -1098,6 +1121,7 @@ function ThreadRowComponent({
     attributes: ribbon
       ? {
           "data-thread-id": thread.id,
+          "data-sidebar-row-interacting": isActionsOpen || isEditing || isCustomizingActions ? "true" : undefined,
           "data-ribbon-stage": ribbon.stage,
           "data-ribbon-depth": String(options.depth),
           ...(ribbonShines ? { [SHINE_ROW_ATTRIBUTE]: "" } : {}),
@@ -1116,10 +1140,13 @@ function ThreadRowComponent({
     nestTargetState,
     reorderPlacement,
     onClick: isEditing ? undefined : handleRowClick,
-    onClickCapture:
-      !isEditing && options.consumeClickSuppression
-        ? handleRowClickCapture
-        : undefined,
+    onClickCapture: isEditing ? undefined : (event) => {
+      split.activate();
+      if (options.consumeClickSuppression) handleRowClickCapture(event);
+    },
+    onFocusCapture: split.onFocusCapture,
+    onBlurCapture: split.onBlurCapture,
+    onContextMenuCapture: isEditing ? undefined : split.activate,
     onSplitDragPointerDown: isEditing ? undefined : onSplitDragPointerDown,
     stickyLevel: parentOptions?.stickyLevel,
     style: rowStyle,

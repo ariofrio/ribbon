@@ -2,6 +2,7 @@ import {
   useRealtime,
   useRealtimeConnectionState,
   useRpc,
+  useSettings,
 } from "@get-bb/plugin-sdk/app";
 import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import {
@@ -25,6 +26,7 @@ import {
   resetRibbonAtoms,
   ribbonChildRanksAtom,
   ribbonEnabledAtom,
+  ribbonSettingsAtom,
   ribbonErrorAtom,
   ribbonLoadedAtom,
   ribbonPlacementsAtom,
@@ -90,6 +92,11 @@ export interface RibbonData {
 
 const RibbonDataContext = createContext<RibbonData | null>(null);
 
+/** Settings are fetched once for the sidebar, not once per realized row. */
+export function useRibbonSettings(): Readonly<Record<string, unknown>> {
+  return useAtomValue(ribbonSettingsAtom);
+}
+
 export function useRibbonData(): RibbonData | null {
   return useContext(RibbonDataContext);
 }
@@ -122,6 +129,10 @@ export function RibbonDataProvider({ children }: { children: ReactNode }) {
   rpcRef.current = rpc;
   const connection = useRealtimeConnectionState();
   const store = useStore();
+  const settings = useSettings();
+  useLayoutEffect(() => {
+    if (settings.values) store.set(ribbonSettingsAtom, settings.values);
+  }, [store, settings.values]);
   // Rows read the store on their own; the atoms say the provider is here and
   // which client to call, and go back to nothing once it is gone.
   useLayoutEffect(() => {

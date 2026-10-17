@@ -1,5 +1,4 @@
 import { useAtomValue } from "jotai";
-import { useSettings } from "@get-bb/plugin-sdk/app";
 import { Fragment, useMemo, type ReactNode } from "react";
 import {
   projectThreadItemContainsThread,
@@ -9,18 +8,20 @@ import { getSidebarItemKey } from "../../app/rows/sidebarItemKeys.js";
 import { itemThread, stageBands } from "./bands";
 import { ribbonStageLookupAtom } from "./atoms";
 import { useRibbonList } from "./search";
+import { useRibbonSettings } from "./data";
 import { StagePreview } from "./stage-preview";
 import { stagePreviewRowsSetting } from "../stage-preview-rows";
 import { RailContinuation, SiblingBand } from "./rails";
 
 /**
  * A group's items in Ribbon's shape: the main list, then Deferred and
- * Completed as short previews that expand in place. The main list keeps the
- * windowed rendering bb gives every list; the previews keep the open thread
+ * Completed as short previews that expand in place. Expanded previews use
+ * the same windowed renderer as the main list. Previews keep the open thread
  * within their row budget when there is room for a thread.
  */
 export function StageBandedItems({
   items,
+  ownerKey,
   selectedThreadId,
   renderMain,
   renderItem,
@@ -28,16 +29,17 @@ export function StageBandedItems({
   depth = 0,
 }: {
   items: readonly ProjectThreadItem[];
+  ownerKey?: string;
   selectedThreadId?: string;
   /** Renders the main band the way the list renders any run of items. */
-  renderMain: (items: readonly ProjectThreadItem[]) => ReactNode;
+  renderMain: (items: readonly ProjectThreadItem[], focusThreadId?: string) => ReactNode;
   renderItem: (item: ProjectThreadItem, index: number, count: number) => ReactNode;
   revealAll?: boolean;
   depth?: number;
 }) {
   const { revealAll: searchReveals } = useRibbonList();
-  const settings = useSettings();
-  const rowLimit = stagePreviewRowsSetting(settings.values?.stagePreviewRows);
+  const settings = useRibbonSettings();
+  const rowLimit = stagePreviewRowsSetting(settings.stagePreviewRows);
   // Only the stages: a placement reload or an open editor is no reason to
   // partition again.
   const lookup = useAtomValue(ribbonStageLookupAtom);
@@ -68,17 +70,19 @@ export function StageBandedItems({
         hasFollowing={bands.completed.length > 0}
       >
         <StagePreview
+          key={ownerKey}
           stage="deferred"
           depth={depth}
           rowLimit={rowLimit}
           rows={rows(bands.deferred)}
           selectedRootId={selectedRootId}
           renderRow={({ id, item }, index, count) => <Fragment key={id}>{renderItem(item, index, count)}</Fragment>}
+          renderRows={(rows, focusThreadId) => renderMain(rows.map(({ item }) => item), focusThreadId)}
           revealAll={revealAll || searchReveals}
           continuation={
             <RailContinuation
               depth={depth}
-              tree={settings.values?.childThreadLines === "Tree"}
+              tree={settings.childThreadLines === "Tree"}
               continuesGroup={bands.completed.length > 0}
             />
           }
@@ -86,17 +90,19 @@ export function StageBandedItems({
       </SiblingBand>
       <SiblingBand hasPrevious={bands.main.length + bands.deferred.length > 0}>
         <StagePreview
+          key={ownerKey}
           stage="completed"
           depth={depth}
           rowLimit={rowLimit}
           rows={rows(bands.completed)}
           selectedRootId={selectedRootId}
           renderRow={({ id, item }, index, count) => <Fragment key={id}>{renderItem(item, index, count)}</Fragment>}
+          renderRows={(rows, focusThreadId) => renderMain(rows.map(({ item }) => item), focusThreadId)}
           revealAll={revealAll || searchReveals}
           continuation={
             <RailContinuation
               depth={depth}
-              tree={settings.values?.childThreadLines === "Tree"}
+              tree={settings.childThreadLines === "Tree"}
               continuesGroup={false}
             />
           }

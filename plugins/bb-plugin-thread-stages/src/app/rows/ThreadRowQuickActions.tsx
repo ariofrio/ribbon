@@ -41,6 +41,7 @@ function ThreadQuickActionButton({
           aria-label={action.label}
           data-thread-action={entry.key}
           disabled={action.disabled || isRunning}
+          data-sidebar-row-busy={isRunning ? "true" : undefined}
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();

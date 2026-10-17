@@ -92,3 +92,15 @@ it("search reveals every matching result without an overflow control", () => {
   expect(view.getAllByRole("link")).toHaveLength(8);
   expect(view.queryByRole("button")).toBeNull();
 });
+
+it("uses the windowed list renderer for expansion and preserves its keyboard target", () => {
+  vi.stubGlobal("CSS", { escape: (text: string) => text });
+  Element.prototype.scrollIntoView = vi.fn();
+  const renderRows = vi.fn((visible: readonly {id:string}[]) => visible.slice(0, 2).map(renderRow));
+  const view = render(<StagePreview rows={rows} stage="deferred" selectedRootId={null} renderRow={renderRow} renderRows={renderRows}/>);
+  fireEvent.click(view.getByRole("button", {name:"Show 7 more deferred"}), {detail:0});
+  expect(renderRows.mock.calls.at(-1)).toEqual([rows,"thread-1"]);
+  expect(view.getAllByRole("link")).toHaveLength(2);
+  expect(document.activeElement).toBe(view.getByRole("link",{name:"thread-1"}));
+  vi.unstubAllGlobals();
+});

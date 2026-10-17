@@ -5,8 +5,11 @@ export const PROVIDER = "thread-stages/thread-stages";
 export const PREFERENCES_KEY = "bb.plugin.thread-stages.preferences.v1";
 export const READY = "[data-ribbon-sidebar-root][data-ribbon-sidebar-ready]";
 
-export function launch() {
-  return chromium.launch({ args: ["--mute-audio"] });
+export function launch({ scrollbars = false } = {}) {
+  return chromium.launch({
+    args: ["--mute-audio"],
+    ignoreDefaultArgs: scrollbars ? ["--hide-scrollbars"] : undefined,
+  });
 }
 
 /**
@@ -166,12 +169,12 @@ export async function parentAnswered(fixture, parent, child) {
  * Runs an action that changes a list preference and waits for the debounced
  * write to reach the server, so a reload finds it.
  */
-export async function withPreferenceSaved(page, key, action) {
-  const saved = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/rpc/setPreference") &&
-      response.request().postDataJSON()?.key === key,
-  );
+export async function withPreferenceSaved(page, key, action, valueMatches = () => true) {
+  const saved = page.waitForResponse((response) => {
+    if (!response.url().endsWith("/rpc/setPreference")) return false;
+    const input = response.request().postDataJSON();
+    return input?.key === key && valueMatches(input.value);
+  });
   // A failing action is the error to report, not the wait it leaves behind.
   void saved.catch(() => undefined);
   await action();

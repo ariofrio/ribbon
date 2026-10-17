@@ -9,9 +9,9 @@ import {
 } from "react";
 
 /**
- * Whether the group around a row is folding. bb windows long lists by what
- * meets its scroller, and rows leaving the window mid-fold would jump the
- * rest; a folding group keeps every row mounted until the fold is done.
+ * Whether the group around a row is folding. Its rows bypass rendering
+ * containment until the fold is done, so their contents can follow the
+ * animation's changing layout and paint bounds.
  */
 const FoldingContext = createContext(false);
 
@@ -180,12 +180,9 @@ export function GroupBody({
         );
       }}
     >
-      {/* While folding, the body clips by clip-path rather than overflow:
-          bb windows long lists by what intersects its scroller, and an
-          overflow clip would count the folding rows as gone and unmount
-          them mid-fold. A sticky parent row inside would stick to the clip
-          instead of the list and jump, so it flows with the rest until the
-          fold is done. */}
+      {/* Clip-path keeps the list as the sticky rows' scrolling ancestor.
+          A sticky parent would otherwise stick to an overflow clip and
+          jump, so it flows with the rest until the fold is done. */}
       <div
         className={`min-h-0 min-w-0 ${
           phase === "open"

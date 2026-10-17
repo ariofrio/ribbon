@@ -5,7 +5,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { makeSidebarThread } from "../../app/model/fixtures";
 import { NO_COLLAPSED_CHILD_ACTIVITY } from "../../app/model/thread-activity";
 import type { ProjectThreadItem } from "../../app/model/project-thread-groups";
-import { ribbonEnabledAtom, ribbonStagesAtom } from "./atoms";
+import { ribbonEnabledAtom, ribbonSettingsAtom, ribbonStagesAtom } from "./atoms";
 import { SiblingLineage, useRowLineage } from "./rails";
 import { StageBandedItems } from "./StageBandedItems";
 
@@ -21,6 +21,7 @@ function Lineage({ id }: { id: string }) {
 function setup(stages: readonly string[], selectedThreadId?: string) {
   const store = createStore();
   store.set(ribbonEnabledAtom, true);
+  store.set(ribbonSettingsAtom, { stagePreviewRows: 2 });
   store.set(ribbonStagesAtom, new Map(stages.map((groupId, index) => [String(index), {
     threadId: String(index), groupId, groupingKey: "plugin:thread-stages:stages", enteredAtMs: 1,
   }])));
@@ -41,18 +42,21 @@ function setup(stages: readonly string[], selectedThreadId?: string) {
       </SiblingLineage>
     );
   };
-  const view = render(
+  const tree = (ownerKey = "first-owner") => (
     <Provider store={store}>
       <StageBandedItems
+        ownerKey={ownerKey}
         items={items}
         selectedThreadId={selectedThreadId}
         renderItem={renderItem}
         renderMain={(items) => items.map((item, index) => renderItem(item, index, items.length))}
       />
-    </Provider>,
+    </Provider>
   );
+  const view = render(tree());
+  const changeOwner = (key: string) => view.rerender(tree(key));
   const lineage = (id: string) => JSON.parse(view.getByLabelText(id).textContent!);
-  return { view, lineage };
+  return { view, lineage, changeOwner };
 }
 
 it("keeps one sibling lineage across stage bands without leaking band boundaries into children", () => {
@@ -76,4 +80,14 @@ it("accounts for empty bands and a selected sibling outside the preview", () => 
   const { lineage } = setup(["Deferred", "Deferred", "Completed", "Completed"], "3");
   expect(lineage("0")).toEqual({ firstChild: true, lastAtDepth: [false] });
   expect(lineage("3")).toEqual({ firstChild: false, lastAtDepth: [true] });
+});
+
+it("resets previews each time a pooled parent changes identity", () => {
+  const { view, changeOwner } = setup(["Completed", "Completed"]);
+  fireEvent.click(view.getByRole("button", { name: "Show 1 more completed" }), { detail: 1 });
+  expect(view.getByLabelText("1")).toBeTruthy();
+  changeOwner("second-owner");
+  expect(view.queryByLabelText("1")).toBeNull();
+  changeOwner("first-owner");
+  expect(view.queryByLabelText("1")).toBeNull();
 });

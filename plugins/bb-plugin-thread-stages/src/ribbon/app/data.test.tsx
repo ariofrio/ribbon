@@ -2,15 +2,17 @@
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { memo } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RibbonDataProvider, useRibbonData, useRibbonThread } from "./data";
+import { RibbonDataProvider, useRibbonData, useRibbonThread, useRibbonSettings } from "./data";
 import { ribbonRpcStubs } from "./test-support";
 import { THREAD_STAGES_GROUPING_KEY } from "../workflow/catalog";
 
 const realtime = new Map<string, () => void>();
 let stubs: Record<string, (input: unknown) => unknown> = {};
 let connection = "connected";
+let settingsValues: Record<string, unknown> = {};
 
 vi.mock("@get-bb/plugin-sdk/app", () => ({
+  useSettings: () => ({ values: settingsValues }),
   useRpc: () => ({
     call: async (method: string, input: unknown) => stubs[method]!(input),
   }),
@@ -24,6 +26,7 @@ afterEach(() => {
   cleanup();
   realtime.clear();
   connection = "connected";
+  settingsValues = {};
 });
 
 const renders = new Map<string, number>();
@@ -153,4 +156,21 @@ describe("RibbonDataProvider rows", () => {
     expect(renders.get("thr_a")).toBe(a + 1);
     expect(renders.get("thr_b")).toBe(b);
   });
+});
+
+it("publishes setting changes to existing rows through the shared provider", async () => {
+  stubs = ribbonRpcStubs() as typeof stubs;
+  const Probe = memo(function Probe() {
+    const settings = useRibbonSettings();
+    return <output>{String(settings.longTitles ?? "default")}</output>;
+  });
+  const tree = () => <RibbonDataProvider><Probe /></RibbonDataProvider>;
+  const view = render(tree());
+  expect(view.getByRole("status").textContent).toBe("default");
+  settingsValues = { longTitles: "Ellipsis" };
+  view.rerender(tree());
+  await waitFor(() => expect(view.getByRole("status").textContent).toBe("Ellipsis"));
+  settingsValues = { longTitles: "Fade" };
+  view.rerender(tree());
+  await waitFor(() => expect(view.getByRole("status").textContent).toBe("Fade"));
 });

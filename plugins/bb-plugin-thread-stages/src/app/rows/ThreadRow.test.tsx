@@ -31,6 +31,7 @@ import {
   type TestThreadActionsResolver,
 } from "@get-bb/plugin-sdk/testing/app";
 import { NO_COLLAPSED_CHILD_ACTIVITY } from "../model/thread-activity.js";
+import * as sidebarData from "../model/use-sidebar-data.js";
 import {
   makeSidebarEnvironment,
   makeSidebarThread,
@@ -984,10 +985,13 @@ describe("ThreadRow", () => {
   });
 
   it("omits the cross-project marker for same-project rows", () => {
+    const projectName = vi.spyOn(sidebarData, "useSidebarProjectName");
     const { container } = renderThreadRow({});
     expect(
       container.querySelector("[data-sidebar-thread-cross-project]"),
     ).toBeNull();
+    expect(projectName).not.toHaveBeenCalled();
+    projectName.mockRestore();
   });
 
   it("shows the needs-input indicator when the thread needs user input", () => {

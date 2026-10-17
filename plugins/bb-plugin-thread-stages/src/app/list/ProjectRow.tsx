@@ -1045,9 +1045,10 @@ const EnvironmentThreadGroupRow = memo(function EnvironmentThreadGroupRow({
               items={nodeItems}
               depth={groupDepth + 1}
               selectedThreadId={selectedThreadId}
-              renderMain={(items) => (
+              renderMain={(items, focusThreadId) => (
                 <WindowedSectionItems
                   items={items}
+                  focusThreadId={focusThreadId}
                   collapsedThreadIds={collapsedThreadIds}
                   collapsedEnvironmentIds={collapsedEnvironmentIds}
                   selectedThreadId={selectedThreadId}
@@ -1353,9 +1354,10 @@ const SectionTreeItemRow = memo(function SectionTreeItemRow({
             items={section.items}
             depth={depthOffset === 0 ? 0 : depthOffset + 1}
             selectedThreadId={selectedThreadId}
-            renderMain={(items) => (
+            renderMain={(items, focusThreadId) => (
               <WindowedSectionItems
                 items={items}
+                focusThreadId={focusThreadId}
                 collapsedThreadIds={collapsedThreadIds}
                 collapsedEnvironmentIds={collapsedEnvironmentIds}
                 selectedThreadId={selectedThreadId}
@@ -1558,10 +1560,12 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
     depthOffset,
     nodeDepth: node.depth,
   });
+  const childActivity = hasChildren ? node.stats.childActivity : NO_COLLAPSED_CHILD_ACTIVITY;
+  const stickyLevel = hasChildren ? getThreadNodeStickyLevel({ depthOffset, node }) : undefined;
   const options = useMemo<ThreadRowOptions>(
     () =>
       getThreadRowOptions({
-        childActivity: node.stats.childActivity,
+        childActivity,
         childCount: node.stats.childCount,
         consumeClickSuppression,
         dragBindings,
@@ -1572,9 +1576,7 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
         nestDrop,
         nodeDepth: node.depth,
         onToggleThreadCollapsed,
-        stickyLevel: hasChildren
-          ? getThreadNodeStickyLevel({ depthOffset, node })
-          : undefined,
+        stickyLevel,
       }),
     [
       consumeClickSuppression,
@@ -1585,7 +1587,10 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
       isParent,
       hasChildren,
       nestDrop,
-      node,
+      node.depth,
+      node.stats.childCount,
+      childActivity,
+      stickyLevel,
       onToggleThreadCollapsed,
     ],
   );
@@ -1648,13 +1653,16 @@ export const ThreadTreeNodeRow = memo(function ThreadTreeNodeRow({
           )}
           {showChildren ? (
             <StageBandedItems
+              ownerKey={node.thread.id}
               items={node.children}
               depth={parentRowDepth + 1}
               selectedThreadId={selectedThreadId}
               revealAll={nestPreviewThread !== null}
-              renderMain={(items) => (
+              renderMain={(items, focusThreadId) => (
                 <WindowedSectionItems
+                  allowIntrinsic
                   items={items}
+                  focusThreadId={focusThreadId}
                   collapsedThreadIds={collapsedThreadIds}
                   collapsedEnvironmentIds={collapsedEnvironmentIds}
                   selectedThreadId={selectedThreadId}
@@ -1766,10 +1774,10 @@ function useWindowedThreadItems({
     },
     [items, rowCountContext],
   );
-  // A folding group keeps every row, so none leaves the window mid-fold.
+  // Freeze the existing window during a fold; mounting every row here
+  // turns a short animation into work proportional to the whole group.
   const folding = useFolding();
   const alwaysMountedKeys = useMemo(() => {
-    if (folding) return new Set(itemKeys);
     const keys = new Set<string>();
     for (const item of items) {
       if (
@@ -1781,37 +1789,48 @@ function useWindowedThreadItems({
       }
     }
     return keys.size > 0 ? keys : undefined;
-  }, [folding, itemKeys, items, selectedThreadId, rename]);
-  return { itemKeys, estimateRows, getNavigationEntries, alwaysMountedKeys };
+  }, [items, selectedThreadId, rename]);
+  return { itemKeys, estimateRows, getNavigationEntries, alwaysMountedKeys, folding };
 }
 
 /** One windowed run of items, each drawn by `renderItem`. */
 function WindowedSectionItems({
   items,
+  allowIntrinsic = false,
   collapsedThreadIds,
   collapsedEnvironmentIds,
   selectedThreadId,
+  focusThreadId,
   renderItem,
 }: {
   items: readonly ProjectThreadItem[];
+  allowIntrinsic?: boolean;
   collapsedThreadIds: Set<string>;
   collapsedEnvironmentIds: Set<string>;
   selectedThreadId?: string;
+  focusThreadId?: string;
   renderItem: (item: ProjectThreadItem, index: number, count: number) => ReactNode;
 }) {
-  const { itemKeys, estimateRows, getNavigationEntries, alwaysMountedKeys } =
+  const { itemKeys, estimateRows, getNavigationEntries, alwaysMountedKeys, folding } =
     useWindowedThreadItems({
       items,
       collapsedThreadIds,
       collapsedEnvironmentIds,
       selectedThreadId,
     });
+  const focusIndex = focusThreadId
+    ? items.findIndex((item) => projectThreadItemContainsThread(item, focusThreadId))
+    : -1;
   return (
     <SidebarWindowedItems
+      allowIntrinsic={allowIntrinsic}
+      recycleItem={(index) => items[index]?.kind === "thread"}
+      focusItemKey={focusIndex >= 0 ? itemKeys[focusIndex] : undefined}
       itemKeys={itemKeys}
       estimateRows={estimateRows}
       getNavigationEntries={getNavigationEntries}
       alwaysMountedKeys={alwaysMountedKeys}
+      freeze={folding}
       renderItem={(index) => {
         const item = items[index];
         return item ? renderItem(item, index, items.length) : null;
@@ -1852,9 +1871,10 @@ function SectionThreadTreeItems({
       sectionDnd={sectionDnd ?? undefined}
     />
   );
-  const renderWindowed = (windowed: readonly ProjectThreadItem[]) => (
+  const renderWindowed = (windowed: readonly ProjectThreadItem[], focusThreadId?: string) => (
     <WindowedSectionItems
       items={windowed}
+      focusThreadId={focusThreadId}
       collapsedThreadIds={collapsedThreadIds}
       collapsedEnvironmentIds={collapsedEnvironmentIds}
       selectedThreadId={selectedThreadId}

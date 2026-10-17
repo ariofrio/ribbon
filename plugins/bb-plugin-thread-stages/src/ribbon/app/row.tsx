@@ -1,6 +1,5 @@
 import {
   experimental_useSidebarThreadPullRequest,
-  useSettings,
   type PluginSidebarThreadRowStatus,
 } from "@get-bb/plugin-sdk/app";
 import { useSetAtom } from "jotai";
@@ -14,7 +13,7 @@ import { pullRequestSignal } from "../pull-request-status";
 import { threadActionLabel, type ThreadAction } from "../thread-actions-store";
 import type { WorkflowStage } from "../workflow/workflow-stage";
 import { runRibbonThreadActionAtom } from "./atoms";
-import { useRibbonThread } from "./data";
+import { useRibbonSettings, useRibbonThread } from "./data";
 import { usePullRequestDetails } from "./pull-request-details-store";
 import { ribbonThreadStatus } from "./status";
 import { StageIcon } from "./stage-icon";
@@ -38,16 +37,15 @@ const PR_LIFECYCLE_ICONS = {
 } as const;
 
 /** The settings that shape a row, with Ribbon's defaults until they load. */
-export function useRibbonRowSettings() {
-  const settings = useSettings();
+export function ribbonRowSettings(values: Readonly<Record<string, unknown>> = {}) {
   return {
     childThreadLines:
-      settings.values?.childThreadLines === "Tree" ? ("Tree" as const) : ("Bar" as const),
-    inProgressHoverIcon: settings.values?.inProgressHoverIcon !== "None",
-    shimmerWorkingRows: settings.values?.shimmerWorkingRows !== false,
-    tabularPullRequestDigits: settings.values?.tabularPullRequestDigits !== false,
-    pullRequestMarks: settings.values?.pullRequestMarks !== false,
-    longTitles: longTitlesSetting(settings.values?.longTitles),
+      values.childThreadLines === "Tree" ? ("Tree" as const) : ("Bar" as const),
+    inProgressHoverIcon: values.inProgressHoverIcon !== "None",
+    shimmerWorkingRows: values.shimmerWorkingRows !== false,
+    tabularPullRequestDigits: values.tabularPullRequestDigits !== false,
+    pullRequestMarks: values.pullRequestMarks !== false,
+    longTitles: longTitlesSetting(values.longTitles),
   };
 }
 
@@ -61,6 +59,7 @@ export function useRibbonRow(
   indicatorState: ThreadListIndicatorState,
   pluginStatus: PluginSidebarThreadRowStatus | null,
 ): {
+  settings: ReturnType<typeof ribbonRowSettings>;
   stage: WorkflowStage;
   muted: boolean;
   status: ThreadStatus;
@@ -78,10 +77,11 @@ export function useRibbonRow(
 } | null {
   // The row's own slice of Ribbon's data, so a change elsewhere in the list
   // leaves this row alone.
-  const settings = useSettings();
+  const settings = useRibbonSettings();
   const ribbon = useRibbonThread(thread.id);
   const runThreadAction = useSetAtom(runRibbonThreadActionAtom);
-  const { tabularPullRequestDigits, pullRequestMarks } = useRibbonRowSettings();
+  const rowSettings = ribbonRowSettings(settings);
+  const { tabularPullRequestDigits, pullRequestMarks } = rowSettings;
   const { isLoading: pullRequestLoading, pullRequest } =
     experimental_useSidebarThreadPullRequest(thread.id);
   const position = ribbon?.pullRequestNumberPosition ?? "right";
@@ -98,13 +98,14 @@ export function useRibbonRow(
     indicatorState,
     pluginStatus,
     pullRequestMarks ? signal : null,
-    settings.values?.showUnreadIndicator === true,
+    settings.showUnreadIndicator === true,
   );
   const stage = ribbon.stage;
   const lifecycle = signal ? PR_LIFECYCLE_ICONS[signal.lifecycle] : null;
   const record = ribbon.actions;
   const actions = thread.archivedAt === null ? (record?.actions ?? []) : [];
   return {
+    settings: rowSettings,
     stage,
     muted: stage !== "Active" && stage !== "BlockedOnUser",
     status,
@@ -218,6 +219,7 @@ export function RibbonActionButtons({
   return (
     <span
       data-ribbon-thread-actions=""
+      data-sidebar-row-busy={runningActionId !== null ? "true" : undefined}
       className={`pointer-events-none ml-2 flex min-w-0 flex-[0_1_max-content] items-center ${gap}`}
       style={{ flexBasis: naturalWidth === null ? "max-content" : naturalWidth }}
     >

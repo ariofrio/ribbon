@@ -16,7 +16,7 @@ export function useRowActionCapacity(
   const [capacity, setCapacity] = useState(count);
   useLayoutEffect(() => {
     const row = rowRef.current;
-    if (!row || !enabled || isCompact || isEditing) {
+    if (!row || count === 0 || !enabled || isCompact || isEditing) {
       setCapacity(count);
       return;
     }

@@ -12,6 +12,7 @@ import { useThreadSectionMove } from "../../app/rows/ThreadSectionMoveProvider.j
 
 export const RIBBON_MOVE_ACTION_KEY = "thread-stages/move";
 const NATIVE_MOVE_ACTION_KEY = "thread-list/move";
+const EMPTY_ACTION_ENTRIES: PluginThreadActionEntry[] = [];
 const moveInfo: PluginThreadActionRegistrationInfo = {
   key: RIBBON_MOVE_ACTION_KEY,
   pluginId: "thread-stages",
@@ -29,11 +30,14 @@ export function useRibbonThreadActionRegistrations() {
 
 export function useRibbonThreadActions(thread: SidebarThread, options?: PluginThreadActionsOptions) {
   const registered = experimental_useThreadActions(toThreadActionTarget(thread), {
+    keys: options?.keys,
     requestRename: options?.requestRename,
   });
   const sectionMove = useThreadSectionMove();
+  if (options?.keys?.length === 0) return EMPTY_ACTION_ENTRIES;
   const entries = registered.filter(entry => entry.key !== NATIVE_MOVE_ACTION_KEY);
-  if (sectionMove && thread.parentThreadId === null && thread.archivedAt === null) {
+  if ((options?.keys === undefined || options.keys.includes(RIBBON_MOVE_ACTION_KEY)) &&
+      sectionMove && thread.parentThreadId === null && thread.archivedAt === null) {
     const isCurrent = (sectionId: string | null) => thread.pinnedAt === null && thread.sectionId === sectionId;
     if (sectionMove.destinations.some(item => !isCurrent(item.sectionId))) {
       const move: PluginThreadActionEntry = {

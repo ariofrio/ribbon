@@ -2,7 +2,14 @@ import { verifyStickyThreadSurfaces } from "../thread-stages/sticky-thread-surfa
 
 export default {
   id: "sticky-thread-surfaces",
-  cases: ["hover-dark", "hover-light", "selected-dark", "selected-light"],
+  cases: [
+    "hover-dark",
+    "hover-light",
+    "selected-dark",
+    "selected-light",
+    "unselected-dark",
+    "unselected-light",
+  ],
   plugins: ["bb-plugin-thread-stages"],
   run: verifyStickyThreadSurfaces,
 };
