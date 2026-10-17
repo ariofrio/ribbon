@@ -160,7 +160,7 @@ export function RibbonStageGlyph({
       className={`mr-2 flex shrink-0 self-center ${
         hiddenAtRest
           ? showOnHover
-            ? "opacity-0 group-hover/thread-row:opacity-100 group-has-[:focus-visible]/thread-row:opacity-100"
+            ? "opacity-0 group-hover/thread-row:opacity-100 [:where(.ribbon-thread-row):has(:focus-visible)_&]:opacity-100"
             : "opacity-0"
           : ""
       }`}

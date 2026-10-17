@@ -111,7 +111,7 @@ export type RingState = "shown" | "hidden-at-rest" | "absent";
 // Hides what stands in for a stage ring while the ring shows: on hover, on
 // keyboard focus, and always under a coarse pointer.
 const UNTIL_RING_SHOWS =
-  "group-hover/thread-row:opacity-0 group-has-[:focus-visible]/thread-row:opacity-0 pointer-coarse:opacity-0";
+  "group-hover/thread-row:opacity-0 [:where(.ribbon-thread-row):has(:focus-visible)_&]:opacity-0 pointer-coarse:opacity-0";
 
 // The same 16px SVG used by the hovered In progress stage, inheriting tree ink.
 const TREE_NODE_ICON = renderProviderIcon({

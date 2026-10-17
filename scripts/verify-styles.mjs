@@ -1,5 +1,7 @@
 // Fails when a Tailwind arbitrary variant the plugin's source uses is missing
-// from the stylesheet the build produced.
+// from the stylesheet the build produced, or when the stylesheet tests an
+// ancestor in a shape Chromium cannot invalidate narrowly (see
+// unqualifiedGroupHas).
 //
 // A plugin that reaches past a component's props and styles it by class —
 // `[&>svg]:hidden` to drop a glyph bb draws for itself, say — has no test that
@@ -22,12 +24,84 @@
 // Usage: node scripts/verify-styles.mjs [pluginDir]
 import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
-/** Tailwind arbitrary variants — `[&...]:utility` — written in source. */
+/**
+ * Tailwind arbitrary variants — `[&...]:utility`, or `[ancestor_&]:utility` —
+ * written in source.
+ */
 export function arbitraryVariants(source) {
-  return [...source.matchAll(/\[&[^\]\s"'`]*\]:[A-Za-z0-9_\-[\]/.]+/gu)].map(
-    (match) => match[0],
-  );
+  return [
+    ...source.matchAll(
+      /\[[^\]\s"'`&]*&[^\]\s"'`]*\]:[A-Za-z0-9_\-[\]/.()]+/gu,
+    ),
+  ].map((match) => withoutUnopenedParens(match[0]));
+}
+
+/** Drops the closing parentheses of a call the class literal sits in. */
+function withoutUnopenedParens(name) {
+  let unopened =
+    (name.match(/\)/gu) ?? []).length - (name.match(/\(/gu) ?? []).length;
+  let end = name.length;
+  while (unopened > 0 && name[end - 1] === ")") {
+    end -= 1;
+    unopened -= 1;
+  }
+  return name.slice(0, end);
+}
+
+/**
+ * Selectors that test an ancestor with `:has()` inside a wildcard `:is()` —
+ * what Tailwind's `group-has-*` variants compile to. Chromium cannot tell
+ * which elements such a rule can change, so every node inserted anywhere
+ * below the plugin's root restyles and relays out that whole subtree: in the
+ * sidebar that put tens of milliseconds into each layout bb forces while it
+ * switches threads or the composer changes. Name the ancestor first instead,
+ * `[:where(.row):has(:focus-visible)_&]:utility`, which matches the same
+ * elements with the same specificity.
+ */
+export function unqualifiedGroupHas(stylesheet) {
+  const found = [];
+  let start = 0;
+  let depth = 0;
+  for (let index = 0; index < stylesheet.length; index += 1) {
+    const char = stylesheet[index];
+    if (char === "\\") {
+      index += 1;
+    } else if (char === "(" || char === "[") {
+      depth += 1;
+    } else if (char === ")" || char === "]") {
+      depth -= 1;
+    } else if (depth === 0 && (char === "{" || char === "}" || char === ";")) {
+      if (char === "{") {
+        for (const selector of topLevelList(stylesheet.slice(start, index))) {
+          if (/:is\([^{]*:has\([^{]*\s\*\)/u.test(selector)) {
+            found.push(selector.trim());
+          }
+        }
+      }
+      start = index + 1;
+    }
+  }
+  return found;
+}
+
+function topLevelList(prelude) {
+  const parts = [];
+  let start = 0;
+  let depth = 0;
+  for (let index = 0; index < prelude.length; index += 1) {
+    const char = prelude[index];
+    if (char === "\\") index += 1;
+    else if (char === "(" || char === "[") depth += 1;
+    else if (char === ")" || char === "]") depth -= 1;
+    else if (char === "," && depth === 0) {
+      parts.push(prelude.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(prelude.slice(start));
+  return parts;
 }
 
 /**
@@ -53,7 +127,7 @@ function sourceFiles(directory) {
     .map((entry) => join(entry.parentPath, entry.name));
 }
 
-if (process.argv[1] !== undefined) {
+if (import.meta.url === pathToFileURL(resolve(process.argv[1] ?? "")).href) {
   const pluginDirectory = resolve(process.argv[2] ?? process.cwd());
   const manifest = JSON.parse(
     readFileSync(join(pluginDirectory, "package.json"), "utf8"),
@@ -81,6 +155,15 @@ if (process.argv[1] !== undefined) {
     process.stderr.write(
       `These arbitrary variants are used in source but absent from dist/app.css, so they style nothing:\n${missing
         .map((name) => `  ${name}`)
+        .join("\n")}\n`,
+    );
+    process.exit(1);
+  }
+  const unqualified = unqualifiedGroupHas(stylesheet);
+  if (unqualified.length > 0) {
+    process.stderr.write(
+      `These selectors test an ancestor with :has() inside a wildcard :is(), which restyles the plugin's whole subtree on every DOM insertion. Write the variant as [:where(.ancestor):has(...)_&]:utility instead:\n${unqualified
+        .map((selector) => `  ${selector}`)
         .join("\n")}\n`,
     );
     process.exit(1);
