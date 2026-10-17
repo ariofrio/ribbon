@@ -18,11 +18,7 @@ describe("automatic stage guidance", () => {
         makePluginAgentConfigurationContext({ provider: { id: providerId } }),
       );
       expect(resolved.instructions).toContain("thread-stages skill");
-      expect(resolved.instructions).toContain("Read the thread-stages skill");
-      expect(resolved.instructions).toContain("overall workflow state");
-      expect(resolved.instructions).toContain("only when it no longer fits");
-      expect(resolved.instructions).toContain("unresolved findings and follow-up responsibility");
-      expect(resolved.instructions).toContain("submission alone does not establish closure");
+      expect(resolved.instructions).not.toContain("only when the user explicitly requests");
       expect(resolved.instructions).not.toContain("BlockedOnOtherAgent");
       expect(resolved.tools).toEqual([]);
       expect(resolved.skills).toEqual(["thread-stages"]);

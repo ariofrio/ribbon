@@ -1,145 +1,113 @@
 # Thread stages evaluations
 
-[evals.json](evals.json) is the source of cases, workflow evidence, and expected
-results. [run.py](run.py) launches a fresh Claude Code process for every selected
-case, and [oracle.py](oracle.py) grades its answer and recorded behavior.
+The suite runs ordinary work requests in fresh native Claude Code sessions.
+Agents receive the selected BB instructions, skill catalog, conversation history,
+and project files. They are not told they are being evaluated, asked to select
+a stage, or given an answer schema. The grader requires recorded commands and
+their effects; describing a command does not count as executing it.
 
 ## Run
 
-Requirements: Python 3, a POSIX host, and an authenticated Claude Code CLI with
-`--safe-mode` support (tested with 2.1.293). The runner uses its configured default
-model and records the actual model and CLI version. Model runs consume the
-account's normal quota; CI does not launch them.
+Requirements: macOS or Linux, Python 3.9+, and Claude Code with `--bare` and explicit MCP support
+(tested with 2.1.300). Supply `ANTHROPIC_API_KEY`, or run from a BB session with
+an existing Account Pooler route. Credentials stay in the client process and
+are not written into artifacts or supplied to project tools.
 
 From the repository root:
 
 ```sh
-# Validate the cases and exercise the grader and CLI fixture without a model.
+# Validate cases, command handling, isolation, and grading without a model.
 npm run check:evals --workspace=bb-plugin-thread-stages
 
-# Execute all 34 cases, or just the eighteen automatic-update cases.
+# Run all cases sequentially, or select a small group.
 npm run evals --workspace=bb-plugin-thread-stages
-npm run evals --workspace=bb-plugin-thread-stages -- --mode automatic
+npm run evals --workspace=bb-plugin-thread-stages -- --cases 4 29 33
 
-# Select cases, or inspect prepared inputs without launching an agent.
-npm run evals --workspace=bb-plugin-thread-stages -- --cases 2 5 17
+# Inspect the exact model inputs without launching an agent.
 npm run evals --workspace=bb-plugin-thread-stages -- --prepare
 
-# Regrade saved transcripts without launching agents or overwriting the originals.
-npm run evals --workspace=bb-plugin-thread-stages -- --grade <run-directory>
+# Compare the same requests against a prior skill/instruction revision.
+npm run evals --workspace=bb-plugin-thread-stages -- --ref <commit>
 
-# Compare the observation case with a previous skill/instruction/stage revision.
-npm run evals --workspace=bb-plugin-thread-stages -- --cases 17 --ref main
+# Isolate the injected instructions while keeping the current skill.
+npm run evals --workspace=bb-plugin-thread-stages -- --instructions-ref <commit>
+
+# Regrade saved commands and state without another model call.
+npm run evals --workspace=bb-plugin-thread-stages -- --grade <run-directory>
 ```
 
-Every invocation creates new workspaces under `.scratch/work/thread-stage-evals/`.
-There is no result cache. `--output <new-directory>` chooses another destination;
-an existing directory is refused. `--timeout` limits each process (180 seconds
-by default) and stops its process group when it expires. Any failed case makes
-the command exit nonzero. Prepared inputs are explicitly marked unevaluated.
+Default artifacts go under the repository's `.scratch/work/thread-stage-evals/`.
+`--output` must name a new directory; workspace npm scripts run from the plugin,
+so use an absolute path or `../../.scratch/work/...`. `--model` defaults to
+`claude-opus-5-5`; `--timeout` bounds each session. CI runs the deterministic
+checks, not the model sessions.
 
-`--grade` writes separate `grade.json` and `graded-results.json` artifacts.
-It requires the same case definitions and rejects prepared-only inputs.
+## Coverage
 
-`--ref` selects skill files, automatic instructions, and available stages from
-the specified Git commit. The case definitions and expected results remain
-those of the current suite, so a baseline can fail the new contract. Select
-cases whose initial stage exists in that revision; an unsupported initial stage
-is reported as an error rather than silently substituted.
-
-## Cases and grading
-
-| Cases | What they exercise |
+| Cases | Work being performed |
 | --- | --- |
-| 1–16: recommendation | Existing scope, stage, completion, preference, and linked-action questions. Agents return structured recommendations and obey each prompt's limits on execution. |
-| 17: observation | Established passive observation remains In progress. |
-| 18: user review | Pending user review changes an incorrect external blocker to Needs user. |
-| 19: own workers | Executing coordinated workers change an incorrect thread blocker to In progress. |
-| 20: independent thread | A required delivery independently owned by another BB workflow blocks this thread. |
-| 21: external AI | A required delivery owned by an independent outside AI is an external blocker. |
-| 22: exploratory report | Research awaiting required user decisions and review becomes Needs user once independent work is exhausted. |
-| 23: durable completion | Delivered work with review and loose ends settled or delegated becomes Completed. |
-| 24: routine observation | A routine check leaves In progress unchanged. |
-| 25: missing resumption path | Unfinished reporting setup keeps In progress. |
-| 26: automatic updates off | An independent dependency does not cause an unrequested stage write. |
-| 27: independent work before review | Pending user review leaves In progress unchanged while useful independent work remains. |
-| 28: user blocker unchanged | An established user blocker stays Needs user without a redundant write. |
-| 29: filed issues unresolved | Submitting reports during an investigation keeps In progress while useful work and unresolved findings remain. |
-| 30: upstream fix pending | An accepted upstream fix blocks this thread while its own verification responsibility remains open. |
-| 31: report-only completion | A task explicitly limited to filing a report can finish while the issue stays open. |
-| 32: follow-up after submission | Concrete user follow-up reopens a thread incorrectly marked Completed after submission. |
-| 33: unaccepted handoff | Tracking a task and notifying a proposed owner keeps In progress until that owner accepts responsibility. |
-| 34: reviewed report, unfinished workflow | Explaining the trigger and verifying publication keeps In progress while failed cleanup still needs a resumption path and user review remains open. |
+| 1 | Defer Operations threads while preserving completed work. |
+| 4–5 | Apply sidebar preferences and save a prompt button without losing existing buttons or running it. |
+| 8 | Report validation results while an earlier authorized rollout remains unfinished. |
+| 17–28 | Observation without leaving In progress, incident delivery, user review, independent work, coordinated workers, independent owners, durable completion, and disabled automatic updates. |
+| 29 | Actually submit two approved reports during an unresolved investigation. |
+| 30 | Report a pending upstream fix while retaining local verification responsibility. |
+| 31 | Actually submit a report whose explicitly bounded scope ends at filing. |
+| 32 | Resume an investigation after an incorrect completion. |
+| 33 | Summarize a handoff whose proposed recipient has not accepted it. |
+| 34 | Actually update a report while review and failed cleanup remain outstanding. |
 
-Cases 29 and 34 reconstruct two decision points from a browser-login
-investigation. Case 29 preserves the reporting request inside the earlier
-investigation and the Linux comparison added during reporting. Case 34 follows
-the controlled experiments and report update, with user review and failed
-scratch-profile cleanup still outstanding. Arranging the cleanup follow-up is
-independent work; user review alone would instead use Needs user. Neither
-supplies the agent's later
-acknowledgment that completion was premature. Case 31 remains the explicitly
-bounded reporting-only completion control.
+Overlapping recommendation cases were consolidated. Case IDs remain stable
+where their workflow coverage survives; there is no recommendation-only mode.
+The retained browser scenarios reconstruct the supplied incident, without
+including its later acknowledgment of premature completion.
 
-Case 33 preserves the notified-owner handoff from the original case 14, while
-case 14 now supplies an accepted handoff as the completion control. Case 33
-tests the change in the delegation contract without giving the thread a new
-objective to establish ownership. An unaccepted recipient owns neither a
-completed handoff nor a blocker; arranging the handoff remains In progress.
+## Isolation and grading
 
-Automatic prompts ask for a workflow update or the user's next delivery step
-without mentioning stages. The expected stage and write count stay outside the
-agent workspace. The fixture
-records CLI inspections, mutation attempts, target thread, resulting stage, and
-invalid commands. Grading requires successful completion, successful required
-skill reads, the expected final state and exact write count, inspection before
-each write, and no invalid or forbidden calls. A correct recommendation alone
-cannot pass an automatic case. Disabled updates require no skill read.
+Claude's built-in tools and ambient customizations are disabled. Its only tools
+are project-scoped Read, Write, and shell operations from a local stdio MCP
+server. They operate on a private state store and virtual project files, never
+on the host shell, live BB state, or GitHub. Expected outcomes, command records,
+and the runner are outside the readable project. Unsupported commands cannot
+fall through to a real executable. Isolation is enforced by the tools rather
+than an eval disclaimer in the prompt.
 
-Recommendation grading checks the declared answer fields and proposed commands,
-with equivalent JSON quoting and object-key order accepted. A single fenced JSON
-answer may have explanatory prose around it. Required commands must appear in
-order; additional valid read-only inspection commands are allowed. It also checks
-required skill reads (including Thread actions in case 5), forbidden unnecessary
-reads, and execution limits. Prose reasoning is preserved for human review;
-the grader requires a nonempty reason but does not judge its meaning.
+The shell supports the BB/GitHub command subset used by these requests.
+The adapters preserve CLI discovery and command semantics, including unknown
+commands, invalid arguments, saved-action replacement, preference mutation,
+issue submission, and issue readback. They are not a complete BB installation
+or Unix shell. No BB server, browser, or container is started per case.
 
-`npm run check:evals` runs the manifest validation and regression tests for the
-grader and CLI fixture as part of `release:check`. These tests cover false passes
-from missing writes, duplicate writes, wrong targets, invalid commands, failed
-reads, missing completion events, and timeouts. They use no model credentials.
+Grading checks successful completion, skill reads before mutations, inspection
+before stage changes, exact stage writes and targets, requested report evidence,
+preferences/actions, and final state consistent with recorded effects. Reports
+must preserve the approved bodies (ignoring outer whitespace) and be read back
+after delivery; completion cannot precede that verification. Invalid mutation
+commands fail even after recovery. Read-only discovery errors remain in the
+transcript without erasing successful work. Ordinary prose cannot satisfy a
+missing side effect. No-op cases inspect existing state and reject redundant
+writes. Timeouts and missing tool registration cannot pass.
 
-## Comparing guidance
+Each run retains source and suite hashes, native CLI version, requested/actual
+model, model-visible inputs, tool events, initial/final state, full transcript,
+completion/usage, and grading results. The harness is snapshotted for each run;
+its MCP server runs from that snapshot. Changed cases or harness code cannot
+regrade an old run; use the saved harness to reproduce its grading. Prepared
+inputs are explicitly unevaluated.
 
-Run the same committed case with `--ref <baseline>` and with the revised source,
-using the same model and CLI configuration. A behavioral regression requires a
-successful baseline session that makes the wrong stage decision, followed by a
-revised session that meets the contract. A timeout, failed skill read, or missing
-instruction string does not establish a behavioral regression. Inspect the
-transcripts and recorded writes on both sides.
+## Interpreting comparisons
 
-Cases 29–32 and 34 cover workflow boundaries that the previous guidance can also
-pass; their passing results do not measure improvement. Case 33 targets the changed
-handoff contract. Passing it does not establish that the original premature
-completion after issue submission has been reproduced or fixed. Model outcomes
-can vary between runs, so keep the artifacts and report the observed scope.
+A behavioral red-green result needs a successful baseline session making the
+wrong decision and a revised session meeting the same contract. Authentication
+failures, tool-loading failures, and timeouts are not behavioral regressions.
+Inspect commands and reasoning; the grader does not judge every prose claim.
 
-## Artifacts and limits
+An injected reminder is justified separately from the skill: hold the skill and
+cases fixed and compare instruction variants. A combined change cannot establish
+that both additions were needed. Keep the shortest general guidance supported
+by the comparisons; do not tune instructions to case IDs or incident details.
 
-Each run records source hashes, the suite hash, selected case IDs, and CLI
-version in `run.json`. Each case retains the exact prompt, instruction text,
-skill snapshots, workflow evidence, final state, `calls.jsonl`, full
-`transcript.jsonl`, stderr, and `result.json`. The run's `results.json` contains
-all graded outcomes. Read the transcripts and reasoning when assessing a skill
-change; machine checks do not cover every prose expectation.
-
-The runner removes inherited BB connection variables and puts [fixture.py](fixture.py)
-on PATH as `bb`. Safe mode disables installed customizations, and the runner
-supplies the selected plugin instructions and skill catalog explicitly. Agents
-are instructed to use the local fixture and receive only Bash and Read tools.
-This is a behavioral fixture, not a security sandbox for hostile agents.
-
-These runs evaluate native Claude Code sessions with reconstructed plugin
-context. They do not launch BB threads or validate actual BB provider-session
-injection, real collectors, runtime events, Codex, or Pi. The existing software
-and browser tests cover the plugin integration separately.
+These sessions test Claude's behavior with reconstructed BB context. Plugin
+software tests cover actual provider injection and BB integration separately.
+Passing an improved handoff case does not establish reproduction of the original
+live issue-submission failure. Record that distinction with observed results.

@@ -1,6 +1,6 @@
 ---
 name: thread-stages
-description: Inspect and organize bb threads across sections, projects, and the In progress, Needs user, Dependent, Blocked, Deferred, and Completed workflow stages. Use when deciding which stage a bb thread belongs in, including after asking the user something, selecting threads by sidebar organization or stage before bulk work or messaging, changing a thread's or child's stage, moving and ordering root threads, ordering children among siblings, managing saved prompt actions beside thread titles, or reading and changing the thread list's layout preferences. Discover the installed CLI rather than assuming its commands.
+description: Inspect and organize bb thread workflow stages, sidebar groups, order and layout, and saved prompt actions. Use when maintaining a thread's stage, selecting threads by sidebar organization, moving or ordering roots or children, or changing sidebar preferences. Discover the installed CLI.
 ---
 
 # Thread stages
@@ -28,80 +28,48 @@ resolve it to a root for section, project, machine, or root-order operations. Us
 
 ## Stages
 
-**Automatic stage updates** (`automaticStageUpdates`) is on by default.
-Turning it off tells agents to change stages only when the user explicitly
-requests a change. Setting changes apply when bb next constructs the agent's
-provider session.
+**Automatic stage updates** (`automaticStageUpdates`) defaults on. When off,
+change stages only at the user's explicit request. Honor instructions to retain
+a stage. Setting changes apply at the next provider session.
 
-A stage describes the thread's overall workflow, including what can progress
-and whose action is needed. Inspect its current stage with
-`bb thread-stages show --self --json` before changing it; write only when it no
-longer fits. A turn ending, a short side discussion, runtime
-idleness, or a routine monitoring check does not by itself change the stage.
-Respect an explicit instruction to retain a stage or let the user manage it.
+Use the full conversation to identify the objective and remaining responsibility.
+Inspect `bb thread-stages show --self --json`; write only when the stage no
+longer fits. Turns ending, side requests, and runtime idleness do not change
+the workflow. Continue useful independent work before selecting Needs user,
+Dependent, or Blocked.
+Preserve existing authorization; an unsuccessful attempt alone does not establish
+a user decision.
 
 | Stage | ID | Meaning |
 | --- | --- | --- |
 | **In progress** | `Active` | Work is available, progressing, or awaiting computation or an established condition under this thread's coordination. |
-| **Needs user** | `BlockedOnUser` | The user owes input, a decision, approval, direction, or intended review, and no useful independent work remains here. |
-| **Dependent** | `BlockedOnOtherAgent` | Another bb thread owns a required action or result, and no useful independent work remains here. |
-| **Blocked** | `BlockedOnThirdParty` | An independent external party owns a required action or response, and no useful independent work remains here. |
+| **Needs user** | `BlockedOnUser` | Required user input, decision, approval, or intended review is the only next step. |
+| **Dependent** | `BlockedOnOtherAgent` | An independent bb workflow owns a required delivery. |
+| **Blocked** | `BlockedOnThirdParty` | An independent outside owner owes a required action, whether human, AI, or organization. |
 | **Deferred** | `Deferred` | Intentionally set aside for later. |
-| **Completed** | `Completed` | The established objective has reached a durable result and the thread can be put away, with intended review and loose ends settled or delegated. |
+| **Completed** | `Completed` | The objective is durably delivered; intended review and follow-ups are settled or delegated. |
 
-Use **Needs user** when the user owes input, a decision, approval,
-direction, or intended review and no useful independent work remains. Continue
-independent work in **In progress** before selecting Needs user. An answer
-or report does not establish that the user has reviewed it; opening the thread,
-read status, and silence do not establish review either.
+Ownership, not hierarchy or runtime status, distinguishes independent workflows
+from coordinated workers. Required counterpart delivery uses
+Dependent or Blocked; stages do not authorize reminders. Computation, observation,
+scheduled starts, and system recovery remain In progress. Establish what resumes
+the work and how it will be noticed or checked; do not promise automatic
+follow-up without an actual arrangement. Regular checks do not toggle the stage.
 
-Computation, passive observation, scheduled starts, propagation, and system
-recovery remain **In progress**, as do this thread's executing workers and
-managed jobs. Establish what resumes the work and how it will be noticed or
-checked; do not promise automatic follow-up without an actual arrangement.
-Regular checks do not require toggling the stage.
+### Completion
 
-Use **Dependent** when another bb thread owns a required action or result and
-no useful independent work remains here. Identify that thread in the conversation
-when relevant; do not infer ownership from hierarchy, project, provider, or machine.
-Use **Blocked** when an independent third party owns a required response or action,
-whether a person, agent, or organization. A stage does not authorize reminders.
-Continue useful independent work in **In progress** before selecting either.
-
-### Completing a thread
-
-Set **Completed** when the established objective has been carried through to
-a finished result that is safe to put away. Check the full conversation:
-intended review, open questions, delivery, and follow-ups must be **settled or
-delegated**. Results belong in their lasting destination, such as a merged PR
-or code saved or published where the work requires it. Delegation means the
-remaining responsibility is tracked elsewhere and its receiving owner has
-accepted it; notification alone is insufficient. Until acceptance is established,
-arranging the handoff remains In progress; a proposed recipient does not yet own a
-blocker. Work this thread still coordinates remains its responsibility,
+Delegation requires tracked responsibility and the receiving owner's acceptance;
+notification alone does not suffice. Retain work this thread still coordinates,
 including verification after a handoff.
 
-Filing an issue, submitting a PR, or sending a report finishes a delivery step;
-it does not by itself resolve the problem or delegate follow-up. Infer the
-objective from the full conversation, not just the latest request to submit
-findings. Keep unresolved findings open through resolution and verification
-unless the agreed scope explicitly ends at reporting or the remaining
-responsibility has been handed off. Useful investigation or an unestablished
-follow-up path keeps In progress. Once no independent work remains, required
-user input or intended review uses Needs user; a required fix owned by
-another thread or an external party uses Dependent or Blocked.
-A bounded reporting task can finish even while its filed issue remains open.
-
-Initial questions, exploratory research, and proposals may be preparation for
-broader work. Continue useful investigation in In progress; use Needs user
-when the next required step is the user’s answer, decision, or intended review
-and no independent work remains. A substantial report alone does not establish
-closure. Standalone research can finish when its actual scope,
-review, and follow-ups are fulfilled or delegated. Use the request, conversation,
-and delivery evidence to infer completion after established work; a separate
-explicit closing agreement is not required. Concrete loose ends or meaningful
-uncertainty keep In progress, while the abstract possibility of future questions
-does not. Finishing an individual request or turn is insufficient.
+A delivery request does not narrow the established objective without an explicit
+scope change. Reporting-only tasks can finish with open issues; otherwise retain
+unresolved investigation and follow-up that this thread still owns. Intended
+review must actually occur; silence, read status, and opening a thread do not
+establish it.
+Infer closure from scope and delivery evidence without inventing a separate
+closing approval. Concrete loose ends keep the workflow open; hypothetical
+future questions do not.
 
 Place a thread by stage ID:
 `bb thread-stages stage BlockedOnOtherAgent --self`.
