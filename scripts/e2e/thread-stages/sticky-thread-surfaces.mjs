@@ -68,8 +68,10 @@ export async function verifyStickyThreadSurfaces({ stack, fixture, cases }) {
         const list = sidebar(page);
         await list.waitFor({ timeout: 120_000 });
         const target = row(list, parent.id);
+        // Earlier suites can give this parent more children than one viewport.
+        // Reveal the intended run before requiring all three adjacent rows.
+        await revealWindowedRow(list, children[0].id);
         if (unselected) {
-          await revealWindowedRow(list, parent.id);
           await page.waitForFunction((parentId) => {
             const parent = document.querySelector(
               `[data-ribbon-sidebar-root] [data-thread-id="${parentId}"]`,
