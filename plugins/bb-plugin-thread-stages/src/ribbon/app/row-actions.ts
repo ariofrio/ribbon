@@ -22,42 +22,24 @@ const moveInfo: PluginThreadActionRegistrationInfo = {
 
 export function useRibbonThreadActionRegistrations() {
   const registrations = experimental_useThreadActionRegistrations();
-  const nativeIndex = registrations.findIndex(
-    (item) => item.key === NATIVE_MOVE_ACTION_KEY,
-  );
-  const result = registrations.filter(
-    (item) => item.key !== NATIVE_MOVE_ACTION_KEY,
-  );
+  const nativeIndex = registrations.findIndex(item => item.key === NATIVE_MOVE_ACTION_KEY);
+  const result = registrations.filter(item => item.key !== NATIVE_MOVE_ACTION_KEY);
   result.splice(nativeIndex === -1 ? result.length : nativeIndex, 0, moveInfo);
   return result;
 }
 
-export function useRibbonThreadActions(
-  thread: SidebarThread,
-  options?: PluginThreadActionsOptions,
-) {
-  const registered = experimental_useThreadActions(
-    toThreadActionTarget(thread),
-    {
-      keys: options?.keys,
-      requestRename: options?.requestRename,
-    },
-  );
+export function useRibbonThreadActions(thread: SidebarThread, options?: PluginThreadActionsOptions) {
+  const registered = experimental_useThreadActions(toThreadActionTarget(thread), {
+    keys: options?.keys,
+    requestRename: options?.requestRename,
+  });
   const sectionMove = useThreadSectionMove();
   if (options?.keys?.length === 0) return EMPTY_ACTION_ENTRIES;
-  const entries = registered.filter(
-    (entry) => entry.key !== NATIVE_MOVE_ACTION_KEY,
-  );
-  if (
-    (options?.keys === undefined ||
-      options.keys.includes(RIBBON_MOVE_ACTION_KEY)) &&
-    sectionMove &&
-    thread.parentThreadId === null &&
-    thread.archivedAt === null
-  ) {
-    const isCurrent = (sectionId: string | null) =>
-      thread.pinnedAt === null && thread.sectionId === sectionId;
-    if (sectionMove.destinations.some((item) => !isCurrent(item.sectionId))) {
+  const entries = registered.filter(entry => entry.key !== NATIVE_MOVE_ACTION_KEY);
+  if ((options?.keys === undefined || options.keys.includes(RIBBON_MOVE_ACTION_KEY)) &&
+      sectionMove && thread.parentThreadId === null && thread.archivedAt === null) {
+    const isCurrent = (sectionId: string | null) => thread.pinnedAt === null && thread.sectionId === sectionId;
+    if (sectionMove.destinations.some(item => !isCurrent(item.sectionId))) {
       const move: PluginThreadActionEntry = {
         key: RIBBON_MOVE_ACTION_KEY,
         pluginId: "thread-stages",
@@ -66,36 +48,23 @@ export function useRibbonThreadActions(
           label: "Move to section",
           icon: "SectionMove",
           choices: {
-            items: sectionMove.destinations.map((item) => ({
-              id: item.sectionId ?? "threads",
-              label: item.label,
-              selected: isCurrent(item.sectionId),
-              disabled: isCurrent(item.sectionId),
+            items: sectionMove.destinations.map(item => ({
+              id: item.sectionId ?? "threads", label: item.label,
+              selected: isCurrent(item.sectionId), disabled: isCurrent(item.sectionId),
             })),
           },
-          run: async (value) => {
-            const destination = sectionMove.destinations.find(
-              (item) => (item.sectionId ?? "threads") === value,
-            );
-            if (destination && !isCurrent(destination.sectionId))
-              sectionMove.moveThread(thread, destination.sectionId);
+          run: async value => {
+            const destination = sectionMove.destinations.find(item => (item.sectionId ?? "threads") === value);
+            if (destination && !isCurrent(destination.sectionId)) sectionMove.moveThread(thread, destination.sectionId);
           },
         },
       };
-      const renameIndex = entries.findIndex(
-        (entry) => entry.key === "bb--core/rename",
-      );
-      entries.splice(
-        renameIndex === -1 ? entries.length : renameIndex,
-        0,
-        move,
-      );
+      const renameIndex = entries.findIndex(entry => entry.key === "bb--core/rename");
+      entries.splice(renameIndex === -1 ? entries.length : renameIndex, 0, move);
     }
   }
-  return options?.keys === undefined
-    ? entries
-    : options.keys.flatMap((key) => {
-        const entry = entries.find((item) => item.key === key);
-        return entry ? [entry] : [];
-      });
+  return options?.keys === undefined ? entries : options.keys.flatMap(key => {
+    const entry = entries.find(item => item.key === key);
+    return entry ? [entry] : [];
+  });
 }
