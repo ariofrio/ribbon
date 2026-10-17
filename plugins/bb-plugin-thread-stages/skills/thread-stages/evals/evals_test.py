@@ -6,7 +6,7 @@ import unittest
 
 from fixture import invoke
 from oracle import answer_matches, grade_run, load_cases, parse_answer, validate
-from run import load_source, prepare_case
+from run import cli_args, load_source, normalize_events, prepare_case
 
 
 HERE = Path(__file__).resolve().parent
@@ -46,15 +46,56 @@ class EvalTests(unittest.TestCase):
 
     def test_manifest_and_source_contract(self):
         validate()
-        self.assertEqual(len(load_cases()), 34)
+        self.assertEqual(len(load_cases()), 58)
         self.assertNotIn("Waiting", self.source["stages"])
         self.assertIn("BlockedOnUser", self.source["stages"])
-        self.assertIn("Inspect the current stage", self.source["instructions"]["on"])
-        self.assertIn("only when the user explicitly", self.source["instructions"]["off"])
+        self.assertEqual(set(self.source["instructions"]), {"on", "off"})
+        self.assertNotEqual(self.source["instructions"]["on"], self.source["instructions"]["off"])
+
+    def test_cli_invocations_pin_the_requested_model_and_effort(self):
+        for runtime in ("codex", "claude"):
+            args = cli_args(self.workspace, "system", "prompt", runtime, runtime,
+                            "chosen-model", "high")
+            self.assertEqual(args[args.index("--model") + 1], "chosen-model")
+            if runtime == "claude":
+                self.assertEqual(args[args.index("--effort") + 1], "high")
+            else:
+                self.assertIn('model_reasoning_effort="high"', args)
+
+    def test_each_case_uses_the_runs_fixture_snapshot(self):
+        source = {**self.source, "fixture": "fixture snapshot"}
+        other = self.workspace / "snapshot"
+        prepare_case(other, self.case, source)
+        self.assertEqual((other / "fixture.py").read_text(), "fixture snapshot")
+
+    def test_recommendation_response_schema_includes_the_required_reason(self):
+        case = next(x for x in load_cases() if x["id"] == 4)
+        _, prompt = prepare_case(self.workspace / "preferences", case, self.source)
+        self.assertIn('"reason": "string"', prompt)
+
+    def test_preference_discovery_describes_layout_keys_and_excludes_plugin_settings(self):
+        code, output = invoke(self.workspace, ["thread-stages", "prefs", "list"])
+        self.assertEqual(code, 0)
+        self.assertIn("Whether sibling threads sharing a worktree collapse into one row", output)
+        self.assertNotIn("automaticStageUpdates", output)
+        code, value = invoke(self.workspace, ["thread-stages", "prefs", "get",
+                                             "environmentGrouping", "--json"])
+        self.assertEqual((code, value), (0, {"key": "environmentGrouping", "value": True}))
 
     def test_success_requires_real_recorded_transition(self):
         self.transition()
         self.assertTrue(self.grade()["passed"])
+
+    def test_thread_discovery_help_is_a_valid_read_only_call(self):
+        code, root_help = invoke(self.workspace, ["--help"])
+        self.assertEqual(code, 0)
+        self.assertIn("bb thread show <id>", root_help)
+        code, _ = invoke(self.workspace, ["thread", "--help"])
+        self.assertEqual(code, 0)
+        code, _ = invoke(self.workspace, ["thread"])
+        self.assertNotEqual(code, 0)
+        self.assertEqual(json.loads((self.workspace / "state.json").read_text())["stage"],
+                         self.case["scenario"]["initial_stage"])
 
     def test_correct_answer_without_transition_fails(self):
         self.assertFalse(self.grade()["passed"])
@@ -108,6 +149,83 @@ class EvalTests(unittest.TestCase):
         invoke(other, ["thread-stages", "stage", "BlockedOnOtherAgent", "--self"])
         self.assertFalse(grade_run(case, other, events, 0)["passed"])
 
+    def source_case(self, case_id):
+        case = next(x for x in load_cases() if x["id"] == case_id)
+        workspace = self.workspace / str(case_id)
+        prepare_case(workspace, case, self.source)
+        return case, workspace, transcript(workspace / "skills/thread-stages/SKILL.md")
+
+    def test_stage_must_fit_before_source_work_not_just_at_end(self):
+        case, workspace, events = self.source_case(35)
+        invoke(workspace, ["thread-stages", "show", "--self", "--json"])
+        for path in case["expected_action"]["source_reads"]:
+            invoke(workspace, ["files", "read", path])
+        invoke(workspace, ["thread-stages", "stage", "Active", "--self"])
+        invoke(workspace, ["thread-stages", "stage", "BlockedOnUser", "--self"])
+        grade = grade_run(case, workspace, events, 0)
+        self.assertFalse(grade["passed"])
+        self.assertEqual([c["text"] for c in grade["checks"] if not c["passed"]],
+                         ["Stage fit before independent source work resumed"])
+
+    def test_stage_update_then_real_source_read_passes(self):
+        case, workspace, events = self.source_case(35)
+        invoke(workspace, ["thread-stages", "show", "--self", "--json"])
+        invoke(workspace, ["thread-stages", "stage", "Active", "--self"])
+        self.assertFalse(grade_run(case, workspace, events, 0)["passed"])
+        code, source = invoke(workspace, ["files", "read", "src/retry-worker.ts"])
+        self.assertEqual(code, 0)
+        self.assertIn("attempt <= MAX_RETRIES", source)
+        for path in case["expected_action"]["source_reads"][1:]:
+            invoke(workspace, ["files", "read", path])
+        invoke(workspace, ["thread-stages", "stage", "BlockedOnUser", "--self"])
+        self.assertTrue(grade_run(case, workspace, events, 0)["passed"])
+
+    def test_manual_and_disabled_updates_allow_work_without_stage_write(self):
+        for case_id in (38, 39):
+            case, workspace, events = self.source_case(case_id)
+            for path in case["expected_action"]["source_reads"]:
+                invoke(workspace, ["files", "read", path])
+            self.assertTrue(grade_run(case, workspace, events[-1:], 0)["passed"])
+
+    def test_file_discovery_and_context_read_are_not_investigation_work(self):
+        case, workspace, _ = self.source_case(35)
+        for args in (["files", "--help"], ["files", "read", "--help"], ["files", "read", "work.json"]):
+            code, _ = invoke(workspace, args)
+            self.assertEqual(code, 0)
+        calls = [json.loads(line) for line in (workspace / "calls.jsonl").read_text().splitlines()]
+        self.assertFalse(any(c.get("source_read") for c in calls))
+
+    def test_ci_discussion_needs_a_recorded_write_after_its_investigation(self):
+        case, workspace, events = self.source_case(40)
+        invoke(workspace, ["thread-stages", "show", "--self", "--json"])
+        for path in case["expected_action"]["source_reads"]:
+            invoke(workspace, ["files", "read", path])
+        self.assertFalse(grade_run(case, workspace, events, 0)["passed"])
+        invoke(workspace, ["thread-stages", "stage", "BlockedOnUser", "--self"])
+        self.assertTrue(grade_run(case, workspace, events, 0)["passed"])
+
+    def test_ci_discussion_cannot_stop_for_user_before_investigating(self):
+        case, workspace, events = self.source_case(40)
+        invoke(workspace, ["thread-stages", "show", "--self", "--json"])
+        invoke(workspace, ["thread-stages", "stage", "BlockedOnUser", "--self"])
+        for path in case["expected_action"]["source_reads"]:
+            invoke(workspace, ["files", "read", path])
+        grade = grade_run(case, workspace, events, 0)
+        self.assertEqual([c["text"] for c in grade["checks"] if not c["passed"]],
+                         ["Stage fit before independent source work resumed"])
+
+    def test_codex_normalization_preserves_commands_failures_and_completion(self):
+        events = [{"type": "item.completed", "item": {"id": "c1", "type": "command_execution",
+                   "command": "cat skills/thread-stages/SKILL.md", "exit_code": 0,
+                   "aggregated_output": "# Thread stages\n## Stages"}},
+                  {"type": "item.completed", "item": {"id": "m1", "type": "agent_message", "text": "Done"}},
+                  {"type": "turn.completed"}]
+        self.transition()
+        self.assertTrue(self.grade(normalize_events(events, "codex"))["passed"])
+        events[0]["item"]["exit_code"] = 1
+        self.assertFalse(self.grade(normalize_events(events, "codex"))["passed"])
+        self.assertFalse(self.grade(normalize_events(events[:-1], "codex"))["passed"])
+
     def test_recommendation_case_checks_answer_without_performing_mutations(self):
         case = next(x for x in load_cases() if x["id"] == 8)
         other = self.workspace / "recommendation"
@@ -126,6 +244,14 @@ class EvalTests(unittest.TestCase):
     def test_fenced_answer_with_prose_is_not_a_stage_error(self):
         answer = parse_answer('I did not run commands.\n```json\n{"stage":"Active"}\n```')
         self.assertEqual(answer, {"stage": "Active"})
+
+    def test_single_command_allows_a_readonly_inspection_prefix(self):
+        expected = {'command':'bb thread-stages stage BlockedOnOtherAgent --self'}
+        answer = {'command':'bb thread-stages show --self --json && bb thread-stages stage BlockedOnOtherAgent --self',
+                  'reason':'Inspect before changing the stage.'}
+        self.assertTrue(answer_matches(answer, expected))
+        answer['command'] += ' && bb thread-stages stage Completed --self'
+        self.assertFalse(answer_matches(answer, expected))
 
     def test_command_plan_accepts_inspection_without_accepting_extra_mutations(self):
         expected = {"commands": ["bb thread-stages prefs set organizationMode project"]}

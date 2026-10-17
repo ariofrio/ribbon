@@ -1,145 +1,157 @@
-# Thread stages evaluations
+# Thread stages evaluation
 
-[evals.json](evals.json) is the source of cases, workflow evidence, and expected
-results. [run.py](run.py) launches a fresh Claude Code process for every selected
-case, and [oracle.py](oracle.py) grades its answer and recorded behavior.
+The [manifest](evals.json) contains **18 task acceptance scenarios (41–58)** and
+**40 diagnostic cases (1–40)**. Report these groups separately. A recommendation
+answer or a correct stage operation from a supplied workflow summary does not
+establish autonomous behavior in a continuing conversation.
 
-## Run
+## Task acceptance
 
-Requirements: Python 3, a POSIX host, and an authenticated Claude Code CLI with
-`--safe-mode` support (tested with 2.1.293). The runner uses its configured default
-model and records the actual model and CLI version. Model runs consume the
-account's normal quota; CI does not launch them.
+[sessions.py](sessions.py) executes 32 turns across 18 scenarios through actual
+`codex exec` / `codex exec resume` or `claude --print` / `claude --resume` calls.
+Fourteen scenarios resume the same native session; four have one task.
+Session IDs must persist. Earlier assistant messages and tool results come from
+the agent's own execution, rather than a supplied conversation synopsis.
+
+Agents receive natural user requests, subsequent replies or BB message envelopes,
+raw project artifacts, the source-extracted plugin reminder, and the skill
+catalog. They do not receive `work.json`, stage expectations, grading rules,
+comparison labels, or a statement that they are being evaluated. Backend state,
+source inputs, traces, and the oracle remain outside their project workspace.
+Each project has its own Git root, with no remote, so repository discovery cannot
+walk into the checkout running the suite. The local `bb` executable provides thread inspection, stage writes, and project
+file reads, including files the agent creates. It does not contact production BB.
+
+| Cases | Work and decision boundary |
+| --- | --- |
+| 41 | Draft issue paragraphs, then investigate implicit review comments against client/receiver code and probes. Save corrected drafts and structured findings. |
+| 42 | Ask for a region; resume calculation when the user supplies it and raw usage/pricing inputs. |
+| 43–44 | Another thread's message or an external accountant's delivery resolves the prior wait. Read the new export and produce paid-account totals. |
+| 45 | Explain exponential backoff in a substantive side discussion while draft review remains pending. Keep Needs user. |
+| 46 | Produce invoice totals while the user still reviews the drafts. Use In progress during that work, then Needs user for the remaining review. |
+| 47–48 | Check an executing conversion and an established recovery watch twice. Recorded collectors own notifications. Retain In progress without redundant writes. |
+| 49 | Finish and save an explicitly bounded accounting report. Use Completed. |
+| 50 | Perform an explicit placement request with automatic updates off. |
+| 51 | Retain Deferred under a user's manual preference across a native resume and actual work. |
+| 52 | Resume work with automatic updates off; retain the current stage. |
+| 53 | Reopen a Completed thread for actual follow-up calculations and intended review. |
+| 54 | Ask for genuinely missing inputs; retain Needs user when the user has not supplied them. |
+| 55 | Establish the user's decision on a proposed gate, then investigate the recorded PNG-only recapture and PR-wide relevance code and save a discussion note and structured cutoff facts before that decision. No check-monitoring ownership is inferred. |
+| 56 | A status tool result reveals another thread's completed export. Retain Dependent for the status check, then use In progress before integrating the delivered data. |
+| 57 | A narrower follow-up retains the earlier report-index requirement and completes the bounded package without inventing another approval wait. |
+| 58 | Start Active for the CI question, investigate and save the report, then place the proposal in Needs user for the commissioning decision. This directly checks the reported post-report boundary. |
+
+The acceptance oracle requires correct saved deliverables as well as actual stage
+writes, their order, inspection before writes, the stage at evidence reads, and
+successful native continuation. A named report may live in a reported subdirectory unless the task gives an
+explicit directory. Account amounts may be numbers or records using the source
+`amount_cents` field. It checks domain data (retry behavior, cost,
+paid-account totals, CI facts) and minimal report content rather than exact instruction
+strings or hardcoded agent recommendations. A trace with correct stage writes
+and a missing or wrong deliverable fails. Human review of prose and reasoning
+remains necessary; keyword checks do not prove an explanation is sound.
+
+Only successfully served file reads count as inspected evidence. A missing file
+is a normal lookup failure; an unsupported read-only `--help` probe may be
+recovered from. Invalid substantive calls and unrelated mutations fail. All
+user-visible assistant messages are retained, including a question asked before
+a final acknowledgment.
+
+## Commands
+
+Requirements: Python 3, POSIX, authenticated Codex and Claude CLIs. Tested with
+Codex 0.163.0 and Claude Code 2.1.302. Defaults explicitly request
+`gpt-6.1-sol` / low and `claude-opus-5-5[1m]` / high. Use the same model and
+reasoning settings on both sides. Codex JSONL does not report the accepted model;
+requested settings, CLI version, and Claude's reported model remain in traces.
+Model execution consumes normal account quota; CI only tests the harness.
 
 From the repository root:
 
 ```sh
-# Validate the cases and exercise the grader and CLI fixture without a model.
+# Validate all manifests and regression-test both runners and graders.
 npm run check:evals --workspace=bb-plugin-thread-stages
 
-# Execute all 34 cases, or just the eighteen automatic-update cases.
-npm run evals --workspace=bb-plugin-thread-stages
-npm run evals --workspace=bb-plugin-thread-stages -- --mode automatic
+# All 18 acceptance scenarios; choose a new neutral output path each time.
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime codex --ref <original-commit> --output .scratch/work/stage-sessions/run-01
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime codex --output .scratch/work/stage-sessions/run-02
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime claude --ref <original-commit> --output .scratch/work/stage-sessions/run-03
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime claude --output .scratch/work/stage-sessions/run-04
 
-# Select cases, or inspect prepared inputs without launching an agent.
-npm run evals --workspace=bb-plugin-thread-stages -- --cases 2 5 17
+# Select cases, override settings, or replay saved evidence without a new agent.
+npm run evals:sessions --workspace=bb-plugin-thread-stages -- --runtime codex --model gpt-6.1-sol --effort low --cases 41 43 56 --output .scratch/work/stage-sessions/run-05
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --grade .scratch/work/stage-sessions/run-02
+
+# The separate diagnostic suite: all 40, just automatic summaries, or a selection.
+npm run evals --workspace=bb-plugin-thread-stages -- --runtime codex
+npm run evals --workspace=bb-plugin-thread-stages -- --runtime claude --mode automatic
+npm run evals --workspace=bb-plugin-thread-stages -- --runtime codex --cases 24 26 28 35 36 37 38 39 40
 npm run evals --workspace=bb-plugin-thread-stages -- --prepare
-
-# Regrade saved transcripts without launching agents or overwriting the originals.
-npm run evals --workspace=bb-plugin-thread-stages -- --grade <run-directory>
-
-# Compare the observation case with a previous skill/instruction/stage revision.
-npm run evals --workspace=bb-plugin-thread-stages -- --cases 17 --ref main
+npm run evals --workspace=bb-plugin-thread-stages -- --grade <diagnostic-run-directory>
 ```
 
-Every invocation creates new workspaces under `.scratch/work/thread-stage-evals/`.
-There is no result cache. `--output <new-directory>` chooses another destination;
-an existing directory is refused. `--timeout` limits each process (180 seconds
-by default) and stops its process group when it expires. Any failed case makes
-the command exit nonzero. Prepared inputs are explicitly marked unevaluated.
+`--ref` loads skill, injected reminder, and stages from Git. Case definitions and
+input artifacts stay the same on both sides. `--model`, `--effort`, and
+`--timeout` override the defaults; timeout is 240 seconds per acceptance turn.
+Each output directory must be new. Avoid comparison labels in visible paths.
+All temporary outputs belong in `.scratch/work/`, outside the packaged skill.
 
-`--grade` writes separate `grade.json` and `graded-results.json` artifacts.
-It requires the same case definitions and rejects prepared-only inputs.
+## Diagnostic cases
 
-`--ref` selects skill files, automatic instructions, and available stages from
-the specified Git commit. The case definitions and expected results remain
-those of the current suite, so a baseline can fail the new contract. Select
-cases whose initial stage exists in that revision; an unsupported initial stage
-is reported as an error rather than silently substituted.
+[run.py](run.py) preserves the original 40 single-session probes. Cases 1–16
+request structured recommendations about scope, stages, preferences, and linked
+Thread actions. Cases 17–34 use curated workflow summaries to isolate observation,
+own workers, user/agent/external blockers, reporting and completion, handoffs,
+missing resumption arrangements, no-churn, and automatic-update preferences.
+Cases 35–39 investigate retry artifacts under user feedback and manual/off
+controls. Case 40 investigates the recapture proposal boundary.
 
-## Cases and grading
+These remain useful narrow regressions and owner-boundary checks. Their wrapper
+explicitly identifies the local environment and their `work.json` supplies
+workflow conclusions. Their automatic oracle checks recorded operations and
+source access, not task completion. Do not describe a 40/40 diagnostic result as
+forty realistic autonomous tasks. The native continuation scenarios above supply
+the stronger task acceptance coverage.
 
-| Cases | What they exercise |
-| --- | --- |
-| 1–16: recommendation | Existing scope, stage, completion, preference, and linked-action questions. Agents return structured recommendations and obey each prompt's limits on execution. |
-| 17: observation | Established passive observation remains In progress. |
-| 18: user review | Pending user review changes an incorrect external blocker to Needs user. |
-| 19: own workers | Executing coordinated workers change an incorrect thread blocker to In progress. |
-| 20: independent thread | A required delivery independently owned by another BB workflow blocks this thread. |
-| 21: external AI | A required delivery owned by an independent outside AI is an external blocker. |
-| 22: exploratory report | Research awaiting required user decisions and review becomes Needs user once independent work is exhausted. |
-| 23: durable completion | Delivered work with review and loose ends settled or delegated becomes Completed. |
-| 24: routine observation | A routine check leaves In progress unchanged. |
-| 25: missing resumption path | Unfinished reporting setup keeps In progress. |
-| 26: automatic updates off | An independent dependency does not cause an unrequested stage write. |
-| 27: independent work before review | Pending user review leaves In progress unchanged while useful independent work remains. |
-| 28: user blocker unchanged | An established user blocker stays Needs user without a redundant write. |
-| 29: filed issues unresolved | Submitting reports during an investigation keeps In progress while useful work and unresolved findings remain. |
-| 30: upstream fix pending | An accepted upstream fix blocks this thread while its own verification responsibility remains open. |
-| 31: report-only completion | A task explicitly limited to filing a report can finish while the issue stays open. |
-| 32: follow-up after submission | Concrete user follow-up reopens a thread incorrectly marked Completed after submission. |
-| 33: unaccepted handoff | Tracking a task and notifying a proposed owner keeps In progress until that owner accepts responsibility. |
-| 34: reviewed report, unfinished workflow | Explaining the trigger and verifying publication keeps In progress while failed cleanup still needs a resumption path and user review remains open. |
+Recommendation answers use declared JSON fields, with equivalent command quoting
+and JSON key order accepted. Extra valid read-only discovery is allowed. The
+oracle enforces prompt limits on BB execution separately from skill-file reads,
+which Codex performs through its shell. Cases 4 and 5 preserve preference
+discovery and linked Thread actions coverage. `oracle.py validate` checks every
+case and referenced input before either runner launches workers.
 
-Cases 29 and 34 reconstruct two decision points from a browser-login
-investigation. Case 29 preserves the reporting request inside the earlier
-investigation and the Linux comparison added during reporting. Case 34 follows
-the controlled experiments and report update, with user review and failed
-scratch-profile cleanup still outstanding. Arranging the cleanup follow-up is
-independent work; user review alone would instead use Needs user. Neither
-supplies the agent's later
-acknowledgment that completion was premature. Case 31 remains the explicitly
-bounded reporting-only completion control.
+## Evidence and limits
 
-Case 33 preserves the notified-owner handoff from the original case 14, while
-case 14 now supplies an accepted handoff as the completion control. Case 33
-tests the change in the delegation contract without giving the thread a new
-objective to establish ownership. An unaccepted recipient owns neither a
-completed handoff nor a blocker; arranging the handoff remains In progress.
+Both runners save requested model/effort, CLI version, source/fixture/input/suite
+hashes, exact CLI invocations, skill snapshots, plain answers, full JSONL traces,
+stage operations, outputs, and canonical `grading.json`. Acceptance runs also
+save per-turn state, call logs, immutable deliverable snapshots, session IDs,
+exit codes, and the case/runner/oracle snapshots outside the agent workspace.
+Regrading writes separate `grade.json` and `graded-results.json`; original
+results and traces are retained. `--contracts <evals.json>` permits an explicit
+oracle repair while refusing changes to worker-visible tasks or inputs; its
+provenance records the contract changes. Interrupted runs must be identified separately.
 
-Automatic prompts ask for a workflow update or the user's next delivery step
-without mentioning stages. The expected stage and write count stay outside the
-agent workspace. The fixture
-records CLI inspections, mutation attempts, target thread, resulting stage, and
-invalid commands. Grading requires successful completion, successful required
-skill reads, the expected final state and exact write count, inspection before
-each write, and no invalid or forbidden calls. A correct recommendation alone
-cannot pass an automatic case. Disabled updates require no skill read.
+The runner removes inherited BB connection variables and places its local `bb`
+backend first on PATH. Claude safe mode disables installed customizations;
+Codex ignores user configuration and rules, discovered skills and project docs,
+and login shells. Its tool sandbox explicitly disables network access. Claude
+uses per-session strict sandbox settings: no allowed network domains, no
+unsandboxed retry, failure at startup if sandboxing is unavailable, and local
+project/backend access. This requires macOS Seatbelt or Linux bubblewrap/socat;
+see the [Claude sandbox reference](https://code.claude.com/docs/en/sandboxing).
+Native model connections run outside the work-tool sandbox. Git global/system
+configuration is suppressed in these processes. The isolated backend's writable directory is allowed in the
+Codex workspace sandbox. This is a cooperative behavioral harness, not a
+security boundary against a hostile agent. Native session persistence is used;
+no BB threads, production services, plugins, or settings are created or changed.
 
-Recommendation grading checks the declared answer fields and proposed commands,
-with equivalent JSON quoting and object-key order accepted. A single fenced JSON
-answer may have explanatory prose around it. Required commands must appear in
-order; additional valid read-only inspection commands are allowed. It also checks
-required skill reads (including Thread actions in case 5), forbidden unnecessary
-reads, and execution limits. Prose reasoning is preserved for human review;
-the grader requires a nonempty reason but does not judge its meaning.
+The harness reconstructs the plugin instruction surface and uses a local backend.
+It does not prove production provider injection, actual monitoring delivery,
+third-party services, or all long-running conversation states. Plugin software
+and integration tests cover separate owner boundaries. Report finite observations
+and variability; an unchanged baseline that passes is not evidence of improvement.
 
-`npm run check:evals` runs the manifest validation and regression tests for the
-grader and CLI fixture as part of `release:check`. These tests cover false passes
-from missing writes, duplicate writes, wrong targets, invalid commands, failed
-reads, missing completion events, and timeouts. They use no model credentials.
-
-## Comparing guidance
-
-Run the same committed case with `--ref <baseline>` and with the revised source,
-using the same model and CLI configuration. A behavioral regression requires a
-successful baseline session that makes the wrong stage decision, followed by a
-revised session that meets the contract. A timeout, failed skill read, or missing
-instruction string does not establish a behavioral regression. Inspect the
-transcripts and recorded writes on both sides.
-
-Cases 29–32 and 34 cover workflow boundaries that the previous guidance can also
-pass; their passing results do not measure improvement. Case 33 targets the changed
-handoff contract. Passing it does not establish that the original premature
-completion after issue submission has been reproduced or fixed. Model outcomes
-can vary between runs, so keep the artifacts and report the observed scope.
-
-## Artifacts and limits
-
-Each run records source hashes, the suite hash, selected case IDs, and CLI
-version in `run.json`. Each case retains the exact prompt, instruction text,
-skill snapshots, workflow evidence, final state, `calls.jsonl`, full
-`transcript.jsonl`, stderr, and `result.json`. The run's `results.json` contains
-all graded outcomes. Read the transcripts and reasoning when assessing a skill
-change; machine checks do not cover every prose expectation.
-
-The runner removes inherited BB connection variables and puts [fixture.py](fixture.py)
-on PATH as `bb`. Safe mode disables installed customizations, and the runner
-supplies the selected plugin instructions and skill catalog explicitly. Agents
-are instructed to use the local fixture and receive only Bash and Read tools.
-This is a behavioral fixture, not a security sandbox for hostile agents.
-
-These runs evaluate native Claude Code sessions with reconstructed plugin
-context. They do not launch BB threads or validate actual BB provider-session
-injection, real collectors, runtime events, Codex, or Pi. The existing software
-and browser tests cover the plugin integration separately.
+See the [native comparison report](../../../../../docs/testing/thread-stages-native-conversations.md)
+for actual commands, stage operation order, RED/GREEN evidence, interrupted runs,
+manual review, and validation limits.

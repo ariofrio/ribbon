@@ -31,14 +31,15 @@
     "check:catalog": "node scripts/build-icon-catalog.mjs --check",
     "prepublishOnly": "npm run release:check",
     "release:check": "npm run verify:lockfile && npm run check:evals && npm test && npm run typecheck && npm run verify:types && npm run build && npm run verify:styles && npm run verify:package",
-    "check:evals": "python3 skills/thread-stages/evals/evals_test.py",
+    "check:evals": "python3 -m unittest discover -s skills/thread-stages/evals -p \"*_test.py\"",
     "evals": "python3 skills/thread-stages/evals/run.py",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "verify:lockfile": "npm ci --workspaces=false --ignore-scripts --dry-run --no-audit --no-fund --loglevel=error",
     "verify:package": "node ../../scripts/verify-package.mjs",
     "verify:styles": "node ../../scripts/verify-styles.mjs",
-    "verify:types": "node ../../scripts/verify-types.mjs"
+    "verify:types": "node ../../scripts/verify-types.mjs",
+    "evals:sessions": "python3 skills/thread-stages/evals/sessions.py"
   },
   "engines": {
     "bb": ">=0.46.0",
