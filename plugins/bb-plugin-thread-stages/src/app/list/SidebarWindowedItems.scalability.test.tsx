@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarContentElementContext } from "../ui/sidebar.js";
@@ -67,11 +73,15 @@ function setup({
   focus,
   items = keys,
   subtreeRows = 1,
+  recycle = false,
+  onVisit,
 }: {
   selected?: string;
   focus?: string;
   items?: string[];
   subtreeRows?: number;
+  recycle?: boolean;
+  onVisit?: (key: string) => void;
 } = {}) {
   const viewport = createRef<HTMLDivElement>();
   const tree = (next = items, freeze = false) => (
@@ -79,6 +89,7 @@ function setup({
       <SidebarContentElementContext.Provider value={viewport}>
         <SidebarWindowedItems
           freeze={freeze}
+          recycleItem={recycle ? () => true : undefined}
           itemKeys={next}
           estimateRows={() => subtreeRows}
           alwaysMountedKeys={selected ? new Set([selected]) : undefined}
@@ -92,6 +103,10 @@ function setup({
               data-test-height={subtreeRows * 28}
               data-sidebar-thread-id={next[i]}
               href={"#" + next[i]}
+              onClick={(event) => {
+                event.preventDefault();
+                onVisit?.(next[i]!);
+              }}
             >
               {next[i]}
             </a>
@@ -236,4 +251,138 @@ it("keeps one pixel between rows and no extra gap after a run, including reorder
   expect(h.holes()).toHaveLength(0);
   h.jump(0);
   expect(h.holes()).toHaveLength(0);
+});
+
+it("does not force layout for ordinary leaf rows during cold window changes", () => {
+  const reads = vi.fn();
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    function (this: HTMLElement) {
+      if (this.hasAttribute("data-sidebar-windowed-item")) reads();
+      return rect(this);
+    },
+  );
+  const h = setup();
+  h.jump(120000);
+  h.jump(0);
+  expect(reads).not.toHaveBeenCalled();
+});
+
+it("rechecks a remounted composite before revealing its previously measured expanded height", () => {
+  const h = setup({ subtreeRows: 4 });
+  const first = screen.getByRole("link", { name: "thread-0" });
+  const wrapper = first.closest("[data-sidebar-windowed-item]")!;
+  act(() => {
+    first.dataset.testHeight = "1000";
+    for (const report of resizeCallbacks)
+      report([
+        {
+          target: wrapper,
+          borderBoxSize: [{ blockSize: 1001 }],
+        } as unknown as ResizeObserverEntry,
+      ]);
+  });
+  for (let i = 1; i <= 12; i++) h.jump(i * 15000);
+  expect(screen.queryByRole("link", { name: "thread-0" })).toBeNull();
+  h.jump(0);
+  expect(h.holes()).toHaveLength(0);
+});
+
+describe("recycled thread rows", () => {
+  it("reuses a bounded set of links across distant jumps and binds clicks to the new thread", () => {
+    const onVisit = vi.fn();
+    const h = setup({ recycle: true, onVisit });
+    const links = new Set(screen.getAllByRole("link"));
+    for (const top of [120000, 240000, 0]) {
+      h.jump(top);
+      expect(h.holes()).toHaveLength(0);
+      const current = screen.getAllByRole("link");
+      expect(current.every((link) => links.has(link))).toBe(true);
+      const link = current[0]!;
+      fireEvent.click(link);
+      expect(onVisit).toHaveBeenLastCalledWith(link.textContent);
+    }
+  });
+
+  it("keeps the same focused and selected links while recycling surrounding rows", () => {
+    const h = setup({ recycle: true, selected: "thread-0" });
+    const selected = screen.getByRole("link", { name: "thread-0" });
+    const focused = screen.getByRole("link", { name: "thread-1" });
+    act(() => focused.focus());
+    h.jump(120000);
+    expect(screen.getByRole("link", { name: "thread-0" })).toBe(selected);
+    expect(document.activeElement).toBe(focused);
+    expect(focused.textContent).toBe("thread-1");
+    expect(h.holes()).toHaveLength(0);
+  });
+
+  it("does not retarget the original pointer target before release", async () => {
+    const h = setup({ recycle: true });
+    const target = screen.getByRole("link", { name: "thread-0" });
+    fireEvent.pointerDown(target);
+    h.jump(120000);
+    expect(target.isConnected).toBe(true);
+    expect(target.textContent).toBe("thread-0");
+    fireEvent.pointerUp(document);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    h.jump(240000);
+    expect(screen.queryByRole("link", { name: "thread-0" })).toBeNull();
+    expect(h.holes()).toHaveLength(0);
+  });
+
+  it.each(["data-sidebar-hover-actions-open", "data-sidebar-row-busy"])(
+    "preserves a row with %s until its interaction settles",
+    (attribute) => {
+      const h = setup({ recycle: true });
+      const target = screen.getByRole("link", { name: "thread-0" });
+      target.setAttribute(attribute, "true");
+      h.jump(120000);
+      expect(target.isConnected).toBe(true);
+      expect(target.textContent).toBe("thread-0");
+      target.removeAttribute(attribute);
+      h.jump(240000);
+      expect(screen.queryByRole("link", { name: "thread-0" })).toBeNull();
+    },
+  );
+
+  it("keeps native navigation destinations in logical order after recycling", () => {
+    const h = setup({ recycle: true });
+    h.jump(120000);
+    const ordered = [
+      ...h.viewport.current!.querySelectorAll<HTMLElement>(
+        "[data-sidebar-windowed-item],[data-sidebar-windowed-nav]",
+      ),
+    ].flatMap((node) => {
+      const entries = node.getAttribute("data-sidebar-windowed-nav");
+      return entries
+        ? entries.split(" ").map((entry) => entry.split(":")[0])
+        : [node.querySelector("a")!.dataset.sidebarThreadId];
+    });
+    expect(ordered).toEqual(keys);
+  });
+});
+
+it("keeps row bindings stable while the viewport remains inside the existing buffer", () => {
+  const h = setup({ recycle: true });
+  const original = screen
+    .getAllByRole("link")
+    .map((link) => ({ link, title: link.textContent }));
+  h.jump(200);
+  expect(h.holes()).toHaveLength(0);
+  for (const { link, title } of original) expect(link.textContent).toBe(title);
+});
+
+it("releases a pressed row even when its control stops pointerup propagation", async () => {
+  const h = setup({ recycle: true });
+  const target = screen.getByRole("link", { name: "thread-0" });
+  target.addEventListener("pointerup", (event) => event.stopPropagation());
+  fireEvent.pointerDown(target);
+  h.jump(120000);
+  fireEvent.pointerUp(target);
+  await act(async () => {
+    await Promise.resolve();
+  });
+  h.jump(240000);
+  expect(screen.queryByRole("link", { name: "thread-0" })).toBeNull();
 });

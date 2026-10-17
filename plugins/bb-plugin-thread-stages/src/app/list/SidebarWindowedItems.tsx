@@ -1,5 +1,7 @@
 import {
   memo,
+  cloneElement,
+  isValidElement,
   useCallback,
   useLayoutEffect,
   useMemo,
@@ -20,9 +22,13 @@ import {
 } from "./sidebarThreadShortcuts.js";
 const DEFAULT_ROW_HEIGHT_PX = 30;
 const OVERSCAN_PX = 96;
+const RECYCLED_OVERSCAN_PX = 32;
 const ROW_CACHE_LIMIT = 48;
+const RECYCLED_ROW_LIMIT = 32;
 
 interface SidebarWindowedItemsProps {
+  /** Only opt in for rows whose owner state is external or reset on identity changes. */
+  recycleItem?: (index: number) => boolean;
   freeze?: boolean;
   itemKeys: readonly string[];
   focusItemKey?: string;
@@ -40,11 +46,13 @@ const SidebarWindowedItem = memo(function SidebarWindowedItem({
   isLast,
   renderItem,
   registerWrapper,
+  recycled,
 }: {
   index: number;
   itemKey: string;
   contained: boolean;
   isLast: boolean;
+  recycled: boolean;
   renderItem: SidebarWindowedItemsProps["renderItem"];
   registerWrapper: (key: string, node: HTMLDivElement | null) => void;
 }) {
@@ -52,6 +60,7 @@ const SidebarWindowedItem = memo(function SidebarWindowedItem({
     (n: HTMLDivElement | null) => registerWrapper(itemKey, n),
     [itemKey, registerWrapper],
   );
+  const content = renderItem(index);
   return (
     <div
       ref={ref}
@@ -63,7 +72,9 @@ const SidebarWindowedItem = memo(function SidebarWindowedItem({
           : {}),
       }}
     >
-      {renderItem(index)}
+      {recycled && isValidElement(content)
+        ? cloneElement(content, { key: "row-content" })
+        : content}
     </div>
   );
 });
@@ -84,8 +95,11 @@ export function SidebarWindowedItems({
   focusItemKey,
   getNavigationEntries,
   renderItem,
+  recycleItem,
   freeze = false,
 }: SidebarWindowedItemsProps) {
+  const recycling = recycleItem !== undefined;
+  const overscan = recycling ? RECYCLED_OVERSCAN_PX : OVERSCAN_PX;
   const scrollRef = useSidebarContentElementRef(),
     containerRef = useRef<HTMLDivElement>(null),
     wrapperByKeyRef = useRef(new Map<string, HTMLDivElement>()),
@@ -108,6 +122,42 @@ export function SidebarWindowedItems({
   const [measurementVersion, setMeasurementVersion] = useState(0),
     [visibleRange, setVisibleRange] = useState<[number, number]>([0, -1]);
   const [focusedKey, setFocusedKey] = useState<string>();
+  const [pressedKeys, setPressedKeys] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const heldPointersRef = useRef(new Map<number, string>());
+  useLayoutEffect(() => {
+    if (!recycling) return;
+    const release = (event: PointerEvent) => {
+      const pointerId = event.pointerId;
+      if (!heldPointersRef.current.has(pointerId)) return;
+      // Finish the original event before a row can be rebound. Capture also
+      // sees releases from editors and buttons that stop propagation.
+      queueMicrotask(() => {
+        heldPointersRef.current.delete(pointerId);
+        setPressedKeys(new Set(heldPointersRef.current.values()));
+      });
+    };
+    const clear = () => {
+      if (heldPointersRef.current.size === 0) return;
+      heldPointersRef.current.clear();
+      setPressedKeys(new Set());
+    };
+    document.addEventListener("pointerup", release, true);
+    document.addEventListener("pointercancel", release, true);
+    window.addEventListener("blur", clear);
+    return () => {
+      document.removeEventListener("pointerup", release, true);
+      document.removeEventListener("pointercancel", release, true);
+      window.removeEventListener("blur", clear);
+    };
+  }, [recycling]);
+  const committedSlotsRef = useRef(new Map<string, number>());
+  const committedSlotOrderRef = useRef<readonly number[]>([]);
+  const committedBufferRef = useRef<{
+    first: number;
+    keys: readonly string[];
+  } | null>(null);
   const visibleRangeRef = useRef(visibleRange);
   visibleRangeRef.current = visibleRange;
   useLayoutEffect(() => {
@@ -129,6 +179,16 @@ export function SidebarWindowedItems({
     }
     return { offsets, counts };
   }, [itemKeys, estimateRows, measurementVersion]);
+  const measurementContextRef = useRef({
+    indexByKey,
+    model,
+    length: itemKeys.length,
+  });
+  measurementContextRef.current = {
+    indexByKey,
+    model,
+    length: itemKeys.length,
+  };
   const navigation = useMemo(() => {
     const chunks: string[] = [],
       offsets = [0];
@@ -143,6 +203,7 @@ export function SidebarWindowedItems({
     }
     return { text: chunks.join(""), offsets };
   }, [itemKeys, getNavigationEntries]);
+  const pendingMeasurementKeysRef = useRef(new Set<string>());
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const keyByWrapperRef = useRef(new WeakMap<Element, string>());
   const registerWrapper = useCallback(
@@ -151,10 +212,14 @@ export function SidebarWindowedItems({
       if (previous && previous !== node)
         resizeObserverRef.current?.unobserve(previous);
       if (node) {
+        if (previous !== node) pendingMeasurementKeysRef.current.add(key);
         wrapperByKeyRef.current.set(key, node);
         keyByWrapperRef.current.set(node, key);
         resizeObserverRef.current?.observe(node);
-      } else wrapperByKeyRef.current.delete(key);
+      } else {
+        wrapperByKeyRef.current.delete(key);
+        pendingMeasurementKeysRef.current.delete(key);
+      }
     },
     [],
   );
@@ -172,13 +237,13 @@ export function SidebarWindowedItems({
     if (bottom < 0 || top > model.offsets.at(-1)!)
       return [0, -1] as [number, number];
     return [
-      Math.max(0, lowerBound(model.offsets, top - OVERSCAN_PX)),
+      Math.max(0, lowerBound(model.offsets, top - overscan)),
       Math.min(
         itemKeys.length - 1,
-        lowerBound(model.offsets, bottom + OVERSCAN_PX),
+        lowerBound(model.offsets, bottom + overscan),
       ),
     ] as [number, number];
-  }, [scrollRef, model, itemKeys.length]);
+  }, [scrollRef, model, itemKeys.length, overscan]);
   const resolveVisibleRangeRef = useRef(resolveVisibleRange);
   resolveVisibleRangeRef.current = resolveVisibleRange;
   useLayoutEffect(() => {
@@ -211,18 +276,34 @@ export function SidebarWindowedItems({
     const unsubscribeScroll = subscribeSidebarScroll(scrollElement, update);
     const observer = new ResizeObserver((entries) => {
       if (frozenRef.current) return;
-      const changed = entries.some((entry) => {
+      const context = measurementContextRef.current;
+      let changed = false;
+      for (const entry of entries) {
         const key = keyByWrapperRef.current.get(entry.target);
-        if (key === undefined) return false;
+        const index =
+          key === undefined ? undefined : context.indexByKey.get(key);
+        if (key === undefined || index === undefined) continue;
         const height =
           entry.borderBoxSize[0]?.blockSize ??
           entry.target.getBoundingClientRect().height;
-        return (
-          Math.abs(
-            (measuredHeightsRef.current.get(key)?.height ?? 0) - height,
-          ) > 0.5
-        );
-      });
+        if (height <= 1) continue;
+        const rows = context.model.counts[index]!;
+        const isLast = index === context.length - 1;
+        const expected =
+          context.model.offsets[index + 1]! - context.model.offsets[index]!;
+        measuredHeightsRef.current.set(key, { height, rows, isLast });
+        if (Math.abs(expected - height) > 0.5) changed = true;
+        const stride = height + Number(isLast);
+        if (
+          rows === 1 &&
+          stride >= 20 &&
+          stride <= 80 &&
+          Math.abs(rowHeightRef.current - stride) > 0.5
+        ) {
+          rowHeightRef.current = stride;
+          changed = true;
+        }
+      }
       flushSync(() => {
         if (changed) setMeasurementVersion((version) => version + 1);
         update();
@@ -239,39 +320,37 @@ export function SidebarWindowedItems({
       unsubscribeScroll();
     };
   }, [scrollRef]);
+  // Leaf rows use the calibrated stride until ResizeObserver reports their
+  // size. Reading every leaf here forces a second layout during cold mounts.
+  // A new composite can contain a collapsed preview, so measure that unknown
+  // shape before paint rather than exposing a spacer below a short subtree.
   useLayoutEffect(() => {
     let changed = false;
-    for (const [key, n] of wrapperByKeyRef.current) {
-      const i = indexByKey.get(key) ?? -1,
-        h = n.getBoundingClientRect().height;
-      if (i < 0 || h <= 1) continue;
-      const count = model.counts[i]!;
-      const old = measuredHeightsRef.current.get(key);
-      const isLast = i === itemKeys.length - 1;
-      if (
-        !old ||
-        Math.abs(old.height - h) > 0.5 ||
-        old.rows !== count ||
-        old.isLast !== isLast
-      ) {
-        measuredHeightsRef.current.set(key, { height: h, rows: count, isLast });
-        changed = true;
+    for (const [key, node] of wrapperByKeyRef.current) {
+      const index = indexByKey.get(key);
+      if (index === undefined) continue;
+      const rows = model.counts[index]!;
+      if (rows === 1) {
+        pendingMeasurementKeysRef.current.delete(key);
+        continue;
       }
-      // Calibrate the ordinary row stride, including its inter-row gap.
-      // The last wrapper omits that gap; it must not shrink every estimate.
-      const stride = h + Number(isLast);
+      const isLast = index === itemKeys.length - 1;
+      const previous = measuredHeightsRef.current.get(key);
       if (
-        count === 1 &&
-        stride >= 20 &&
-        stride <= 80 &&
-        Math.abs(rowHeightRef.current - stride) > 0.5
-      ) {
-        rowHeightRef.current = stride;
-        changed = true;
-      }
+        !pendingMeasurementKeysRef.current.has(key) &&
+        previous?.rows === rows &&
+        previous.isLast === isLast
+      )
+        continue;
+      const height = node.getBoundingClientRect().height;
+      if (height <= 1) continue;
+      measuredHeightsRef.current.set(key, { height, rows, isLast });
+      pendingMeasurementKeysRef.current.delete(key);
+      const expected = model.offsets[index + 1]! - model.offsets[index]!;
+      if (Math.abs(expected - height) > 0.5) changed = true;
     }
-    if (changed) setMeasurementVersion((v) => v + 1);
-  }, [visibleRange, itemKeys, model]);
+    if (changed) setMeasurementVersion((version) => version + 1);
+  }, [visibleRange, itemKeys, indexByKey, model]);
   useLayoutEffect(() => {
     const element =
       scrollRef?.current ??
@@ -302,28 +381,147 @@ export function SidebarWindowedItems({
     const index = indexByKey.get(focusedKey);
     if (index !== undefined) indices.add(index);
   }
-  if (visibleRange[1] < visibleRange[0]) recentlyVisibleRef.current.clear();
-  const time = ++cacheClockRef.current;
-  for (const i of indices) recentlyVisibleRef.current.set(itemKeys[i]!, time);
-  for (const key of recentlyVisibleRef.current.keys())
-    if (!indexByKey.has(key)) recentlyVisibleRef.current.delete(key);
-  const candidates = [...recentlyVisibleRef.current]
-    .filter(([key]) => !indices.has(indexByKey.get(key)!))
-    .sort((a, b) => b[1] - a[1]);
-  // A cached parent represents its whole subtree, not one cheap leaf. Count
-  // that work against the same budget rather than multiplying it at each depth.
-  let retainedRows = [...indices].reduce(
-    (sum, index) => sum + model.counts[index]!,
-    0,
-  );
-  for (const [key] of candidates) {
-    const index = indexByKey.get(key)!;
-    if (retainedRows + model.counts[index]! <= ROW_CACHE_LIMIT) {
-      indices.add(index);
-      retainedRows += model.counts[index]!;
-    } else recentlyVisibleRef.current.delete(key);
+  let buffer: { first: number; keys: readonly string[] } | null = null;
+  const lockedKeys = new Set(alwaysMountedKeys);
+  if (focusedKey) lockedKeys.add(focusedKey);
+  if (focusItemKey) lockedKeys.add(focusItemKey);
+  for (const key of pressedKeys) lockedKeys.add(key);
+  if (recycleItem) {
+    for (const [key, node] of wrapperByKeyRef.current) {
+      if (
+        node.querySelector(
+          '[data-sidebar-hover-actions-open="true"], [data-sidebar-row-busy="true"], [data-sidebar-row-interacting="true"]',
+        )
+      )
+        lockedKeys.add(key);
+    }
+    for (const key of lockedKeys) {
+      const index = indexByKey.get(key);
+      if (index !== undefined) indices.add(index);
+    }
+    // A scroll inside the existing buffer only changes the range calculation.
+    // Keep the same row bindings until its edge is crossed, then refill once.
+    const previous = committedBufferRef.current;
+    const previousEnd = previous
+      ? previous.first + previous.keys.length - 1
+      : -1;
+    const keepPrevious =
+      previous !== null &&
+      visibleRange[1] >= visibleRange[0] &&
+      visibleRange[0] >= previous.first &&
+      visibleRange[1] <= previousEnd &&
+      previous.keys.every(
+        (key, offset) => itemKeys[previous.first + offset] === key,
+      );
+    const buffered = new Set(indices);
+    if (keepPrevious)
+      for (let i = previous.first; i <= previousEnd; i++) buffered.add(i);
+    const bufferedRows = [...buffered].reduce(
+      (sum, index) => sum + model.counts[index]!,
+      0,
+    );
+    if (keepPrevious && bufferedRows <= RECYCLED_ROW_LIMIT) {
+      for (const index of buffered) indices.add(index);
+      buffer = previous;
+    } else if (visibleRange[1] >= visibleRange[0]) {
+      let retainedRows = [...indices].reduce(
+        (sum, index) => sum + model.counts[index]!,
+        0,
+      );
+      let left = visibleRange[0] - 1;
+      let right = visibleRange[1] + 1;
+      while (left >= 0 || right < itemKeys.length) {
+        let added = false;
+        if (
+          right < itemKeys.length &&
+          retainedRows + model.counts[right]! <= RECYCLED_ROW_LIMIT
+        ) {
+          if (!indices.has(right)) {
+            indices.add(right);
+            retainedRows += model.counts[right]!;
+          }
+          right++;
+          added = true;
+        } else right = itemKeys.length;
+        if (
+          left >= 0 &&
+          retainedRows + model.counts[left]! <= RECYCLED_ROW_LIMIT
+        ) {
+          if (!indices.has(left)) {
+            indices.add(left);
+            retainedRows += model.counts[left]!;
+          }
+          left--;
+          added = true;
+        } else left = -1;
+        if (!added) break;
+      }
+      // Pins can be far away; the reusable buffer is the contiguous run
+      // around the visible range, not every retained interaction.
+      let first = visibleRange[0],
+        last = visibleRange[1];
+      while (indices.has(first - 1)) first--;
+      while (indices.has(last + 1)) last++;
+      buffer = { first, keys: itemKeys.slice(first, last + 1) };
+    }
+  } else {
+    if (visibleRange[1] < visibleRange[0]) recentlyVisibleRef.current.clear();
+    const time = ++cacheClockRef.current;
+    for (const i of indices) recentlyVisibleRef.current.set(itemKeys[i]!, time);
+    for (const key of recentlyVisibleRef.current.keys())
+      if (!indexByKey.has(key)) recentlyVisibleRef.current.delete(key);
+    const candidates = [...recentlyVisibleRef.current]
+      .filter(([key]) => !indices.has(indexByKey.get(key)!))
+      .sort((a, b) => b[1] - a[1]);
+    // A cached parent represents its whole subtree, not one cheap leaf. Count
+    // that work against the same budget rather than multiplying it at each depth.
+    let retainedRows = [...indices].reduce(
+      (sum, index) => sum + model.counts[index]!,
+      0,
+    );
+    for (const [key] of candidates) {
+      const index = indexByKey.get(key)!;
+      if (retainedRows + model.counts[index]! <= ROW_CACHE_LIMIT) {
+        indices.add(index);
+        retainedRows += model.counts[index]!;
+      } else recentlyVisibleRef.current.delete(key);
+    }
   }
   const ordered = [...indices].sort((a, b) => a - b);
+  const slots = new Map<string, number>();
+  // Preserve interacting identities; reuse other cells in physical order so
+  // a refill changes row bindings without moving their DOM subtrees.
+  for (const index of ordered) {
+    const key = itemKeys[index]!;
+    const slot = committedSlotsRef.current.get(key);
+    if (recycleItem?.(index) && lockedKeys.has(key) && slot !== undefined)
+      slots.set(key, slot);
+  }
+  const usedSlots = new Set(slots.values());
+  const availableSlots = committedSlotOrderRef.current.filter(
+    (slot) => !usedSlots.has(slot),
+  );
+  let availableIndex = 0;
+  let nextSlot = 0;
+  for (const index of ordered) {
+    const key = itemKeys[index]!;
+    if (!recycleItem?.(index) || slots.has(key)) continue;
+    let slot = availableSlots[availableIndex++];
+    if (slot === undefined) {
+      while (usedSlots.has(nextSlot)) nextSlot++;
+      slot = nextSlot++;
+    }
+    slots.set(key, slot);
+    usedSlots.add(slot);
+  }
+  useLayoutEffect(() => {
+    committedSlotsRef.current = slots;
+    committedSlotOrderRef.current = ordered.flatMap((index) => {
+      const slot = slots.get(itemKeys[index]!);
+      return slot === undefined ? [] : [slot];
+    });
+    committedBufferRef.current = buffer;
+  });
   const content: ReactNode[] = [];
   let cursor = 0;
   function spacer(end: number) {
@@ -351,17 +549,12 @@ export function SidebarWindowedItems({
     const key = itemKeys[i]!;
     content.push(
       <SidebarWindowedItem
-        key={key}
+        key={slots.has(key) ? "slot:" + slots.get(key) : "item:" + key}
+        recycled={slots.has(key)}
         index={i}
         itemKey={key}
         isLast={i === itemKeys.length - 1}
-        contained={
-          !freeze &&
-          scrollRef !== null &&
-          key !== focusItemKey &&
-          key !== focusedKey &&
-          !alwaysMountedKeys?.has(key)
-        }
+        contained={!freeze && scrollRef !== null && !lockedKeys.has(key)}
         registerWrapper={registerWrapper}
         renderItem={renderItem}
       />,
@@ -374,6 +567,16 @@ export function SidebarWindowedItems({
       ref={containerRef}
       style={{ overflowAnchor: "none" }}
       data-sidebar-windowed-count={itemKeys.length}
+      onPointerDownCapture={(event) => {
+        if (!(event.target instanceof Node)) return;
+        for (const [key, node] of wrapperByKeyRef.current) {
+          if (node.contains(event.target)) {
+            heldPointersRef.current.set(event.pointerId, key);
+            setPressedKeys(new Set(heldPointersRef.current.values()));
+            break;
+          }
+        }
+      }}
       onFocusCapture={(event) => {
         for (const [key, node] of wrapperByKeyRef.current) {
           if (node.contains(event.target)) {
