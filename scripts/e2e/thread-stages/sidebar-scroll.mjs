@@ -478,13 +478,19 @@ async function verifyRecycledControls({ page, list, scroller, stack, Database })
   await scroller.evaluate(node => { node.scrollTop = node.scrollHeight; });
   const threadId = await page.waitForFunction(() => {
     const root = document.querySelector("[data-ribbon-sidebar-root]");
-    const viewport = root.closest('[data-sidebar="content"]').getBoundingClientRect();
-    return [...root.querySelectorAll('a[data-sidebar-thread-id^="thr_scroll_"]')].find(node => {
+    const scroller = root.closest('[data-sidebar="content"]');
+    const viewport = scroller.getBoundingClientRect();
+    const target = [...root.querySelectorAll('a[data-sidebar-thread-id^="thr_scroll_"]')].find(node => {
       const box = node.getBoundingClientRect();
       const row = node.closest("[data-thread-id]");
       const hit = document.elementFromPoint(box.x + 60, box.y + box.height / 2);
       return box.top >= viewport.top && box.bottom <= viewport.bottom && row?.contains(hit) && !hit?.closest("button,input");
-    })?.dataset.sidebarThreadId;
+    });
+    if (target) return target.dataset.sidebarThreadId;
+    // Other groups can occupy the bottom viewport. Search upward until a real,
+    // unobscured fixture row is available for the pointer interaction checks.
+    scroller.scrollTop = Math.max(0, scroller.scrollTop - viewport.height / 2);
+    return false;
   }).then(handle => handle.jsonValue());
   const link = list.locator(`a[data-sidebar-thread-id="${threadId}"]`);
   const original = await link.elementHandle();
