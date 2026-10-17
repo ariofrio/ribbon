@@ -129,10 +129,12 @@ export function SidebarSectionMenuItems({
   onRename,
   onRemove,
   onChangeIcon,
+  children,
 }: {
   onRename?: () => void;
   onRemove?: () => void;
   onChangeIcon?: () => void;
+  children?: ReactNode;
 }) {
   return (
     <>
@@ -148,6 +150,7 @@ export function SidebarSectionMenuItems({
           Change icon
         </DropdownMenuItem>
       )}
+      {children}
       <ThreadListVisibilityMenuItems />
       {onRemove && (
         <>
