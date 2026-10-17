@@ -1,4 +1,6 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { STAGE_ICONS } from "../workflow/catalog";
+import { renderProviderIcon } from "./provider-icon";
 import {
   RAIL_EDGE_BOTTOM,
   RAIL_EDGE_TOP,
@@ -111,6 +113,12 @@ export type RingState = "shown" | "hidden-at-rest" | "absent";
 const UNTIL_RING_SHOWS =
   "group-hover/thread-row:opacity-0 group-has-[:focus-visible]/thread-row:opacity-0 pointer-coarse:opacity-0";
 
+// The same 16px SVG used by the hovered In progress stage, inheriting tree ink.
+const TREE_NODE_ICON = renderProviderIcon({
+  ...STAGE_ICONS.Active,
+  attrs: { ...STAGE_ICONS.Active.attrs, width: 16, height: 16 },
+});
+
 /** The bars beside a child row: one per sibling group, through its ring column. */
 export function RailBars({
   depth,
@@ -171,8 +179,11 @@ export function RailTree({
     ring,
   });
   if (!always && !node) return null;
-  // A 5px hollow node: radius 2 with a 1px stroke.
-  const nodeCircle = node ? <circle cx={node.cx} cy={node.cy} r={2} /> : null;
+  const nodeCircle = node ? (
+    <g transform={`translate(${node.cx - 8} ${node.cy - 8})`}>
+      {TREE_NODE_ICON}
+    </g>
+  ) : null;
   return (
     <svg
       aria-hidden="true"

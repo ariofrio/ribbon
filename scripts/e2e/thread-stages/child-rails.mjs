@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { AGENT } from "../../screenshots/fixture.mjs";
-import { launch, link, openContext, sidebar, spawnChild } from "./sidebar.mjs";
+import { launch, link, openContext, row, sidebar, spawnChild } from "./sidebar.mjs";
 
 const PARENT = "Replace the legacy filter drawer";
 
@@ -161,8 +161,8 @@ async function verifyBar({ page, list, parent, first, last }) {
       const icon = box(slot.querySelector("svg"));
       const x = (icon.left + icon.right) / 2;
       const y = (icon.top + icon.bottom) / 2;
-      // The stage ring's outer edge: radius 8.75 plus half its 2-unit stroke, on a 24-unit grid.
-      const radius = ((icon.right - icon.left) * 9.75) / 24;
+      // Reserve the largest original Hugeicons envelope for every stage.
+      const radius = ((icon.right - icon.left) * 10.75) / 24;
       return {
         row: box(li),
         ring: { top: y - radius, bottom: y + radius },
@@ -200,7 +200,7 @@ async function verifyBar({ page, list, parent, first, last }) {
     }
   }
   assert.ok(covers(rest.first.bars, rest.first.ringCenter.y - 6.5, rest.first.ringCenter.y + 6.5), "The bar runs through the hidden ring's slot");
-  assert.ok(Math.min(...rest.first.bars.map((bar) => bar.top)) >= rest.first.ringCenter.y - 9.5,
+  assert.ok(Math.min(...rest.first.bars.map((bar) => bar.top)) >= rest.first.ringCenter.y - 10.5,
     "The bar starts at the first child's ring, not above it toward the parent");
   assert.ok(covers(rest.first.bars, rest.first.ringCenter.y, rest.last.row.top), "The bar crosses the gap from the first child into the last");
   assert.ok(clearOf(rest.last.bars, rest.last.ring), "The bar parts around the selected child's ring");
@@ -240,7 +240,7 @@ async function verifyTree({ page, list, parent, first, last, setLines }) {
   // asked of the SVG's own geometry at that point on screen.
   const drawn = (points) => page.evaluate(({ parentId, ids, points }) => {
     const visible = (node) => {
-      for (let current = node; current && current.tagName !== "svg"; current = current.parentElement) {
+      for (let current = node; current; current = current.parentElement) {
         if (Number(getComputedStyle(current).opacity) === 0) return false;
       }
       return true;
@@ -259,22 +259,46 @@ async function verifyTree({ page, list, parent, first, last, setLines }) {
           shape.isPointInStroke(new DOMPoint(x, y).matrixTransform(shape.getScreenCTM().inverse())));
     });
   }, { parentId: parent.id, ids: [first.id, last.id], points });
-  // The ring's outer edge is 6.5px from its centre, and each line runs half a
+  // The glyph envelope's outer edge is 7.5px from its centre, and each line runs half a
   // pixel right of and below the centre it follows.
   const probes = [
     { row: "first", dx: -8, dy: 0.5 },   // 0: the branch just short of the first child's ring
     { row: "first", dx: -4, dy: 0.5 },   // 1: inside that ring, on to its hidden-ring node
-    { row: "first", dx: -1.5, dy: 0.5 }, // 2: the node's left edge
+    { row: "first", dx: 0, dy: -3 },     // 2: the hollow marker's top edge
     { row: "last", dx: -8, dy: 0.5 },    // 3: the branch just short of the selected ring
     { row: "last", dx: -4, dy: 0.5 },    // 4: inside the selected ring
     { row: "parent", dx: 0.5, dy: 10 },  // 5: the parent's line below its ring
+    { row: "first", dx: 0, dy: 0 },      // 6: negative space inside the marker
   ];
 
   await page.mouse.move(1200, 780);
+  const markers = await row(list, first.id).evaluate((li) => {
+    const tree = li.querySelector("[data-ribbon-sidebar-tree]");
+    const rest = tree.querySelector("circle");
+    const hover = li.querySelector("[data-ribbon-sidebar-icon-slot] circle");
+    const geometry = (circle) => {
+      const matrix = circle.getScreenCTM();
+      const center = new DOMPoint(circle.cx.baseVal.value, circle.cy.baseVal.value).matrixTransform(matrix);
+      const scale = Math.hypot(matrix.a, matrix.b);
+      return [center.x, center.y, circle.r.baseVal.value * scale,
+        parseFloat(getComputedStyle(circle).strokeWidth) * scale];
+    };
+    return {
+      rest: geometry(rest), hover: geometry(hover),
+      restInk: getComputedStyle(rest).stroke,
+      lineInk: getComputedStyle(tree.querySelector("path")).stroke,
+      fill: getComputedStyle(rest).fill,
+    };
+  });
+  markers.rest.forEach((value, index) => assert.ok(Math.abs(value - markers.hover[index]) < 0.01,
+    "The resting tree marker matches the hover icon's center, radius, and stroke"));
+  assert.equal(markers.restInk, markers.lineInk, "The resting marker uses the tree line's color");
+  assert.equal(markers.fill, "none", "The resting marker keeps the hover icon's negative space");
   const rest = await drawn(probes);
   assert.deepEqual(rest.slice(0, 5), [true, true, true, true, false],
     "At rest, branches reach each ring's edge, and on into a node where the ring is hidden");
   assert.equal(rest[5], true, "The parent's line drops from its ring");
+  assert.equal(rest[6], false, "Tree lines stop outside the hollow marker's center");
 
   await link(list, first.id).hover();
   const hovered = await drawn(probes.slice(0, 3));

@@ -1,8 +1,8 @@
 /** Where a rail segment starts or stops within its row. */
 export type RailEdge = "row-top" | "ring-top" | "ring-bottom" | "row-bottom";
 
-// A stage ring is 13px across, and the bar stops 2.5px short of it.
-const RING_CLEARANCE = "9px";
+// Original Hugeicons paint up to 14⅓px across; leave at least 2.5px to the bar.
+const RING_CLEARANCE = "10px";
 
 /** CSS `top` for each edge a segment can start at, given `--ribbon-ring-y`. */
 export const RAIL_EDGE_TOP = {
@@ -74,9 +74,10 @@ export function railSegments({
 
 // Beyond any row: the SVG that draws the tree clips its lines to the row.
 const FAR = 10000;
-const RING_RADIUS = 6.5;
-// A hollow node 5px across stands in for a hidden ring.
-const NODE_RADIUS = 2.5;
+// Round the largest glyph radius up so tree lines stop outside its stroke.
+const RING_RADIUS = 7.5;
+// The 7px hollow In progress marker stands in for its hidden hover icon.
+const NODE_RADIUS = 3.5;
 const CORNER = 6;
 
 /**
@@ -117,14 +118,14 @@ export function treeLines({
       : `M${x} -${FAR}V${FAR}M${x} ${y - CORNER}`;
     if (lastAtDepth[depth - 1]) always += `V${y - CORNER}`;
     always += `Q${x} ${y} ${x + CORNER} ${y}H${ringEdge}`;
-    toNode += `M${ringEdge} ${y}H${line(depth) - NODE_RADIUS}`;
+    toNode += `M${ringEdge} ${y}H${line(depth) - 0.5 - NODE_RADIUS}`;
   }
   if (showsChildren) {
     always += `M${line(depth)} ${RING_RADIUS}V${FAR}`;
-    toNode += `M${line(depth)} ${y + NODE_RADIUS}V${RING_RADIUS}`;
+    toNode += `M${line(depth)} ${NODE_RADIUS}V${RING_RADIUS}`;
   }
   if (ring === "shown" || !toNode) return { always, whileRingHidden: "", node: null };
-  const node = { cx: line(depth), cy: y };
+  const node = { cx: line(depth) - 0.5, cy: 0 };
   return ring === "absent"
     ? { always: always + toNode, whileRingHidden: "", node }
     : { always, whileRingHidden: toNode, node };

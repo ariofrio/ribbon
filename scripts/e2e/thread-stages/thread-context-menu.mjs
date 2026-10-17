@@ -64,6 +64,19 @@ export async function verifyThreadContextMenu({ stack, fixture }) {
         ["Customize row actions"],
         ["Archive", "Delete"],
       ]);
+      await page.mouse.move(0, 0);
+      await menu.getByRole("menuitem", { name: /Move to stage/ }).focus();
+      await page.keyboard.press("ArrowRight");
+      await page.getByRole("menuitemradio", { name: "Completed", exact: true }).waitFor();
+      const stages = await page.getByRole("menuitemradio").evaluateAll((nodes) => nodes
+        .filter((node) => node.getBoundingClientRect().height > 0)
+        .map((node) => ({ label: node.textContent.trim(), top: node.getBoundingClientRect().top })));
+      assert.deepEqual(stages.map(({ label }) => label),
+        ["In progress", "Needs user", "Dependent", "Blocked", "Deferred", "Completed"]);
+      assert.ok(stages.every(({ top }, index) => index === 0 || top > stages[index - 1].top),
+        "The stage choices render in order with Deferred just above Completed");
+      await page.keyboard.press("ArrowLeft");
+      await page.getByRole("menuitemradio", { name: "Completed", exact: true }).waitFor({ state: "hidden" });
       await menu.getByRole("menuitem", { name: /^Notifications/ }).hover();
       const notificationChoices = page.getByRole("menuitem", { name: "Muted", exact: true });
       await notificationChoices.waitFor();
