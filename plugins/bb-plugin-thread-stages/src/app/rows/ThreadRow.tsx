@@ -902,12 +902,13 @@ function ThreadRowComponent({
                 {ribbon ? (
                   <ShineContent className={cn(
                     "flex items-center gap-2",
-                    ribbon.stage === "Completed" && "line-through [&_span]:line-through",
+                    ribbon.stage === "Completed" && !ribbonMarquee && "[&>span]:line-through",
                   )}>
                     {ribbonMarquee ? (
                       <MarqueeText
                         text={labelTitle}
                         pan={ribbonSettings.longTitles === "Fade and pan on hover"}
+                        className={ribbon.stage === "Completed" ? "line-through" : ""}
                       />
                     ) : (
                       <ThreadTitle threadId={thread.id} />

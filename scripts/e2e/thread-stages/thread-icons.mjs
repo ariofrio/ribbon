@@ -80,10 +80,20 @@ export async function verifyThreadIcons({ stack, fixture }) {
           const faded = [...row.querySelectorAll(".bb-thread-title span")]
             .some((node) => getComputedStyle(node).maskImage !== "none");
           const style = getComputedStyle(text);
+          let struck = false;
+          for (let node = text; node && !node.classList.contains("bb-thread-title"); node = node.parentElement) {
+            const paint = getComputedStyle(node);
+            if (paint.textDecorationLine === "line-through") { struck = true; break; }
+            if (paint.display === "inline-block") break;
+          }
           return faded === (mode !== "Ellipsis") &&
             (style.transitionProperty === "transform") === (mode === "Fade and pan on hover") &&
-            style.textDecorationLine === "line-through";
+            struck;
         }, { threadId: thread.id, title: thread.title, mode });
+        const strikes = await target.locator(".bb-thread-title").evaluate((node) =>
+          [...node.querySelectorAll("span")].filter((el) =>
+            getComputedStyle(el).textDecorationLine === "line-through").length);
+        assert.equal(strikes, 1, `${mode}: draw the strike once, on the text`);
       }
     } finally {
       fixture.run(["thread-stages", "stage", "Active", thread.id]);

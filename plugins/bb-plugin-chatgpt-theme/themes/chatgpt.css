@@ -225,6 +225,11 @@
  * titles at 85%, promotes only the selected title to full foreground, and uses
  * 50% foreground for section headings.
  */
+.bb-sidebar-hover-actions-row {
+  /* Opaque sidebar ink keeps text and its strike from accumulating alpha. */
+  --subtle-foreground: color-mix(in srgb, var(--ink) 50%, var(--sidebar));
+}
+
 .bb-sidebar-hover-actions-row[class~="group/thread-row"],
 .bb-sidebar-hover-actions-row[class~="group/thread-row"]:hover {
   color: color-mix(in srgb, var(--sidebar-foreground) 85%, transparent);
