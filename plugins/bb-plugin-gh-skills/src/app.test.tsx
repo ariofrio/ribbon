@@ -9,6 +9,75 @@ beforeEach(() => vi.stubGlobal("ResizeObserver", class {
 }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
+test("provides sidebar pages, hides the thread list, and restores native content on unmount", async () => {
+  const host = document.createElement("aside");
+  host.innerHTML = `<div data-sidebar="sidebar"><div data-testid="app-sidebar-body">
+    <div data-testid="app-sidebar-top-reserve-row"><div data-sidebar-header-slot><button>New thread</button></div></div>
+    <div data-sidebar="content"><div style="display:grid"><button>Existing thread</button></div></div>
+    <div data-sidebar="footer">Native footer</div><div data-testid="app-sidebar-resize-handle">Resize</div>
+  </div></div>`;
+  document.body.append(host);
+  const native = host.querySelector<HTMLElement>('[data-sidebar="content"] > div')!;
+  const loaded = await loadPluginApp(async () => app);
+  const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, { rpc: {
+    "skills.list": () => ({ directory: "/server/skills", skills: [] }),
+  } });
+  try {
+    const sidebar = await slot.findByRole("navigation", { name: "Skills navigation" });
+    expect(getComputedStyle(native).display).toBe("none");
+    expect(getComputedStyle(host.querySelector('[data-sidebar="footer"]')!).display).toBe("none");
+    expect(getComputedStyle(host.querySelector('[data-testid="app-sidebar-resize-handle"]')!).display).not.toBe("none");
+    expect(within(sidebar).getByRole("link", { name: "Installed", current: "page" })).toBeTruthy();
+    expect(slot.queryByRole("tab", { name: "Browse" })).toBeNull();
+    fireEvent.click(within(sidebar).getByRole("link", { name: "Browse" }));
+    expect(slot.inspection.navigateCalls).toContainEqual({ method: "toPluginPanel", path: "skills", options: { subPath: "browse" } });
+    slot.lifecycle.unmount();
+    expect(getComputedStyle(native).display).toBe("grid");
+    expect(getComputedStyle(host.querySelector('[data-sidebar="footer"]')!).display).not.toBe("none");
+    expect(host.querySelector('[data-gh-skills-sidebar]')).toBeNull();
+  } finally { slot.lifecycle.unmount(); host.remove(); }
+});
+
+test("reattaches sidebar navigation when BB replaces its sidebar and keeps a fallback without it", async () => {
+  const loaded = await loadPluginApp(async () => app);
+  const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, { rpc: {
+    "skills.list": () => ({ directory: "/server/skills", skills: [] }),
+  } });
+  await slot.findByText("No skills installed");
+  expect(slot.getByRole("tab", { name: "Browse" })).toBeTruthy();
+  const host = document.createElement("aside");
+  const nativeSidebar = '<div data-testid="app-sidebar-body"><div data-testid="app-sidebar-top-reserve-row"></div><div data-sidebar="content"><div style="display:grid">Native thread list</div></div><div data-testid="app-sidebar-resize-handle"></div></div>';
+  host.innerHTML = nativeSidebar;
+  document.body.append(host);
+  try {
+    await slot.findByRole("navigation", { name: "Skills navigation" });
+    host.innerHTML = nativeSidebar;
+    const native = host.querySelector<HTMLElement>('[data-sidebar="content"] > div')!;
+    await waitFor(() => {
+      expect(getComputedStyle(native).display).toBe("none");
+      expect(within(host).getByRole("link", { name: "Installed" })).toBeTruthy();
+    });
+    slot.lifecycle.unmount();
+    expect(getComputedStyle(native).display).toBe("grid");
+  } finally { slot.lifecycle.unmount(); host.remove(); }
+});
+
+test("keeps an unfamiliar BB sidebar visible and falls back to in-page navigation", async () => {
+  const host = document.createElement("aside");
+  host.innerHTML = '<div data-testid="app-sidebar-body"><div data-sidebar="content"><div style="display:grid">Native thread list</div></div></div>';
+  document.body.append(host);
+  const loaded = await loadPluginApp(async () => app);
+  const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, { rpc: {
+    "skills.list": () => ({ directory: "/server/skills", skills: [] }),
+  } });
+  try {
+    await slot.findByText("No skills installed");
+    expect(getComputedStyle(host.querySelector('[data-sidebar="content"] > div')!).display).toBe("grid");
+    expect(slot.getByRole("tab", { name: "Browse" })).toBeTruthy();
+    expect(slot.queryByRole("navigation", { name: "Skills navigation" })).toBeNull();
+  } finally { slot.lifecycle.unmount(); host.remove(); }
+});
+
 test("filters installed skills without a server search and offers a clear empty state", async () => {
   const loaded = await loadPluginApp(async () => app);
   const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, { rpc: {
@@ -44,7 +113,7 @@ test("opens an installed skill as a deep-linked detail page with a return to the
 test("installs from a repository with explicit pinning and refreshes server inventory", async () => {
   const loaded = await loadPluginApp(async () => app);
   let installed = false;
-  const slot = renderSlot(loaded.navPanels[0]!, { subPath: "" }, {
+  const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, {
     rpc: {
       "skills.list": () => ({ directory: "/server/skills", skills: installed ? [
         { id: "models", skillName: "models", sourceURL: "https://github.com/example/skills", version: "v1", pinned: true, path: "/server/skills/models" },
@@ -68,7 +137,7 @@ test("installs from a repository with explicit pinning and refreshes server inve
 test("checks updates, updates a skill, and requires confirmation before removal", async () => {
   const loaded = await loadPluginApp(async () => app);
   let removed = false;
-  const slot = renderSlot(loaded.navPanels[0]!, { subPath: "" }, { rpc: {
+  const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, { rpc: {
     "skills.list": () => ({ directory: "/server/skills", skills: removed ? [] : [{
       id: "models", skillName: "models", sourceURL: "https://github.com/example/skills", version: "v1", pinned: false, path: "/server/skills/models",
     }] }),
@@ -118,7 +187,7 @@ test("searches as the user types and installs a catalog result without re-enteri
 
 test("keeps the install form editable after gh reports an error", async () => {
   const loaded = await loadPluginApp(async () => app);
-  const slot = renderSlot(loaded.navPanels[0]!, { subPath: "" }, { rpc: {
+  const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed" }, { rpc: {
     "skills.list": () => ({ directory: "/server/skills", skills: [] }),
     "skills.install": () => { throw new Error("Run gh auth login on the BB server"); },
   } });

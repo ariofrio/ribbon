@@ -10,6 +10,7 @@ import { ConfirmDeleteDialog, ConfirmDeleteDialogContent } from "@/vendor/compon
 import { ResourceCollectionPage, ResourceCollectionViewport, ResourceControlButton, ResourceDetailPage, ResourceDetailOverviewSection, ResourceInstalledControl, ResourceInstallControl, ResourceListState, ResourceOverflowMenu, ResourceToolbar, ResourceSortMenu } from "@/vendor/components/ui/resource-list";
 import type { InstalledSkill, SearchSkill, rpcContract } from "./contract";
 import { SkillCard, SkillGrid } from "./skill-card";
+import { SkillsSidebar } from "./sidebar";
 import { toast } from "sonner";
 
 const band = "mx-auto w-full max-w-5xl px-4 md:px-5";
@@ -22,7 +23,9 @@ const emptyDraft: InstallDraft = { repository: "", skill: "", pin: "", all: fals
 function SkillsPage({ subPath }: PluginNavPanelProps) {
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
-  const mode = subPath.startsWith("browse") ? "browse" : "installed";
+  const mode = subPath.startsWith("installed") ? "installed" : "browse";
+  const [sidebarAvailable, setSidebarAvailable] = useState(false);
+  const goToPage = useCallback((page: "browse" | "installed") => navigate.toPluginPanel("skills", { subPath: page }), [navigate]);
   const detailId = subPath.startsWith("installed/") ? decode(subPath.slice("installed/".length)) : undefined;
   const parts = subPath.split("/");
   const previewRepository = mode === "browse" && parts.length >= 4 ? `${decode(parts[1]!)}/${decode(parts[2]!)}` : undefined;
@@ -147,6 +150,7 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
   const detailSkill = inventory?.skills.find((skill) => skill.id === detailId) ?? (previewEntry ? installedResult(previewEntry) : undefined);
   return (
     <section data-gh-skills className="flex h-full min-h-0 flex-col" aria-label="Managed server skills">
+      <SkillsSidebar mode={mode} onNavigate={goToPage} onAvailable={setSidebarAvailable} />
       {isDetail ? <div className="h-full overflow-auto p-4 md:p-5">
         <div className="mx-auto mb-5 max-w-3xl"><Button variant="ghost" onClick={() => navigate.toPluginPanel("skills", { subPath: mode })}>{detailId ? "Back to installed skills" : "Back to browse"}</Button></div>
         <ResourceDetailPage title={detailSkill?.skillName ?? detailId ?? previewEntry?.skillName}
@@ -159,8 +163,8 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
       </div> :
       <ResourceCollectionPage id="gh-skills" bandClassName={band}
         description="Install and manage skills shared across projects and connected machines."
-        modes={[{ id: "installed", label: "Installed", count: inventory?.skills.length }, { id: "browse", label: "Browse" }]}
-        activeMode={mode} onModeChange={(next) => navigate.toPluginPanel("skills", { subPath: next })}
+        modes={sidebarAvailable ? [] : [{ id: "browse", label: "Browse" }, { id: "installed", label: "Installed", count: inventory?.skills.length }]}
+        activeMode={mode} onModeChange={goToPage}
         >
         <ResourceCollectionViewport bandClassName={band} toolbar={<ResourceToolbar
           searchValue={mode === "installed" ? installedQuery : query} onSearchChange={mode === "installed" ? setInstalledQuery : setQuery}

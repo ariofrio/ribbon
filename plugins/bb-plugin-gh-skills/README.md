@@ -2,7 +2,7 @@
 
 Manage skills on the bb server with GitHub CLI’s `gh skill` commands. The **Skills** page provides GitHub search, repository discovery and preview, installation, update checks, updates, and removal.
 
-Browse and Installed use BB’s resource cards and search toolbars. Search GitHub as you type, install a result directly, and open a skill’s detail page without losing browser navigation. Installed skills support local search and name sorting. Card menus provide update and uninstall actions; update dialogs keep force and unpin options under Advanced options.
+Browse and Installed appear in BB’s left sidebar and use its resource cards and search toolbars. Search GitHub as you type, install a result directly, and open a skill’s detail page without losing browser navigation. Installed skills support local search and name sorting. Card menus provide update and uninstall actions; update dialogs keep force and unpin options under Advanced options.
 
 Install from Ribbon:
 
@@ -38,3 +38,5 @@ npm run release:check
 ```
 
 Tests cover public plugin RPC operations and page interactions. Ribbon’s isolated end-to-end suite checks the rendered page with its own server, host daemon, and fixture GitHub CLI.
+
+Sidebar navigation uses a DOM bridge until BB exposes page-owned sidebar navigation. It keeps BB’s resizing and mobile drawer controls and restores native content when the page or plugin unloads. If BB’s expected sidebar markers are unavailable, Browse and Installed fall back to tabs inside the page.

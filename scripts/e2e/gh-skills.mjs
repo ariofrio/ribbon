@@ -33,16 +33,50 @@ else if(command==='install'){
   return { PATH: `${bin}${delimiter}${process.env.PATH}` };
 }
 
-export async function verifyGhSkills({ stack }) {
+export async function verifyGhSkills({ stack, fixture }) {
   const browser = await chromium.launch({ args: ["--mute-audio"] });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   try {
-    await page.goto(new URL('/plugins/gh-skills/skills/installed', stack.serverUrl).href);
+    await page.goto(new URL('/', stack.serverUrl).href);
+    const rail = page.locator('[data-nav-rail-item="gh-skills/skills"]');
+    await rail.getByRole('button', { name: 'Skills', exact: true }).click();
     const panel = page.locator('[data-gh-skills]');
+    const sidebar = page.locator('[data-gh-skills-sidebar]');
+    await sidebar.getByRole('link', { name: 'Browse', exact: true }).waitFor();
+    assert.equal(await panel.getByRole('tab').count(), 0);
+    const nativeVisibility = await page.locator('[data-testid="app-sidebar-body"] [data-sidebar="content"]').evaluate(node =>
+      Array.from(node.children).filter(child => !child.hasAttribute('data-gh-skills-sidebar-host')).map(child => getComputedStyle(child).display));
+    assert.ok(nativeVisibility.length > 0);
+    assert.ok(nativeVisibility.every(display => display === 'none'), JSON.stringify(nativeVisibility));
+    await sidebar.getByRole('link', { name: 'Installed', exact: true }).focus();
+    await page.keyboard.press('Enter');
     await panel.getByText('No skills installed', { exact: true }).waitFor();
+    const activeStyle = await sidebar.getByRole('link', { name: 'Installed', exact: true }).evaluate(node => ({ background: getComputedStyle(node).backgroundColor, height: node.getBoundingClientRect().height }));
+    assert.notEqual(activeStyle.background, 'rgba(0, 0, 0, 0)');
+    assert.ok(activeStyle.height >= 28, JSON.stringify(activeStyle));
+    await page.goBack();
+    await panel.getByRole('textbox', { name: 'Search GitHub skills', exact: true }).waitFor();
+    await page.goBack();
+    await page.waitForFunction(() => {
+      const content = document.querySelector('[data-testid="app-sidebar-body"] [data-sidebar="content"]');
+      return content?.firstElementChild && !document.querySelector('[data-gh-skills-sidebar]') && getComputedStyle(content.firstElementChild).display !== 'none';
+    });
+    await page.goForward();
+    await sidebar.getByRole('link', { name: 'Browse', exact: true }).waitFor();
+    await page.goForward();
+    await panel.getByText('No skills installed', { exact: true }).waitFor();
+    const resize = page.locator('[data-testid="app-sidebar-resize-handle"]');
+    const oldWidth = await page.locator('[data-testid="app-sidebar-body"]').evaluate(node => node.getBoundingClientRect().width);
+    const handle = await resize.boundingBox();
+    assert.ok(handle);
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + handle.width / 2 + 40, handle.y + handle.height / 2, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForFunction(width => document.querySelector('[data-testid="app-sidebar-body"]').getBoundingClientRect().width >= width + 20, oldWidth);
     const install = panel.getByRole('button', { name: 'Install skill', exact: true });
     const style = await install.evaluate(node => ({ background: getComputedStyle(node).backgroundColor, height: node.getBoundingClientRect().height }));
     assert.notEqual(style.background, 'rgba(0, 0, 0, 0)');
@@ -84,7 +118,7 @@ export async function verifyGhSkills({ stack }) {
     await page.getByRole('menuitem', { name: 'Uninstall', exact: true }).click();
     await dialog.getByRole('button', { name: 'Remove skill', exact: true }).click();
     await panel.getByText('No skills installed', { exact: true }).waitFor();
-    await panel.getByRole('tab', { name: 'Browse', exact: true }).click();
+    await sidebar.getByRole('link', { name: 'Browse', exact: true }).click();
     await panel.getByRole('textbox', { name: 'Search GitHub skills' }).fill('demo');
     await panel.getByText('A searchable fixture skill', { exact: true }).waitFor();
     await panel.getByRole('button', { name: 'Open demo' }).click();
@@ -104,8 +138,25 @@ export async function verifyGhSkills({ stack }) {
     await mobileDialog.getByRole('textbox', { name: 'Repository', exact: true }).fill('example/skills');
     await mobileDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await mobileDialog.waitFor({ state: 'hidden' });
+    await page.locator('[data-sidebar="trigger"]').filter({ visible: true }).first().click();
+    await sidebar.getByRole('link', { name: 'Installed', exact: true }).click();
+    await page.waitForFunction(() => {
+      const main = document.querySelector('[data-gh-skills]');
+      return main && Math.abs(main.getBoundingClientRect().left) <= 1;
+    });
+    await panel.getByRole('button', { name: 'Open demo', exact: true }).click();
+    await panel.getByRole('heading', { name: 'demo', exact: true }).waitFor();
+    await panel.getByRole('button', { name: 'Back to installed skills', exact: true }).click();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await sidebar.getByRole('link', { name: 'Installed', exact: true }).waitFor();
+    fixture.run(['plugin', 'disable', 'gh-skills']);
+    await page.waitForFunction(() => {
+      const content = document.querySelector('[data-testid="app-sidebar-body"] [data-sidebar="content"]');
+      return content?.firstElementChild && !document.querySelector('[data-gh-skills-sidebar-host]') && getComputedStyle(content.firstElementChild).display !== 'none';
+    });
     assert.deepEqual(errors, []);
   } catch (cause) {
-    throw new Error(`Skills workflow failed at ${page.url()}\n${(await page.locator('[data-gh-skills]').innerText()).slice(0, 8000)}`, { cause });
+    const content = await page.locator('[data-gh-skills]').innerText({ timeout: 1000 }).catch(() => 'Skills page unmounted');
+    throw new Error(`Skills workflow failed at ${page.url()}\n${content.slice(0, 8000)}`, { cause });
   } finally { await browser.close(); }
 }

@@ -59,6 +59,7 @@
       "input",
       "popover",
       "resource-list",
+      "sidebar-row-classes",
       "tabs",
       "checkbox"
     ]
