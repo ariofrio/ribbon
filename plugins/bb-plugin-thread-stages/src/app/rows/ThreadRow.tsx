@@ -43,7 +43,6 @@ import {
   experimental_ProviderIcon as ProviderIcon,
   ThreadTitle,
   useSidebarSplitLayout,
-  useSidebarThreadDraft,
   useSidebarThreadRowStatus,
   useSidebarThreadShortcut,
   useSdk,
@@ -458,9 +457,8 @@ function ThreadRowComponent({
     : undefined;
   const shortcut = useSidebarThreadShortcut(thread.id);
   const pluginThreadRowStatus = useSidebarThreadRowStatus(thread.id);
-  const { hasUnsubmittedDraft: hasComposerDraft } = useSidebarThreadDraft(
-    thread.id,
-  );
+  const draftThreadIds = useMemo(() => [thread.id], [thread.id]);
+  const hasComposerDraft = useThreadsHaveDraft(draftThreadIds);
   const showActive = isActive;
   const threadStatus = threadListIndicatorStateForThread(
     thread,
