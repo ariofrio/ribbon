@@ -10,7 +10,27 @@ permissions:
   contents: read
 
 jobs:
+  reuse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      # gh run watch also reads the original run's check suite.
+      checks: read
+    outputs:
+      reuse: ${{ steps.reuse.outputs.reuse }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: reuse
+        name: Reuse validation for a CI-produced screenshot commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci-reuse.mjs reuse plugins >> "$GITHUB_OUTPUT"
+
   release-automation:
+    needs: [reuse]
+    if: needs.reuse.outputs.reuse != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -41,6 +61,8 @@ jobs:
           ./actionlint
 
   discover:
+    needs: [reuse]
+    if: needs.reuse.outputs.reuse != 'true'
     runs-on: ubuntu-latest
     outputs:
       plugins: ${{ steps.plugins.outputs.plugins }}
@@ -81,6 +103,8 @@ jobs:
   # Keep the relevance decision on the hosted runner, for the same reason as
   # the screenshot gate: the container is most of the cost.
   relevant:
+    needs: [reuse]
+    if: needs.reuse.outputs.reuse != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -133,7 +157,7 @@ jobs:
   # The one name this workflow is required by. release-check names its jobs
   # from a matrix, so requiring those would break whenever a plugin is renamed.
   plugins:
-    needs: [release-automation, discover, release-check, relevant, end-to-end]
+    needs: [reuse, release-automation, discover, release-check, relevant, end-to-end]
     # A check skipped along with its dependency never reports, which blocks the
     # pull request requiring it.
     if: always()
@@ -146,3 +170,15 @@ jobs:
           case "$results" in
             *failure*|*cancelled*) echo "::error::a required job did not pass"; exit 1 ;;
           esac
+      - uses: actions/checkout@v7
+        if: needs.reuse.outputs.reuse != 'true'
+      - name: Record the tree these checks validated
+        if: needs.reuse.outputs.reuse != 'true'
+        run: node scripts/ci-reuse.mjs record plugins
+      - uses: actions/upload-artifact@v7
+        if: needs.reuse.outputs.reuse != 'true'
+        with:
+          name: ci-validation-plugins-${{ github.run_attempt }}
+          path: .scratch/work/ci-validation/validation.json
+          include-hidden-files: true
+          if-no-files-found: error
