@@ -36,34 +36,42 @@ export async function verifySelectedTitleColor({ stack, fixture }) {
             reference.style.color = selected
               ? "var(--sidebar-foreground)"
               : "var(--subtle-foreground)";
+            reference.style.maskImage = "linear-gradient(currentColor, currentColor)";
+            reference.style.maskMode = "alpha";
             row.append(reference);
-            const actual = getComputedStyle(label).color;
             const canvas = document.createElement("canvas");
             canvas.width = canvas.height = 1;
             const context = canvas.getContext("2d");
-            context.fillStyle = actual;
-            context.fillRect(0, 0, 1, 1);
-            const pixel = [...context.getImageData(0, 0, 1, 1).data];
+            const pixel = (color) => {
+              context.clearRect(0, 0, 1, 1);
+              context.fillStyle = color;
+              context.fillRect(0, 0, 1, 1);
+              return [...context.getImageData(0, 0, 1, 1).data];
+            };
+            const actual = getComputedStyle(label).color;
             const expected = getComputedStyle(reference).color;
-            let secondaryPixel = null;
-            if (!selected) {
-              reference.style.color = "var(--sidebar)";
-              context.fillStyle = getComputedStyle(reference).color;
-              context.fillRect(0, 0, 1, 1);
-              reference.style.color = "color-mix(in srgb, var(--ink) 50%, transparent)";
-              context.fillStyle = getComputedStyle(reference).color;
-              context.fillRect(0, 0, 1, 1);
-              secondaryPixel = [...context.getImageData(0, 0, 1, 1).data];
-            }
-            const colors = { actual, pixel, secondaryPixel, icon: getComputedStyle(row.querySelector("[data-ribbon-sidebar-icon-slot] svg")).color, expected };
+            const expectedMask = getComputedStyle(reference).maskImage;
+            reference.style.color = `rgb(from ${expected} r g b / 1)`;
+            const titleStyle = getComputedStyle(row.querySelector(".bb-thread-title"));
+            const colors = {
+              completed: !!row.querySelector('[aria-label="Completed stage"]'),
+              actual, expected,
+              pixel: pixel(actual), solidPixel: pixel(getComputedStyle(reference).color),
+              mask: titleStyle.maskImage, maskMode: titleStyle.maskMode, expectedMask,
+              icon: getComputedStyle(row.querySelector("[data-ribbon-sidebar-icon-slot] svg")).color,
+            };
             reference.remove();
             return colors;
           }, { selected, title });
-          assert.equal(colors.icon, colors.actual, `${theme}: icon and title share their attention color`);
-          assert.equal(colors.actual, colors.expected, `${theme}: ${selected ? "selected" : "unselected"} thread title color`);
-          assert.equal(colors.pixel[3], 255, `${theme}: opaque title ink keeps glyph/strikethrough intersections uniform`);
-          if (!selected) assert.ok(colors.pixel.every((value, index) => Math.abs(value - colors.secondaryPixel[index]) <= 1),
-            `${theme}: opaque secondary ink preserves the original tone over the sidebar`);
+          assert.equal(colors.icon, colors.expected, `${theme}: the icon keeps the theme's attention color`);
+          if (colors.completed) {
+            assert.deepEqual(colors.pixel, colors.solidPixel, `${theme}: completed text and strike paint in solid theme ink`);
+            assert.equal(colors.mask, colors.expectedMask, `${theme}: apply the theme's actual alpha once to the whole title`);
+            assert.equal(colors.maskMode, "alpha");
+          } else {
+            assert.equal(colors.actual, colors.expected, `${theme}: ${selected ? "selected" : "unselected"} thread title color`);
+            assert.equal(colors.mask, "none", "Other stages need no alpha mask");
+          }
         }
 
         await assertTitleColor(active, true, thread.title);
@@ -82,6 +90,38 @@ export async function verifySelectedTitleColor({ stack, fixture }) {
           fixture.run(["thread-stages", "stage", stage, inactiveThread.id]);
           await list.locator(`[data-thread-id="${inactiveThread.id}"]`).first().getByLabel(`${label} stage`, { exact: true }).waitFor();
           await assertTitleColor(inactive, stage === "BlockedOnUser", inactiveThread.title);
+        }
+        // Change theme tokens live, including colored ink, different alpha
+        // values for selected rows, and fully transparent/opaque ink.
+        try {
+          for (const [secondary, primary] of [
+            ["rgb(30 110 240 / .2)", "rgb(220 80 130 / .35)"],
+            ["rgb(170 90 40 / .7)", "rgb(40 180 120 / .85)"],
+            ["rgb(60 130 200 / 0)", "rgb(240 220 180 / 1)"],
+            ["rgb(60 130 200 / 1)", "rgb(240 220 180 / 0)"],
+          ]) {
+            await page.evaluate(([secondary, primary]) => {
+              document.documentElement.style.setProperty("--subtle-foreground", secondary);
+              document.documentElement.style.setProperty("--sidebar-foreground", primary);
+            }, [secondary, primary]);
+            await page.mouse.move(1200, 780);
+            await assertTitleColor(inactive, false, inactiveThread.title);
+            const idleBackground = await inactive.evaluate((node) => getComputedStyle(node.closest("[data-thread-id]")).backgroundColor);
+            await inactive.hover();
+            await assertTitleColor(inactive, false, inactiveThread.title);
+            assert.notEqual(await inactive.evaluate((node) => getComputedStyle(node.closest("[data-thread-id]")).backgroundColor),
+              idleBackground, "Exercise a different hover background with the same theme ink");
+            fixture.run(["thread-stages", "stage", "Completed", thread.id]);
+            await list.locator(`[data-thread-id="${thread.id}"]`).first().getByLabel("Completed stage", { exact: true }).waitFor();
+            await assertTitleColor(active, true, thread.title);
+            fixture.run(["thread-stages", "stage", "Active", thread.id]);
+            await list.locator(`[data-thread-id="${thread.id}"]`).first().getByLabel("In progress stage", { exact: true }).waitFor();
+          }
+        } finally {
+          await page.evaluate(() => {
+            document.documentElement.style.removeProperty("--subtle-foreground");
+            document.documentElement.style.removeProperty("--sidebar-foreground");
+          });
         }
         fixture.run(["thread-stages", "stage", "Active", inactiveThread.id]);
         fixture.run(["thread-stages", "stage", "Active", thread.id]);

@@ -102,7 +102,7 @@ export async function verifyThreadIcons({ stack, fixture }) {
     await paintedIcon('[aria-label="In progress stage"] svg', false);
     await page.waitForFunction((threadId) => {
       const title = document.querySelector(`[data-ribbon-sidebar-root] [data-thread-id="${threadId}"] .bb-thread-title`);
-      return title && [...title.querySelectorAll("span")].every((node) =>
+      return title && getComputedStyle(title).maskImage === "none" && [...title.querySelectorAll("span")].every((node) =>
         getComputedStyle(node).textDecorationLine !== "line-through");
     }, thread.id);
     const workingRow = row(list, workingThread.id);
