@@ -47,7 +47,7 @@ export async function verifyThreadIcons({ stack, fixture }) {
     // Measure on our visible target, independent of stages earlier suites left.
     try {
       for (const [stage, label, painted] of [
-        ["Deferred", "Deferred", 43 / 3],
+        ["Deferred", "Deferred", 35 / 3],
         ["BlockedOnOtherAgent", "Dependent", 13],
         ["BlockedOnThirdParty", "Blocked", 43 / 3],
         ["Completed", "Completed", 31 / 3],

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import CheckIcon from "@hugeicons/core-free-icons/CheckIcon";
-import CircleDashedIcon from "@hugeicons/core-free-icons/CircleDashedIcon";
+import PauseIcon from "@hugeicons/core-free-icons/PauseIcon";
 import HourglassIcon from "@hugeicons/core-free-icons/HourglassIcon";
 import UserMultiple02Icon from "@hugeicons/core-free-icons/UserMultiple02Icon";
 import { STAGE_ICONS, createGroupingCatalog } from "./catalog";
@@ -28,7 +28,7 @@ describe("stage catalog", () => {
 
   it("serializes the original Hugeicons without fitting or changing their strokes", () => {
     for (const [stage, glyph] of [
-      ["Deferred", CircleDashedIcon],
+      ["Deferred", PauseIcon],
       ["BlockedOnOtherAgent", HourglassIcon],
       ["BlockedOnThirdParty", UserMultiple02Icon],
       ["Completed", CheckIcon],

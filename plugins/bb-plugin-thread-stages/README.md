@@ -130,7 +130,7 @@ name renames it.
 In progress is always blank at rest. **In progress icon on hover** chooses
 nothing or a hollow unread marker on hover and keyboard focus. Needs user has a
 filled unread marker, Dependent an hourglass, and Blocked the UserMultiple02 people
-icon. Deferred uses CircleDashed and Completed uses Check with a struck-through
+icon. Deferred uses Pause and Completed uses Check with a struck-through
 title. These four glyphs use the original Hugeicons paths and strokes in a 16px
 slot, without fitting or stroke overrides. The 7px hollow unread marker matches
 their stroke weight. Needs user uses primary ink for both icon and title; other stages use secondary ink. A selected row uses

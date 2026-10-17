@@ -1,5 +1,5 @@
 import CheckIcon from "@hugeicons/core-free-icons/CheckIcon";
-import CircleDashedIcon from "@hugeicons/core-free-icons/CircleDashedIcon";
+import PauseIcon from "@hugeicons/core-free-icons/PauseIcon";
 import HourglassIcon from "@hugeicons/core-free-icons/HourglassIcon";
 import UserMultiple02Icon from "@hugeicons/core-free-icons/UserMultiple02Icon";
 import { groupingCatalogSchema, type IconDataV1 } from "../contracts";
@@ -34,7 +34,7 @@ const unreadMarker = (filled: boolean): IconDataV1 => stageIcon([{
 }]);
 
 export const STAGE_ICONS: Record<WorkflowStage, IconDataV1> = {
-  Deferred: hugeicon(CircleDashedIcon),
+  Deferred: hugeicon(PauseIcon),
   Active: unreadMarker(false),
   BlockedOnUser: unreadMarker(true),
   BlockedOnOtherAgent: hugeicon(HourglassIcon),
