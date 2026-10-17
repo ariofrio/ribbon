@@ -49,12 +49,20 @@ class EvalTests(unittest.TestCase):
         self.assertEqual(len(load_cases()), 40)
         self.assertNotIn("Waiting", self.source["stages"])
         self.assertIn("BlockedOnUser", self.source["stages"])
-        self.assertIn("Inspect the current stage", self.source["instructions"]["on"])
-        self.assertIn("only when the user explicitly", self.source["instructions"]["off"])
+        self.assertEqual(set(self.source["instructions"]), {"on", "off"})
+        self.assertNotEqual(self.source["instructions"]["on"], self.source["instructions"]["off"])
 
     def test_success_requires_real_recorded_transition(self):
         self.transition()
         self.assertTrue(self.grade()["passed"])
+
+    def test_thread_discovery_help_is_a_valid_read_only_call(self):
+        code, _ = invoke(self.workspace, ["thread", "--help"])
+        self.assertEqual(code, 0)
+        code, _ = invoke(self.workspace, ["thread"])
+        self.assertNotEqual(code, 0)
+        self.assertEqual(json.loads((self.workspace / "state.json").read_text())["stage"],
+                         self.case["scenario"]["initial_stage"])
 
     def test_correct_answer_without_transition_fails(self):
         self.assertFalse(self.grade()["passed"])

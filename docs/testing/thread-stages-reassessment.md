@@ -1,10 +1,12 @@
 # Thread stage reassessment evaluation
 
-The investigation-before-work cases remain **behaviorally RED**. Both runtimes
-failed the required ordering with original and updated guidance. A separate
-CI-proposal case checks placement after reporting; its passing baseline cannot
-establish a behavioral fix. The PR remains a draft because the work-ordering
-contract has not been achieved.
+The final matched comparison is **behaviorally GREEN**: both investigation-before-work
+cases pass on Codex and Claude with the revised guidance and fail with the
+previous PR snapshot. The full fourteen-case selection also passes on both
+runtimes. The [final iteration](#aligning-the-stage-before-work) records the
+manual-preference regression, fixture correction, repeated runs, and limits.
+Earlier failed comparisons remain below; the separate CI-proposal case already
+passed before revision and cannot establish a behavioral fix.
 
 ## Method
 
@@ -13,8 +15,8 @@ Claude reported `claude-opus-5-5[1m]`; Codex used its clean-config default, whos
 model ID is not emitted in its JSONL. The same CLI configuration was used on both
 sides. No subagents simulated target-agent behavior.
 
-The [runner](../../plugins/bb-plugin-thread-stages/skills/thread-stages/evals/run.py)
-For the investigation-before-work comparison, the runner loads the skill and injected guidance from Git commit
+For the initial investigation-before-work comparison, the
+[runner](../../plugins/bb-plugin-thread-stages/skills/thread-stages/evals/run.py) loads the skill and injected guidance from Git commit
 `7b6fbf0bcb732ea6832877faf0563502e2930490` for original-guidance runs, and from the
 then-working tree (now commit `69ae0e5`) for updated runs. The
 [cases and expectations](../../plugins/bb-plugin-thread-stages/skills/thread-stages/evals/evals.json)
@@ -73,7 +75,7 @@ committed case prompt and selected instruction snapshot. Outputs, source
 snapshots, raw transcripts, CLI calls, and canonical `grading.json` remain in
 those ignored runner workspaces. The durable observations follow below.
 
-## Observations
+## Initial observations
 
 `read(5)` below means reads of the [client](../../plugins/bb-plugin-thread-stages/skills/thread-stages/evals/files/retry-worker.ts),
 [receiver](../../plugins/bb-plugin-thread-stages/skills/thread-stages/evals/files/receiver.ts),
@@ -233,7 +235,7 @@ awaiting direction), 27 (independent work despite pending review), and 31
 (finished bounded reporting) all passed on both runtimes with both versions:
 **20/20 case passes**. Cases 35–36 still failed on the revised wording in
 run-25/run-26, **0/2 per runtime**, with source reads preceding the needed Active
-write. Their failure remains a reason to keep the PR in draft.
+write. Those failures kept the PR in draft pending the further iteration below.
 
 The case manifest hash is
 `0a0372189527d62dc2ca80e0200f68b9e8d29e1a7dcd4e7716216235c8da0a02`.
@@ -250,15 +252,167 @@ counted as RED or silently discarded. Control cases and the case-35/36 reruns
 have unchanged inputs across that correction. All runs were regraded from
 saved transcripts; no baseline omission was observed in either snapshot set.
 
+## Aligning the stage before work
+
+Further iteration kept cases 35–40 and their stage-order grading unchanged.
+The source reads are the requested independent investigation: the user has
+already supplied review feedback or the requested choice. The later
+publication/proposal decision does not block that investigation. Updating
+In progress only after reading the source therefore fails the intended
+contract. This is separate from a turn ending or a routine observation check.
+
+The final skill retains inspection before every stage change, including explicit
+changes while automatic updates are disabled. The automatic guidance makes stage alignment a prerequisite to investigation or
+implementation, and places the explicit manual-stage exception before that
+sequence in both the skill and injected reminder. Automatic updates disabled
+still use the original explicit-request-only reminder. The qualified
+uncertainty rule from the CI-proposal change remains intact.
+
+### Iteration and fidelity checks
+
+- Revision 1 said to change before doing the work, but Claude still wrote
+  In progress late in run-40/case-36. It passed a repeat with the same wording;
+  that variability is retained rather than selecting only the passing run.
+- Revision 2 made the tool-call ordering explicit. Investigation ordering
+  passed, but run-51/case-38 violated the user's manual-stage preference with
+  two writes. This led to co-locating the exception before the automatic rule
+  in revision 3, rather than weakening the manual-stage control.
+- Run-48/case-39 respected disabled updates but failed on `bb thread show`
+  without a target. The pinned real CLI requires an ID or `--self`; that
+  failure is retained. The disabled-mode reminder was not changed.
+- Run-54/case-36 had correct stage ordering but the fixture rejected the valid
+  discovery command `bb thread --help`. The pinned CLI confirmed the gap.
+  A read-only fixture help response and a regression test were added. The test
+  first failed with `AssertionError: 2 != 0`, then passed. This is a harness
+  correction, not evidence of a behavioral RED. Bare `bb thread` was also
+  checked against the pinned CLI and kept invalid. An interim fixture accepted
+  that unused form; no comparison worker issued it.
+
+The final matched comparison (67–68 and 71–76) uses the same corrected fixture bytes,
+case manifest, input files, grader, and native CLI configuration on both sides.
+Earlier runs and their per-case fixture copies remain in the evidence archive.
+No prior behavioral run or original model grade was overwritten.
+
+### Results
+
+| Runtime | Matched baseline cases 35–36 | Final cases 35–36 | Manual control 38, both versions |
+| --- | --- | --- | --- |
+| Codex | 0/4 pass | 4/4 pass | pass; zero writes |
+| Claude | 0/4 pass | 4/4 pass | pass; zero writes |
+
+The full fourteen-case selection passed **14/14 on each runtime** in runs
+73–74. This covers established observation and computation, a report awaiting
+direction, routine monitoring, disabled updates, independent work despite
+pending review, genuine pending review, bounded completion, the two resumed
+investigations, explicit manual staging, and the CI-proposal boundary.
+The final comparison is two trials per case/runtime; the preceding repetitions
+and rejected revisions are disclosed above rather than implying universal
+reliability.
+
+The baseline reads the source while still in Needs user. Codex changes to
+In progress only afterward; Claude makes no stage writes. The revised runs
+inspect, write In progress, read the source in that stage, and write Needs user
+when only the user's decision remains. The manual-stage control makes zero
+writes, including during source access.
+
+Representative actual revised operations:
+
+```text
+bb thread-stages show --self --json       # BlockedOnUser
+bb thread-stages stage Active --self
+bb files read src/retry-worker.ts         # Active
+bb files read src/receiver.ts             # Active
+bb files read logs/retry-probes.json       # Active
+bb files read drafts/exhaustion.md        # Active
+bb files read drafts/duplicates.md        # Active
+bb thread-stages stage BlockedOnUser --self
+```
+
+All required skill/file reads, final stage, write count, inspection ordering,
+and valid-command checks must pass for a case to pass. A verbal recommendation
+or a correct final Needs user value cannot compensate for late stage writes.
+The plain outputs still explain four sends, thrown-error/5xx retries, no 408
+retry, and post-commit duplicate rows. Their full prose is retained separately
+from the stage verdicts; the oracle does not validate every delivery-guarantee
+claim in the answers.
+
+### Commands and provenance
+
+With `R` as defined above, every launch used:
+
+```sh
+python3 "$R" --runtime <runtime> --cases <selection> [--ref 9e705000] --output .scratch/work/thread-stage-evals/run-<number> --timeout 240
+```
+
+The paired run numbers below are Codex / Claude respectively. `P` means
+`35 36`, `T` means `35 36 38`, and `S` means
+`17 19 22 24 26 27 28 31 35 36 37 38 39 40`.
+
+| Runs | Selection | Source |
+| --- | --- | --- |
+| 37 / 38 | P | `--ref 9e705000` |
+| 39 / 40 | P | revision 1 working tree |
+| 41 / 42 | S | `--ref 9e705000` |
+| 43 / 44 | S | revision 1 working tree |
+| 45 / 46 | P | revision 2 working tree |
+| 47 / 48 | S | revision 2 working tree |
+| 49 / 50 | P | revision 2 working tree |
+| 51 / 52 | S | revision 2 working tree |
+| 53 / 54 | T | revision 3 working tree |
+| 55 / 56 | S | revision 3 working tree |
+| 57 / 58 | T | revision 3 working tree |
+| 59 / 60 | P | `--ref 9e705000`, help correction |
+| 61 / 62 | S | revision 3 working tree, help correction |
+| 63 / 64 | P | `--ref 9e705000`, help correction |
+| 65 / 66 | T | revision 3 working tree, help correction |
+| 67 / 68 | T | `--ref 9e705000`, final fixture |
+| 69 / 70 | T | revision 3 working tree, final fixture |
+| 71 / 72 | `35 36 38 39` | final working tree, final fixture |
+| 73 / 74 | S | final working tree, final fixture |
+| 75 / 76 | P | `--ref 9e705000`, final fixture |
+
+The final source SHA-256 values are:
+
+- Skill: `b701665ac3cbeb52eb462e89105780ceee833bd2fa63e58c543b040a0cebf0dc`.
+- Injected guidance: `462ed3df9374771dfc3ebd5f212844ec8867272f48fec62f4416eeee0d050c70`.
+- Corrected fixture: `e359177ea4a381eb4095ea6e5ffc260f865edda271bdf2643f4aeb524fd34b85`.
+- Unchanged oracle: `d6472d07ea9dded3a3304893636b99d7f142f31aa27a519c2a84a6566cd7df68`.
+
+The suite hash remains `0a0372189527d62dc2ca80e0200f68b9e8d29e1a7dcd4e7716216235c8da0a02`;
+all shared input-file hashes match. Each case records the exact target CLI
+arguments, plain output, raw events, stage operations, source snapshots, and
+canonical grading evidence. Runs 37–76, source snapshots for rejected revisions,
+and a summary recording per-case fixture hashes are archived in this BB
+thread's storage as `thread-stages-evidence/before-work-runs.zip` and
+`before-work-summary.json`. Static output/grade viewers use the skill creator's
+review generator. Saved transcripts were also regraded with `--grade`.
+
+These are finite native-CLI observations with reconstructed BB context, not a
+claim that production provider sessions or every future run will behave the
+same. The CLI/model reporting limits in Method still apply. Case 40 already
+passed before the qualification and continues as a control; no RED→GREEN
+improvement is attributed to it.
+
 ## Software verification
 
-- `npm run check:evals --workspace=bb-plugin-thread-stages`: 22 grader/fixture tests passed.
+- `npm run check:evals --workspace=bb-plugin-thread-stages`: 23 grader/fixture tests passed.
 - `npm test`: 127 repository tests passed.
 - `npm run check:layout`, `check:ui`, `check:heading-icons`, `check:fork`: passed.
 - Codex `quick_validate.py` with PyYAML: passed.
 - The Thread stages `release:check` passed with the repository-pinned BB CLI:
   887 plugin tests, typecheck, SDK declarations, build, stylesheet verification,
   production-only build, and packed artifact verification.
+
+On the predecessor commit, the [first features E2E attempt](https://github.com/ariofrio/ribbon/actions/runs/38996978000/job/117291602738)
+timed out waiting for a context-menu autosave response. Its
+[unchanged-commit rerun passed](https://github.com/ariofrio/ribbon/actions/runs/38996978000/job/117293051419).
+This did not diagnose or fix the underlying cause.
+
+An earlier local release attempt timed out in
+`ProjectList.sectionCreate.test.tsx` after 886/887 tests passed. The full retry
+passed all 887 tests and the remaining release checks without a UI-code change.
+Its successful log is `thread-stages-release-check-before-work-final.log`;
+the timeout remains in `thread-stages-release-check-before-work-v3.log`.
 
 For the release check, from `plugins/bb-plugin-thread-stages`:
 

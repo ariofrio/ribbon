@@ -167,6 +167,11 @@ handoff contract. Passing it does not establish that the original premature
 completion after issue submission has been reproduced or fixed. Model outcomes
 can vary between runs, so keep the artifacts and report the observed scope.
 
+The [reassessment report](../../../../../docs/testing/thread-stages-reassessment.md#aligning-the-stage-before-work)
+records a RED→GREEN comparison on both CLIs, rejected instruction revisions,
+and the matching control selection. Read the limits with the pass counts;
+passing one fixture does not establish production-session reliability.
+
 ## Artifacts and limits
 
 Each run records source hashes, input-file hashes, the suite hash, selected case IDs, and CLI

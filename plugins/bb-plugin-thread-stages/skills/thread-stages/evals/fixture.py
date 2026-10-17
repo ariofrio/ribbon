@@ -39,6 +39,8 @@ def dispatch(state, args, record):
         return 0, state["files"][args[2]]
     if args in (["status"], ["status", "--json"]):
         return 0, {"thread": {"id": state["id"]}, "stage": state["stage"]}
+    if args == ["thread", "--help"]:
+        return 0, "bb thread: show [<thread>] [--self] [--json]; specify a thread or --self"
     if args[:2] == ["thread", "show"]:
         if args[2:] == ["--help"]:
             return 0, "Usage: bb thread show <thread> [--json]; use thr_eval for this thread"

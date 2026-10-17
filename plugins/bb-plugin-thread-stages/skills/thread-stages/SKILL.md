@@ -36,11 +36,19 @@ provider session.
 A stage describes the thread's overall workflow, including what can progress
 and whose action is needed. When new input or results arrive, reassess the
 outstanding work and who can advance it. Keep or change the stage based on that
-current state. Inspect its current stage with
-`bb thread-stages show --self --json` before changing it; write only when it no
-longer fits. A turn ending, a short side discussion, runtime
+current state. Inspect the current stage before any stage change; write only
+when it no longer fits.
+
+For automatic updates, first respect an explicit user instruction to retain a
+stage or manage it themselves. Otherwise, align the stage before doing
+independent work: read the conversation to establish what can advance now,
+inspect the current stage with
+`bb thread-stages show --self --json`, and complete any needed stage change
+before investigation or implementation tool calls. Use In progress while this
+thread can advance the work, even if a later step needs user review. Updating
+the stage after the work is done does not represent that work. A turn ending,
+a short side discussion, runtime
 idleness, or a routine monitoring check does not by itself change the stage.
-Respect an explicit instruction to retain a stage or let the user manage it.
 
 | Stage | ID | Meaning |
 | --- | --- | --- |
