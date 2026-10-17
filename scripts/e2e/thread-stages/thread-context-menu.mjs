@@ -101,6 +101,8 @@ export async function verifyThreadContextMenu({ stack, fixture }) {
       await page.keyboard.type("!");
       assert.equal(await label.inputValue(), "Revie!w", "menu navigation does not swallow text editing keys");
       await page.keyboard.press("Tab");
+      const promptNode = await prompt.elementHandle();
+      await page.waitForFunction((node) => document.activeElement === node, promptNode);
       const failedSave = page.waitForResponse((response) => response.url().endsWith("/rpc/saveThreadActionsV1"));
       await page.route("**/rpc/saveThreadActionsV1", (route) => route.fulfill({
         status: 500,

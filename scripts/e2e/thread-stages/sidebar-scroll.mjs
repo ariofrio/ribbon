@@ -15,14 +15,16 @@ export async function verifySidebarScroll({
   const errors = [];
   for (const testCase of cases) {
     try {
+      const kind = testCase.replace(/^native-/, "");
       await verifyList({
         stack,
         fixture,
-        nested: testCase === "nested-list",
-        tall: testCase === "tall-list",
-        drag: testCase === "scrollbar-drag",
-        size: testCase.includes("scalability") ? 9600 : 600,
-        completed: testCase === "completed-scalability",
+        native: testCase.startsWith("native-"),
+        nested: kind === "nested-list",
+        tall: kind === "tall-list",
+        drag: kind === "scrollbar-drag",
+        size: kind.includes("scalability") ? 9600 : 600,
+        completed: kind === "completed-scalability",
       });
     } catch (error) {
       errors.push(error);
@@ -33,7 +35,7 @@ export async function verifySidebarScroll({
     throw new AggregateError(errors, "Scrolling regression failed");
 }
 
-async function verifyList({ stack, fixture, nested, tall, drag, size, completed }) {
+async function verifyList({ stack, fixture, native, nested, tall, drag, size, completed }) {
   const { default: Database } = await import("better-sqlite3");
   // Real rows, all in one group, without starting hundreds of agent turns.
   const db = new Database(join(stack.dataDir, "bb.db"));
@@ -186,7 +188,7 @@ async function verifyList({ stack, fixture, nested, tall, drag, size, completed 
         return (await cdp.send("Runtime.getHeapUsage")).usedSize / 1048576;
       };
       const beforeHeap = large ? await heap() : undefined;
-      await cdp.send("Emulation.setCPUThrottlingRate", { rate: large ? 1 : 4 });
+      await cdp.send("Emulation.setCPUThrottlingRate", { rate: large || native ? 1 : 4 });
       await list.evaluate(startSidebarScrollSampling);
       const box = await scroller.boundingBox();
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -288,7 +290,7 @@ async function verifyList({ stack, fixture, nested, tall, drag, size, completed 
       );
       const samples = await page.evaluate(stopSidebarScrollSampling);
       console.log(
-        `sidebar scroll (${tall ? "tall" : completed ? "completed-9600" : large ? "flat-9600" : nested ? "nested" : drag ? "scrollbar" : "flat"}): ${JSON.stringify(samples)}`,
+        `sidebar scroll (${native ? "native-" : ""}${tall ? "tall" : completed ? "completed-9600" : large ? "flat-9600" : nested ? "nested" : drag ? "scrollbar" : "flat"}): ${JSON.stringify(samples)}`,
       );
       assert.ok(samples.frames >= 10, "Scrolling must sample actual frames");
       assert.ok(
