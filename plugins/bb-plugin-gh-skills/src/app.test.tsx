@@ -123,7 +123,7 @@ test("installs from a repository with explicit pinning and refreshes server inve
   });
   await slot.findByText("No skills installed");
   fireEvent.click(slot.getByRole("button", { name: "Install skill" }));
-  fireEvent.change(slot.getByRole("textbox", { name: "Repository" }), { target: { value: "example/skills" } });
+  fireEvent.change(slot.getByRole("textbox", { name: "Repository" }), { target: { value: "https://github.com/example/skills" } });
   fireEvent.change(slot.getByRole("textbox", { name: "Skill name or path" }), { target: { value: "models" } });
   fireEvent.change(slot.getByRole("textbox", { name: "Pin to tag, branch, or SHA" }), { target: { value: "v1" } });
   fireEvent.click(slot.getByRole("button", { name: "Install" }));
@@ -199,5 +199,41 @@ test("keeps the install form editable after gh reports an error", async () => {
   expect((await slot.findByRole("alert")).textContent).toBe("Run gh auth login on the BB server");
   expect((slot.getByRole("textbox", { name: "Repository" }) as HTMLInputElement).value).toBe("example/private-skills");
   expect((slot.getByRole("button", { name: "Install" }) as HTMLButtonElement).disabled).toBe(false);
+  slot.lifecycle.unmount();
+});
+
+test("shows the updated document immediately after updating an installed skill", async () => {
+  const loaded = await loadPluginApp(async () => app);
+  let version = "v1";
+  const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed/models" }, { rpc: {
+    "skills.list": () => ({ directory: "/server/skills", skills: [{ id: "models", skillName: "models", sourceURL: "https://github.com/example/skills", version, pinned: false, path: "/server/skills/models" }] }),
+    "skills.read": () => ({ content: `# Model guide\n\nInstructions from ${version}.` }),
+    "skills.update": () => { version = "v2"; return { output: "Updated models" }; },
+  } });
+  await slot.findByText(/Instructions from v1\./);
+  fireEvent.pointerDown(slot.getByRole("button", { name: "Actions for models" }), { button: 0, ctrlKey: false, pointerType: "mouse" });
+  fireEvent.click(await slot.findByRole("menuitem", { name: "Update" }));
+  fireEvent.click(await slot.findByRole("button", { name: "Update skill" }));
+  await slot.findByText(/Instructions from v2\./);
+  expect(slot.queryByText(/Instructions from v1\./)).toBeNull();
+  slot.lifecycle.unmount();
+});
+
+test("keeps the installed document visible when an update fails and the dialog is dismissed", async () => {
+  const loaded = await loadPluginApp(async () => app);
+  const slot = renderSlot(loaded.navPanels[0]!, { subPath: "installed/models" }, { rpc: {
+    "skills.list": () => ({ directory: "/server/skills", skills: [{ id: "models", skillName: "models", sourceURL: "https://github.com/example/skills", version: "v1", pinned: false, path: "/server/skills/models" }] }),
+    "skills.read": () => ({ content: "# Model guide\n\nAvailable offline instructions." }),
+    "skills.update": () => { throw new Error("Upstream unavailable"); },
+  } });
+  await slot.findByText(/Available offline instructions/);
+  fireEvent.pointerDown(slot.getByRole("button", { name: "Actions for models" }), { button: 0, ctrlKey: false, pointerType: "mouse" });
+  fireEvent.click(await slot.findByRole("menuitem", { name: "Update" }));
+  const dialog = await slot.findByRole("dialog", { name: "Update models?" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Update skill" }));
+  await within(dialog).findByText("Upstream unavailable");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  expect(slot.getByText(/Available offline instructions/)).toBeTruthy();
+  expect(slot.queryByRole("button", { name: "Retry" })).toBeNull();
   slot.lifecycle.unmount();
 });

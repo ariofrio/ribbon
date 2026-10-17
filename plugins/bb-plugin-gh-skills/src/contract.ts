@@ -12,7 +12,8 @@ const searchSkill = z.object({
 export type SearchSkill = z.infer<typeof searchSkill>;
 const argument = z.string().trim().min(1).max(1024).refine((value) => !/^[\-]|[\x00-\x1f]/u.test(value), "Invalid argument");
 export const sourceInput = z.object({
-  repository: z.string().trim().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u, "Use OWNER/REPO"),
+  repository: z.string().trim().transform((value) => value.replace(/^https:\/\/github\.com\//iu, "").replace(/\/$/u, "").replace(/\.git$/u, ""))
+    .pipe(z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u, "Enter OWNER/REPO or a GitHub repository URL.")),
   skill: argument.optional(),
   allowHidden: z.boolean().default(false),
 });

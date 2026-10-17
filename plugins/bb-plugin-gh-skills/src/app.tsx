@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ConfirmDeleteDialog, ConfirmDeleteDialogContent } from "@/vendor/components/ui/confirm-delete-dialog";
 import { ResourceCollectionPage, ResourceCollectionViewport, ResourceControlButton, ResourceDetailPage, ResourceDetailOverviewSection, ResourceInstalledControl, ResourceInstallControl, ResourceListState, ResourceOverflowMenu, ResourceToolbar, ResourceSortMenu } from "@/vendor/components/ui/resource-list";
 import type { InstalledSkill, SearchSkill, rpcContract } from "./contract";
+import { sourceInput } from "./contract";
 import { SkillCard, SkillGrid } from "./skill-card";
 import { SkillsSidebar } from "./sidebar";
 import { toast } from "sonner";
@@ -39,7 +40,9 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
   const [checkOpen, setCheckOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
   const [draft, setDraft] = useState<InstallDraft>(emptyDraft);
+  const [repositoryError, setRepositoryError] = useState<string>();
   const [document, setDocument] = useState<{ title: string; content: string; plain?: boolean }>();
+  const [documentError, setDocumentError] = useState<string>();
   const [detailAttempt, setDetailAttempt] = useState(0);
   const [removing, setRemoving] = useState<InstalledSkill>();
   const [updating, setUpdating] = useState<InstalledSkill | "all">();
@@ -63,16 +66,16 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
   useRealtime("skills.changed", () => { void refresh(); });
   useEffect(() => {
     setDocument(undefined);
-    setError(undefined);
+    setDocumentError(undefined);
     if (!detailId && !previewRepository) return;
     let current = true;
     const request = detailId ? rpc.call("skills.read", { id: detailId }).then((result) => ({ title: detailId, content: result.content }))
       : rpc.call("skills.preview", { repository: previewRepository!, skill: previewSkill!, allowHidden: false }).then((result) => ({ title: previewSkill!, content: result.output, plain: true }));
     void request.then((result) => {
       if (current) setDocument(result);
-    }).catch((cause) => { if (current) setError(message(cause)); });
+    }).catch((cause) => { if (current) setDocumentError(message(cause)); });
     return () => { current = false; };
-  }, [rpc, detailId, previewRepository, previewSkill, detailAttempt]);
+  }, [rpc, detailId, previewRepository, previewSkill, detailAttempt, detailId ? inventory : undefined]);
   async function perform(action: () => Promise<void>) {
     if (busy) return;
     setBusy(true); setError(undefined);
@@ -82,13 +85,20 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
   }
   async function install(event: FormEvent) {
     event.preventDefault();
+    const repository = validateRepository();
+    if (!repository) return;
     await perform(async () => {
       const result = await rpc.call("skills.install", {
-        repository: draft.repository.trim(), all: draft.all, force: draft.force, allowHidden: draft.allowHidden,
+        repository, all: draft.all, force: draft.force, allowHidden: draft.allowHidden,
         ...(!draft.all ? { skill: draft.skill.trim() } : {}), ...(draft.pin.trim() ? { pin: draft.pin.trim() } : {}),
       });
       setOutput(result.output); setInstallOpen(false); toast.success("Skill installed"); await refresh();
     });
+  }
+  function validateRepository() {
+    const result = sourceInput.shape.repository.safeParse(draft.repository);
+    setRepositoryError(result.success ? undefined : result.error.issues[0]?.message);
+    return result.success ? result.data : undefined;
   }
   const edit = <K extends keyof InstallDraft>(key: K, value: InstallDraft[K]) => setDraft((old) => ({ ...old, [key]: value }));
   const openInstalled = (skill: InstalledSkill) => navigate.toPluginPanel("skills", { subPath: `installed/${skill.id}` });
@@ -137,7 +147,7 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
     { label: "Uninstall", icon: "Trash2", tone: "destructive", onSelect: () => { setError(undefined); setRemoving(skill); } },
   ]} />;
   const actions = <>
-    <Button disabled={busy} onClick={() => { setError(undefined); setDraft(emptyDraft); setInstallOpen(true); }}>Install skill</Button>
+    <Button disabled={busy} onClick={() => { setError(undefined); setRepositoryError(undefined); setDraft(emptyDraft); setInstallOpen(true); }}>Install skill</Button>
     <ResourceOverflowMenu label="Skill actions" disabled={busy} items={[
       { label: "Refresh", icon: "RefreshCw", onSelect: () => void refresh() },
       { label: "Check for updates", icon: "Download", disabled: !inventory?.skills.length, onSelect: () => update(undefined, true) },
@@ -157,7 +167,7 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
           titleMeta={detailSkill?.version} lifecycleControl={detailSkill ? <ResourceInstalledControl accessibleLabel={`${detailSkill.skillName} is installed`} /> : previewEntry ? <ResourceInstallControl accessibleLabel="Install skill" disabled={busy} pending={Boolean(installing)} onAction={() => installResult(previewEntry)} /> : undefined}
           overflowMenu={detailSkill ? skillActions(detailSkill) : undefined}
           metadata={detailSkill?.sourceURL || previewRepository || "No source metadata"}>
-          <ResourceDetailOverviewSection label="Overview">{error ? <ResourceListState state="error" message={error} onRetry={() => setDetailAttempt((value) => value + 1)} />
+          <ResourceDetailOverviewSection label="Overview">{documentError ? <ResourceListState state="error" message={documentError} onRetry={() => setDetailAttempt((value) => value + 1)} />
             : document ? document.plain ? <pre className="whitespace-pre-wrap break-words text-sm">{document.content}</pre> : <Markdown content={document.content} /> : <ResourceListState state="loading" message="Loading skill…" />}</ResourceDetailOverviewSection>
         </ResourceDetailPage>
       </div> :
@@ -229,7 +239,8 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
         <DialogContent>
           <DialogHeader><DialogTitle>Install skill</DialogTitle><DialogDescription>Install from GitHub into the BB server’s skills directory.</DialogDescription></DialogHeader>
           <form onSubmit={(event) => void install(event)} className="space-y-4">
-            <label className="grid gap-1.5 text-sm">Repository<Input autoFocus placeholder="OWNER/REPO" value={draft.repository} disabled={busy} onChange={(event) => edit("repository", event.target.value)} required /></label>
+            <label className="grid gap-1.5 text-sm">Repository<Input autoFocus placeholder="https://github.com/owner/repo" value={draft.repository} disabled={busy} aria-invalid={Boolean(repositoryError)} aria-describedby={repositoryError ? "skill-repository-error" : undefined} onChange={(event) => { edit("repository", event.target.value); setRepositoryError(undefined); }} required /></label>
+            {repositoryError && <p id="skill-repository-error" role="alert" className="text-sm text-destructive">{repositoryError}</p>}
             <label className="grid gap-1.5 text-sm">Skill name or path<Input placeholder="skills/my-skill" value={draft.skill} disabled={busy || draft.all} onChange={(event) => edit("skill", event.target.value)} required={!draft.all} /></label>
             <label className="grid gap-1.5 text-sm">Pin to tag, branch, or SHA<Input placeholder="Optional" value={draft.pin} disabled={busy} onChange={(event) => edit("pin", event.target.value)} /></label>
             <p className="text-xs text-muted-foreground">Pinned skills are skipped by ordinary updates. Without a pin, gh selects the latest release or default branch.</p>
@@ -241,11 +252,11 @@ function SkillsPage({ subPath }: PluginNavPanelProps) {
               </div></details>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" disabled={busy || !draft.repository.trim()} onClick={() => void perform(async () => {
-                const result = await rpc.call("skills.discover", { repository: draft.repository.trim(), allowHidden: draft.allowHidden });
+              <Button type="button" variant="outline" disabled={busy || !draft.repository.trim()} onClick={() => { const repository = validateRepository(); if (repository) void perform(async () => {
+                const result = await rpc.call("skills.discover", { repository, allowHidden: draft.allowHidden });
                 setDocument({ title: "Repository skills", content: result.output, plain: true });
-              })}>List repository skills</Button>
-              <Button type="button" variant="outline" disabled={busy || !draft.repository.trim() || !draft.skill.trim() || draft.all} onClick={() => preview(draft.repository.trim(), draft.skill.trim() + (draft.pin.trim() ? `@${draft.pin.trim()}` : ""), draft.allowHidden)}>Preview</Button>
+              }); }}>List repository skills</Button>
+              <Button type="button" variant="outline" disabled={busy || !draft.repository.trim() || !draft.skill.trim() || draft.all} onClick={() => { const repository = validateRepository(); if (repository) preview(repository, draft.skill.trim() + (draft.pin.trim() ? `@${draft.pin.trim()}` : ""), draft.allowHidden); }}>Preview</Button>
             </div>
             {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
             <DialogFooter><Button type="button" variant="outline" disabled={busy} onClick={() => setInstallOpen(false)}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Installing…" : "Install"}</Button></DialogFooter>

@@ -96,3 +96,10 @@ test("searches and previews through gh, and propagates its authentication errors
   await writeFile(reply, JSON.stringify({ code: 1, stderr: "Run gh auth login on this server" }));
   await expect(host.harness.behavior.callRpc("skills.preview", { repository: "example/skills", skill: "models" })).rejects.toThrow("Run gh auth login on this server");
 });
+
+test("accepts a GitHub repository URL and passes its canonical name to gh", async () => {
+  await writeFile(reply, JSON.stringify({ stdout: "Installed models" }));
+  await host.harness.behavior.callRpc("skills.install", { repository: "https://github.com/example/skills.git/", skill: "models" });
+  const args = JSON.parse((await readFile(calls, "utf8")).trim());
+  expect(args.slice(args.indexOf("--") + 1)).toEqual(["example/skills", "models"]);
+});

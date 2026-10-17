@@ -83,7 +83,7 @@ export async function verifyGhSkills({ stack, fixture }) {
     assert.ok(style.height >= 28, JSON.stringify(style));
     await install.click();
     let dialog = page.getByRole('dialog', { name: 'Install skill', exact: true });
-    await dialog.getByRole('textbox', { name: 'Repository', exact: true }).fill('example/skills');
+    await dialog.getByRole('textbox', { name: 'Repository', exact: true }).fill('https://github.com/example/skills');
     await dialog.getByRole('textbox', { name: 'Skill name or path' }).fill('demo');
     await dialog.getByRole('button', { name: 'Install', exact: true }).click();
     await dialog.waitFor({ state: 'hidden' });
@@ -103,12 +103,16 @@ export async function verifyGhSkills({ stack, fixture }) {
     const check = page.getByRole('dialog', { name: 'Skill update check' });
     await check.getByText('Fixture update available', { exact: true }).waitFor();
     await check.getByRole('button', { name: 'Done' }).click();
+    await panel.getByRole('button', { name: 'Open demo' }).click();
+    await panel.getByText('Installed on the server: v1', { exact: true }).waitFor();
     await panel.getByRole('button', { name: 'Actions for demo' }).click();
     await page.getByRole('menuitem', { name: 'Update', exact: true }).click();
     const update = page.getByRole('dialog', { name: 'Update demo?' });
     await update.getByRole('button', { name: 'Update skill', exact: true }).click();
     await update.waitFor({ state: 'hidden' });
     await panel.getByText('v2', { exact: true }).waitFor();
+    await panel.getByText('Installed on the server: v2', { exact: true }).waitFor();
+    await panel.getByRole('button', { name: 'Back to installed skills', exact: true }).click();
     await panel.getByRole('button', { name: 'Actions for demo' }).click();
     await page.getByRole('menuitem', { name: 'Uninstall', exact: true }).click();
     dialog = page.getByRole('dialog', { name: 'Remove demo?' });
