@@ -366,13 +366,6 @@ export function SidebarWindowedItems({
     if (changed) setMeasurementVersion((version) => version + 1);
   }, [visibleRange, itemKeys, indexByKey, model, intrinsic]);
   useLayoutEffect(() => {
-    if (intrinsic) return;
-    const element =
-      scrollRef?.current ??
-      containerRef.current?.closest<HTMLElement>('[data-sidebar="content"]');
-    if (element) refreshSidebarScrollWindows(element);
-  }, [model, scrollRef, intrinsic]);
-  useLayoutEffect(() => {
     if (focusItemKey)
       wrapperByKeyRef.current
         .get(focusItemKey)
@@ -510,13 +503,38 @@ export function SidebarWindowedItems({
     }
   }
   const ordered = [...indices].sort((a, b) => a - b);
+  const renderedIndices = ordered.join(",");
+  // Replacing spacers with rows can move a sibling window without changing
+  // either window's height model. Reconcile that committed geometry before paint.
+  useLayoutEffect(() => {
+    if (intrinsic) return;
+    const element =
+      scrollRef?.current ??
+      containerRef.current?.closest<HTMLElement>('[data-sidebar="content"]');
+    if (element) refreshSidebarScrollWindows(element);
+  }, [model, scrollRef, intrinsic, renderedIndices]);
   const slots = new Map<string, number>();
-  // Preserve interacting identities; reuse other cells in physical order so
-  // a refill changes row bindings without moving their DOM subtrees.
+  const previousBuffer = committedBufferRef.current;
+  const preserveForward = Boolean(
+    buffer &&
+      previousBuffer &&
+      buffer.first > previousBuffer.first &&
+      buffer.first - previousBuffer.first <= previousBuffer.keys.length / 2 &&
+      previousBuffer.keys.every(
+        (key, offset) => itemKeys[previousBuffer.first + offset] === key,
+      ),
+  );
+  // Small forward refills move only a few cells to the end. Upward rotations
+  // make React move most overlapping children, so reuse physical order there.
+  // Interacting identities always keep their original cell.
   for (const index of ordered) {
     const key = itemKeys[index]!;
     const slot = committedSlotsRef.current.get(key);
-    if (recycleItem?.(index) && lockedKeys.has(key) && slot !== undefined)
+    if (
+      recycleItem?.(index) &&
+      (lockedKeys.has(key) || preserveForward) &&
+      slot !== undefined
+    )
       slots.set(key, slot);
   }
   const usedSlots = new Set(slots.values());

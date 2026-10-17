@@ -157,6 +157,37 @@ function setup({
   };
 }
 describe("SidebarWindowedItems scalability", () => {
+  it("reveals a sibling moved into view by another window's refill", () => {
+    const viewport = createRef<HTMLDivElement>();
+    const items = keys.slice(0, 100);
+    render(
+      <div ref={viewport} data-sidebar="content" data-test-viewport="">
+        <SidebarContentElementContext.Provider value={viewport}>
+          <SidebarWindowedItems
+            itemKeys={items}
+            estimateRows={() => 1}
+            recycleItem={() => true}
+            renderItem={(index) => (
+              <a data-test-row="" data-test-height={index >= 50 ? 20 : 28}>
+                {items[index]}
+              </a>
+            )}
+          />
+          <SidebarWindowedItems
+            itemKeys={["footer"]}
+            estimateRows={() => 1}
+            renderItem={() => <a data-test-row="">Footer</a>}
+          />
+        </SidebarContentElementContext.Provider>
+      </div>,
+    );
+    expect(screen.queryByText("Footer")).toBeNull();
+    act(() => {
+      viewport.current!.scrollTop = 2680;
+      viewport.current!.dispatchEvent(new Event("scroll"));
+    });
+    expect(screen.getByText("Footer")).toBeTruthy();
+  });
   it("bounds mounted row behavior while traversing both ends of a long list", () => {
     const h = setup();
     expect(screen.getAllByRole("link").length).toBeLessThanOrEqual(96);
@@ -472,4 +503,17 @@ it("switches between tiny and large lists without leaving visible gaps", () => {
 it("keeps independent small windows observed unless their parent bounds them", () => {
   setup({ items: keys.slice(0, 3) });
   expect(resizeCallbacks.length).toBeGreaterThan(0);
+});
+
+it("preserves overlapping bindings on small forward refills and physical order on return", () => {
+  const h = setup({ recycle: true });
+  const overlapping = screen.getByRole("link", { name: "thread-14" });
+  h.jump(430);
+  expect(h.holes()).toHaveLength(0);
+  expect(screen.getByRole("link", { name: "thread-14" })).toBe(overlapping);
+  const physicalOrder = screen.getAllByRole("link");
+  h.jump(0);
+  expect(h.holes()).toHaveLength(0);
+  expect(screen.getAllByRole("link")).toEqual(physicalOrder);
+  expect(screen.getAllByRole("link").map(node => node.textContent)).toEqual(keys.slice(0, 24));
 });
