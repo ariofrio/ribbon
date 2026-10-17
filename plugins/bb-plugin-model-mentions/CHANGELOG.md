@@ -1,5 +1,13 @@
 # bb-plugin-model-mentions
 
+## 0.2.2
+
+### Patch Changes
+
+- b86fd18: Add light and dark README screenshots showing model selection, a title
+  generated from an issue-link conversation, and rich Markdown instructions.
+  Keep the screenshot assets out of installed plugin packages.
+
 ## 0.2.1
 
 ### Patch Changes
