@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 import uuid
+from urllib.parse import urlsplit
 
 from oracle import grade_run, validate
 
@@ -25,6 +26,38 @@ SOURCE_FILES = ["skills/thread-stages/SKILL.md", "skills/thread-actions/SKILL.md
                 "src/ribbon/agent-instructions.ts", "src/ribbon/workflow/workflow-stage.ts"]
 MODEL_CONFIGS = {"codex": {"model": "gpt-6.1-sol", "effort": "low"},
                  "claude": {"model": "claude-opus-5-5[1m]", "effort": "high"}}
+
+
+def codex_pool_args():
+    """Use BB's already-injected route without storing credentials or changing profiles."""
+    url = os.environ.get("CODEX_OPENAI_BASE_URL")
+    if not url or not os.environ.get("CODEX_POOL_AUTH_TOKEN"):
+        return []
+    parsed = urlsplit(url)
+    if parsed.username or parsed.password or parsed.query:
+        raise ValueError("Pool URL must not embed credentials or query parameters")
+    settings = [
+        'model_provider="bb-account-pool"',
+        'model_providers.bb-account-pool.name="OpenAI"',
+        'model_providers.bb-account-pool.base_url=' + json.dumps(url),
+        'model_providers.bb-account-pool.wire_api="responses"',
+        'model_providers.bb-account-pool.requires_openai_auth=false',
+        'model_providers.bb-account-pool.supports_websockets=false',
+        'model_providers.bb-account-pool.env_http_headers.x-bb-account-pool-token="CODEX_POOL_AUTH_TOKEN"',
+        'shell_environment_policy.exclude=' + json.dumps([
+            "CODEX_POOL_AUTH_TOKEN", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"]),
+    ]
+    return [arg for setting in settings for arg in ("-c", setting)]
+
+
+def execution_env(runtime):
+    env = {key: value for key, value in os.environ.items() if not key.startswith("BB_")}
+    unused = (["CODEX_POOL_AUTH_TOKEN", "CODEX_OPENAI_BASE_URL"] if runtime == "claude"
+              else ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY"])
+    for key in unused:
+        env.pop(key, None)
+    env.pop("CLAUDECODE", None)
+    return env
 
 
 def load_source(ref=None):
@@ -142,7 +175,7 @@ def cli_args(workspace, system, prompt, executable, runtime, model, effort):
                 "--safe-mode", "--system-prompt", system, "--print", "--no-session-persistence",
                 "--output-format", "stream-json", "--verbose", "--tools", "Bash,Read",
                 "--allowedTools", "Bash", "Read", "--permission-prompts", "none", prompt]
-    return [executable, "exec", "--model", model, "-c", "model_reasoning_effort=" + json.dumps(effort),
+    return [executable, "exec", *codex_pool_args(), "--model", model, "-c", "model_reasoning_effort=" + json.dumps(effort),
                 "--ignore-user-config", "--ignore-rules", "--ephemeral",
                 "--skip-git-repo-check", "--sandbox", "workspace-write", "--json",
                 "-c", "project_doc_max_bytes=0", "-c", "skills.include_instructions=false",
@@ -153,7 +186,7 @@ def cli_args(workspace, system, prompt, executable, runtime, model, effort):
 
 def run_case(workspace, case, source, executable, timeout, runtime, model, effort):
     system, prompt = prepare_case(workspace, case, source)
-    env = {key: value for key, value in os.environ.items() if not key.startswith("BB_")}
+    env = execution_env(runtime)
     env.update(PATH=str(workspace / "bin") + os.pathsep + env["PATH"], BB_THREAD_ID="thr_eval")
     env.pop("CLAUDECODE", None)
     args = cli_args(workspace, system, prompt, executable, runtime, model, effort)
@@ -259,7 +292,11 @@ def main():
                         for case in cases for path in case["files"]},
         "runtime": args.runtime, "cliVersion": version, "requestedModel": model, "requestedEffort": effort,
         "fixtureHash": hashlib.sha256(source["fixture"].encode()).hexdigest(),
+        "runnerHash": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "codexPoolConfigured": args.runtime == "codex" and bool(codex_pool_args()),
         "caseIds": [c["id"] for c in cases], "preparedOnly": args.prepare}, indent=2))
+    (output / "runner.py").write_bytes(Path(__file__).read_bytes())
+    (output / "cases.json").write_bytes((HERE / "evals.json").read_bytes())
     print(f"Artifacts: {output}", flush=True)
     results = []
     for case in cases:

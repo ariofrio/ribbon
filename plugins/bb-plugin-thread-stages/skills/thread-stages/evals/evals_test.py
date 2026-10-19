@@ -1,5 +1,7 @@
 import copy
 import json
+import os
+from unittest.mock import patch
 from pathlib import Path
 import tempfile
 import unittest
@@ -62,6 +64,16 @@ class EvalTests(unittest.TestCase):
             else:
                 self.assertIn('model_reasoning_effort="high"', args)
 
+    def test_existing_pool_route_is_process_only_and_keeps_token_out_of_arguments(self):
+        with patch.dict(os.environ, {"CODEX_OPENAI_BASE_URL":"https://pool.invalid/v1",
+                                    "CODEX_POOL_AUTH_TOKEN":"test-token-never-in-argv"}):
+            args = cli_args(self.workspace,"system","prompt","codex","codex","model","low")
+        self.assertIn('model_provider="bb-account-pool"',args)
+        self.assertIn('model_providers.bb-account-pool.env_http_headers.x-bb-account-pool-token="CODEX_POOL_AUTH_TOKEN"',args)
+        self.assertIn('model_providers.bb-account-pool.requires_openai_auth=false',args)
+        self.assertNotIn("test-token-never-in-argv", " ".join(args))
+        self.assertTrue(any("shell_environment_policy.exclude" in a and "CODEX_POOL_AUTH_TOKEN" in a for a in args))
+
     def test_each_case_uses_the_runs_fixture_snapshot(self):
         source = {**self.source, "fixture": "fixture snapshot"}
         other = self.workspace / "snapshot"
@@ -115,6 +127,11 @@ class EvalTests(unittest.TestCase):
         self.assertEqual(json.loads((self.workspace / "state.json").read_text())["stage"], "BlockedOnThirdParty")
         self.transition()
         self.assertFalse(self.grade()["passed"])
+
+    def test_read_only_help_discovery_can_recover(self):
+        invoke(self.workspace,["thread-actions","--help"])
+        self.transition()
+        self.assertTrue(self.grade()["passed"])
 
     def test_invalid_command_is_not_hidden_by_recovery(self):
         invoke(self.workspace, ["thread-stages", "get", "--self"])
@@ -252,6 +269,16 @@ class EvalTests(unittest.TestCase):
         self.assertTrue(answer_matches(answer, expected))
         answer['command'] += ' && bb thread-stages stage Completed --self'
         self.assertFalse(answer_matches(answer, expected))
+
+    def test_scope_names_allow_stage_annotations_but_not_changed_membership(self):
+        expected = {"in_scope":["Billing cleanup","Vendor access"]}
+        answer = {"in_scope":["Billing cleanup (Active)","Vendor access (BlockedOnThirdParty)"],
+                  "reason":"The Completed root stays excluded."}
+        self.assertTrue(answer_matches(answer, expected))
+        for names in (["Billing cleanup (Active)","Release checklist (Completed)"],
+                      ["Billing cleanup (Active)","Billing cleanup (Active)"],
+                      ["Billing cleanup (excluded)","Vendor access"], [1,"Vendor access"]):
+            self.assertFalse(answer_matches(dict(answer,in_scope=names),expected))
 
     def test_command_plan_accepts_inspection_without_accepting_extra_mutations(self):
         expected = {"commands": ["bb thread-stages prefs set organizationMode project"]}

@@ -64,6 +64,12 @@ Codex 0.163.0 and Claude Code 2.1.302. Defaults explicitly request
 `gpt-6.1-sol` / low and `claude-opus-5-5[1m]` / high. Use the same model and
 reasoning settings on both sides. Codex JSONL does not report the accepted model;
 requested settings, CLI version, and Claude's reported model remain in traces.
+When BB already injects `CODEX_OPENAI_BASE_URL` and `CODEX_POOL_AUTH_TOKEN`, the
+Codex runners use that process-local route. The token is referenced by environment
+variable, excluded from worker shells, and never written into arguments or files.
+Otherwise the CLI uses its existing authentication. No login, account selection,
+profile, or production routing is changed. Record authentication/capacity errors
+and host-sleep timeouts separately from behavioral failures.
 Model execution consumes normal account quota; CI only tests the harness.
 
 From the repository root:
@@ -114,7 +120,7 @@ forty realistic autonomous tasks. The native continuation scenarios above supply
 the stronger task acceptance coverage.
 
 Recommendation answers use declared JSON fields, with equivalent command quoting
-and JSON key order accepted. Extra valid read-only discovery is allowed. The
+and JSON key order accepted. Read-only help discovery may recover from an unsupported command; invalid substantive calls still fail. The
 oracle enforces prompt limits on BB execution separately from skill-file reads,
 which Codex performs through its shell. Cases 4 and 5 preserve preference
 discovery and linked Thread actions coverage. `oracle.py validate` checks every
@@ -155,3 +161,6 @@ and variability; an unchanged baseline that passes is not evidence of improvemen
 See the [native comparison report](../../../../../docs/testing/thread-stages-native-conversations.md)
 for actual commands, stage operation order, RED/GREEN evidence, interrupted runs,
 manual review, and validation limits.
+
+See the [minimization comparison](../../../../../docs/testing/thread-stages-minimization.md)
+for the subsequent long-versus-short guidance runs.

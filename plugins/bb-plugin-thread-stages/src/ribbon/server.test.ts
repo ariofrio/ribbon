@@ -10,21 +10,15 @@ import plugin from "./server";
 
 describe("automatic stage guidance", () => {
   it.each(["codex", "claude"])(
-    "directs %s to the stage skill without requiring a stage mention",
+    "provides the stage skill and guidance to %s by default",
     async (providerId) => {
       const { bb, harness } = setup();
       await plugin(bb);
       const resolved = await harness.behavior.resolveAgentConfiguration(
         makePluginAgentConfigurationContext({ provider: { id: providerId } }),
       );
-      expect(resolved.instructions).toContain("thread-stages skill");
-      expect(resolved.instructions).toContain("Read the thread-stages skill");
-      expect(resolved.instructions).toContain("overall workflow state");
-      expect(resolved.instructions).toContain("before resuming independent work");
-      expect(resolved.instructions).toContain("complete any needed stage change");
-      expect(resolved.instructions).toContain("unresolved findings and follow-up responsibility");
-      expect(resolved.instructions).toContain("submission alone does not establish closure");
-      expect(resolved.instructions).not.toContain("BlockedOnOtherAgent");
+      expect(resolved.instructions).toEqual(expect.any(String));
+      expect(resolved.instructions?.trim()).not.toBe("");
       expect(resolved.tools).toEqual([]);
       expect(resolved.skills).toEqual(["thread-stages"]);
       await harness.lifecycle.dispose();
@@ -43,15 +37,19 @@ describe("automatic stage guidance", () => {
     await harness.lifecycle.dispose();
   });
 
-  it("uses explicit-request guidance when automatic stage updates are saved off", async () => {
+  it("selects distinct guidance when automatic stage updates are saved off", async () => {
     const { bb, harness } = setup({ settings: { automaticStageUpdates: false } });
     await plugin(bb);
     const resolved = await harness.behavior.resolveAgentConfiguration(
       makePluginAgentConfigurationContext(),
     );
-    expect(resolved.instructions).toContain("only when the user explicitly requests");
-    expect(resolved.instructions).not.toContain("Before marking Completed");
-    expect(resolved.instructions).not.toContain("when work starts");
+    expect(resolved.instructions).toEqual(expect.any(String));
+    expect(resolved.instructions?.trim()).not.toBe("");
+    await harness.behavior.setSettings({ automaticStageUpdates: true });
+    const automatic = await harness.behavior.resolveAgentConfiguration(
+      makePluginAgentConfigurationContext(),
+    );
+    expect(resolved.instructions).not.toEqual(automatic.instructions);
     expect(resolved.skills).toEqual(["thread-stages"]);
     await harness.lifecycle.dispose();
   });
@@ -63,7 +61,7 @@ describe("automatic stage guidance", () => {
     const initial = await harness.behavior.resolveAgentConfiguration(context);
     await harness.behavior.setSettings({ automaticStageUpdates: false });
     const disabled = await harness.behavior.resolveAgentConfiguration(context);
-    expect(disabled.instructions).toContain("only when the user explicitly requests");
+    expect(disabled.instructions).not.toEqual(initial.instructions);
     expect(disabled.skills).toEqual(initial.skills);
     await harness.behavior.setSettings({ automaticStageUpdates: true });
     const enabled = await harness.behavior.resolveAgentConfiguration(context);

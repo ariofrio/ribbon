@@ -984,7 +984,7 @@
       "id": 34,
       "name": "reported_trigger_review_and_cleanup",
       "mode": "automatic",
-      "prompt": "Why does it break on the Mac mini but not the MacBook? Investigate and try different things so our report is useful. Use work.json for the experiments and reporting steps already completed; do not repeat them or make new operational changes.",
+      "prompt": "Why does it break on the Mac mini but not the MacBook? Investigate and try different things so our report is useful. Use work.json for the experiments and reporting steps already completed; do not repeat the completed experiments.",
       "expected_output": "Inspect the workflow and keep or move the current thread to In progress; perform 0 stage writes.",
       "files": [],
       "expectations": [
@@ -1004,6 +1004,7 @@
           "conversation": [
             "User: Compare browser logins across headless/panel sessions and Mac mini/MacBook. The live checks timed out; look into the problem.",
             "User: Report these issues. Draft, then make them scannable. Then review. Then submit. Include Linux evidence.",
+            "User: Clean up the scratch profiles after the probes; you can resume that cleanup without asking me again.",
             "Assistant: Submitted and read back both reports.",
             "User: Can in the title. Under what conditions?",
             "Assistant: We have not isolated what makes Keychain block on this machine.",
@@ -2168,7 +2169,7 @@
       "id": 55,
       "name": "ci_report_then_proposal_awaits_direction",
       "mode": "continuation",
-      "prompt": "this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_plugins_complete, new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
+      "prompt": "this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_workflow_complete (the entire parent Plugins workflow, including E2E and the aggregate job), new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
       "expected_output": "ci report then proposal awaits direction",
       "files": [
         "evals/files/ci-recapture/commit.json",
@@ -2200,7 +2201,7 @@
           }
         },
         {
-          "prompt": "this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_plugins_complete, new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
+          "prompt": "this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_workflow_complete (the entire parent Plugins workflow, including E2E and the aggregate job), new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
           "expected": {
             "stage": "BlockedOnUser",
             "writes": [
@@ -2226,12 +2227,13 @@
               "ci-facts.json": {
                 "json": {
                   "png_files": 16,
-                  "parent_plugins_complete": false,
                   "new_capture_complete": false,
                   "new_e2e_groups_running": 4,
-                  "relevance_scope": "pull_request"
+                  "relevance_scope": "pull_request",
+                  "parent_workflow_complete": false
                 },
                 "count_fields": [
+                  "png_files",
                   "new_e2e_groups_running"
                 ]
               }
@@ -2395,7 +2397,7 @@
       "id": 58,
       "name": "active_ci_investigation_returns_to_user_decision",
       "mode": "continuation",
-      "prompt": "I'm deciding whether to commission a lightweight CI gate from the PR owner. Investigate before I choose; don't change CI or take over that PR's check follow-up. this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_plugins_complete, new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
+      "prompt": "I'm deciding whether to commission a lightweight CI gate from the PR owner. Investigate before I choose; don't change CI or take over that PR's check follow-up. this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_workflow_complete (the entire parent Plugins workflow, including E2E and the aggregate job), new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
       "expected_output": "CI investigation report awaiting commissioning decision",
       "files": [
         "evals/files/ci-recapture/commit.json",
@@ -2420,7 +2422,7 @@
       "initial_stage": "Active",
       "turns": [
         {
-          "prompt": "I'm deciding whether to commission a lightweight CI gate from the PR owner. Investigate before I choose; don't change CI or take over that PR's check follow-up. this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_plugins_complete, new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
+          "prompt": "I'm deciding whether to commission a lightweight CI gate from the PR owner. Investigate before I choose; don't change CI or take over that PR's check follow-up. this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_workflow_complete (the entire parent Plugins workflow, including E2E and the aggregate job), new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
           "expected": {
             "stage": "BlockedOnUser",
             "writes": [
@@ -2445,12 +2447,13 @@
               "ci-facts.json": {
                 "json": {
                   "png_files": 16,
-                  "parent_plugins_complete": false,
                   "new_capture_complete": false,
                   "new_e2e_groups_running": 4,
-                  "relevance_scope": "pull_request"
+                  "relevance_scope": "pull_request",
+                  "parent_workflow_complete": false
                 },
                 "count_fields": [
+                  "png_files",
                   "new_e2e_groups_running"
                 ]
               }

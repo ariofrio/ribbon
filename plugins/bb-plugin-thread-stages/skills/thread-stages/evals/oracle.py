@@ -82,7 +82,11 @@ def answer_matches(answer, expected):
     for key, value in expected.items():
         actual = answer.get(key, "<missing>")
         if key == "in_scope" and isinstance(actual, list):
-            if sorted(actual) != sorted(value):
+            if not all(isinstance(name, str) for name in actual):
+                return False
+            labels = "Deferred|In progress|Active|Needs user|BlockedOnUser|Dependent|BlockedOnOtherAgent|Blocked|BlockedOnThirdParty|Completed"
+            names = [re.sub(r"\s+\((?:" + labels + r")\)$", "", name) for name in actual]
+            if sorted(names) != sorted(value):
                 return False
         elif key == "command" and isinstance(value, str):
             if not isinstance(actual, str) or not command_plan_matches([actual], [value]):
@@ -185,7 +189,8 @@ def grade_run(case, workspace, events, exit_code):
           and result.get("is_error") is False, {"exitCode": exit_code, "resultPresent": result is not None})
     check("Required skills were read successfully", set(case["required_reads"]) <= reads, sorted(reads))
     check("Unneeded skills were not loaded", not (set(case.get("forbidden_reads", [])) & reads), sorted(reads))
-    errors = [c for c in calls if c.get("error")]
+    errors = [c for c in calls if c.get("error") and not
+              (not c.get("mutation_attempt") and any(a in c["args"] for a in ("--help", "-h")))]
     check("No invalid or forbidden CLI calls", not errors, errors)
     writes = [c for c in calls if c.get("write")]
     mutations = [c for c in calls if c.get("mutation_attempt")]

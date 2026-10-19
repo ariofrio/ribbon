@@ -15,7 +15,7 @@ import time
 import uuid
 
 from oracle import validate, skill_reads
-from run import HERE, REPO, MODEL_CONFIGS, load_source, normalize_events, write_grading
+from run import HERE, REPO, MODEL_CONFIGS, load_source, normalize_events, write_grading, codex_pool_args, execution_env
 
 
 def prepare_session(root, case, source):
@@ -76,7 +76,7 @@ def session_args(project, control, runtime, model, effort, prompt, session_id):
                 '--output-format', 'stream-json', '--verbose', '--tools', 'Bash,Read',
                 '--allowedTools', 'Bash', 'Read', '--permission-prompts', 'none']
         return args + (['--resume', session_id] if session_id else []) + [prompt]
-    return ['codex', 'exec'] + (['resume'] if session_id else []) + [
+    return ['codex', 'exec'] + (['resume'] if session_id else []) + codex_pool_args() + [
         '--model', model, '-c', 'model_reasoning_effort=' + json.dumps(effort),
         '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check', '--json',
         '-c', 'sandbox_mode="workspace-write"', '-c', 'sandbox_workspace_write.network_access=false',
@@ -218,7 +218,7 @@ def run_turn(args, project, env, destination, timeout):
 
 def run_session(root, case, source, runtime, model, effort, timeout):
     project, control = prepare_session(root, case, source)
-    env = {k: v for k, v in os.environ.items() if not k.startswith('BB_')}
+    env = execution_env(runtime)
     env.update(PATH=str(project / 'bin') + os.pathsep + env['PATH'],
                BB_THREAD_ID=json.loads((control / 'state.json').read_text())['id'],
                GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1')
@@ -331,6 +331,8 @@ def regrade(output, contracts=None):
         print(f"Case {case['id']}: {'PASS' if result['passed'] else 'FAIL'}", flush=True)
     (output / 'graded-results.json').write_text(json.dumps(results, indent=2))
     (output / 'regrade-provenance.json').write_text(json.dumps({'runnerHash': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        'commonRunnerHash': hashlib.sha256((HERE / 'run.py').read_bytes()).hexdigest(),
+        'codexPoolConfigured': metadata.get('codexPoolConfigured', False),
         'reason': 'Retain all visible messages, permit read-only help discovery, and accept unique basename outputs in their reported directory. Final-turn outputs use preserved final project state; earlier turns use their snapshots. Optional contract corrections are recorded in full.',
         'contractsHash': hashlib.sha256(contracts.read_bytes()).hexdigest() if contracts else metadata['suiteHash'],
         'contractChanges': contract_changes}, indent=2))
@@ -370,10 +372,13 @@ def main():
         'suiteHash': hashlib.sha256((HERE / 'evals.json').read_bytes()).hexdigest(),
         'fixtureHash': hashlib.sha256(source['fixture'].encode()).hexdigest(),
         'runnerHash': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        'commonRunnerHash': hashlib.sha256((HERE / 'run.py').read_bytes()).hexdigest(),
+        'codexPoolConfigured': args.runtime == 'codex' and bool(codex_pool_args()),
         'inputHashes': {p: hashlib.sha256((HERE.parent / p).read_bytes()).hexdigest() for c in cases for p in c['files']},
         'caseIds': [c['id'] for c in cases], 'startedAt': datetime.now(timezone.utc).isoformat()}, indent=2))
     (output / 'cases.json').write_bytes((HERE / 'evals.json').read_bytes())
     (output / 'runner.py').write_bytes(Path(__file__).read_bytes())
+    (output / 'common-runner.py').write_bytes((HERE / 'run.py').read_bytes())
     (output / 'oracle.py').write_bytes((HERE / 'oracle.py').read_bytes())
     results = []
     for case in cases:

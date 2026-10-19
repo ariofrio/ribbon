@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from sessions import session_args, grade_turn, prepare_session, session_events
+from sessions import session_args, grade_turn, prepare_session, session_events, regrade
 from run import load_source
 from oracle import load_cases, skill_reads
 from fixture import invoke
@@ -20,6 +20,15 @@ class SessionTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.case = next(c for c in load_cases() if c['id'] == 43)
         self.project, self.control = prepare_session(self.root, self.case, load_source())
+
+    def test_regrade_records_saved_execution_configuration_without_credentials(self):
+        (self.root / 'run.json').write_text(json.dumps({'caseIds':[], 'suiteHash':'saved-suite',
+            'codexPoolConfigured':True}))
+        (self.root / 'cases.json').write_text('{"evals":[]}')
+        self.assertEqual(regrade(self.root),0)
+        provenance=json.loads((self.root / 'regrade-provenance.json').read_text())
+        self.assertTrue(provenance['codexPoolConfigured'])
+        self.assertEqual(provenance['contractsHash'],'saved-suite')
 
     def test_user_visible_question_is_not_lost_before_final_acknowledgment(self):
         raw = [{'type':'item.completed','item':{'type':'agent_message','text':'Which region: us or eu?'}},
