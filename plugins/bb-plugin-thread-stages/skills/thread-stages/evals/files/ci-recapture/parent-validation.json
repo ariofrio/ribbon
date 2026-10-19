@@ -1,0 +1,138 @@
+{
+  "parent_sha": "2201e90b6f2977ce662cf615fdc22a26d8b9b190",
+  "recapture_sha": "230212acf5fba96c096cf92ae77059dfa27055ad",
+  "recapture_committed_at": "2026-10-17T00:51:34Z",
+  "as_of_ms": 1792198428193,
+  "provenance": "Reconstructed as of the supplied run snapshots from GitHub job start/completion timestamps; later outcomes are omitted.",
+  "runs": [
+    {
+      "url": "https://github.com/ariofrio/ribbon/actions/runs/38987951125",
+      "jobs": [
+        {
+          "name": "relevant",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T00:47:05Z",
+          "completed_at": "2026-10-17T00:47:12Z"
+        },
+        {
+          "name": "discover",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T00:47:05Z",
+          "completed_at": "2026-10-17T00:47:08Z"
+        },
+        {
+          "name": "release-automation",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T00:47:05Z",
+          "completed_at": "2026-10-17T00:47:20Z"
+        },
+        {
+          "name": "bb-plugin-model-mentions",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T00:47:10Z",
+          "completed_at": "2026-10-17T00:47:44Z"
+        },
+        {
+          "name": "bb-plugin-chatgpt-theme",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T00:47:13Z",
+          "completed_at": "2026-10-17T00:47:38Z"
+        },
+        {
+          "name": "bb-plugin-missing-keyboard-shortcuts",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T00:47:10Z",
+          "completed_at": "2026-10-17T00:47:35Z"
+        },
+        {
+          "name": "bb-plugin-thread-titles",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T00:47:10Z",
+          "completed_at": "2026-10-17T00:47:49Z"
+        },
+        {
+          "name": "bb-plugin-global-instructions",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T00:47:13Z",
+          "completed_at": "2026-10-17T00:47:43Z"
+        },
+        {
+          "name": "bb-plugin-thread-stages",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T00:47:13Z",
+          "completed_at": "2026-10-17T00:49:14Z"
+        },
+        {
+          "name": "end-to-end (features)",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T00:47:40Z",
+          "completed_at": "2026-10-17T00:52:24Z"
+        },
+        {
+          "name": "end-to-end (ordering)",
+          "status": "in_progress",
+          "conclusion": null,
+          "started_at": "2026-10-17T00:47:24Z",
+          "completed_at": null
+        },
+        {
+          "name": "end-to-end (sidebar)",
+          "status": "in_progress",
+          "conclusion": null,
+          "started_at": "2026-10-17T00:47:46Z",
+          "completed_at": null
+        },
+        {
+          "name": "end-to-end (placement)",
+          "status": "in_progress",
+          "conclusion": null,
+          "started_at": "2026-10-17T00:47:47Z",
+          "completed_at": null
+        },
+        {
+          "name": "plugins",
+          "status": "queued",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/ariofrio/ribbon/actions/runs/38987951127",
+      "jobs": [
+        {
+          "name": "relevant",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T00:47:49Z",
+          "completed_at": "2026-10-17T00:48:00Z"
+        },
+        {
+          "name": "capture",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T00:48:34Z",
+          "completed_at": "2026-10-17T00:51:38Z"
+        },
+        {
+          "name": "recapture",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T00:51:59Z",
+          "completed_at": "2026-10-17T00:52:02Z"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "url": "https://github.com/ariofrio/ribbon/commit/230212acf5fba96c096cf92ae77059dfa27055ad",
+  "sha": "230212acf5fba96c096cf92ae77059dfa27055ad",
+  "message": "Recapture the screenshots this branch moved",
+  "files": [
+    "assets/hero-dark.png",
+    "assets/hero-light.png",
+    "plugins/bb-plugin-chatgpt-theme/assets/card-beside-dark.png",
+    "plugins/bb-plugin-chatgpt-theme/assets/card-beside-light.png",
+    "plugins/bb-plugin-chatgpt-theme/assets/card-dark.png",
+    "plugins/bb-plugin-chatgpt-theme/assets/card-light.png",
+    "plugins/bb-plugin-chatgpt-theme/assets/screenshot-dark.png",
+    "plugins/bb-plugin-chatgpt-theme/assets/screenshot-light.png",
+    "plugins/bb-plugin-missing-keyboard-shortcuts/assets/screenshot-dark.png",
+    "plugins/bb-plugin-missing-keyboard-shortcuts/assets/screenshot-light.png",
+    "plugins/bb-plugin-thread-stages/assets/card-beside-dark.png",
+    "plugins/bb-plugin-thread-stages/assets/card-beside-light.png",
+    "plugins/bb-plugin-thread-stages/assets/card-dark.png",
+    "plugins/bb-plugin-thread-stages/assets/card-light.png",
+    "plugins/bb-plugin-thread-stages/assets/screenshot-dark.png",
+    "plugins/bb-plugin-thread-stages/assets/screenshot-light.png"
+  ]
+}

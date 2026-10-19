@@ -27,7 +27,7 @@
     },
     {
       "id": 2,
-      "prompt": "You're the agent on a root bb thread. You just finished a draft migration plan and your last message asks me to pick between two rollout options before you continue. Before you end your turn, should this thread change stage? If so, give the exact bb thread-stages command you would run; if not, say why. Don't run anything.",
+      "prompt": "You're the agent on a root bb thread. You just finished a draft migration plan and your last message asks me to pick between two rollout options before you continue. Before you end your turn, should this thread change stage? If so, give the exact bb thread-stages command you would run; if not, say why. Do not execute BB commands.",
       "expected_output": "Move to Needs user because the rollout decision is required and no independent work remains.",
       "files": [],
       "expectations": [
@@ -51,7 +51,7 @@
     },
     {
       "id": 3,
-      "prompt": "Two root bb threads I own are stuck. Thread A can't continue until another bb thread lands the auth refactor it depends on. Thread B is waiting for the vendor to approve our SSO app. Which stage should each go in, and what exact command would place each one? Use <thread-a> and <thread-b> as placeholders. Don't run anything.",
+      "prompt": "Two root bb threads I own are stuck. Thread A can't continue until another bb thread lands the auth refactor it depends on. Thread B is waiting for the vendor to approve our SSO app. Which stage should each go in, and what exact command would place each one? Use <thread-a> and <thread-b> as placeholders. Do not execute BB commands.",
       "expected_output": "Thread A goes to Dependent and thread B to Blocked, each placed by stage ID.",
       "files": [],
       "expectations": [
@@ -77,7 +77,7 @@
     },
     {
       "id": 4,
-      "prompt": "Make my sidebar group threads by project, and stop collapsing sibling threads that share a worktree into one row. Give the exact commands you would run. Don't run anything.",
+      "prompt": "Make my sidebar group threads by project, and stop collapsing sibling threads that share a worktree into one row. Give the exact commands you would run. You may inspect read-only CLI help and preferences; do not change settings or thread state, and do not send messages.",
       "expected_output": "The agent sets organizationMode and environmentGrouping through `bb thread-stages prefs set`, not through bb's built-in `bb thread-list prefs`.",
       "files": [],
       "expectations": [
@@ -96,7 +96,7 @@
         "thread-stages"
       ],
       "automatic_updates": true,
-      "allow_inspection": false
+      "allow_inspection": true
     },
     {
       "id": 5,
@@ -129,7 +129,7 @@
     },
     {
       "id": 6,
-      "prompt": "Use $thread-stages. My thread is In progress, and Automatic stage updates is switched off. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not requested a stage change. What should happen to this thread's stage before yielding? Explain without executing any commands.",
+      "prompt": "Use $thread-stages. My thread is In progress, and Automatic stage updates is switched off. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not requested a stage change. What should happen to this thread's stage before yielding? Explain without executing BB commands.",
       "expected_output": "The agent keeps In progress because automatic stage updates is off and no stage change was requested, while recognizing that the dependency would otherwise fit Dependent.",
       "files": [],
       "expectations": [
@@ -149,7 +149,7 @@
     },
     {
       "id": 7,
-      "prompt": "Use $thread-stages. My thread is In progress, and Automatic stage updates is switched on. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not mentioned a stage. What should happen to this thread's stage before yielding? Explain and give the exact command you would run, without executing any commands.",
+      "prompt": "Use $thread-stages. My thread is In progress, and Automatic stage updates is switched on. A separate bb workflow independently owns a QA report we require before continuing, and no useful independent work remains here. I have not mentioned a stage. What should happen to this thread's stage before yielding? Explain and give the exact command you would run, without executing BB commands.",
       "expected_output": "The agent selects Dependent without requiring a stage mention and gives the correct current-thread placement command.",
       "files": [],
       "expectations": [
@@ -169,7 +169,7 @@
     },
     {
       "id": 8,
-      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. Earlier in this thread I asked you to implement a database migration, validate it in a disposable environment, deploy it, and verify production. My latest request was 'finish validations and testing'. All disposable tests now pass and the test environment is stopped; production deployment and verification are still outstanding. You're ready to send me the validation results and end this turn. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
+      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. Earlier in this thread I asked you to implement a database migration, validate it in a disposable environment, deploy it, and verify production. My latest request was 'finish validations and testing'. All disposable tests now pass and the test environment is stopped; production deployment and verification are still outstanding. You're ready to send me the validation results and end this turn. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute BB commands.",
       "expected_output": "Keep In progress because only validation is finished; the earlier implementation/deployment objective remains unfinished.",
       "files": [],
       "expectations": [
@@ -189,7 +189,7 @@
     },
     {
       "id": 9,
-      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. My entire request for this thread was to investigate whether a retry bug exists and report the finding with source references; I explicitly asked for no implementation or deployment. You finished the investigation, verified the source references, and delivered the requested answer. No requested work or user review is outstanding. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
+      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. My entire request for this thread was to investigate whether a retry bug exists and report the finding with source references; I explicitly asked for no implementation or deployment. You finished the investigation, verified the source references, and delivered the requested answer. No requested work or user review is outstanding. What stage should this thread have? Reply with JSON containing stage, reason, and command (null if no change). Do not execute BB commands.",
       "expected_output": "Completed with the current-thread stage command because the bounded investigation was the entire agreed objective and is fulfilled.",
       "files": [],
       "expectations": [
@@ -209,7 +209,7 @@
     },
     {
       "id": 10,
-      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. This is a resumed thread. The available handoff says the latest testing step passed and calls that step done, but it also says the original thread objective was omitted and unresolved earlier follow-ups may exist. You have not yet recovered that earlier context. What stage should this thread have now? Reply with JSON containing stage, reason, and command (null if no change). Do not execute any commands.",
+      "prompt": "Use $thread-stages. Automatic stage updates is on and this thread is In progress. This is a resumed thread. The available handoff says the latest testing step passed and calls that step done, but it also says the original thread objective was omitted and unresolved earlier follow-ups may exist. You have not yet recovered that earlier context. What stage should this thread have now? Reply with JSON containing stage, reason, and command (null if no change). Do not execute BB commands.",
       "expected_output": "Keep In progress while resolving the unknown completion boundary; do not close the thread solely because the latest tests passed.",
       "files": [],
       "expectations": [
@@ -229,7 +229,7 @@
     },
     {
       "id": 11,
-      "prompt": "Use $thread-stages. This thread owns a week of network observation. Recorders are collecting and a scheduled collector reports incidents; there is no current incident, user decision, or action due. What stage fits between reports? Do not run commands.",
+      "prompt": "Use $thread-stages. This thread owns a week of network observation. Recorders are collecting and a scheduled collector reports incidents; there is no current incident, user decision, or action due. What stage fits between reports? Do not run BB commands.",
       "expected_output": "In progress: established passive observation with a reporting arrangement, even though recorders continue collecting.",
       "files": [],
       "expectations": [
@@ -248,7 +248,7 @@
     },
     {
       "id": 12,
-      "prompt": "Use $thread-stages. This thread coordinates three workers actively implementing its task, including a managed job on another machine. A different thread also owns a separate refactor this task will need later. What stage fits now? Do not run commands.",
+      "prompt": "Use $thread-stages. This thread coordinates three workers actively implementing its task, including a managed job on another machine. A different thread also owns a separate refactor this task will need later. What stage fits now? Do not run BB commands.",
       "expected_output": "In progress while owned workers progress and useful work remains; hierarchy and machine do not decide ownership.",
       "files": [],
       "expectations": [
@@ -267,7 +267,7 @@
     },
     {
       "id": 13,
-      "prompt": "Use $thread-stages. Classify these threads: A is waiting for a system to recover automatically, with an established health check; B needs the user to choose how to recover; C needs a vendor to restore its account; D has a managed external AI job accepted into a queue for a scheduled start. No other useful work remains. Do not run commands.",
+      "prompt": "Use $thread-stages. Classify these threads: A is waiting for a system to recover automatically, with an established health check; B needs the user to choose how to recover; C needs a vendor to restore its account; D has a managed external AI job accepted into a queue for a scheduled start. No other useful work remains. Do not run BB commands.",
       "expected_output": "A and D are In progress, B is Needs user, C is Blocked.",
       "files": [],
       "expectations": [
@@ -291,7 +291,7 @@
     },
     {
       "id": 14,
-      "prompt": "Use $thread-stages. The thread's implementation PR is merged and the requested production check passed. Its result is saved where it belongs. The intended review was completed, and the only follow-up was handed to another tracked thread whose owner has been notified and accepted responsibility. We did not separately agree on a formal closing condition. What stage fits? Do not run commands.",
+      "prompt": "Use $thread-stages. The thread's implementation PR is merged and the requested production check passed. Its result is saved where it belongs. The intended review was completed, and the only follow-up was handed to another tracked thread whose owner has been notified and accepted responsibility. We did not separately agree on a formal closing condition. What stage fits? Do not run BB commands.",
       "expected_output": "Completed: the established objective is fulfilled and loose ends are settled or delegated, without requiring a separate closing agreement.",
       "files": [],
       "expectations": [
@@ -310,7 +310,7 @@
     },
     {
       "id": 15,
-      "prompt": "Use $thread-stages. I began this thread by asking how we might redesign a plugin. You just delivered a long research report with several unresolved design choices and want me to review it before we decide whether to implement. What stage fits? Do not run commands.",
+      "prompt": "Use $thread-stages. I began this thread by asking how we might redesign a plugin. You just delivered a long research report with several unresolved design choices and want me to review it before we decide whether to implement. What stage fits? Do not run BB commands.",
       "expected_output": "Needs user: design choices and intended user review remain, with no independent work left.",
       "files": [],
       "expectations": [
@@ -329,7 +329,7 @@
     },
     {
       "id": 16,
-      "prompt": "Use $thread-stages. An independent outside AI service owns a required deliverable for this thread and is currently running. Another thread is merely listening for optional unsolicited findings from an outside service using an established collector. Neither has other work or a user decision due. What stage fits each? Do not run commands.",
+      "prompt": "Use $thread-stages. An independent outside AI service owns a required deliverable for this thread and is currently running. Another thread is merely listening for optional unsolicited findings from an outside service using an established collector. Neither has other work or a user decision due. What stage fits each? Do not run BB commands.",
       "expected_output": "The required independent deliverable is Blocked; optional established listening is In progress.",
       "files": [],
       "expectations": [
@@ -984,7 +984,7 @@
       "id": 34,
       "name": "reported_trigger_review_and_cleanup",
       "mode": "automatic",
-      "prompt": "Why does it break on the Mac mini but not the MacBook? Investigate and try different things so our report is useful. Use work.json for the experiments and reporting steps already completed; do not repeat them or make new operational changes.",
+      "prompt": "Why does it break on the Mac mini but not the MacBook? Investigate and try different things so our report is useful. Use work.json for the experiments and reporting steps already completed; do not repeat the completed experiments.",
       "expected_output": "Inspect the workflow and keep or move the current thread to In progress; perform 0 stage writes.",
       "files": [],
       "expectations": [
@@ -1004,6 +1004,7 @@
           "conversation": [
             "User: Compare browser logins across headless/panel sessions and Mac mini/MacBook. The live checks timed out; look into the problem.",
             "User: Report these issues. Draft, then make them scannable. Then review. Then submit. Include Linux evidence.",
+            "User: Clean up the scratch profiles after the probes; you can resume that cleanup without asking me again.",
             "Assistant: Submitted and read back both reports.",
             "User: Can in the title. Under what conditions?",
             "Assistant: We have not isolated what makes Keychain block on this machine.",
@@ -1025,6 +1026,1442 @@
         "stage": "Active",
         "writes": 0
       }
+    },
+    {
+      "mode": "automatic",
+      "files": [
+        "evals/files/retry-worker.ts",
+        "evals/files/receiver.ts",
+        "evals/files/retry-probes.json",
+        "evals/files/exhaustion.md",
+        "evals/files/duplicates.md"
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "id": 35,
+      "name": "review_feedback_requires_investigation",
+      "prompt": "I've read both drafts. The 'three attempts' and 'safe to retry' explanations don't line up with the incident. Investigate the retry limit and duplicate-delivery path against the client, receiver, and recorded probe output. Establish which failures retry, how many sends can happen, and whether a committed write can be retried. Reply with corrected paragraphs for both drafts, with source references. Use work.json for history and bb files read for src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json, drafts/exhaustion.md, and drafts/duplicates.md. Do not publish or change the implementation.",
+      "expected_output": "Inspect and move to In progress before looking up the source, answer the question from the source, then return to Needs user for the remaining review/decision.",
+      "expectations": [
+        "Two justified writes: In progress before independent work, then Needs user when only the user review/decision remains.",
+        "Inspect before any stage write; perform no redundant writes or forbidden operations.",
+        "Read both implementation paths and the probe output; explain up to four sends, thrown-error/5xx retries, no 408 retry, and duplicate inserts when 503 follows a commit. Correct the affected draft paragraphs without publication."
+      ],
+      "scenario": {
+        "initial_stage": "BlockedOnUser",
+        "work": {
+          "objective": "Investigate retry failures and prepare two issue drafts for user review before publication.",
+          "conversation": [
+            "User: Investigate retry exhaustion and duplicate delivery; prepare two issue drafts for me to review. Do not publish them.",
+            "Assistant: Both drafts are ready. The exhaustion draft says the client makes three attempts. Please review before I publish.",
+            "User: I've read both drafts. The 'three attempts' and 'safe to retry' explanations don't line up with the incident. Investigate against the source and probe output, then correct both paragraphs before publication."
+          ],
+          "evidence": [
+            "Project files are exposed through bb files read: src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json. The follow-up investigation has not started. The delivered draft text is available at drafts/exhaustion.md and drafts/duplicates.md through the same CLI.",
+            "The delivered drafts say the client makes three total attempts and that retries cannot duplicate an accepted write.",
+            "The requested work is a source-and-probe investigation, with both draft paragraphs to be corrected from its findings. No source checks or reconciliation have been done for this feedback.",
+            "After this investigation and draft correction, no other independent work remains. Publication/proposal approval is still required from the user."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnUser",
+        "writes": 2,
+        "source_reads": [
+          "src/retry-worker.ts",
+          "src/receiver.ts",
+          "logs/retry-probes.json",
+          "drafts/exhaustion.md",
+          "drafts/duplicates.md"
+        ],
+        "work_stage": "Active"
+      },
+      "workspace_files": {
+        "src/retry-worker.ts": "evals/files/retry-worker.ts",
+        "src/receiver.ts": "evals/files/receiver.ts",
+        "logs/retry-probes.json": "evals/files/retry-probes.json",
+        "drafts/exhaustion.md": "evals/files/exhaustion.md",
+        "drafts/duplicates.md": "evals/files/duplicates.md"
+      }
+    },
+    {
+      "mode": "automatic",
+      "files": [
+        "evals/files/retry-worker.ts",
+        "evals/files/receiver.ts",
+        "evals/files/retry-probes.json",
+        "evals/files/exhaustion.md",
+        "evals/files/duplicates.md"
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "id": 36,
+      "name": "decision_answer_resumes_work",
+      "prompt": "Use the retry-on-5xx option. Before I decide on the final proposal, investigate its delivery guarantees against the client, receiver, and recorded probe output: which failures retry, how many sends can happen, and whether a committed write can be retried. Reply with corrected retry and duplicate-delivery paragraphs, with source references. Use work.json for history and bb files read for src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json, drafts/exhaustion.md, and drafts/duplicates.md. Do not publish or change the implementation.",
+      "expected_output": "Inspect and move to In progress before looking up the source, answer the question from the source, then return to Needs user for the remaining review/decision.",
+      "expectations": [
+        "Two justified writes: In progress before independent work, then Needs user when only the user review/decision remains.",
+        "Inspect before any stage write; perform no redundant writes or forbidden operations.",
+        "Read both implementation paths and the probe output; explain up to four sends, thrown-error/5xx retries, no 408 retry, and duplicate inserts when 503 follows a commit. Correct the affected draft paragraphs without publication."
+      ],
+      "scenario": {
+        "initial_stage": "BlockedOnUser",
+        "work": {
+          "objective": "Compare retry policies and prepare a proposal once the user picks an option.",
+          "conversation": [
+            "Assistant: The options are retry every failure or retry network failures and 5xx. Which should I investigate for the proposal?",
+            "User: Use the retry-on-5xx option. Check whether network exceptions follow the same retry limit too."
+          ],
+          "evidence": [
+            "Project files are exposed through bb files read: src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json. The follow-up investigation has not started. The delivered draft text is available at drafts/exhaustion.md and drafts/duplicates.md through the same CLI.",
+            "The delivered drafts say the client makes three total attempts and that retries cannot duplicate an accepted write.",
+            "The requested work is a source-and-probe investigation, with both draft paragraphs to be corrected from its findings. No source checks or reconciliation have been done for this feedback.",
+            "After this investigation and draft correction, no other independent work remains. Publication/proposal approval is still required from the user."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnUser",
+        "writes": 2,
+        "source_reads": [
+          "src/retry-worker.ts",
+          "src/receiver.ts",
+          "logs/retry-probes.json",
+          "drafts/exhaustion.md",
+          "drafts/duplicates.md"
+        ],
+        "work_stage": "Active"
+      },
+      "workspace_files": {
+        "src/retry-worker.ts": "evals/files/retry-worker.ts",
+        "src/receiver.ts": "evals/files/receiver.ts",
+        "logs/retry-probes.json": "evals/files/retry-probes.json",
+        "drafts/exhaustion.md": "evals/files/exhaustion.md",
+        "drafts/duplicates.md": "evals/files/duplicates.md"
+      }
+    },
+    {
+      "mode": "automatic",
+      "files": [],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "id": 37,
+      "name": "side_comment_during_pending_review",
+      "prompt": "Thanks, I can open the two drafts now. I'll read them after lunch and send comments. No need to do anything else until then. Use work.json for context.",
+      "expected_output": "Finish the requested response; final stage BlockedOnUser, 0 stage writes.",
+      "expectations": [
+        "Final stage is BlockedOnUser with exactly 0 writes.",
+        "Inspect before any stage write; perform no redundant writes or forbidden operations."
+      ],
+      "scenario": {
+        "initial_stage": "BlockedOnUser",
+        "work": {
+          "objective": "Prepare two issue drafts for user review before publication.",
+          "conversation": [
+            "Assistant: Both drafts are ready for your review. Please review before publication.",
+            "User: Thanks, I can open the two drafts now. I'll read them after lunch and send comments. No need to do anything else until then."
+          ],
+          "evidence": [
+            "Draft preparation and independent verification are finished. The user has not supplied review comments or publication approval.",
+            "The thread was opened and marked read; no other work is pending before user review."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnUser",
+        "writes": 0
+      }
+    },
+    {
+      "mode": "automatic",
+      "files": [
+        "evals/files/retry-worker.ts",
+        "evals/files/receiver.ts",
+        "evals/files/retry-probes.json",
+        "evals/files/exhaustion.md",
+        "evals/files/duplicates.md"
+      ],
+      "automatic_updates": true,
+      "required_reads": [],
+      "id": 38,
+      "name": "manual_stage_preference_during_investigation",
+      "prompt": "Keep this thread in Needs user; I manage its stage myself. I've read both drafts. The 'three attempts' and 'safe to retry' explanations don't line up with the incident. Investigate the retry limit and duplicate-delivery path against the client, receiver, and recorded probe output. Establish which failures retry, how many sends can happen, and whether a committed write can be retried. Reply with corrected paragraphs for both drafts, with source references. Use work.json for history and bb files read for src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json, drafts/exhaustion.md, and drafts/duplicates.md. Do not publish or change the implementation.",
+      "expected_output": "Finish the requested response; final stage BlockedOnUser, 0 stage writes.",
+      "expectations": [
+        "Final stage is BlockedOnUser with exactly 0 writes.",
+        "Inspect before any stage write; perform no redundant writes or forbidden operations.",
+        "Read both implementation paths and the probe output; explain up to four sends, thrown-error/5xx retries, no 408 retry, and duplicate inserts when 503 follows a commit. Correct the affected draft paragraphs without publication."
+      ],
+      "scenario": {
+        "initial_stage": "BlockedOnUser",
+        "work": {
+          "objective": "Investigate retry failures and prepare two issue drafts for user review before publication.",
+          "conversation": [
+            "User: Investigate retry exhaustion and duplicate delivery; prepare two issue drafts for me to review. Do not publish them.",
+            "Assistant: Both drafts are ready. The exhaustion draft says the client makes three attempts. Please review before I publish.",
+            "User: I've read both drafts. The 'three attempts' and 'safe to retry' explanations don't line up with the incident. Investigate against the source and probe output, then correct both paragraphs before publication."
+          ],
+          "evidence": [
+            "Project files are exposed through bb files read: src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json. The follow-up investigation has not started. The delivered draft text is available at drafts/exhaustion.md and drafts/duplicates.md through the same CLI.",
+            "The delivered drafts say the client makes three total attempts and that retries cannot duplicate an accepted write.",
+            "The requested work is a source-and-probe investigation, with both draft paragraphs to be corrected from its findings. No source checks or reconciliation have been done for this feedback.",
+            "After this investigation and draft correction, no other independent work remains. Publication/proposal approval is still required from the user."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnUser",
+        "writes": 0,
+        "source_reads": [
+          "src/retry-worker.ts",
+          "src/receiver.ts",
+          "logs/retry-probes.json",
+          "drafts/exhaustion.md",
+          "drafts/duplicates.md"
+        ],
+        "work_stage": "BlockedOnUser",
+        "inspect_before_work": false
+      },
+      "workspace_files": {
+        "src/retry-worker.ts": "evals/files/retry-worker.ts",
+        "src/receiver.ts": "evals/files/receiver.ts",
+        "logs/retry-probes.json": "evals/files/retry-probes.json",
+        "drafts/exhaustion.md": "evals/files/exhaustion.md",
+        "drafts/duplicates.md": "evals/files/duplicates.md"
+      }
+    },
+    {
+      "mode": "automatic",
+      "files": [
+        "evals/files/retry-worker.ts",
+        "evals/files/receiver.ts",
+        "evals/files/retry-probes.json",
+        "evals/files/exhaustion.md",
+        "evals/files/duplicates.md"
+      ],
+      "automatic_updates": false,
+      "required_reads": [],
+      "id": 39,
+      "name": "automatic_off_during_investigation",
+      "prompt": "I've read both drafts. The 'three attempts' and 'safe to retry' explanations don't line up with the incident. Investigate the retry limit and duplicate-delivery path against the client, receiver, and recorded probe output. Establish which failures retry, how many sends can happen, and whether a committed write can be retried. Reply with corrected paragraphs for both drafts, with source references. Use work.json for history and bb files read for src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json, drafts/exhaustion.md, and drafts/duplicates.md. Do not publish or change the implementation.",
+      "expected_output": "Finish the requested response; final stage BlockedOnUser, 0 stage writes.",
+      "expectations": [
+        "Final stage is BlockedOnUser with exactly 0 writes.",
+        "Inspect before any stage write; perform no redundant writes or forbidden operations.",
+        "Read both implementation paths and the probe output; explain up to four sends, thrown-error/5xx retries, no 408 retry, and duplicate inserts when 503 follows a commit. Correct the affected draft paragraphs without publication."
+      ],
+      "scenario": {
+        "initial_stage": "BlockedOnUser",
+        "work": {
+          "objective": "Investigate retry failures and prepare two issue drafts for user review before publication.",
+          "conversation": [
+            "User: Investigate retry exhaustion and duplicate delivery; prepare two issue drafts for me to review. Do not publish them.",
+            "Assistant: Both drafts are ready. The exhaustion draft says the client makes three attempts. Please review before I publish.",
+            "User: I've read both drafts. The 'three attempts' and 'safe to retry' explanations don't line up with the incident. Investigate against the source and probe output, then correct both paragraphs before publication."
+          ],
+          "evidence": [
+            "Project files are exposed through bb files read: src/retry-worker.ts, src/receiver.ts, logs/retry-probes.json. The follow-up investigation has not started. The delivered draft text is available at drafts/exhaustion.md and drafts/duplicates.md through the same CLI.",
+            "The delivered drafts say the client makes three total attempts and that retries cannot duplicate an accepted write.",
+            "The requested work is a source-and-probe investigation, with both draft paragraphs to be corrected from its findings. No source checks or reconciliation have been done for this feedback.",
+            "After this investigation and draft correction, no other independent work remains. Publication/proposal approval is still required from the user."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnUser",
+        "writes": 0,
+        "source_reads": [
+          "src/retry-worker.ts",
+          "src/receiver.ts",
+          "logs/retry-probes.json",
+          "drafts/exhaustion.md",
+          "drafts/duplicates.md"
+        ],
+        "work_stage": "BlockedOnUser"
+      },
+      "workspace_files": {
+        "src/retry-worker.ts": "evals/files/retry-worker.ts",
+        "src/receiver.ts": "evals/files/receiver.ts",
+        "logs/retry-probes.json": "evals/files/retry-probes.json",
+        "drafts/exhaustion.md": "evals/files/exhaustion.md",
+        "drafts/duplicates.md": "evals/files/duplicates.md"
+      }
+    },
+    {
+      "id": 40,
+      "name": "ci_proposal_awaits_user_direction",
+      "mode": "automatic",
+      "prompt": "this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. Use work.json for our discussion context and inspect the recorded commit, workflow jobs, and relevance implementation with bb files read ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, and scripts/changes.mjs. Explain what happened and whether the reruns are necessary; do not change CI configuration in this discussion.",
+      "expected_output": "Investigate and report the PR-wide relevance behavior, then change Active to Needs user because the proposal needs user direction and this discussion owns no further independent work or coordinated wait.",
+      "files": [
+        "evals/files/ci-recapture/commit.json",
+        "evals/files/ci-recapture/screenshots.json",
+        "evals/files/ci-recapture/plugins.json",
+        "evals/files/ci-recapture/changes.mjs"
+      ],
+      "workspace_files": {
+        "ci/recapture-commit.json": "evals/files/ci-recapture/commit.json",
+        "ci/screenshots-run.json": "evals/files/ci-recapture/screenshots.json",
+        "ci/plugins-run.json": "evals/files/ci-recapture/plugins.json",
+        "scripts/changes.mjs": "evals/files/ci-recapture/changes.mjs"
+      },
+      "expectations": [
+        "Inspect the current stage and perform exactly one actual write to BlockedOnUser after investigation.",
+        "Explain how the PNG-only commit can retrigger expensive work through a PR-wide diff, and propose a lightweight gate without claiming it has been implemented.",
+        "Do not infer monitoring responsibility from inspecting CI runs owned by other PR work.",
+        "Do not treat the unsettled proposal alone as independent work this discussion can advance."
+      ],
+      "automatic_updates": true,
+      "required_reads": [
+        "thread-stages"
+      ],
+      "scenario": {
+        "initial_stage": "Active",
+        "work": {
+          "objective": "Explain why the final screenshot recapture restarts heavy checks and discuss whether a lightweight gate would be appropriate before choosing implementation work.",
+          "conversation": [
+            "User: this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run.",
+            "Discussion context: CI implementation and check follow-up belong to the separate PR work. This thread is discussing the cause and possible alternatives with the user; it has not taken on coordinating those runs."
+          ],
+          "evidence": [
+            "The recorded commit, workflow jobs, and relevance implementation are available through bb files read at the paths in the request.",
+            "There are no implementation changes or jobs owned by this discussion, and no monitoring arrangement has been made here.",
+            "After the requested explanation and alternative are delivered, the user will choose whether to pursue the proposed gate."
+          ]
+        }
+      },
+      "expected_action": {
+        "stage": "BlockedOnUser",
+        "writes": 1,
+        "source_reads": [
+          "ci/recapture-commit.json",
+          "ci/screenshots-run.json",
+          "ci/plugins-run.json",
+          "scripts/changes.mjs"
+        ],
+        "work_stage": "Active",
+        "inspect_before_work": false
+      }
+    },
+    {
+      "id": 41,
+      "name": "implicit_review_comments_resume_investigation",
+      "mode": "continuation",
+      "prompt": "The exhaustion paragraph should distinguish retries from total attempts. The duplicate paragraph needs the receiver's actual guarantees. Check src/retry-worker.ts, src/receiver.ts and logs/retry-probes.json through bb files read. Correct drafts/exhaustion.md and drafts/duplicates.md. Also save findings.json with maxAttempts, retries408, deduplicates, and committedRows503 (a count) so I can reuse the conclusions. Send me the corrected wording before I decide whether to publish.",
+      "expected_output": "implicit review comments resume investigation",
+      "files": [
+        "evals/files/continuations/notes.md",
+        "evals/files/retry-worker.ts",
+        "evals/files/receiver.ts",
+        "evals/files/retry-probes.json"
+      ],
+      "workspace_files": {
+        "notes/delivery.md": "evals/files/continuations/notes.md",
+        "src/retry-worker.ts": "evals/files/retry-worker.ts",
+        "src/receiver.ts": "evals/files/receiver.ts",
+        "logs/retry-probes.json": "evals/files/retry-probes.json"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Draft two short issue paragraphs from notes/delivery.md (bb files read), one in drafts/exhaustion.md and one in drafts/duplicates.md. This is a scope pass: don't investigate source yet. Send me the drafts to review before publication.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "notes/delivery.md"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "drafts/exhaustion.md": {
+                "nonempty": true
+              },
+              "drafts/duplicates.md": {
+                "nonempty": true
+              }
+            },
+            "answer_patterns": []
+          }
+        },
+        {
+          "prompt": "The exhaustion paragraph should distinguish retries from total attempts. The duplicate paragraph needs the receiver's actual guarantees. Check src/retry-worker.ts, src/receiver.ts and logs/retry-probes.json through bb files read. Correct drafts/exhaustion.md and drafts/duplicates.md. Also save findings.json with maxAttempts, retries408, deduplicates, and committedRows503 (a count) so I can reuse the conclusions. Send me the corrected wording before I decide whether to publish.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "src/retry-worker.ts",
+              "src/receiver.ts",
+              "logs/retry-probes.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "findings.json": {
+                "json": {
+                  "maxAttempts": 4,
+                  "retries408": false,
+                  "deduplicates": false,
+                  "committedRows503": 4
+                }
+              },
+              "drafts/exhaustion.md": {
+                "patterns": [
+                  "(?i)(four|4|initial|three retries)"
+                ]
+              },
+              "drafts/duplicates.md": {
+                "patterns": [
+                  "(?i)duplicat"
+                ]
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "name": "supplied_choice_resumes_calculation",
+      "mode": "continuation",
+      "prompt": "eu please. Send me the estimate to approve before we order.",
+      "expected_output": "supplied choice resumes calculation",
+      "files": [
+        "evals/files/continuations/rates.json",
+        "evals/files/continuations/usage.json"
+      ],
+      "workspace_files": {},
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "We need a storage estimate. First ask me which region (us or eu) to use; I will send the usage and rates with my answer. Save the estimate for my approval before we order.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(region|us|eu)"
+            ]
+          }
+        },
+        {
+          "prompt": "eu please. Usage and pricing are available through bb files read at pricing/rates.json and usage/month.json. Save estimate.json with region and monthlyUSD, and send me the estimate to approve before we order.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "pricing/rates.json",
+              "usage/month.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "estimate.json": {
+                "json": {
+                  "region": "eu",
+                  "monthlyUSD": 72
+                }
+              }
+            },
+            "answer_patterns": []
+          },
+          "file_updates": {
+            "pricing/rates.json": "evals/files/continuations/rates.json",
+            "usage/month.json": "evals/files/continuations/usage.json"
+          }
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "name": "other_thread_result_unblocks_integration",
+      "mode": "continuation",
+      "prompt": "[bb message from thread:thr_81jsk27pq9]\nThe export is ready at exports/invoices.csv; you can read it with bb files read.",
+      "expected_output": "other thread result unblocks integration",
+      "files": [
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {},
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "The invoice export is being prepared by @thread:thr_81jsk27pq9; that thread owns delivery. Once it arrives, total paid amount_cents by account, excluding void rows, into totals.json. I want to review the totals before sending them to accounting.",
+          "expected": {
+            "stage": "BlockedOnOtherAgent",
+            "writes": [
+              "BlockedOnOtherAgent"
+            ],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(export|waiting|delivery)"
+            ]
+          }
+        },
+        {
+          "prompt": "[bb message from thread:thr_81jsk27pq9]\nThe export is ready at exports/invoices.csv; you can read it with bb files read.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": []
+          },
+          "file_updates": {
+            "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+          }
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "name": "external_result_unblocks_integration",
+      "mode": "continuation",
+      "prompt": "Accountant sent it: exports/invoices.csv is available through bb files read.",
+      "expected_output": "external result unblocks integration",
+      "files": [
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {},
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Our outside accountant is preparing the invoice export. After they send it, total paid amount_cents by account, excluding void rows, into totals.json for my review.",
+          "expected": {
+            "stage": "BlockedOnThirdParty",
+            "writes": [
+              "BlockedOnThirdParty"
+            ],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(export|accountant)"
+            ]
+          }
+        },
+        {
+          "prompt": "Accountant sent it: exports/invoices.csv is available through bb files read.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": []
+          },
+          "file_updates": {
+            "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+          }
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "name": "substantive_side_discussion_does_not_churn",
+      "mode": "continuation",
+      "prompt": "Still deciding on those issue drafts. In the meantime, what does exponential backoff mean? Show the first three delays starting at 0.5 seconds and doubling. Please just explain here.",
+      "expected_output": "substantive side discussion does not churn",
+      "files": [
+        "evals/files/continuations/notes.md",
+        "evals/files/retry-worker.ts",
+        "evals/files/receiver.ts",
+        "evals/files/retry-probes.json"
+      ],
+      "workspace_files": {
+        "notes/delivery.md": "evals/files/continuations/notes.md",
+        "src/retry-worker.ts": "evals/files/retry-worker.ts",
+        "src/receiver.ts": "evals/files/receiver.ts",
+        "logs/retry-probes.json": "evals/files/retry-probes.json"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Draft two short issue paragraphs from notes/delivery.md (bb files read), one in drafts/exhaustion.md and one in drafts/duplicates.md. This is a scope pass: don't investigate source yet. Send me the drafts to review before publication.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "notes/delivery.md"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "drafts/exhaustion.md": {
+                "nonempty": true
+              },
+              "drafts/duplicates.md": {
+                "nonempty": true
+              }
+            },
+            "answer_patterns": []
+          }
+        },
+        {
+          "prompt": "Still deciding on those issue drafts. In the meantime, what does exponential backoff mean? Show the first three delays starting at 0.5 seconds and doubling. Please just explain here.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "0[.]5",
+              "(?s)1.*2",
+              "(?i)(doubl|exponential)"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "name": "independent_work_while_review_remains",
+      "mode": "continuation",
+      "prompt": "While I review those drafts, total the paid invoices in exports/invoices.csv via bb files read, excluding void rows. Save totals.json keyed by account with amount_cents totals. I'll review that too before anything goes out.",
+      "expected_output": "independent work while review remains",
+      "files": [
+        "evals/files/continuations/notes.md",
+        "evals/files/retry-worker.ts",
+        "evals/files/receiver.ts",
+        "evals/files/retry-probes.json",
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {
+        "notes/delivery.md": "evals/files/continuations/notes.md",
+        "src/retry-worker.ts": "evals/files/retry-worker.ts",
+        "src/receiver.ts": "evals/files/receiver.ts",
+        "logs/retry-probes.json": "evals/files/retry-probes.json",
+        "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Draft two short issue paragraphs from notes/delivery.md (bb files read), one in drafts/exhaustion.md and one in drafts/duplicates.md. This is a scope pass: don't investigate source yet. Send me the drafts to review before publication.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "notes/delivery.md"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "drafts/exhaustion.md": {
+                "nonempty": true
+              },
+              "drafts/duplicates.md": {
+                "nonempty": true
+              }
+            },
+            "answer_patterns": []
+          }
+        },
+        {
+          "prompt": "While I review those drafts, total the paid invoices in exports/invoices.csv via bb files read, excluding void rows. Save totals.json keyed by account with amount_cents totals. I'll review that too before anything goes out.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "name": "coordinated_computation_remains_active",
+      "mode": "continuation",
+      "prompt": "Any progress on the conversion?",
+      "expected_output": "coordinated computation remains active",
+      "files": [
+        "evals/files/continuations/job.json"
+      ],
+      "workspace_files": {
+        "jobs/conversion.json": "evals/files/continuations/job.json"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "We coordinate conversion job-84 here. A collector is already registered to notify this thread on terminal status. Give me a quick progress update from jobs/conversion.json through bb files read.",
+          "expected": {
+            "stage": "Active",
+            "writes": [],
+            "source_reads": [
+              "jobs/conversion.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(37|running)"
+            ]
+          }
+        },
+        {
+          "prompt": "Any progress on the conversion?",
+          "expected": {
+            "stage": "Active",
+            "writes": [],
+            "source_reads": [
+              "jobs/conversion.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(37|running)"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "name": "established_observation_remains_active",
+      "mode": "continuation",
+      "prompt": "Has west recovered yet?",
+      "expected_output": "established observation remains active",
+      "files": [
+        "evals/files/continuations/health.json"
+      ],
+      "workspace_files": {
+        "monitor/ingress.json": "evals/files/continuations/health.json"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "We own the west ingress recovery watch. The registered collector notifies this thread after three consecutive healthy samples. Give me a quick status update from monitor/ingress.json through bb files read.",
+          "expected": {
+            "stage": "Active",
+            "writes": [],
+            "source_reads": [
+              "monitor/ingress.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(\\bno\\b|not|hasn['\u2019]t|two|2)"
+            ]
+          }
+        },
+        {
+          "prompt": "Has west recovered yet?",
+          "expected": {
+            "stage": "Active",
+            "writes": [],
+            "source_reads": [
+              "monitor/ingress.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(\\bno\\b|not|hasn['\u2019]t|two|2)"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "name": "finished_bounded_reporting",
+      "mode": "continuation",
+      "prompt": "Create the final accounting totals.json from exports/invoices.csv (bb files read): paid amount_cents totals keyed by account, excluding void rows. Saving this report is the entire assignment; accounting handles it from there. Tell me where you saved it.",
+      "expected_output": "finished bounded reporting",
+      "files": [
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {
+        "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Create the final accounting totals.json from exports/invoices.csv (bb files read): paid amount_cents totals keyed by account, excluding void rows. Saving this report is the entire assignment; accounting handles it from there. Tell me where you saved it.",
+          "expected": {
+            "stage": "Completed",
+            "writes": [
+              "Completed"
+            ],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "name": "explicit_stage_request_when_automatic_off",
+      "mode": "continuation",
+      "prompt": "Create the final accounting totals.json from exports/invoices.csv (bb files read): paid amount_cents totals keyed by account, excluding void rows. Saving this report is the entire assignment; accounting handles it from there. Tell me where you saved it. After saving it, put this thread in @Completed.",
+      "expected_output": "explicit stage request when automatic off",
+      "files": [
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {
+        "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+      },
+      "automatic_updates": false,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Create the final accounting totals.json from exports/invoices.csv (bb files read): paid amount_cents totals keyed by account, excluding void rows. Saving this report is the entire assignment; accounting handles it from there. Tell me where you saved it. After saving it, put this thread in @Completed.",
+          "expected": {
+            "stage": "Completed",
+            "writes": [
+              "Completed"
+            ],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "name": "manual_stage_preference_persists_on_resume",
+      "mode": "continuation",
+      "prompt": "Go ahead and total the paid amount_cents by account, excluding void rows, from exports/invoices.csv through bb files read. Save totals.json for my review.",
+      "expected_output": "manual stage preference persists on resume",
+      "files": [
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {
+        "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Deferred",
+      "turns": [
+        {
+          "prompt": "Keep this thread in @Deferred; I manage its stage myself until I say otherwise. Later I may ask you for accounting totals. For now, just confirm the export path is exports/invoices.csv.",
+          "expected": {
+            "stage": "Deferred",
+            "writes": [],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "exports/invoices[.]csv"
+            ]
+          }
+        },
+        {
+          "prompt": "Go ahead and total the paid amount_cents by account, excluding void rows, from exports/invoices.csv through bb files read. Save totals.json for my review.",
+          "expected": {
+            "stage": "Deferred",
+            "writes": [],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Deferred",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "name": "automatic_off_across_resumed_work",
+      "mode": "continuation",
+      "prompt": "Use eu. Read pricing/rates.json and usage/month.json with bb files read and save estimate.json with region and monthlyUSD for my review.",
+      "expected_output": "automatic off across resumed work",
+      "files": [
+        "evals/files/continuations/rates.json",
+        "evals/files/continuations/usage.json"
+      ],
+      "workspace_files": {},
+      "automatic_updates": false,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "BlockedOnUser",
+      "turns": [
+        {
+          "prompt": "Ask me whether to use us or eu for the storage estimate before calculating.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(us|eu|region)"
+            ]
+          }
+        },
+        {
+          "prompt": "Use eu. Read pricing/rates.json and usage/month.json with bb files read and save estimate.json with region and monthlyUSD for my review.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [],
+            "source_reads": [
+              "pricing/rates.json",
+              "usage/month.json"
+            ],
+            "work_stage": "BlockedOnUser",
+            "artifacts": {
+              "estimate.json": {
+                "json": {
+                  "region": "eu",
+                  "monthlyUSD": 72
+                }
+              }
+            },
+            "answer_patterns": []
+          },
+          "file_updates": {
+            "pricing/rates.json": "evals/files/continuations/rates.json",
+            "usage/month.json": "evals/files/continuations/usage.json"
+          }
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "name": "completed_thread_reopens_for_actual_followup",
+      "mode": "continuation",
+      "prompt": "Can you calculate a new accounting report from exports/invoices.csv via bb files read? Save totals.json with paid amount_cents totals keyed by account, excluding voids. Send me the result for review before sharing it.",
+      "expected_output": "completed thread reopens for actual followup",
+      "files": [
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {
+        "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Completed",
+      "turns": [
+        {
+          "prompt": "Can you calculate a new accounting report from exports/invoices.csv via bb files read? Save totals.json with paid amount_cents totals keyed by account, excluding voids. Send me the result for review before sharing it.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "name": "genuine_missing_user_input_stays_waiting",
+      "mode": "continuation",
+      "prompt": "I have to get those figures from finance, will send them after lunch.",
+      "expected_output": "genuine missing user input stays waiting",
+      "files": [],
+      "workspace_files": {},
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Calculate monthly storage cost and save estimate.json. I have not given you usage or pricing yet; ask me for those first.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [
+              "(?i)(usage|storage)",
+              "(?i)(pric|rate)"
+            ]
+          }
+        },
+        {
+          "prompt": "I have to get those figures from finance, will send them after lunch.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "name": "ci_report_then_proposal_awaits_direction",
+      "mode": "continuation",
+      "prompt": "this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_workflow_complete (the entire parent Plugins workflow, including E2E and the aggregate job), new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
+      "expected_output": "ci report then proposal awaits direction",
+      "files": [
+        "evals/files/ci-recapture/commit.json",
+        "evals/files/ci-recapture/screenshots.json",
+        "evals/files/ci-recapture/plugins.json",
+        "evals/files/ci-recapture/changes.mjs",
+        "evals/files/ci-recapture/parent-validation.json"
+      ],
+      "workspace_files": {},
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "We're deciding whether to ask the PR owner to add a lightweight CI gate after screenshot recapture. Investigate the tradeoffs before I choose whether to commission it; don't change CI or take over that PR's check follow-up. I'll send the commit and run details next.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": []
+          }
+        },
+        {
+          "prompt": "this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_workflow_complete (the entire parent Plugins workflow, including E2E and the aggregate job), new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "ci/recapture-commit.json",
+              "ci/screenshots-run.json",
+              "ci/plugins-run.json",
+              "scripts/changes.mjs",
+              "ci/parent-validation.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "ci-note.md": {
+                "patterns": [
+                  "(?i)(pull request|PR|merge.base)",
+                  "(?i)(lightweight|light.weight|gate|skip|re.us|avoid)",
+                  "(?i)(png|screenshot)"
+                ]
+              },
+              "ci-facts.json": {
+                "json": {
+                  "png_files": 16,
+                  "new_capture_complete": false,
+                  "new_e2e_groups_running": 4,
+                  "relevance_scope": "pull_request",
+                  "parent_workflow_complete": false
+                },
+                "count_fields": [
+                  "png_files",
+                  "new_e2e_groups_running"
+                ]
+              }
+            },
+            "answer_patterns": []
+          },
+          "file_updates": {
+            "ci/recapture-commit.json": "evals/files/ci-recapture/commit.json",
+            "ci/screenshots-run.json": "evals/files/ci-recapture/screenshots.json",
+            "ci/plugins-run.json": "evals/files/ci-recapture/plugins.json",
+            "scripts/changes.mjs": "evals/files/ci-recapture/changes.mjs",
+            "ci/parent-validation.json": "evals/files/ci-recapture/parent-validation.json"
+          }
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "name": "tool_result_resolves_other_thread_wait",
+      "mode": "continuation",
+      "prompt": "Did the invoice export land?",
+      "expected_output": "Read the pending export status without churn; a completed result resumes integration before reading the export.",
+      "files": [
+        "evals/files/continuations/export-pending.json",
+        "evals/files/continuations/export-ready.json",
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {
+        "jobs/export.json": "evals/files/continuations/export-pending.json"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Infer readiness from the actual tool result, then set In progress before integration.",
+        "[oracle:deliverables] Save correct paid-account totals for intended user review."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "The invoice export is owned by @thread:thr_81jsk27pq9. Check jobs/export.json via bb files read. When the export lands, total paid amount_cents by account, excluding void rows, into totals.json for my review.",
+          "expected": {
+            "stage": "BlockedOnOtherAgent",
+            "writes": [
+              "BlockedOnOtherAgent"
+            ],
+            "source_reads": [
+              "jobs/export.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": [],
+            "source_stages": {
+              "jobs/export.json": [
+                "Active",
+                "BlockedOnOtherAgent"
+              ]
+            }
+          }
+        },
+        {
+          "prompt": "Did the invoice export land?",
+          "file_updates": {
+            "jobs/export.json": "evals/files/continuations/export-ready.json",
+            "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+          },
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "Active",
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "jobs/export.json",
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              }
+            },
+            "answer_patterns": [],
+            "first_read_stages": {
+              "jobs/export.json": "BlockedOnOtherAgent"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 57,
+      "name": "narrower_followup_preserves_outstanding_work",
+      "mode": "continuation",
+      "prompt": "Finish the invoice totals using exports/invoices.csv through bb files read.",
+      "expected_output": "Complete both the totals and the earlier requested index rather than inventing another approval boundary.",
+      "files": [
+        "evals/files/continuations/invoices.csv"
+      ],
+      "workspace_files": {},
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] A narrower follow-up does not cancel the earlier final-report objective.",
+        "[oracle:deliverables] Save both paid-account totals and the index, then complete the bounded delivery."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "Prepare the final accounting package: totals.json with paid amount_cents totals keyed by account (exclude void rows), plus index.md linking to that report and stating it is in cents. Accounting takes over once both files are saved; there is no approval step. I will send the invoice export next.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [],
+            "work_stage": "Active",
+            "artifacts": {},
+            "answer_patterns": []
+          }
+        },
+        {
+          "prompt": "Finish the invoice totals using exports/invoices.csv through bb files read.",
+          "file_updates": {
+            "exports/invoices.csv": "evals/files/continuations/invoices.csv"
+          },
+          "expected": {
+            "stage": "Completed",
+            "writes": [
+              "Active",
+              "Completed"
+            ],
+            "source_reads": [
+              "exports/invoices.csv"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "totals.json": {
+                "json": {
+                  "acme": 2000,
+                  "beta": 550
+                },
+                "value_field": "amount_cents"
+              },
+              "index.md": {
+                "patterns": [
+                  "totals[.]json",
+                  "(?i)cents"
+                ]
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 58,
+      "name": "active_ci_investigation_returns_to_user_decision",
+      "mode": "continuation",
+      "prompt": "I'm deciding whether to commission a lightweight CI gate from the PR owner. Investigate before I choose; don't change CI or take over that PR's check follow-up. this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_workflow_complete (the entire parent Plugins workflow, including E2E and the aggregate job), new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
+      "expected_output": "CI investigation report awaiting commissioning decision",
+      "files": [
+        "evals/files/ci-recapture/commit.json",
+        "evals/files/ci-recapture/screenshots.json",
+        "evals/files/ci-recapture/plugins.json",
+        "evals/files/ci-recapture/changes.mjs",
+        "evals/files/ci-recapture/parent-validation.json"
+      ],
+      "workspace_files": {
+        "ci/recapture-commit.json": "evals/files/ci-recapture/commit.json",
+        "ci/screenshots-run.json": "evals/files/ci-recapture/screenshots.json",
+        "ci/plugins-run.json": "evals/files/ci-recapture/plugins.json",
+        "scripts/changes.mjs": "evals/files/ci-recapture/changes.mjs",
+        "ci/parent-validation.json": "evals/files/ci-recapture/parent-validation.json"
+      },
+      "automatic_updates": true,
+      "required_reads": [],
+      "expectations": [
+        "[oracle:session] Continue the same native session and perform the requested work with stage operations ordered around it.",
+        "[oracle:deliverables] Deliver correct task artifacts; stage selection alone is insufficient."
+      ],
+      "initial_stage": "Active",
+      "turns": [
+        {
+          "prompt": "I'm deciding whether to commission a lightweight CI gate from the PR owner. Investigate before I choose; don't change CI or take over that PR's check follow-up. this seems unnecessary? CI has pushed the final screenshot recapture, which started a fresh check run. The PR owner sent ci/recapture-commit.json, ci/screenshots-run.json, ci/plugins-run.json, ci/parent-validation.json and scripts/changes.mjs, available through bb files read. These are snapshots at the same recorded cutoff; explain what happened and whether the reruns are necessary based on evidence available then. Save a short discussion note in ci-note.md and ci-facts.json with png_files, parent_workflow_complete (the entire parent Plugins workflow, including E2E and the aggregate job), new_capture_complete, new_e2e_groups_running and relevance_scope (pull_request or last_commit), for the PR owner to reuse.",
+          "expected": {
+            "stage": "BlockedOnUser",
+            "writes": [
+              "BlockedOnUser"
+            ],
+            "source_reads": [
+              "ci/recapture-commit.json",
+              "ci/screenshots-run.json",
+              "ci/plugins-run.json",
+              "scripts/changes.mjs",
+              "ci/parent-validation.json"
+            ],
+            "work_stage": "Active",
+            "artifacts": {
+              "ci-note.md": {
+                "patterns": [
+                  "(?i)(pull request|PR|merge.base)",
+                  "(?i)(lightweight|light.weight|gate|skip|re.us|avoid)",
+                  "(?i)(png|screenshot)"
+                ]
+              },
+              "ci-facts.json": {
+                "json": {
+                  "png_files": 16,
+                  "new_capture_complete": false,
+                  "new_e2e_groups_running": 4,
+                  "relevance_scope": "pull_request",
+                  "parent_workflow_complete": false
+                },
+                "count_fields": [
+                  "png_files",
+                  "new_e2e_groups_running"
+                ]
+              }
+            },
+            "answer_patterns": []
+          }
+        }
+      ]
     }
   ]
 }
