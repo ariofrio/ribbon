@@ -1,6 +1,7 @@
 """A local BB CLI fixture; it never imports BB or connects to a server."""
 
 import fcntl
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -17,6 +18,14 @@ def invoke(workspace, args):
         else:
             code, output = dispatch(state, args, record)
         record["after"] = state["stage"]
+        if record.get("write") and state["stage"] == "Completed" and state.get("projectPath"):
+            project = Path(state["projectPath"]).resolve()
+            record["completion_files"] = {
+                str(path.relative_to(project)): hashlib.sha256(path.read_bytes()).hexdigest()
+                for path in project.rglob('*')
+                if path.relative_to(project).parts[0] not in ('.git', 'bin', 'skills')
+                and path.is_file() and path.resolve().is_relative_to(project)
+            }
         (workspace / "state.json").write_text(json.dumps(state))
         with (workspace / "calls.jsonl").open("a") as calls:
             calls.write(json.dumps(record) + "\n")

@@ -192,6 +192,62 @@ regrade path uses saved execution metadata without requiring current credentials
 Software tests check provider routing, side-chat exclusion and setting toggles;
 actual agent behavior supplies the instruction validation.
 
+## Superseded implementation review
+
+[PR #204](https://github.com/ariofrio/ribbon/pull/204), from BB thread
+`thr_j3ej25aenq`, pursued a similar instruction reduction. Its final 22-case suite
+uses actual Claude CLI execution with a virtual filesystem and simulated shell
+behind an MCP bridge, with built-in tools disabled. It does not supply the native
+shell execution, resumed conversations, or matched two-runtime validation used
+here. Its reported 373/375 words measure the Stages section; the full skill at
+`cce3a8d251db81b648dd3d00f9c1172243f02314` is 1,501 words. This PR's 494-word
+count measures the whole file. Those results do not establish that its eight-word
+reminder would preserve our Codex/resume coverage.
+
+Its scope, accepted-handoff and standing-authorization lessons are already
+represented here. One useful extra invariant in its
+[oracle](https://github.com/ariofrio/ribbon/blob/cce3a8d251db81b648dd3d00f9c1172243f02314/plugins/bb-plugin-thread-stages/skills/thread-stages/evals/oracle.py#L112)
+was missing from our native grader: completion must follow delivery. The native
+backend now snapshots project-file hashes at each Completed write; the grader
+requires each requested artifact to match its final bytes at that point. This
+checks saved artifacts, not GitHub publication/readback, which these native tasks
+do not request. It changes neither worker prompts nor stage choices.
+
+The new harness regression first failed against the unchanged grader: both
+completion-before-save and completion-before-correction were incorrectly accepted.
+After the repair, both fail grading and delivery-before-completion passes. Commands:
+
+```sh
+python3 -m unittest discover -s plugins/bb-plugin-thread-stages/skills/thread-stages/evals -p sessions_test.py
+npm run check:evals --workspace=bb-plugin-thread-stages
+python3.9 -m unittest discover -s plugins/bb-plugin-thread-stages/skills/thread-stages/evals -p '*_test.py'
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/oracle.py validate
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime codex --timeout 240 --cases 49 50 55 57 --output .scratch/work/stage-sessions/run-227
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime claude --timeout 240 --cases 49 50 55 57 --output .scratch/work/stage-sessions/run-228
+python3 plugins/bb-plugin-thread-stages/skills/thread-stages/evals/sessions.py --runtime codex --timeout 240 --cases 55 --output .scratch/work/stage-sessions/run-229
+```
+
+Fresh selection: **4/4 scenarios pass on each CLI**, with the same requested models
+and efforts listed above. Codex run 227 completes cases 49/50/57; case 55's resumed
+turn exits 1 with `Selected model is at capacity. Please try a different model.`
+Run 229 repeats that entire conversation successfully. Claude run 228 passes all
+four without retries. The failed original is retained as infrastructure evidence.
+
+| Case | Actual stage writes on both successful CLI executions |
+| --- | --- |
+| 49: bounded report | Completed, after final totals saved |
+| 50: explicit placement, automatic updates off | Completed, after final totals saved |
+| 55: pending commissioning decision | Turn 1: Needs user; turn 2: Active → Needs user |
+| 57: retained report and index | Turn 1: Needs user; turn 2: Active → Completed, after both final files saved |
+
+All completed deliverable hashes match their final files, including Claude's
+case-49 report saved in a subdirectory. Raw traces, commands, grading snapshots,
+outputs, RED/GREEN logs and source hashes are retained in the private
+`completion-order.zip` evidence archive linked from the BB thread's index.
+The harness has 49 passing tests on Python 3.14 and 3.9. Earlier model traces lack
+completion-file snapshots and are not retroactively claimed to pass this added
+check. No instruction change or new behavioral improvement is claimed here.
+
 ## Verification
 
 - 48 harness regression tests pass on Python 3.14 and 3.9; Codex skill validation passes.

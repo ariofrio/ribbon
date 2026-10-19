@@ -51,6 +51,11 @@ strings or hardcoded agent recommendations. A trace with correct stage writes
 and a missing or wrong deliverable fails. Human review of prose and reasoning
 remains necessary; keyword checks do not prove an explanation is sound.
 
+For turns writing Completed, the backend records project-file hashes at that
+write. Each required deliverable must already match its final bytes. This rejects
+completion before saving the work or before a later correction. Older traces
+without these snapshots cannot establish this ordering check; rerun the task.
+
 Only successfully served file reads count as inspected evidence. A missing file
 is a normal lookup failure; an unsupported read-only `--help` probe may be
 recovered from. Invalid substantive calls and unrelated mutations fail. All

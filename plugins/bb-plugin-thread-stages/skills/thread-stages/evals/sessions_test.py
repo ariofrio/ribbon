@@ -194,6 +194,22 @@ class SessionTests(unittest.TestCase):
         check = next(c for c in result['checks'] if c['text'] == 'Deliverable totals.json has correct data')
         self.assertFalse(check['passed'])
 
+    def test_completion_requires_final_deliverable_before_stage_write(self):
+        case = next(c for c in load_cases() if c['id'] == 49)
+        events = [{'type':'result', 'is_error':False, 'result':'Saved totals.json.'}]
+        for order, expected in [('before', True), ('after', False), ('changed', False)]:
+            with self.subTest(order=order):
+                project, control = prepare_session(self.root / order, case, load_source())
+                invoke(control, ['thread-stages', 'show', '--self'])
+                invoke(control, ['files', 'read', 'exports/invoices.csv'])
+                output = project / 'totals.json'
+                if order != 'after':
+                    output.write_text('{"acme":2000,"beta":550}' if order == 'before' else '{}')
+                invoke(control, ['thread-stages', 'stage', 'Completed', '--self'])
+                output.write_text('{"acme":2000,"beta":550}')
+                grade = grade_turn(case['turns'][0], project, control, events, 0, 0)
+                self.assertEqual(grade['passed'], expected, grade)
+
 
 if __name__ == '__main__':
     unittest.main()

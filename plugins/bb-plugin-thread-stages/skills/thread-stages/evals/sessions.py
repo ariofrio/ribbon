@@ -150,6 +150,14 @@ def grade_turn(turn, project, control, events, exit_code, call_offset, saved_sta
         path = artifact_path(project, name)
         text = path.read_text() if path.is_file() else ''
         check(f'Deliverable {name} exists and contains work', bool(text.strip()), text)
+        for call in writes:
+            if call['after'] == 'Completed':
+                relative = str(path.relative_to(project))
+                recorded = call.get('completion_files', {}).get(relative)
+                final = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+                check(f'Deliverable {name} was final before Completed',
+                      recorded is not None and recorded == final,
+                      {'path': relative, 'atCompletion': recorded, 'final': final})
         if 'json' in contract:
             try:
                 value = json.loads(text)
