@@ -81,7 +81,7 @@ const handlers = {
     sessionId: allocateSessionId(),
     models: {
       currentModelId: process.env.BB_SCREENSHOT_MODEL_ID,
-      availableModels: [
+      availableModels: process.env.BB_SCREENSHOT_MODELS ? JSON.parse(process.env.BB_SCREENSHOT_MODELS) : [
         {
           modelId: process.env.BB_SCREENSHOT_MODEL_ID,
           name: process.env.BB_SCREENSHOT_MODEL_NAME,

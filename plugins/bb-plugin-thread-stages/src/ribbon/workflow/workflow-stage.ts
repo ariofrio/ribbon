@@ -1,20 +1,20 @@
 export const WORKFLOW_STAGES = [
-  "Deferred",
   "Active",
   "BlockedOnUser",
   "BlockedOnOtherAgent",
   "BlockedOnThirdParty",
+  "Deferred",
   "Completed",
 ] as const;
 
 export type WorkflowStage = (typeof WORKFLOW_STAGES)[number];
 
 export const WORKFLOW_STAGE_LABELS: Record<WorkflowStage, string> = {
-  Deferred: "Deferred",
   Active: "In progress",
   BlockedOnUser: "Needs user",
   BlockedOnOtherAgent: "Dependent",
   BlockedOnThirdParty: "Blocked",
+  Deferred: "Deferred",
   Completed: "Completed",
 };
 
@@ -92,11 +92,11 @@ export function groupThreadsByStage<Thread extends SidebarThreadLike>(
     threads.map((thread, index) => [thread.id, index]),
   );
   const groups: Record<WorkflowStage, Thread[]> = {
-    Deferred: [],
     Active: [],
     BlockedOnUser: [],
     BlockedOnOtherAgent: [],
     BlockedOnThirdParty: [],
+    Deferred: [],
     Completed: [],
   };
 

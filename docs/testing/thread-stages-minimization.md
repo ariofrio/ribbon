@@ -81,6 +81,21 @@ coverage while reducing instructions, not a claim of improved reliability. Candi
 selection used these cases, so these are development regressions, not a held-out test
 or a production success-rate estimate. Model variability remains.
 
+## Integration with current main
+
+The matched comparison above was completed at `49a6486ec845d70d1fcc8d45e4b768428021e3f9`.
+Integrating upstream `0d396aca` preserves both evaluated instruction files byte for
+byte. The only conflict was the skill; its compact stage table already uses
+upstream's Active-first ordering. Upstream's UI changes and workflow-stage array
+order are retained, with unchanged stage IDs.
+
+Post-integration smoke selections are native cases `41 45 49 51 55 56 58` on both
+CLIs (runs 223/224), plus diagnostics `13 16 17 28 32 34` on both (225/226).
+They use the same runner commands below, adding `--cases` with those IDs and
+omitting `--ref`. Their results and exact source hashes accompany the private
+post-integration evidence and [PR validation status](https://github.com/ariofrio/ribbon/pull/211).
+They are targeted checks, not another full 58-case comparison after integration.
+
 ## Reproduction and evidence
 
 From repository root, the four native-suite commands were:
@@ -189,4 +204,4 @@ actual agent behavior supplies the instruction validation.
 - Final source hashes: skill `316d3ec51eb1ef0dc46a6b6f4f55a13178e77caf764ca200a6802ca2213c324d`;
   reminder source `4c2bcd386fa7c6170b97f9311664eb76355ddbc6ca58ae5c8d4a8526d8bfdf9d`.
 
-No production plugin installation/reload, merge or deployment is performed.
+No production plugin installation/reload, PR merge or deployment is performed.

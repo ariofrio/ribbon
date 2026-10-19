@@ -106,7 +106,7 @@ export function useRibbonRow(
   const actions = thread.archivedAt === null ? (record?.actions ?? []) : [];
   return {
     stage,
-    muted: stage !== "BlockedOnUser",
+    muted: stage !== "Active" && stage !== "BlockedOnUser",
     status,
     working: status.isAgentWorking,
     shines: status.isWorking && status.indicator !== "waiting-for-input",

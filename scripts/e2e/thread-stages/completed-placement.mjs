@@ -31,6 +31,10 @@ export async function verifyCompletedPlacement({ stack, fixture }) {
     assert.equal(await completed.count(), 5);
     await page.keyboard.press("Enter");
     await page.waitForURL(`**/threads/${revealed}`);
+    // Finish navigation's composer restoration before testing sidebar focus.
+    const composer = page.locator('[data-app-composer-role="primary"] [contenteditable="true"]').first();
+    await composer.click();
+    await page.waitForFunction((element) => document.activeElement === element, await composer.elementHandle());
     const fewer = group.getByRole("button", { name: "Show fewer completed", exact: true });
     await fewer.click();
     await group.getByRole("button", { name: "Show 4 more completed", exact: true }).waitFor();

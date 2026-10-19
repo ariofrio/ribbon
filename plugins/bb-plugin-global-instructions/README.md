@@ -3,6 +3,11 @@
 Edit the instructions bb gives agents across every project and connected machine,
 using plain text or rich Markdown, without a character limit.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-dark.png">
+  <img src="assets/screenshot-light.png" alt="Shared agent instructions in the rich Markdown editor">
+</picture>
+
 ## Install
 
 ```sh
